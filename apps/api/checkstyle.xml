@@ -25,6 +25,12 @@
         <property name="message" value="Line has trailing spaces."/>
     </module>
 
+    <!-- Line length — must be under Checker, not TreeWalker -->
+    <module name="LineLength">
+        <property name="max" value="120"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+    </module>
+
     <module name="TreeWalker">
 
         <!-- Naming conventions -->
@@ -44,12 +50,6 @@
         <module name="UnusedImports"/>
         <module name="RedundantImport"/>
         <module name="IllegalImport"/>
-
-        <!-- Line length -->
-        <module name="LineLength">
-            <property name="max" value="120"/>
-            <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
-        </module>
 
         <!-- Braces -->
         <module name="NeedBraces"/>

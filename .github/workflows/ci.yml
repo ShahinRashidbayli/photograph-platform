@@ -18,15 +18,13 @@ on:
 jobs:
 
   # ── 1. FORMAT ──────────────────────────────────────────────
-  # Fails fast: wrong indentation, trailing spaces, blank lines,
-  # or any style violation blocks everything else.
   format:
     name: Format check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Java: Checkstyle (indentation, naming, whitespace, imports)
+      # Java: Checkstyle
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -42,7 +40,7 @@ jobs:
         working-directory: apps/api
         run: mvn -B checkstyle:check
 
-      # TypeScript / TSX: Prettier (spacing, quotes, trailing commas)
+      # TypeScript / TSX: Prettier
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -50,20 +48,16 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
-          restore-keys: npm-web-
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
 
-      - name: Install web deps
-        working-directory: apps/web
+      - name: Install all workspace deps
         run: npm ci
 
       - name: Prettier (TypeScript / TSX)
-        working-directory: apps/web
-        run: npm run format:check
+        run: npm run format:check --workspace=apps/web
 
   # ── 2. LINT ────────────────────────────────────────────────
-  # Static analysis on top of formatting:
-  # unused variables, React rules, accessibility hints.
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -77,26 +71,19 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
-          restore-keys: npm-web-
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
 
-      - name: Install web deps
-        working-directory: apps/web
+      - name: Install all workspace deps
         run: npm ci
 
       - name: ESLint (TypeScript)
-        working-directory: apps/web
-        run: npm run lint
+        run: npm run lint --workspace=apps/web
 
   # ── 3. TEST — API ──────────────────────────────────────────
-  # JUnit tests run with H2 in-memory DB.
-  # No DB secrets needed; the "test" Spring profile handles it.
   test-api:
     name: Test API
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
 
@@ -112,15 +99,13 @@ jobs:
           restore-keys: maven-
 
       - name: Run JUnit tests
+        working-directory: apps/api
         run: mvn -B test
 
   # ── 4. TEST — WEB ──────────────────────────────────────────
   test-web:
     name: Test Web
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
 
@@ -131,17 +116,16 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
-          restore-keys: npm-web-
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
 
-      - name: Install web deps
+      - name: Install all workspace deps
         run: npm ci
 
       - name: Run Jest tests
-        run: npm test -- --passWithNoTests
+        run: npm run test --workspace=apps/web -- --passWithNoTests
 
   # ── 5. BUILD ───────────────────────────────────────────────
-  # Runs only when format, lint, and all tests pass.
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -167,17 +151,17 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
-          restore-keys: npm-web-
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
+
+      - name: Install all workspace deps
+        run: npm ci
 
       - name: Build API (Spring Boot JAR)
         working-directory: apps/api
         run: mvn -B package -DskipTests
 
       - name: Build Web (Next.js)
-        working-directory: apps/web
-        run: |
-          npm ci
-          npm run build
+        run: npm run build --workspace=apps/web
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}

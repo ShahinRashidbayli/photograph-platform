@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Sql(scripts = "/db/cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class AuthControllerIT extends IntegrationTestBase {
 
+    // Test-only credential — not a real secret. pragma: allowlist secret
+    private static final String TEST_PASSWORD = "password123";
+
     @Autowired
     private TestRestTemplate rest;
 
@@ -33,14 +36,14 @@ class AuthControllerIT extends IntegrationTestBase {
     @Test
     void registerLoginMeRefreshFlow() {
         // Register
-        RegisterRequest reg = new RegisterRequest("Anna Foto", "anna@test.com", "password123", "anna-foto");
+        RegisterRequest reg = new RegisterRequest("Anna Foto", "anna@test.com", TEST_PASSWORD, "anna-foto");
         ResponseEntity<AuthResponse> regResp = rest.postForEntity("/api/auth/register", reg, AuthResponse.class);
         assertThat(regResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(regResp.getBody()).isNotNull();
         assertThat(regResp.getBody().tenant().subdomain()).isEqualTo("anna-foto");
 
         // Login
-        LoginRequest login = new LoginRequest("anna@test.com", "password123");
+        LoginRequest login = new LoginRequest("anna@test.com", TEST_PASSWORD);
         ResponseEntity<AuthResponse> loginResp = rest.postForEntity("/api/auth/login", login, AuthResponse.class);
         assertThat(loginResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         String accessToken = loginResp.getBody().accessToken();
@@ -63,20 +66,17 @@ class AuthControllerIT extends IntegrationTestBase {
 
     @Test
     void logoutInvalidatesRefreshToken() {
-        // Register + login
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Bob", "bob@test.com", "password123", "bob-foto"), AuthResponse.class);
+            new RegisterRequest("Bob", "bob@test.com", TEST_PASSWORD, "bob-foto"), AuthResponse.class);
         AuthResponse login = rest.postForEntity("/api/auth/login",
-            new LoginRequest("bob@test.com", "password123"), AuthResponse.class).getBody();
+            new LoginRequest("bob@test.com", TEST_PASSWORD), AuthResponse.class).getBody();
 
-        // Logout
         ResponseEntity<Void> logoutResp = rest.exchange(
             "/api/auth/logout", HttpMethod.POST,
             new HttpEntity<>(bearerHeaders(login.accessToken())), Void.class
         );
         assertThat(logoutResp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // Refresh with old token must now fail
         ResponseEntity<String> refreshResp = rest.postForEntity(
             "/api/auth/refresh", new RefreshRequest(login.refreshToken()), String.class
         );
@@ -86,10 +86,10 @@ class AuthControllerIT extends IntegrationTestBase {
     @Test
     void duplicateSubdomainReturns409() {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("User One", "one@test.com", "password123", "my-studio"), AuthResponse.class);
+            new RegisterRequest("User One", "one@test.com", TEST_PASSWORD, "my-studio"), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
-            new RegisterRequest("User Two", "two@test.com", "password123", "my-studio"), String.class);
+            new RegisterRequest("User Two", "two@test.com", TEST_PASSWORD, "my-studio"), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -102,7 +102,7 @@ class AuthControllerIT extends IntegrationTestBase {
     @Test
     void wrongPasswordReturns401() {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Carol", "carol@test.com", "password123", "carol-foto"), AuthResponse.class);
+            new RegisterRequest("Carol", "carol@test.com", TEST_PASSWORD, "carol-foto"), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/login",
             new LoginRequest("carol@test.com", "wrongpassword"), String.class);

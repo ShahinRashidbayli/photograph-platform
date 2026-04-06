@@ -21,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Sql(scripts = "/db/cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class TenantIsolationIT extends IntegrationTestBase {
 
+    // Test-only credential — not a real secret. pragma: allowlist secret
+    private static final String TEST_PASSWORD = "password123";
+
     @Autowired
     private TestRestTemplate rest;
 
@@ -39,15 +42,15 @@ class TenantIsolationIT extends IntegrationTestBase {
     void jwtScopedToItsOwnTenant() {
         // Register two tenants
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Alice", "alice@a.com", "password123", "tenant-a"), AuthResponse.class);
+            new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a"), AuthResponse.class);
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Bob", "bob@b.com", "password123", "tenant-b"), AuthResponse.class);
+            new RegisterRequest("Bob", "bob@b.com", TEST_PASSWORD, "tenant-b"), AuthResponse.class);
 
         // Login as each
         AuthResponse loginA = rest.postForEntity("/api/auth/login",
-            new LoginRequest("alice@a.com", "password123"), AuthResponse.class).getBody();
+            new LoginRequest("alice@a.com", TEST_PASSWORD), AuthResponse.class).getBody();
         AuthResponse loginB = rest.postForEntity("/api/auth/login",
-            new LoginRequest("bob@b.com", "password123"), AuthResponse.class).getBody();
+            new LoginRequest("bob@b.com", TEST_PASSWORD), AuthResponse.class).getBody();
 
         // Token A → /me returns only Tenant A data
         MeResponse meA = rest.exchange(

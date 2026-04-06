@@ -17,7 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     "spring.autoconfigure.exclude=" +
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration," +
         "org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration",
-    "app.jwt.secret=dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=",
+    // jwt + cors values come from test/resources/application.yml
     "app.jwt.access-token-expiry-ms=86400000",
     "app.jwt.refresh-token-expiry-ms=2592000000",
     "app.cors.allowed-origins=http://localhost:3000"

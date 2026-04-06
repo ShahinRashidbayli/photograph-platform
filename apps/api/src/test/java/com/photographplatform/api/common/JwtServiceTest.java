@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JwtServiceTest {
 
     private static final String SECRET =
-        "dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=";
+        "dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM="; // pragma: allowlist secret
 
     private final JwtService jwtService = new JwtService(SECRET, 86400000L);
 

@@ -1,22 +1,22 @@
-import { create } from 'zustand'
+import { create } from 'zustand';
 
 export interface AuthUser {
-  id: string
-  email: string
-  fullName: string
-  role: string
-  tenant: { subdomain: string; plan: string }
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  tenant: { subdomain: string; plan: string };
 }
 
 interface AuthState {
-  user: AuthUser | null
-  setUser: (user: AuthUser) => void
+  user: AuthUser | null;
+  setUser: (user: AuthUser) => void;
   /** Clears client-side state only — does NOT call the logout API. */
-  clearUser: () => void
+  clearUser: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   setUser: (user) => set({ user }),
   clearUser: () => set({ user: null }),
-}))
+}));

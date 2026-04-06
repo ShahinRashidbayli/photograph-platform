@@ -1,33 +1,33 @@
-'use client'
+'use client';
 
-import api from '@/lib/api'
-import { AuthUser, useAuthStore } from '@/store/authStore'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap'
+import api from '@/lib/api';
+import { AuthUser, useAuthStore } from '@/store/authStore';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
 
 export default function LoginPage() {
-  const router = useRouter()
-  const setUser = useAuthStore((s) => s.setUser)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const setUser = useAuthStore((s) => s.setUser);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      await api.post('/api/auth/login', { email, password })
-      const { data: me } = await api.get<AuthUser>('/api/auth/me')
-      setUser(me)
-      router.push('/dashboard')
+      await api.post('/api/auth/login', { email, password });
+      const { data: me } = await api.get<AuthUser>('/api/auth/me');
+      setUser(me);
+      router.push('/dashboard');
     } catch {
-      setError('Invalid email or password')
+      setError('Invalid email or password');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -43,7 +43,11 @@ export default function LoginPage() {
           <Card.Body className="p-4">
             <h5 className="mb-4 fw-semibold">Welcome back</h5>
 
-            {error && <Alert variant="danger" className="py-2">{error}</Alert>}
+            {error && (
+              <Alert variant="danger" className="py-2">
+                {error}
+              </Alert>
+            )}
 
             <Form onSubmit={handleSubmit}>
               <Form.Group className="mb-3">
@@ -86,5 +90,5 @@ export default function LoginPage() {
         </p>
       </Container>
     </div>
-  )
+  );
 }

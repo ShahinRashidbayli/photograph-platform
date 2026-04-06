@@ -8,6 +8,13 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    url: ${FLYWAY_URL}
+    user: ${FLYWAY_USER}
+    password: ${DB_PASSWORD}
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
   jpa:
     hibernate:
       ddl-auto: validate

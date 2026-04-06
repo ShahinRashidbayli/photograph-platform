@@ -84,6 +84,9 @@ public class AuthController {
 
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal String userId) {
+        if (userId == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
         return authService.me(UUID.fromString(userId));
     }
 

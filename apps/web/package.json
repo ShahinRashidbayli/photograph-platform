@@ -1,0 +1,36 @@
+{
+  "name": "@photograph-platform/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "format:check": "prettier --check --no-error-on-unmatched-pattern \"src/**/*.{ts,tsx,css,json}\"",
+    "format:write": "prettier --write --no-error-on-unmatched-pattern \"src/**/*.{ts,tsx,css,json}\"",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@photograph-platform/shared": "*",
+    "axios": "^1.7.2",
+    "bootstrap": "^5.3.8",
+    "next": "15.5.14",
+    "react": "^19.0.0",
+    "react-bootstrap": "^2.10.10",
+    "react-dom": "^19.0.0",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "15.5.14",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.3"
+  }
+}

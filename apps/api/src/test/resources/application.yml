@@ -1,0 +1,25 @@
+spring:
+  flyway:
+    url:
+    user:
+    password:
+    locations: classpath:db/migration
+    schemas: public
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6370  # overridden by EmbeddedRedis in tests
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
+  jwt:
+    secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=  # pragma: allowlist secret
+    access-token-expiry-ms: 86400000
+    refresh-token-expiry-ms: 2592000000

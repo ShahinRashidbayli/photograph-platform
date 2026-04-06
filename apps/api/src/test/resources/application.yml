@@ -1,16 +1,23 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
+  flyway:
+    url:
+    user:
     password:
-    driver-class-name: org.h2.Driver
+    locations: classpath:db/migration
+    schemas: public
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    database-platform: org.hibernate.dialect.H2Dialect
+      ddl-auto: validate
     open-in-view: false
 
-  h2:
-    console:
-      enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6370  # overridden by EmbeddedRedis in tests
+
+app:
+  jwt:
+    secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
+    access-token-expiry-ms: 86400000
+    refresh-token-expiry-ms: 2592000000

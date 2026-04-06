@@ -6,14 +6,14 @@ on:
   push:
     branches: [main]
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Job dependency graph:
 #
 #   format ──┐
 #   lint   ──┤──► build
 #   test-api─┤
 #   test-web─┘
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
 
@@ -46,12 +46,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Prettier (TypeScript / TSX)
@@ -69,12 +70,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: ESLint (TypeScript)
@@ -114,12 +116,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Run Jest tests
@@ -149,12 +152,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Build API (Spring Boot JAR)
@@ -164,4 +168,4 @@ jobs:
       - name: Build Web (Next.js)
         run: npm run build --workspace=apps/web
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}

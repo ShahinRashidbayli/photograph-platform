@@ -10,7 +10,7 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
-  setUser: (user: AuthUser) => void;
+  setUser: (_user: AuthUser) => void;
   /** Clears client-side state only — does NOT call the logout API. */
   clearUser: () => void;
 }

@@ -17,6 +17,8 @@ spring:
       port: 6370  # overridden by EmbeddedRedis in tests
 
 app:
+  cors:
+    allowed-origins: http://localhost:3000
   jwt:
     secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
     access-token-expiry-ms: 86400000

@@ -26,11 +26,8 @@ jobs:
           key: maven-${{ hashFiles('apps/api/pom.xml') }}
           restore-keys: maven-
 
+      # Tests use the "test" Spring profile which auto-configures H2 — no DB secrets needed.
       - run: mvn -B test
-        env:
-          DB_URL: ${{ secrets.DB_URL }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
   test-web:
     runs-on: ubuntu-latest
@@ -44,14 +41,16 @@ jobs:
         with:
           node-version: '20'
 
+      # Cache the npm global cache, not node_modules.
+      # npm ci deletes node_modules before reinstalling, so caching it is wasteful.
       - uses: actions/cache@v4
         with:
-          path: apps/web/node_modules
+          path: ~/.npm
           key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
           restore-keys: npm-web-
 
       - run: npm ci
-      - run: npm test -- --ci --passWithNoTests
+      - run: npm test -- --passWithNoTests
 
   lint:
     runs-on: ubuntu-latest
@@ -75,7 +74,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: apps/web/node_modules
+          path: ~/.npm
           key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
           restore-keys: npm-web-
 
@@ -83,11 +82,13 @@ jobs:
         working-directory: apps/api
         run: mvn -B checkstyle:check
 
+      - name: Install web deps
+        working-directory: apps/web
+        run: npm ci
+
       - name: ESLint
         working-directory: apps/web
-        run: |
-          npm ci
-          npm run lint
+        run: npm run lint
 
   build:
     runs-on: ubuntu-latest
@@ -112,7 +113,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: apps/web/node_modules
+          path: ~/.npm
           key: npm-web-${{ hashFiles('apps/web/package-lock.json') }}
           restore-keys: npm-web-
 

@@ -1,11 +1,49 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { DashboardData, Lead, Booking } from '@/types/api';
-import { useEffect, useState } from 'react';
-import { Spinner } from 'react-bootstrap';
-import { format, parseISO } from 'date-fns';
+import { styles } from './dashboard.styles';
 
-const mockDashboardData: DashboardData = {
+type Score = 'HIGH' | 'MED' | 'LOW';
+type HistoryItem = { month: string; amount: number };
+type MetricItem = {
+  label: string;
+  value: string;
+  sub: string;
+  dotColor: string;
+  subColor: string;
+};
+
+const INIT_COLORS: Record<number, { bg: string; color: string }> = {
+  0: { bg: '#DBEAFE', color: '#1E40AF' },
+  1: { bg: '#D1FAE5', color: '#065F46' },
+  2: { bg: '#FEF3C7', color: '#92400E' },
+  3: { bg: '#EDE9FE', color: '#5B21B6' },
+  4: { bg: '#F3F4F6', color: '#374151' },
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  WEDDING: 'Wedding', PORTRAIT: 'Portrait', ENGAGEMENT: 'Engagement',
+  FAMILY: 'Family', NEWBORN: 'Newborn', CORPORATE: 'Corporate',
+};
+
+const BUDGET_LABELS: Record<string, string> = {
+  UNDER_200: 'under €200', '200_500': '€200–499',
+  '500_1000': '€500+', OVER_1000: '€1,000+',
+};
+
+const SCORE_CONFIG: Record<Score, { dot: string; text: string; label: string }> = {
+  HIGH: { dot: '#16A34A', text: '#15803D', label: 'High' },
+  MED:  { dot: '#D97706', text: '#B45309', label: 'Medium' },
+  LOW:  { dot: '#DC2626', text: '#B91C1C', label: 'Low' },
+};
+
+const BADGE_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
+  DEPOSIT:   { bg: '#DCFCE7', color: '#15803D', label: 'Deposit' },
+  CONFIRMED: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Confirmed' },
+};
+
+const MOCK: DashboardData = {
   overview: {
     revenueApr: 2840,
     revenueMarChange: 18,
@@ -16,23 +54,23 @@ const mockDashboardData: DashboardData = {
     expiredGalleriesCount: 1,
   },
   leads: [
-    { id: '1', name: 'Maria & Klaus', email: 'maria@example.com', eventDate: '2026-06-14', eventType: 'WEDDING', budgetRange: '500_1000', score: 'HIGH', status: 'NEW', createdAt: '2026-04-15' },
-    { id: '2', name: 'Sophie Richter', email: 'sophie@example.com', eventDate: '2026-05-02', eventType: 'PORTRAIT', budgetRange: '200_500', score: 'MED', status: 'NEW', createdAt: '2026-04-10' },
-    { id: '3', name: 'Laura & Ben', email: 'laura@example.com', eventDate: '2026-07-20', eventType: 'ENGAGEMENT', budgetRange: '500_1000', score: 'HIGH', status: 'NEW', createdAt: '2026-04-09' },
+    { id: '1', name: 'Maria & Klaus',  email: 'maria@example.com',  eventDate: '2026-06-14', eventType: 'WEDDING',     budgetRange: '500_1000',  score: 'HIGH', status: 'NEW', createdAt: '2026-04-15' },
+    { id: '2', name: 'Sophie Richter', email: 'sophie@example.com', eventDate: '2026-05-02', eventType: 'PORTRAIT',    budgetRange: '200_500',   score: 'MED',  status: 'NEW', createdAt: '2026-04-10' },
+    { id: '3', name: 'Thomas Müller',  email: 'thomas@example.com', eventDate: '2026-04-25', eventType: 'FAMILY',      budgetRange: 'UNDER_200', score: 'LOW',  status: 'NEW', createdAt: '2026-04-09' },
+    { id: '4', name: 'Laura & Ben',    email: 'laura@example.com',  eventDate: '2026-07-20', eventType: 'ENGAGEMENT',  budgetRange: '500_1000',  score: 'HIGH', status: 'NEW', createdAt: '2026-04-08' },
+    { id: '5', name: 'Nina Kraft',     email: 'nina@example.com',   eventDate: '2026-04-30', eventType: 'FAMILY',      budgetRange: 'UNDER_200', score: 'LOW',  status: 'NEW', createdAt: '2026-04-07' },
   ],
   bookings: [
-    { id: 'b1', clientName: 'Yilmaz & Chen', clientEmail: 'yilmaz@example.com', eventDate: '2026-04-22', packageId: 'pkg-wedding', depositAmount: 300, totalAmount: 1200, depositPercent: 25, status: 'DEPOSIT', createdAt: '2026-04-01' },
-    { id: 'b2', clientName: 'Braun family', clientEmail: 'braun@example.com', eventDate: '2026-04-26', packageId: 'pkg-family', depositAmount: 150, totalAmount: 450, depositPercent: 33, status: 'CONFIRMED', createdAt: '2026-03-15' },
-    { id: 'b3', clientName: 'Stefan & Eva', clientEmail: 'stefan@example.com', eventDate: '2026-05-03', packageId: 'pkg-wedding', depositAmount: 450, totalAmount: 1800, depositPercent: 25, status: 'DEPOSIT', createdAt: '2026-02-20' },
+    { id: 'b1', clientName: 'Yilmaz & Chen',       clientEmail: 'yilmaz@example.com',  eventDate: '2026-04-22', packageId: 'pkg-wedding',   depositAmount: 300, totalAmount: 1200, depositPercent: 25,  status: 'DEPOSIT',   createdAt: '2026-04-01' },
+    { id: 'b2', clientName: 'Braun family',         clientEmail: 'braun@example.com',   eventDate: '2026-04-26', packageId: 'pkg-family',    depositAmount: 150, totalAmount: 450,  depositPercent: 33,  status: 'CONFIRMED', createdAt: '2026-03-15' },
+    { id: 'b3', clientName: 'Stefan & Eva',         clientEmail: 'stefan@example.com',  eventDate: '2026-05-03', packageId: 'pkg-wedding',   depositAmount: 450, totalAmount: 1800, depositPercent: 25,  status: 'DEPOSIT',   createdAt: '2026-02-20' },
+    { id: 'b4', clientName: 'Portrait — J. Lange',  clientEmail: 'jlange@example.com',  eventDate: '2026-05-10', packageId: 'pkg-portrait',  depositAmount: 0,   totalAmount: 320,  depositPercent: 0,   status: 'DEPOSIT',   createdAt: '2026-04-10' },
+    { id: 'b5', clientName: 'Corp. event — Siemens',clientEmail: 'siemens@example.com', eventDate: '2026-05-17', packageId: 'pkg-corporate', depositAmount: 950, totalAmount: 950,  depositPercent: 100, status: 'CONFIRMED', createdAt: '2026-03-20' },
   ],
-  galleries: [
-    { id: 'g1', clientName: 'Müller', eventType: 'WEDDING', photoCount: 250, isPublished: true, expiresAt: '2026-05-15', createdAt: '2026-04-15' },
-    { id: 'g2', clientName: 'Schmidt', eventType: 'PORTRAIT', photoCount: 45, isPublished: true, expiresAt: '2026-04-25', createdAt: '2026-04-15' },
-    { id: 'g3', clientName: 'Weber', eventType: 'FAMILY', photoCount: 120, isPublished: false, expiresAt: '2026-06-01', createdAt: '2026-04-01' },
-  ],
+  galleries: [],
   revenueHistory: [
-    { month: 'Nov', amount: 980 },
-    { month: 'Dec', amount: 640 },
+    { month: 'Nov', amount: 980  },
+    { month: 'Dec', amount: 640  },
     { month: 'Jan', amount: 1100 },
     { month: 'Feb', amount: 1450 },
     { month: 'Mar', amount: 2410 },
@@ -40,88 +78,128 @@ const mockDashboardData: DashboardData = {
   ],
 };
 
-const LEAD_SCORE_STYLE: Record<string, { background: string; color: string }> = {
-  HIGH: { background: '#FEF2F2', color: '#991b1b' },
-  MED:  { background: '#FFFBEB', color: '#92400e' },
-  LOW:  { background: '#F0FDF4', color: '#166534' },
-};
-
-const BOOKING_STATUS_STYLE: Record<string, { background: string; color: string }> = {
-  DEPOSIT:   { background: '#FFFBEB', color: '#92400e' },
-  CONFIRMED: { background: '#F0FDF4', color: '#166534' },
-};
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/[\s&]+/).filter(Boolean);
-  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
+function getInitials(name: string): string {
+  return name
+    .trim()
+    .split(/[\s&—]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
-function eventTypeLabel(et: string) {
-  const map: Record<string, string> = { WEDDING: 'Wedding', PORTRAIT: 'Portrait', ENGAGEMENT: 'Engagement', FAMILY: 'Family' };
-  return map[et] ?? et;
+function formatEventDate(iso: string): { top: string; bottom: string } {
+  const d = new Date(iso);
+  return {
+    top: d.toLocaleString('en-US', { month: 'short' }),
+    bottom: String(d.getDate()),
+  };
 }
 
-const INIT_COLORS = [
-  { bg: '#E6F1FB', color: '#0C447C' },
-  { bg: '#E1F5EE', color: '#085041' },
-  { bg: '#EEEDFE', color: '#3C3489' },
-  { bg: '#FAEEDA', color: '#633806' },
-];
+function formatCurrency(n: number): string {
+  return '€' + n.toLocaleString('de-DE');
+}
 
-const s = {
-  card: {
-    background: 'var(--color-background-primary)',
-    border: '1px solid var(--color-border-secondary)',
-    borderRadius: 'var(--border-radius-lg)',
-    padding: '16px',
-    boxShadow: 'var(--shadow-sm)',
-  } as React.CSSProperties,
-  cardTitle: {
-    fontSize: 10,
-    fontWeight: 600,
-    color: 'var(--color-text-tertiary)',
-    marginBottom: 12,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.08em',
-  } as React.CSSProperties,
-  row: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: '0.5px solid var(--color-border-tertiary)', margin: '0 -6px' } as React.CSSProperties,
-  rowLast: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', margin: '0 -6px' } as React.CSSProperties,
-  name: { fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 } as React.CSSProperties,
-  sub: { fontSize: 11, color: 'var(--color-text-tertiary)', margin: 0 } as React.CSSProperties,
-  badge: { fontSize: 10, padding: '3px 8px', borderRadius: 20, fontWeight: 600, flexShrink: 0, letterSpacing: '0.03em' } as React.CSSProperties,
-  amt: { fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', marginLeft: 'auto', flexShrink: 0 } as React.CSSProperties,
-};
+function bookingSubtitle(b: Booking): string {
+  if (b.status === 'CONFIRMED') return 'Fully confirmed';
+  if (b.status === 'DEPOSIT' && b.depositAmount > 0) return `${formatCurrency(b.depositAmount)} deposit paid`;
+  return 'Awaiting confirmation';
+}
+
+function getRowStyle(isLast: boolean): React.CSSProperties {
+  return isLast ? { ...styles.row, ...styles.rowLast } : styles.row;
+}
+
+interface MetricCardProps {
+  label: string;
+  value: string;
+  sub: string;
+  dotColor: string;
+  subColor: string;
+}
+
+function MetricCard({ label, value, sub, dotColor, subColor }: Readonly<MetricCardProps>) {
+  return (
+    <div style={styles.metricCard}>
+      <div style={styles.metricLabel}>{label}</div>
+      <div style={styles.metricValue}>{value}</div>
+      <div style={{ ...styles.metricSub, color: subColor }}>
+        <div style={{ ...styles.metricDot, background: dotColor }} />
+        {sub}
+      </div>
+    </div>
+  );
+}
 
 function LeadRow({ lead, index, isLast }: Readonly<{ lead: Lead; index: number; isLast: boolean }>) {
-  const ic = INIT_COLORS[index % INIT_COLORS.length];
-  const sc = LEAD_SCORE_STYLE[lead.score] ?? LEAD_SCORE_STYLE.LOW;
+  const ic = INIT_COLORS[index % 5];
+  const sc = SCORE_CONFIG[lead.score as Score];
+  const date = new Date(lead.eventDate).toLocaleString('en-US', { month: 'short', day: 'numeric' });
   return (
-    <div className="list-row" style={isLast ? s.rowLast : s.row}>
-      <div style={{ width: 30, height: 30, borderRadius: '50%', background: ic.bg, color: ic.color, border: `1px solid ${ic.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0, letterSpacing: '0.02em' }}>
+    <div style={getRowStyle(isLast)} data-row>
+      <div style={{ ...styles.initials, background: ic.bg, color: ic.color }}>
         {getInitials(lead.name)}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={s.name}>{lead.name}</p>
-        <p style={s.sub}>{eventTypeLabel(lead.eventType)} · {format(parseISO(lead.eventDate), 'MMM d')}</p>
+      <div style={styles.rowInfo}>
+        <div style={styles.rowName}>{lead.name}</div>
+        <div style={styles.rowMeta}>
+          {EVENT_LABELS[lead.eventType]} · {date} · {BUDGET_LABELS[lead.budgetRange]}
+        </div>
       </div>
-      <span style={{ ...s.badge, ...sc }}>{lead.score}</span>
+      <div style={styles.statusBadgeWrap}>
+        <div style={{ ...styles.statusDot, background: sc.dot }} />
+        <span style={{ ...styles.statusLabel, color: sc.text }}>{sc.label}</span>
+      </div>
     </div>
   );
 }
 
 function BookingRow({ booking, isLast }: Readonly<{ booking: Booking; isLast: boolean }>) {
-  const sc = BOOKING_STATUS_STYLE[booking.status] ?? BOOKING_STATUS_STYLE.CONFIRMED;
+  const { top, bottom } = formatEventDate(booking.eventDate);
+  const bc = BADGE_CONFIG[booking.status === 'CONFIRMED' ? 'CONFIRMED' : 'DEPOSIT'];
   return (
-    <div className="list-row" style={isLast ? s.rowLast : s.row}>
-      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', width: 44, flexShrink: 0 }}>
-        {format(parseISO(booking.eventDate), 'MMM d')}
+    <div style={getRowStyle(isLast)} data-row>
+      <div style={styles.bookingDate}>
+        <span>{top}</span>
+        <span style={styles.bookingDateValue}>{bottom}</span>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={s.name}>{booking.clientName}</p>
-        <p style={s.sub}>{booking.status === 'DEPOSIT' ? `€${booking.depositAmount} deposit paid` : 'Fully confirmed'}</p>
+      <div style={styles.rowInfo}>
+        <div style={styles.rowName}>{booking.clientName}</div>
+        <div style={styles.rowMeta}>{bookingSubtitle(booking)}</div>
       </div>
-      <span style={{ ...s.badge, ...sc }}>{booking.status === 'DEPOSIT' ? 'Deposit' : 'Confirmed'}</span>
-      <span style={s.amt}>€{booking.totalAmount.toLocaleString()}</span>
+      <div style={{ ...styles.badge, background: bc.bg, color: bc.color }}>{bc.label}</div>
+      <div style={styles.bookingAmount}>{formatCurrency(booking.totalAmount)}</div>
+    </div>
+  );
+}
+
+function RevenueChart({ history }: Readonly<{ history: HistoryItem[] }>) {
+  const max = Math.max(...history.map((h) => h.amount));
+  return (
+    <div style={styles.chartCard}>
+      <div style={styles.cardHeader}>
+        <span style={styles.cardTitle}>Revenue — last 6 months</span>
+        <span style={styles.chartInfo}>April is running total</span>
+      </div>
+      {history.map((item, i) => {
+        const pct = Math.round((item.amount / max) * 100);
+        const isCurrent = i === history.length - 1;
+        return (
+          <div key={item.month} style={styles.barRow}>
+            <span style={styles.barLabel}>{item.month}</span>
+            <div style={styles.barTrack}>
+              <div style={{
+                ...styles.barFill,
+                width: `${pct}%`,
+                background: isCurrent ? '#93C5FD' : '#BFDBFE',
+              }} />
+            </div>
+            <span style={styles.barValue}>
+              €{(item.amount / 1000).toFixed(1)}k
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -131,98 +209,139 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setData(mockDashboardData);
+    setData(MOCK);
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      [data-row]:hover {
+        background: #F9FAFB !important;
+      }
+      [data-action]:hover {
+        color: #1D4ED8 !important;
+        text-decoration: underline;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      style.remove();
+    };
+  }, []);
+
+  const today = useMemo(
+    () =>
+      new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+    [],
+  );
+
+  const metrics = useMemo<MetricItem[]>(
+    () => {
+      if (!data) {
+        return [];
+      }
+
+      const { overview } = data;
+      return [
+        {
+          label: 'Revenue (April)',
+          value: formatCurrency(overview.revenueApr),
+          sub: `+${overview.revenueMarChange}% vs March`,
+          dotColor: '#16A34A',
+          subColor: '#15803D',
+        },
+        {
+          label: 'Active bookings',
+          value: String(overview.activeBookingsCount),
+          sub: '3 this week',
+          dotColor: '#9CA3AF',
+          subColor: '#9CA3AF',
+        },
+        {
+          label: 'New leads',
+          value: String(overview.newLeadsCount),
+          sub: `${overview.leadsNeedingReply} awaiting reply`,
+          dotColor: '#DC2626',
+          subColor: '#DC2626',
+        },
+        {
+          label: 'Open galleries',
+          value: String(overview.openGalleriesCount),
+          sub: `${overview.expiredGalleriesCount} expiring soon`,
+          dotColor: '#DC2626',
+          subColor: '#DC2626',
+        },
+      ];
+    },
+    [data],
+  );
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-        <Spinner animation="border" />
+      <div style={styles.loadingWrapper}>
+        <div style={styles.loadingLabel}>Loading…</div>
       </div>
     );
   }
 
   if (!data) return null;
 
-  const { overview, leads, bookings, revenueHistory } = data;
-  const maxRevenue = Math.max(...revenueHistory.map((h) => h.amount));
+  const { leads, bookings, revenueHistory } = data;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <style>{`
-        .list-row { border-radius: 6px; transition: background 0.1s; }
-        .list-row:hover { background: var(--color-background-secondary); }
-        .bar-fill { transition: width 0.5s ease; }
-      `}</style>
-      {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid var(--color-border-tertiary)', flexShrink: 0, background: 'var(--color-background-primary)' }}>
+    <div style={styles.main}>
+      {/* Topbar */}
+      <header style={styles.topbar}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>Overview</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 1 }}>{format(new Date(), 'EEEE, MMMM d, yyyy')}</div>
+          <h1 style={styles.pageTitle}>Overview</h1>
+          <p style={styles.pageDate}>{today}</p>
         </div>
-        <button style={{ padding: '8px 16px', borderRadius: 'var(--border-radius-md)', border: 'none', background: '#185FA5', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 3px rgba(24,95,165,0.35)', letterSpacing: '0.01em' }}>
-          + New booking
-        </button>
-      </div>
+        <button style={styles.btnNew}>+ New booking</button>
+      </header>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Scrollable body */}
+      <div style={styles.body}>
 
-        {/* KPI metrics */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-          {/* Primary KPI — Revenue */}
-          <div style={{ background: 'var(--color-background-primary)', border: '1px solid #C4DCEF', borderRadius: 'var(--border-radius-md)', padding: '16px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Revenue (Apr)</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#185FA5', lineHeight: 1, letterSpacing: '-0.02em' }}>€{overview.revenueApr.toLocaleString()}</div>
-            <div style={{ fontSize: 11, marginTop: 6, color: 'var(--color-text-success)', fontWeight: 600 }}>↑ {overview.revenueMarChange}% vs March</div>
-          </div>
-          {/* Secondary KPIs */}
-          {[
-            { label: 'Active bookings', value: String(overview.activeBookingsCount), sub: '3 this week', subColor: 'var(--color-text-success)' },
-            { label: 'New leads', value: String(overview.newLeadsCount), sub: `${overview.leadsNeedingReply} need reply`, subColor: 'var(--color-text-danger)' },
-            { label: 'Open galleries', value: String(overview.openGalleriesCount), sub: `${overview.expiredGalleriesCount} expiring`, subColor: 'var(--color-text-danger)' },
-          ].map((m) => (
-            <div key={m.label} style={{ background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)', padding: '16px' }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{m.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-secondary)', letterSpacing: '-0.01em' }}>{m.value}</div>
-              <div style={{ fontSize: 11, marginTop: 6, color: m.subColor, fontWeight: 500 }}>{m.sub}</div>
+        {/* Metrics */}
+        <div style={styles.metricsGrid}>
+          {metrics.map((m) => <MetricCard key={m.label} {...m} />)}
+        </div>
+
+        {/* Two-column: Leads + Bookings */}
+        <div style={styles.twoCol}>
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>New leads</span>
+              <span style={styles.cardAction} data-action>View all</span>
             </div>
-          ))}
-        </div>
-
-        {/* Leads + Bookings */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={s.card}>
-            <div style={s.cardTitle}>New leads</div>
-            {leads.map((lead, i) => (
-              <LeadRow key={lead.id} lead={lead} index={i} isLast={i === leads.length - 1} />
-            ))}
+            <div style={styles.cardList}>
+              {leads.map((lead, i) => (
+                <LeadRow key={lead.id} lead={lead} index={i} isLast={i === leads.length - 1} />
+              ))}
+            </div>
           </div>
-          <div style={s.card}>
-            <div style={s.cardTitle}>Upcoming bookings</div>
-            {bookings.map((booking, i) => (
-              <BookingRow key={booking.id} booking={booking} isLast={i === bookings.length - 1} />
-            ))}
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Upcoming bookings</span>
+              <span style={styles.cardAction} data-action>Calendar</span>
+            </div>
+            <div style={styles.cardList}>
+              {bookings.map((b, i) => (
+                <BookingRow key={b.id} booking={b} isLast={i === bookings.length - 1} />
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Revenue chart */}
-        <div style={s.card}>
-          <div style={s.cardTitle}>Revenue — last 6 months</div>
-          {revenueHistory.map((item, idx) => (
-            <div key={item.month} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: idx === revenueHistory.length - 1 ? 0 : 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', width: 28, textAlign: 'right', flexShrink: 0 }}>{item.month}</span>
-              <div style={{ flex: 1, height: 20, borderRadius: 4, background: 'var(--color-background-secondary)', overflow: 'hidden' }}>
-                <div
-                  className="bar-fill"
-                  style={{ height: '100%', borderRadius: 4, background: 'linear-gradient(90deg, #7AB8F0 0%, #185FA5 100%)', width: `${Math.round((item.amount / maxRevenue) * 100)}%` }}
-                />
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#0C447C', width: 48, textAlign: 'right', flexShrink: 0 }}>€{item.amount >= 1000 ? `${(item.amount / 1000).toFixed(1)}k` : item.amount}</span>
-            </div>
-          ))}
-        </div>
+        <RevenueChart history={revenueHistory} />
 
       </div>
     </div>

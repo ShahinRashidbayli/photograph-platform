@@ -67,24 +67,24 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   }
 
   return (
-    <div style={{ height: '100vh', background: 'var(--color-background-secondary)', display: 'flex', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
+    <div style={{ height: '100vh', background: 'var(--color-background-secondary)', display: 'flex', justifyContent: 'stretch', fontFamily: 'var(--font-sans)' }}>
     <style>{`
       .sidebar-link { transition: background 0.12s, color 0.12s; }
       .sidebar-link:hover { background: var(--color-background-hover) !important; color: var(--color-text-primary) !important; }
       .sidebar-link:hover .sidebar-icon { opacity: 0.85 !important; }
       .sidebar-link-active { border-left: 2px solid #185FA5; }
     `}</style>
-    <div style={{ display: 'flex', width: '100%', maxWidth: 1440, height: '100vh', overflow: 'hidden', boxShadow: 'var(--shadow-md)', background: 'var(--color-background-primary)' }}>
+    <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden', boxShadow: 'var(--shadow-md)', background: 'var(--color-background-primary)' }}>
       {/* Sidebar */}
       <aside style={{ width: 192, flexShrink: 0, borderRight: '1px solid var(--color-border-tertiary)', background: 'var(--color-background-secondary)', display: 'flex', flexDirection: 'column', paddingTop: 16 }}>
         {/* Brand */}
         <div style={{ padding: '0 16px 14px', borderBottom: '1px solid var(--color-border-tertiary)', marginBottom: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>FotoPlattform</div>
-          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>{user?.tenant?.subdomain ?? ''}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>FotoPlattform</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>{user?.tenant?.subdomain ?? ''}</div>
         </div>
 
         {/* Main nav */}
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', padding: '8px 16px 4px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Main</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', padding: '8px 16px 4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Main</div>
         {NAV_ITEMS.map((item) => {
           const isActive = item.label === 'Overview';
           return (
@@ -93,12 +93,12 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
               href={item.href}
               className={`sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: isActive ? '8px 16px 8px 14px' : '8px 16px',
-                fontSize: 12, textDecoration: 'none',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: isActive ? '10px 16px 10px 14px' : '10px 16px',
+                fontSize: 13, textDecoration: 'none',
                 color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                 background: isActive ? 'var(--color-background-tertiary)' : 'transparent',
-                fontWeight: isActive ? 600 : 400,
+                fontWeight: isActive ? 700 : 500,
               }}
             >
               <span className="sidebar-icon" style={{ opacity: isActive ? 1 : 0.5, flexShrink: 0 }}>{item.icon}</span>

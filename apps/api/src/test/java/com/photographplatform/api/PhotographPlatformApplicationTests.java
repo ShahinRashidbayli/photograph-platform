@@ -12,7 +12,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.username=sa",
     "spring.datasource.password=",
-    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.jpa.hibernate.ddl-auto=none",
     "spring.flyway.enabled=false",
     "spring.autoconfigure.exclude=" +
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration," +

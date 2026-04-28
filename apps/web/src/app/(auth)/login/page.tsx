@@ -2,93 +2,163 @@
 
 import api from '@/lib/api';
 import { AuthUser, useAuthStore } from '@/store/authStore';
+import { FotolioLogo } from '@/components/FotolioLogo';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
+import { authStyles } from '../auth.styles';
 
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !password) {
+      setError('Email and password are required');
+      return;
+    }
+
     setError('');
     setLoading(true);
     try {
-      await api.post('/api/auth/login', { email, password });
-      const { data: me } = await api.get<AuthUser>('/api/auth/me');
-      setUser(me);
-      router.push('/dashboard');
-    } catch {
-      setError('Invalid email or password');
+      const { data: user } = await api.post<AuthUser>('/api/auth/login', {
+        email: trimmedEmail,
+        password,
+      });
+      setUser(user);
+      const role = user.role?.toUpperCase();
+      const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+      router.push(isPhotographer ? '/dashboard' : '/bookings');
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        setError('Invalid email or password');
+      } else {
+        const msg =
+          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          'Login failed';
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-vh-100 bg-light d-flex align-items-center">
-      <Container style={{ maxWidth: 440 }}>
-        <div className="text-center mb-4">
-          <h2 className="fw-bold">📷 Photograph Platform</h2>
-          <p className="text-muted">Sign in to your studio</p>
+    <div style={authStyles.page}>
+      {/* Navbar */}
+      <nav style={authStyles.navbar}>
+        <Link href="/" style={{ ...authStyles.navBrand, textDecoration: 'none' }}>
+          <FotolioLogo theme="light" showText={true} />
+        </Link>
+
+        <div style={authStyles.navRight}>
+          <Link
+            href="/register"
+            style={{
+              ...authStyles.navButton,
+              ...authStyles.navButtonPrimary,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#1E293B';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#0F172A';
+            }}
+          >
+            Get started free
+          </Link>
         </div>
+      </nav>
 
-        <Card className="shadow-sm border-0">
-          <Card.Body className="p-4">
-            <h5 className="mb-4 fw-semibold">Welcome back</h5>
+      {/* Main content */}
+      <div style={authStyles.container}>
+        <div style={authStyles.content}>
+          <div style={authStyles.card}>
+            <div style={authStyles.header}>
+              <h2 style={authStyles.title}>Welcome back</h2>
+              <p style={authStyles.subtitle}>Enter your email and password to sign in.</p>
+            </div>
 
-            {error && (
-              <Alert variant="danger" className="py-2">
-                {error}
-              </Alert>
-            )}
+            {error && <div style={authStyles.alertError}>{error}</div>}
 
-            <Form onSubmit={handleSubmit}>
-              <Form.Group className="mb-3">
-                <Form.Label>Email address</Form.Label>
-                <Form.Control
+            <form onSubmit={handleSubmit}>
+              <div style={authStyles.formGroup}>
+                <label style={authStyles.label}>Email address</label>
+                <input
                   type="email"
+                  style={authStyles.input}
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
                   autoComplete="email"
                 />
-              </Form.Group>
+              </div>
 
-              <Form.Group className="mb-4">
-                <Form.Label>Password</Form.Label>
-                <Form.Control
+              <div style={authStyles.formGroup}>
+                <label style={authStyles.label}>Password</label>
+                <input
                   type="password"
+                  style={authStyles.input}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
                   autoComplete="current-password"
                 />
-              </Form.Group>
+              </div>
 
-              <Button type="submit" variant="primary" className="w-100" disabled={loading}>
-                {loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}
-                Sign in
-              </Button>
-            </Form>
-          </Card.Body>
-        </Card>
+              <button
+                type="submit"
+                style={{
+                  ...authStyles.button,
+                  ...authStyles.buttonPrimary,
+                  ...(loading ? authStyles.buttonDisabled : {}),
+                }}
+                disabled={loading}
+                onMouseEnter={(e) => {
+                  if (!loading)
+                    Object.assign(e.currentTarget.style, authStyles.buttonPrimaryHover);
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) Object.assign(e.currentTarget.style, authStyles.buttonPrimary);
+                }}
+              >
+                {loading ? 'Signing in...' : 'Sign in →'}
+              </button>
+            </form>
 
-        <p className="text-center mt-3 text-muted small">
-          No account?{' '}
-          <Link href="/register" className="text-decoration-none fw-semibold">
-            Create one
-          </Link>
-        </p>
-      </Container>
+            <div style={authStyles.divider}>
+              <div style={authStyles.dividerLine} />
+            </div>
+
+            <p style={authStyles.centerText}>
+              Don&apos;t have an account?{' '}
+              <Link
+                href="/register"
+                style={{
+                  ...authStyles.link,
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={(e) =>
+                  Object.assign(e.currentTarget.style, authStyles.linkHover)
+                }
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#3B82F6';
+                }}
+              >
+                Create one
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

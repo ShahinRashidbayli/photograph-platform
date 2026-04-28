@@ -35,6 +35,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             .ifPresent(claims -> {
                 String tenantId = claims.get("tenant_id", String.class);
                 String role = claims.get("role", String.class);
+                // A token without a tenant_id is malformed for this app — refuse
+                // to authenticate it. Without this guard, downstream queries would
+                // run with a null TenantContext and inherit whatever search_path
+                // the pooled JDBC connection happened to have.
+                if (tenantId == null || tenantId.isBlank() || role == null) {
+                    return;
+                }
                 TenantContext.setTenant(tenantId);
                 SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(

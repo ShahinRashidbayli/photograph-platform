@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register'];
+// Routes accessible without an access_token cookie. Keep this list narrow:
+// every entry here bypasses the auth gate, so anything sensitive must NOT
+// match these prefixes.
+//   /login, /register   — auth flows
+//   /p/...              — public photographer portfolio (SSR)
+//   /r/...              — public booking-request form
+const PUBLIC_PATHS = ['/login', '/register', '/p/', '/r/'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -9,9 +15,6 @@ export function middleware(request: NextRequest) {
   const origin = request.nextUrl.origin;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    if (token) {
-      return NextResponse.redirect(new URL('/dashboard', origin));
-    }
     return NextResponse.next();
   }
 

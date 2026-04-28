@@ -2,9 +2,10 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: photograph_platform
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: centralidp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "-U postgres"
     ports:
       - "5433:5432"
     volumes:

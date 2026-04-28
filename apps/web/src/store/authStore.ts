@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   fullName: string;
   role: string;
+  emailVerified: boolean;
   tenant: { subdomain: string; plan: string };
 }
 

@@ -136,13 +136,28 @@ POST /api/auth/logout     → invalidates all refresh tokens for user → clears
 
 ## API endpoints
 
-| Method | Path                    | Auth | Description              |
-|--------|-------------------------|------|--------------------------|
-| POST   | `/api/auth/register`    | —    | Register new tenant      |
-| POST   | `/api/auth/login`       | —    | Login                    |
-| GET    | `/api/auth/me`          | ✓    | Current user profile     |
-| POST   | `/api/auth/refresh`     | —    | Rotate refresh token     |
-| POST   | `/api/auth/logout`      | ✓    | Invalidate all sessions  |
+| Method | Path                                    | Auth | Description                              |
+|--------|-----------------------------------------|------|------------------------------------------|
+| POST   | `/api/auth/register`                    | —    | Register new tenant                      |
+| POST   | `/api/auth/login`                       | —    | Login                                    |
+| GET    | `/api/auth/me`                          | ✓    | Current user profile                     |
+| POST   | `/api/auth/refresh`                     | —    | Rotate refresh token                     |
+| POST   | `/api/auth/logout`                      | ✓    | Invalidate all sessions                  |
+| POST   | `/api/auth/verify-email`                | —    | Verify email via one-time token          |
+| POST   | `/api/auth/resend-verification`         | ✓    | Re-send the verification email           |
+| GET    | `/api/public/portfolio/{subdomain}`     | —    | Public portfolio (consumed by `/p/...`) |
+| GET    | `/api/portfolio/photos`                 | ✓    | List own portfolio photos                |
+| POST   | `/api/portfolio/photos/{id}/publish`    | ✓    | Publish a photo                          |
+| DELETE | `/api/portfolio/photos/{id}`            | ✓    | Delete a photo                           |
+| POST   | `/api/public/leads/{subdomain}`         | —    | Public lead capture (honeypot + ratelimit) |
+| GET    | `/api/leads`                            | ✓    | List leads (filter by score/status)      |
+| GET    | `/api/photographerBookings`             | ✓    | List bookings for the current studio     |
+| GET    | `/api/customerBookings`                 | ✓    | List bookings for a given client         |
+| PATCH  | `/api/bookings/{id}/status`             | ✓    | Transition booking status (409 on illegal) |
+
+Not yet implemented (see master spec): Stripe payments, gallery delivery,
+client CRM endpoints, package CRUD, magic-link auth, Instagram webhook,
+contracts, calendar sync.
 
 ---
 

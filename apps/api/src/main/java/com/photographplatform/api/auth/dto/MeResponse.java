@@ -7,6 +7,7 @@ public record MeResponse(
     String email,
     String fullName,
     String role,
+    boolean emailVerified,
     TenantInfo tenant
 ) {
     public record TenantInfo(String subdomain, String plan) {

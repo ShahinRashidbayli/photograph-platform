@@ -3,9 +3,13 @@ import { useAuthStore } from '@/store/authStore';
 
 // All requests go to the same origin via the Next.js proxy rewrite.
 // HttpOnly cookies are sent automatically — no manual Authorization header needed.
+// CSRF: BE writes a non-httpOnly XSRF-TOKEN cookie; axios echoes its value back
+// in the X-XSRF-TOKEN header on state-changing requests (double-submit pattern).
 const api = axios.create({
   baseURL: '/',
   withCredentials: true,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
 let isRefreshing = false;

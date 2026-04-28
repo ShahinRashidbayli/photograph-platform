@@ -1,271 +1,796 @@
 'use client';
 
-<<<<<<< Updated upstream
-import { useAuthStore } from '@/store/authStore';
-import { Badge, Card, Col, Row } from 'react-bootstrap';
-=======
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { DashboardData, Lead, Booking } from '@/types/api';
-import { styles } from './dashboard.styles';
+import { useAuthStore } from '@/store/authStore';
+import { useThemeStore } from '@/store/themeStore';
+import api from '@/lib/api';
+import { Booking, Lead } from '@/types/api';
+import {
+  getDashboardColors,
+  getDashboardStyles,
+} from './dashboard.styles';
 
-type Score = 'HIGH' | 'MED' | 'LOW';
-type HistoryItem = { month: string; amount: number };
-type MetricItem = {
-  label: string;
-  value: string;
-  sub: string;
-  dotColor: string;
-  subColor: string;
-};
-
-const INIT_COLORS: Record<number, { bg: string; color: string }> = {
-  0: { bg: '#DBEAFE', color: '#1E40AF' },
-  1: { bg: '#D1FAE5', color: '#065F46' },
-  2: { bg: '#FEF3C7', color: '#92400E' },
-  3: { bg: '#EDE9FE', color: '#5B21B6' },
-  4: { bg: '#F3F4F6', color: '#374151' },
-};
-
-const EVENT_LABELS: Record<string, string> = {
-  WEDDING: 'Wedding', PORTRAIT: 'Portrait', ENGAGEMENT: 'Engagement',
-  FAMILY: 'Family', NEWBORN: 'Newborn', CORPORATE: 'Corporate',
-};
-
-const BUDGET_LABELS: Record<string, string> = {
-  UNDER_200: 'under €200', '200_500': '€200–499',
-  '500_1000': '€500+', OVER_1000: '€1,000+',
-};
-
-const SCORE_CONFIG: Record<Score, { dot: string; text: string; label: string }> = {
-  HIGH: { dot: '#16A34A', text: '#15803D', label: 'High' },
-  MED:  { dot: '#D97706', text: '#B45309', label: 'Medium' },
-  LOW:  { dot: '#DC2626', text: '#B91C1C', label: 'Low' },
-};
-
-const BADGE_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
-  DEPOSIT:   { bg: '#DCFCE7', color: '#15803D', label: 'Deposit' },
-  CONFIRMED: { bg: '#DBEAFE', color: '#1D4ED8', label: 'Confirmed' },
-};
-
-const MOCK: DashboardData = {
-  overview: {
-    revenueApr: 2840,
-    revenueMarChange: 18,
-    activeBookingsCount: 12,
-    newLeadsCount: 5,
-    leadsNeedingReply: 2,
-    openGalleriesCount: 3,
-    expiredGalleriesCount: 1,
+const MOCK_BOOKINGS: Booking[] = [
+  {
+    id: 'b1',
+    clientName: 'Yilmaz & Chen',
+    clientEmail: 'yilmaz@example.com',
+    eventDate: '2026-04-28',
+    eventType: 'Wedding Session',
+    location: 'Berlin, Germany',
+    totalAmountCents: 120000,
+    depositAmountCents: 30000,
+    status: 'DEPOSIT_PAID',
+    createdAt: '2026-03-20',
   },
-  leads: [
-    { id: '1', name: 'Maria & Klaus',  email: 'maria@example.com',  eventDate: '2026-06-14', eventType: 'WEDDING',     budgetRange: '500_1000',  score: 'HIGH', status: 'NEW', createdAt: '2026-04-15' },
-    { id: '2', name: 'Sophie Richter', email: 'sophie@example.com', eventDate: '2026-05-02', eventType: 'PORTRAIT',    budgetRange: '200_500',   score: 'MED',  status: 'NEW', createdAt: '2026-04-10' },
-    { id: '3', name: 'Thomas Müller',  email: 'thomas@example.com', eventDate: '2026-04-25', eventType: 'FAMILY',      budgetRange: 'UNDER_200', score: 'LOW',  status: 'NEW', createdAt: '2026-04-09' },
-    { id: '4', name: 'Laura & Ben',    email: 'laura@example.com',  eventDate: '2026-07-20', eventType: 'ENGAGEMENT',  budgetRange: '500_1000',  score: 'HIGH', status: 'NEW', createdAt: '2026-04-08' },
-    { id: '5', name: 'Nina Kraft',     email: 'nina@example.com',   eventDate: '2026-04-30', eventType: 'FAMILY',      budgetRange: 'UNDER_200', score: 'LOW',  status: 'NEW', createdAt: '2026-04-07' },
-  ],
-  bookings: [
-    { id: 'b1', clientName: 'Yilmaz & Chen',       clientEmail: 'yilmaz@example.com',  eventDate: '2026-04-22', packageId: 'pkg-wedding',   depositAmount: 300, totalAmount: 1200, depositPercent: 25,  status: 'DEPOSIT',   createdAt: '2026-04-01' },
-    { id: 'b2', clientName: 'Braun family',         clientEmail: 'braun@example.com',   eventDate: '2026-04-26', packageId: 'pkg-family',    depositAmount: 150, totalAmount: 450,  depositPercent: 33,  status: 'CONFIRMED', createdAt: '2026-03-15' },
-    { id: 'b3', clientName: 'Stefan & Eva',         clientEmail: 'stefan@example.com',  eventDate: '2026-05-03', packageId: 'pkg-wedding',   depositAmount: 450, totalAmount: 1800, depositPercent: 25,  status: 'DEPOSIT',   createdAt: '2026-02-20' },
-    { id: 'b4', clientName: 'Portrait — J. Lange',  clientEmail: 'jlange@example.com',  eventDate: '2026-05-10', packageId: 'pkg-portrait',  depositAmount: 0,   totalAmount: 320,  depositPercent: 0,   status: 'DEPOSIT',   createdAt: '2026-04-10' },
-    { id: 'b5', clientName: 'Corp. event — Siemens',clientEmail: 'siemens@example.com', eventDate: '2026-05-17', packageId: 'pkg-corporate', depositAmount: 950, totalAmount: 950,  depositPercent: 100, status: 'CONFIRMED', createdAt: '2026-03-20' },
-  ],
-  galleries: [],
-  revenueHistory: [
-    { month: 'Nov', amount: 980  },
-    { month: 'Dec', amount: 640  },
-    { month: 'Jan', amount: 1100 },
-    { month: 'Feb', amount: 1450 },
-    { month: 'Mar', amount: 2410 },
-    { month: 'Apr', amount: 2840 },
-  ],
+  {
+    id: 'b2',
+    clientName: 'Braun family',
+    clientEmail: 'braun@example.com',
+    eventDate: '2026-05-02',
+    eventType: 'Family Session',
+    location: 'Munich, Germany',
+    totalAmountCents: 45000,
+    depositAmountCents: 45000,
+    status: 'CONFIRMED',
+    createdAt: '2026-03-15',
+  },
+  {
+    id: 'b3',
+    clientName: 'Stefan & Eva',
+    clientEmail: 'stefan@example.com',
+    eventDate: '2026-05-10',
+    eventType: 'Wedding Session',
+    location: 'Hamburg, Germany',
+    totalAmountCents: 180000,
+    depositAmountCents: 45000,
+    status: 'DEPOSIT_PAID',
+    createdAt: '2026-03-10',
+  },
+  {
+    id: 'b4',
+    clientName: 'Markus Weber',
+    clientEmail: 'markus@example.com',
+    eventDate: '2026-05-18',
+    eventType: 'Corporate Headshots',
+    location: 'Frankfurt, Germany',
+    totalAmountCents: 92000,
+    depositAmountCents: 92000,
+    status: 'CONFIRMED',
+    createdAt: '2026-04-05',
+  },
+];
+
+const MOCK_LEADS: Lead[] = [
+  {
+    id: 'l1',
+    name: 'Anna & Felix',
+    email: 'anna@example.com',
+    message: 'Looking for a wedding photographer in late June.',
+    eventDate: '2026-06-28',
+    eventType: 'WEDDING',
+    budgetRange: 'OVER_1000',
+    score: 'HIGH',
+    status: 'NEW',
+    createdAt: '2026-04-25',
+  },
+  {
+    id: 'l2',
+    name: 'Lukas Bauer',
+    email: 'lukas@example.com',
+    message: 'Need engagement photos before summer.',
+    eventDate: '2026-06-05',
+    eventType: 'ENGAGEMENT',
+    budgetRange: '500_1000',
+    score: 'HIGH',
+    status: 'NEW',
+    createdAt: '2026-04-24',
+  },
+  {
+    id: 'l3',
+    name: 'Sophia Klein',
+    email: 'sophia@example.com',
+    message: 'Family portraits, two kids.',
+    eventDate: '2026-05-15',
+    eventType: 'FAMILY',
+    budgetRange: '200_500',
+    score: 'MED',
+    status: 'NEW',
+    createdAt: '2026-04-23',
+  },
+  {
+    id: 'l4',
+    name: 'Daniel Hoffmann',
+    email: 'daniel@example.com',
+    message: 'Newborn shoot in 3 weeks.',
+    eventDate: '2026-05-17',
+    eventType: 'NEWBORN',
+    budgetRange: '200_500',
+    score: 'MED',
+    status: 'REPLIED',
+    createdAt: '2026-04-22',
+  },
+  {
+    id: 'l5',
+    name: 'Julia Schwarz',
+    email: 'julia@example.com',
+    message: 'Quick LinkedIn portrait.',
+    eventDate: '2026-05-04',
+    eventType: 'PORTRAIT',
+    budgetRange: 'UNDER_200',
+    score: 'LOW',
+    status: 'NEW',
+    createdAt: '2026-04-21',
+  },
+];
+
+function getInitials(name: string) {
+  const parts = (name ?? '').trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+const AVATAR_PALETTE_LIGHT = [
+  { bg: '#DBEAFE', fg: '#1D4ED8' },
+  { bg: '#FCE7F3', fg: '#BE185D' },
+  { bg: '#DCFCE7', fg: '#15803D' },
+  { bg: '#FEF3C7', fg: '#B45309' },
+  { bg: '#EDE9FE', fg: '#6D28D9' },
+];
+const AVATAR_PALETTE_DARK = [
+  { bg: 'rgba(59, 130, 246, 0.22)', fg: '#93C5FD' },
+  { bg: 'rgba(236, 72, 153, 0.22)', fg: '#F9A8D4' },
+  { bg: 'rgba(16, 185, 129, 0.22)', fg: '#6EE7B7' },
+  { bg: 'rgba(217, 119, 6, 0.22)', fg: '#FCD34D' },
+  { bg: 'rgba(139, 92, 246, 0.22)', fg: '#C4B5FD' },
+];
+
+function pickAvatarColor(seed: string, isDark: boolean) {
+  const palette = isDark ? AVATAR_PALETTE_DARK : AVATAR_PALETTE_LIGHT;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return palette[hash % palette.length];
+}
+
+const ICONS = {
+  calendar: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+    </svg>
+  ),
+  euro: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 7c-1.5-1.5-3.5-2.5-6-2.5C7.5 4.5 4 8 4 12s3.5 7.5 8 7.5c2.5 0 4.5-1 6-2.5" />
+      <line x1="3" y1="10" x2="13" y2="10" />
+      <line x1="3" y1="14" x2="13" y2="14" />
+    </svg>
+  ),
+  users: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  trending: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  ),
+  arrowUp: (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  ),
+  plus: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  arrowRight: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  ),
 };
-
-function getInitials(name: string): string {
-  return name
-    .trim()
-    .split(/[\s&—]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-function formatEventDate(iso: string): { top: string; bottom: string } {
-  const d = new Date(iso);
-  return {
-    top: d.toLocaleString('en-US', { month: 'short' }),
-    bottom: String(d.getDate()),
-  };
-}
-
-function formatCurrency(n: number): string {
-  return '€' + n.toLocaleString('de-DE');
-}
-
-function bookingSubtitle(b: Booking): string {
-  if (b.status === 'CONFIRMED') return 'Fully confirmed';
-  if (b.status === 'DEPOSIT' && b.depositAmount > 0) return `${formatCurrency(b.depositAmount)} deposit paid`;
-  return 'Awaiting confirmation';
-}
-
-function getRowStyle(isLast: boolean): React.CSSProperties {
-  return isLast ? { ...styles.row, ...styles.rowLast } : styles.row;
-}
-
-interface MetricCardProps {
-  label: string;
-  value: string;
-  sub: string;
-  dotColor: string;
-  subColor: string;
-}
-
-function MetricCard({ label, value, sub, dotColor, subColor }: Readonly<MetricCardProps>) {
-  return (
-    <div style={styles.metricCard}>
-      <div style={styles.metricLabel}>{label}</div>
-      <div style={styles.metricValue}>{value}</div>
-      <div style={{ ...styles.metricSub, color: subColor }}>
-        <div style={{ ...styles.metricDot, background: dotColor }} />
-        {sub}
-      </div>
-    </div>
-  );
-}
-
-function LeadRow({ lead, index, isLast }: Readonly<{ lead: Lead; index: number; isLast: boolean }>) {
-  const ic = INIT_COLORS[index % 5];
-  const sc = SCORE_CONFIG[lead.score as Score];
-  const date = new Date(lead.eventDate).toLocaleString('en-US', { month: 'short', day: 'numeric' });
-  return (
-    <div style={getRowStyle(isLast)} data-row>
-      <div style={{ ...styles.initials, background: ic.bg, color: ic.color }}>
-        {getInitials(lead.name)}
-      </div>
-      <div style={styles.rowInfo}>
-        <div style={styles.rowName}>{lead.name}</div>
-        <div style={styles.rowMeta}>
-          {EVENT_LABELS[lead.eventType]} · {date} · {BUDGET_LABELS[lead.budgetRange]}
-        </div>
-      </div>
-      <div style={styles.statusBadgeWrap}>
-        <div style={{ ...styles.statusDot, background: sc.dot }} />
-        <span style={{ ...styles.statusLabel, color: sc.text }}>{sc.label}</span>
-      </div>
-    </div>
-  );
-}
-
-function BookingRow({ booking, isLast }: Readonly<{ booking: Booking; isLast: boolean }>) {
-  const router = useRouter();
-  const { top, bottom } = formatEventDate(booking.eventDate);
-  const bc = BADGE_CONFIG[booking.status === 'CONFIRMED' ? 'CONFIRMED' : 'DEPOSIT'];
-  
-  return (
-    <button
-      style={{ ...getRowStyle(isLast), cursor: 'pointer', border: 'none', background: 'transparent', textAlign: 'left' }}
-      data-row
-      onClick={() => router.push(`/bookings?selected=${booking.id}`)}
-    >
-      <div style={styles.bookingDate}>
-        <span>{top}</span>
-        <span style={styles.bookingDateValue}>{bottom}</span>
-      </div>
-      <div style={styles.rowInfo}>
-        <div style={styles.rowName}>{booking.clientName}</div>
-        <div style={styles.rowMeta}>{bookingSubtitle(booking)}</div>
-      </div>
-      <div style={{ ...styles.badge, background: bc.bg, color: bc.color }}>{bc.label}</div>
-      <div style={styles.bookingAmount}>{formatCurrency(booking.totalAmount)}</div>
-    </button>
-  );
-}
-
-function RevenueChart({ history }: Readonly<{ history: HistoryItem[] }>) {
-  const max = Math.max(...history.map((h) => h.amount));
-  return (
-    <div style={styles.chartCard}>
-      <div style={styles.cardHeader}>
-        <span style={styles.cardTitle}>Revenue — last 6 months</span>
-        <span style={styles.chartInfo}>April is running total</span>
-      </div>
-      {history.map((item, i) => {
-        const pct = Math.round((item.amount / max) * 100);
-        const isCurrent = i === history.length - 1;
-        return (
-          <div key={item.month} style={styles.barRow}>
-            <span style={styles.barLabel}>{item.month}</span>
-            <div style={styles.barTrack}>
-              <div style={{
-                ...styles.barFill,
-                width: `${pct}%`,
-                background: isCurrent ? '#93C5FD' : '#BFDBFE',
-              }} />
-            </div>
-            <span style={styles.barValue}>
-              €{(item.amount / 1000).toFixed(1)}k
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
->>>>>>> Stashed changes
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const theme = useThemeStore((s) => s.theme);
+  const role = user?.role?.toUpperCase();
+  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+
+  const styles = useMemo(() => getDashboardStyles(theme), [theme]);
+  const colors = useMemo(() => getDashboardColors(theme), [theme]);
+
+  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
+  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  const [loading, setLoading] = useState(true);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.allSettled([
+      api.get<Booking[]>('/api/photographerBookings?size=50'),
+      api.get<Lead[]>('/api/leads'),
+    ]).then(([bookingsRes, leadsRes]) => {
+      if (
+        bookingsRes.status === 'fulfilled' &&
+        Array.isArray(bookingsRes.value.data) &&
+        bookingsRes.value.data.length > 0
+      ) {
+        setBookings(bookingsRes.value.data);
+      }
+      if (
+        leadsRes.status === 'fulfilled' &&
+        Array.isArray(leadsRes.value.data) &&
+        leadsRes.value.data.length > 0
+      ) {
+        setLeads(leadsRes.value.data);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const upcomingBookings = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return bookings
+      .filter((b) => {
+        if (b.status === 'CANCELLED' || b.status === 'COMPLETED') return false;
+        return new Date(b.eventDate) >= now;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime(),
+      )
+      .slice(0, 4);
+  }, [bookings]);
+
+  const sortedLeads = useMemo(() => {
+    return [...leads]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 4);
+  }, [leads]);
+
+  const getMonthShort = (date: string) =>
+    new Date(date)
+      .toLocaleDateString('en-US', { month: 'short' })
+      .toUpperCase();
+  const getDay = (date: string) => new Date(date).getDate();
+
+  const formatBudget = (range?: string | null) => {
+    switch (range) {
+      case 'OVER_1000':
+        return '€1000+';
+      case '500_1000':
+        return '€500–999';
+      case '200_500':
+        return '€200–499';
+      case 'UNDER_200':
+        return 'under €200';
+      default:
+        return '—';
+    }
+  };
+
+  const formatEventType = (type: string) =>
+    type
+      ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()
+      : 'Event';
+
+  const getBookingStatusStyle = (status: string) => {
+    if (
+      status === 'CONFIRMED' ||
+      status === 'FULLY_PAID' ||
+      status === 'COMPLETED'
+    ) {
+      return {
+        bg: colors.successBg,
+        color: colors.successText,
+        dot: colors.success,
+        label: status === 'CONFIRMED' ? 'Confirmed' : status === 'FULLY_PAID' ? 'Paid' : 'Done',
+      };
+    }
+    if (status === 'DEPOSIT_PAID') {
+      return {
+        bg: colors.warningBg,
+        color: colors.warningText,
+        dot: colors.warning,
+        label: 'Deposit',
+      };
+    }
+    return {
+      bg: colors.neutralBg,
+      color: colors.neutralText,
+      dot: colors.neutral,
+      label: status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, ' '),
+    };
+  };
+
+  const getLeadScoreStyle = (score: string) => {
+    if (score === 'HIGH') {
+      return {
+        bg: colors.successBg,
+        color: colors.successText,
+        dot: colors.success,
+        label: 'High',
+      };
+    }
+    if (score === 'MED') {
+      return {
+        bg: colors.warningBg,
+        color: colors.warningText,
+        dot: colors.warning,
+        label: 'Medium',
+      };
+    }
+    return {
+      bg: colors.neutralBg,
+      color: colors.neutralText,
+      dot: colors.neutral,
+      label: 'Low',
+    };
+  };
+
+  if (!isPhotographer) {
+    return (
+      <div style={styles.main}>
+        <div style={styles.pageHeader}>
+          <div>
+            <h1 style={styles.pageTitle}>
+              Welcome back, {user?.fullName ?? user?.email} <span aria-hidden>👋</span>
+            </h1>
+            <p style={styles.pageSubtitle}>
+              View your upcoming bookings and galleries.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="mb-4">
-        <h4 className="fw-bold mb-1">Welcome back, {user?.fullName ?? user?.email} 👋</h4>
-        <p className="text-muted mb-0">
-          Studio: <span className="fw-semibold text-dark">{user?.tenant.subdomain}</span>{' '}
-          <Badge bg="secondary" className="ms-1">
-            {user?.tenant.plan}
-          </Badge>
-        </p>
+    <div style={styles.main}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
+        @media (max-width: 960px) {
+          .dash-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .dash-section-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 520px) {
+          .dash-metric-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <header style={styles.pageHeader}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={styles.pageTitle}>
+            Welcome back, {user?.fullName ?? user?.email}{' '}
+            <span aria-hidden>👋</span>
+            {user?.tenant?.plan && (
+              <span style={styles.planBadge}>{user.tenant.plan} Plan</span>
+            )}
+          </h1>
+          <p style={styles.pageSubtitle}>
+            Here&apos;s your studio overview
+            {user?.tenant?.subdomain && (
+              <>
+                <span aria-hidden style={{ color: colors.textSubtle }}>•</span>
+                <span style={styles.subdomainChip}>
+                  {user.tenant.subdomain}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+        <div style={styles.headerActions}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = colors.surfaceHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = colors.surface;
+            }}
+          >
+            View portfolio
+          </button>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            {ICONS.plus}
+            Create booking
+          </button>
+        </div>
+      </header>
+
+      {/* Metrics Grid */}
+      <div className="dash-metric-grid" style={styles.metricGrid}>
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label="Bookings this month"
+          value="14"
+          iconBg={colors.primaryBg}
+          iconColor={colors.primaryStrong}
+          icon={ICONS.calendar}
+          trendValue="18%"
+          trendLabel="from last month"
+          trendBg={colors.successBg}
+          trendColor={colors.successText}
+          positive
+        />
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label="Revenue (Apr)"
+          value="€4,720"
+          iconBg={colors.successBg}
+          iconColor={colors.successText}
+          icon={ICONS.euro}
+          trendValue="12%"
+          trendLabel="from last month"
+          trendBg={colors.successBg}
+          trendColor={colors.successText}
+          positive
+        />
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label="Active clients"
+          value="32"
+          iconBg={colors.indigoBg}
+          iconColor={colors.indigoText}
+          icon={ICONS.users}
+          trendValue="8 new"
+          trendLabel="this month"
+          trendBg={colors.indigoBg}
+          trendColor={colors.indigoText}
+        />
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label="New leads"
+          value="7"
+          iconBg={colors.warningBg}
+          iconColor={colors.warningText}
+          icon={ICONS.trending}
+          trendValue="3 high"
+          trendLabel="priority this week"
+          trendBg={colors.warningBg}
+          trendColor={colors.warningText}
+        />
       </div>
 
-      <Row className="g-3">
-        <Col md={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body>
-              <div className="text-primary fs-3 mb-2">🖼️</div>
-              <Card.Title className="fs-6 fw-semibold">Photos</Card.Title>
-              <Card.Text className="text-muted small">
-                Upload and manage your photo portfolio.
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body>
-              <div className="text-success fs-3 mb-2">📅</div>
-              <Card.Title className="fs-6 fw-semibold">Bookings</Card.Title>
-              <Card.Text className="text-muted small">
-                Track shoot dates and client sessions.
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body>
-              <div className="text-warning fs-3 mb-2">👥</div>
-              <Card.Title className="fs-6 fw-semibold">Clients</Card.Title>
-              <Card.Text className="text-muted small">
-                Manage your client list and galleries.
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </>
+      {/* Upcoming bookings + recent leads */}
+      <div className="dash-section-grid" style={styles.sectionGrid}>
+        {/* Upcoming Bookings */}
+        <section style={styles.sectionCard} aria-labelledby="upcoming-bookings">
+          <div style={styles.cardHeader}>
+            <h3 id="upcoming-bookings" style={styles.cardTitle}>
+              Upcoming bookings
+            </h3>
+            <a
+              href="/bookings"
+              style={styles.cardLink}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.gap = '8px';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.gap = '4px';
+              }}
+            >
+              View all {ICONS.arrowRight}
+            </a>
+          </div>
+
+          {loading ? (
+            <ListSkeleton styles={styles} colors={colors} kind="booking" />
+          ) : upcomingBookings.length === 0 ? (
+            <div style={styles.emptyState}>No upcoming bookings.</div>
+          ) : (
+            <div style={styles.listContainer}>
+              {upcomingBookings.map((booking, idx) => {
+                const status = getBookingStatusStyle(booking.status);
+                const rowKey = `b-${booking.id}`;
+                const isHovered = hoveredRow === rowKey;
+                return (
+                  <div
+                    key={booking.id}
+                    style={{
+                      ...styles.listRow,
+                      ...(idx > 0 ? styles.listRowDivider : {}),
+                      background: isHovered
+                        ? colors.surfaceHover
+                        : 'transparent',
+                    }}
+                    onMouseEnter={() => setHoveredRow(rowKey)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                  >
+                    <div style={styles.listRowLeft}>
+                      <div style={styles.bookingDatePill}>
+                        <span style={styles.bookingDateMonth}>
+                          {getMonthShort(booking.eventDate)}
+                        </span>
+                        <span style={styles.bookingDateDay}>
+                          {getDay(booking.eventDate)}
+                        </span>
+                      </div>
+                      <div style={styles.rowMetaInfo}>
+                        <div style={styles.rowName}>{booking.clientName}</div>
+                        <div style={styles.rowMeta}>
+                          {booking.eventType || 'Event'}
+                          {booking.location ? ` • ${booking.location}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        background: status.bg,
+                        color: status.color,
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...styles.badgeDot,
+                          background: status.dot,
+                        }}
+                      />
+                      {status.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Recent Leads */}
+        <section style={styles.sectionCard} aria-labelledby="recent-leads">
+          <div style={styles.cardHeader}>
+            <h3 id="recent-leads" style={styles.cardTitle}>
+              Recent leads
+            </h3>
+            <a
+              href="/leads"
+              style={styles.cardLink}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.gap = '8px';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.gap = '4px';
+              }}
+            >
+              View all {ICONS.arrowRight}
+            </a>
+          </div>
+
+          {loading ? (
+            <ListSkeleton styles={styles} colors={colors} kind="lead" />
+          ) : sortedLeads.length === 0 ? (
+            <div style={styles.emptyState}>No recent leads.</div>
+          ) : (
+            <div style={styles.listContainer}>
+              {sortedLeads.map((lead, idx) => {
+                const score = getLeadScoreStyle(lead.score);
+                const palette = pickAvatarColor(lead.id, colors.isDark);
+                const rowKey = `l-${lead.id}`;
+                const isHovered = hoveredRow === rowKey;
+                return (
+                  <div
+                    key={lead.id}
+                    style={{
+                      ...styles.listRow,
+                      ...(idx > 0 ? styles.listRowDivider : {}),
+                      background: isHovered
+                        ? colors.surfaceHover
+                        : 'transparent',
+                    }}
+                    onMouseEnter={() => setHoveredRow(rowKey)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                  >
+                    <div style={styles.listRowLeft}>
+                      <div
+                        style={{
+                          ...styles.avatarBubble,
+                          background: palette.bg,
+                          color: palette.fg,
+                        }}
+                        aria-hidden
+                      >
+                        {getInitials(lead.name)}
+                      </div>
+                      <div style={styles.rowMetaInfo}>
+                        <div style={styles.rowName}>{lead.name}</div>
+                        <div style={styles.rowMeta}>
+                          {formatEventType(lead.eventType)} •{' '}
+                          {formatBudget(lead.budgetRange)}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        background: score.bg,
+                        color: score.color,
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...styles.badgeDot,
+                          background: score.dot,
+                        }}
+                      />
+                      {score.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+type MetricCardProps = {
+  styles: Record<string, React.CSSProperties>;
+  colors: ReturnType<typeof getDashboardColors>;
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  trendValue: string;
+  trendLabel: string;
+  trendBg: string;
+  trendColor: string;
+  positive?: boolean;
+};
+
+function MetricCard({
+  styles,
+  colors,
+  label,
+  value,
+  icon,
+  iconBg,
+  iconColor,
+  trendValue,
+  trendLabel,
+  trendBg,
+  trendColor,
+  positive,
+}: MetricCardProps) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      style={{
+        ...styles.metricCard,
+        transform: hover ? 'translateY(-2px)' : 'translateY(0)',
+        boxShadow: hover ? colors.elevatedShadow : colors.overlayShadow,
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div style={styles.metricTopRow}>
+        <span style={styles.metricLabel}>{label}</span>
+        <span
+          style={{
+            ...styles.metricIcon,
+            background: iconBg,
+            color: iconColor,
+          }}
+          aria-hidden
+        >
+          {icon}
+        </span>
+      </div>
+      <div style={styles.metricValue}>{value}</div>
+      <div style={styles.metricTrend}>
+        <span
+          style={{
+            ...styles.metricTrendBadge,
+            background: trendBg,
+            color: trendColor,
+          }}
+        >
+          {positive && (
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          )}
+          {trendValue}
+        </span>
+        <span>{trendLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+type ListSkeletonProps = {
+  styles: Record<string, React.CSSProperties>;
+  colors: ReturnType<typeof getDashboardColors>;
+  kind: 'booking' | 'lead';
+};
+
+function ListSkeleton({ styles, kind }: ListSkeletonProps) {
+  return (
+    <div style={styles.skeleton}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={styles.skeletonRow}>
+          <div
+            style={{
+              ...styles.skeletonBlock,
+              width: kind === 'booking' ? 56 : 36,
+              height: kind === 'booking' ? 56 : 36,
+              borderRadius: kind === 'booking' ? 12 : 18,
+            }}
+          />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              style={{
+                ...styles.skeletonBlock,
+                height: 12,
+                width: '55%',
+                borderRadius: 6,
+              }}
+            />
+            <div
+              style={{
+                ...styles.skeletonBlock,
+                height: 10,
+                width: '35%',
+                borderRadius: 6,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              ...styles.skeletonBlock,
+              height: 22,
+              width: 70,
+              borderRadius: 999,
+            }}
+          />
+        </div>
+      ))}
+    </div>
   );
 }

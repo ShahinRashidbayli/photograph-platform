@@ -67,7 +67,7 @@ export const getBookingsStyles = (
       background: c.bg,
       color: c.text,
       fontFamily:
-        "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif",
+        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -105,14 +105,14 @@ export const getBookingsStyles = (
     },
     statCard: {
       position: 'relative',
-      padding: '20px',
+      padding: '14px 16px',
       backgroundColor: c.surface,
-      borderRadius: '16px',
+      borderRadius: '14px',
       border: `1px solid ${c.border}`,
       boxShadow: c.overlayShadow,
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
+      gap: '8px',
     },
     statTopRow: {
       display: 'flex',
@@ -128,20 +128,20 @@ export const getBookingsStyles = (
       fontWeight: 700,
     },
     statIcon: {
-      width: '36px',
-      height: '36px',
-      borderRadius: '10px',
+      width: '30px',
+      height: '30px',
+      borderRadius: '8px',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
     },
     statValue: {
-      fontSize: '1.875rem',
+      fontSize: '1.5rem',
       fontWeight: 800,
       color: c.text,
-      letterSpacing: '-0.025em',
-      lineHeight: 1.05,
+      letterSpacing: '-0.02em',
+      lineHeight: 1.1,
     },
 
     container: {
@@ -188,7 +188,7 @@ export const getBookingsStyles = (
       borderRadius: '10px',
       fontSize: '0.875rem',
       fontFamily:
-        "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif",
+        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',

@@ -55,7 +55,7 @@ export const getDashboardStyles = (
       margin: '0 auto',
       padding: '28px 28px 40px',
       fontFamily:
-        "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif",
+        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
     },
     pageHeader: {
@@ -155,14 +155,14 @@ export const getDashboardStyles = (
     },
     metricCard: {
       position: 'relative',
-      padding: '20px',
+      padding: '14px 16px',
       backgroundColor: c.surface,
-      borderRadius: '16px',
+      borderRadius: '14px',
       border: `1px solid ${c.border}`,
       boxShadow: c.overlayShadow,
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
+      gap: '8px',
       transition: 'transform 0.18s ease, box-shadow 0.18s ease',
     },
     metricTopRow: {
@@ -179,20 +179,20 @@ export const getDashboardStyles = (
       fontWeight: 700,
     },
     metricIcon: {
-      width: '36px',
-      height: '36px',
-      borderRadius: '10px',
+      width: '30px',
+      height: '30px',
+      borderRadius: '8px',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
     },
     metricValue: {
-      fontSize: '2rem',
+      fontSize: '1.5rem',
       fontWeight: 800,
       color: c.text,
-      letterSpacing: '-0.025em',
-      lineHeight: 1.05,
+      letterSpacing: '-0.02em',
+      lineHeight: 1.1,
     },
     metricTrend: {
       display: 'inline-flex',

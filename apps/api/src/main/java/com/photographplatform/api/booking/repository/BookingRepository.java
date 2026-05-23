@@ -14,4 +14,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Page<Booking> findByClientIdOrderByEventDateAsc(UUID clientId, Pageable pageable);
 
     Page<Booking> findByClientIdAndStatus(UUID clientId, String status, Pageable pageable);
+
+    // Customer-facing lookups are keyed on the booking's client_email rather
+    // than client_id: a booking may exist before its Client directory row does
+    // (e.g. created straight from a lead), and the authenticated customer's
+    // identity is their email. Case-insensitive because emails are stored
+    // lower-cased on write but callers should not depend on that.
+    Page<Booking> findByClientEmailIgnoreCaseOrderByEventDateAsc(String clientEmail, Pageable pageable);
+
+    Page<Booking> findByClientEmailIgnoreCaseAndStatus(String clientEmail, String status, Pageable pageable);
 }

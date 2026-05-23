@@ -1,44 +1,9 @@
 import React from 'react';
+import { getColors, type Theme } from '@/lib/design-tokens';
 
-export type DashboardTheme = 'light' | 'dark';
+export type DashboardTheme = Theme;
 
-export const getDashboardColors = (theme: DashboardTheme) => {
-  const isDark = theme === 'dark';
-  return {
-    isDark,
-    bg: isDark ? '#0B1220' : '#F7F8FB',
-    surface: isDark ? '#111A2E' : '#FFFFFF',
-    surfaceAlt: isDark ? '#0F1729' : '#F8FAFC',
-    surfaceHover: isDark ? '#172238' : '#F8FAFC',
-    text: isDark ? '#F1F5F9' : '#0F172A',
-    textMuted: isDark ? '#94A3B8' : '#64748B',
-    textSubtle: isDark ? '#64748B' : '#94A3B8',
-    border: isDark ? '#1F2A44' : '#E5E7EB',
-    borderSoft: isDark ? '#172238' : '#F1F5F9',
-    primary: '#2563EB',
-    primaryStrong: isDark ? '#3B82F6' : '#1D4ED8',
-    primaryBg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
-    primaryBorder: isDark ? 'rgba(59, 130, 246, 0.35)' : '#BFDBFE',
-    success: isDark ? '#34D399' : '#16A34A',
-    successBg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7',
-    successText: isDark ? '#6EE7B7' : '#15803D',
-    warning: isDark ? '#FBBF24' : '#D97706',
-    warningBg: isDark ? 'rgba(217, 119, 6, 0.18)' : '#FEF3C7',
-    warningText: isDark ? '#FCD34D' : '#92400E',
-    indigoBg: isDark ? 'rgba(99, 102, 241, 0.18)' : '#EEF2FF',
-    indigoText: isDark ? '#A5B4FC' : '#4338CA',
-    neutral: isDark ? '#94A3B8' : '#64748B',
-    neutralBg: isDark ? 'rgba(148, 163, 184, 0.12)' : '#F1F5F9',
-    neutralText: isDark ? '#CBD5E1' : '#475569',
-    divider: isDark ? '#1F2A44' : '#F1F5F9',
-    overlayShadow: isDark
-      ? '0 1px 2px rgba(0, 0, 0, 0.4)'
-      : '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04)',
-    elevatedShadow: isDark
-      ? '0 4px 16px rgba(0, 0, 0, 0.5)'
-      : '0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06)',
-  };
-};
+export const getDashboardColors = getColors;
 
 export const getDashboardStyles = (
   theme: DashboardTheme,
@@ -193,23 +158,6 @@ export const getDashboardStyles = (
       color: c.text,
       letterSpacing: '-0.02em',
       lineHeight: 1.1,
-    },
-    metricTrend: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      fontSize: '0.78rem',
-      fontWeight: 600,
-      color: c.textMuted,
-    },
-    metricTrendBadge: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '3px',
-      padding: '2px 7px',
-      borderRadius: '999px',
-      fontSize: '0.7rem',
-      fontWeight: 700,
     },
     sectionGrid: {
       display: 'grid',

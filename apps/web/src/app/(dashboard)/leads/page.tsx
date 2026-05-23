@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Lead } from '@/types/api';
+import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import {
   getLeadsColors,
   getLeadsStyles,
@@ -47,26 +48,6 @@ const SCORE_SHORT: Record<LeadScore, string> = {
   MED: 'Med',
   LOW: 'Low',
 };
-
-const AVATAR_PALETTE_LIGHT = [
-  { bg: '#EFF6FF', color: '#1D4ED8' },
-  { bg: '#ECFDF5', color: '#047857' },
-  { bg: '#FEF3C7', color: '#92400E' },
-  { bg: '#FCE7F3', color: '#BE185D' },
-  { bg: '#EDE9FE', color: '#5B21B6' },
-  { bg: '#FFE4E6', color: '#BE123C' },
-  { bg: '#E0F2FE', color: '#0369A1' },
-];
-
-const AVATAR_PALETTE_DARK = [
-  { bg: 'rgba(59, 130, 246, 0.18)', color: '#93C5FD' },
-  { bg: 'rgba(16, 185, 129, 0.18)', color: '#6EE7B7' },
-  { bg: 'rgba(217, 119, 6, 0.22)', color: '#FCD34D' },
-  { bg: 'rgba(236, 72, 153, 0.22)', color: '#F9A8D4' },
-  { bg: 'rgba(139, 92, 246, 0.22)', color: '#C4B5FD' },
-  { bg: 'rgba(244, 63, 94, 0.22)', color: '#FCA5A5' },
-  { bg: 'rgba(14, 165, 233, 0.22)', color: '#7DD3FC' },
-];
 
 const ICONS = {
   search: (
@@ -131,22 +112,6 @@ const ICONS = {
     </svg>
   ),
 };
-
-const NEW_LEAD_TARGET = '/leads/new';
-
-function getInitials(name: string): string {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function pickAvatarColor(seed: string, isDark: boolean) {
-  const palette = isDark ? AVATAR_PALETTE_DARK : AVATAR_PALETTE_LIGHT;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return palette[hash % palette.length];
-}
 
 function formatEventDate(iso: string): { month: string; day: string } {
   const d = new Date(iso);
@@ -289,20 +254,8 @@ function LeadDetail({
   lead,
   s,
   c,
-}: Readonly<{ lead: Lead | null; s: Styles; c: ColorTokens }>) {
-  const [notes, setNotes] = useState('');
-  const [savedNotes, setSavedNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (lead) {
-      const initial = lead.internalNotes || '';
-      setNotes(initial);
-      setSavedNotes(initial);
-      setSaving(false);
-    }
-  }, [lead]);
-
+  onConvert,
+}: Readonly<{ lead: Lead | null; s: Styles; c: ColorTokens; onConvert: () => void }>) {
   if (!lead) {
     return (
       <div style={s.emptyState}>
@@ -324,20 +277,15 @@ function LeadDetail({
   });
 
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
-  const hasChanges = notes !== savedNotes;
-
-  const handleSaveNotes = () => {
-    if (!hasChanges || saving) return;
-    setSaving(true);
-    setSavedNotes(notes);
-    setSaving(false);
-  };
+  const waHref = lead.phone
+    ? `https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`
+    : null;
 
   return (
     <>
       <div style={s.detailHeader}>
         <div style={s.detailHeaderLeft}>
-          <span style={{ ...s.detailAvatar, background: avatar.bg, color: avatar.color }}>
+          <span style={{ ...s.detailAvatar, background: avatar.bg, color: avatar.fg }}>
             {getInitials(lead.name)}
           </span>
           <div style={s.detailHeaderText}>
@@ -360,15 +308,34 @@ function LeadDetail({
           </div>
         </div>
         <div style={s.detailActions}>
-          <button type="button" style={s.secondaryButton}>
+          <a
+            href={waHref ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={!waHref}
+            title={waHref ? 'Open WhatsApp chat' : 'No phone number on file'}
+            style={{
+              ...s.secondaryButton,
+              textDecoration: 'none',
+              ...(waHref ? {} : { opacity: 0.5, pointerEvents: 'none' }),
+            }}
+          >
             {ICONS.whatsapp} WhatsApp
-          </button>
-          <button type="button" style={s.secondaryButton}>
+          </a>
+          <a
+            href={lead.email ? `mailto:${lead.email}` : undefined}
+            aria-disabled={!lead.email}
+            title={lead.email ? `Email ${lead.email}` : 'No email on file'}
+            style={{
+              ...s.secondaryButton,
+              textDecoration: 'none',
+              ...(lead.email ? {} : { opacity: 0.5, pointerEvents: 'none' }),
+            }}
+          >
             {ICONS.email} Email
-          </button>
-          <button type="button" style={s.invertedPrimaryButton}>
-            Convert to booking
-            {ICONS.arrowRight}
+          </a>
+          <button type="button" style={s.invertedPrimaryButton} onClick={onConvert}>
+            {ICONS.plus} Convert to booking
           </button>
         </div>
       </div>
@@ -457,35 +424,36 @@ function LeadDetail({
         {/* Internal notes */}
         <div style={s.section}>
           <span style={s.sectionTitle}>Internal notes</span>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Private notes about this lead — not shared with the client."
-            style={s.notesTextarea}
-          />
-          <div style={s.notesFooter}>
-            <span style={s.notesHint}>
-              {hasChanges ? 'Unsaved changes' : 'Up to date'}
-            </span>
-            <button
-              type="button"
-              onClick={handleSaveNotes}
-              disabled={!hasChanges || saving}
-              style={{
-                ...s.primaryButton,
-                ...(hasChanges && !saving ? {} : s.primaryButtonDisabled),
-              }}
-            >
-              {saving ? 'Saving…' : 'Save notes'}
-            </button>
+          <div style={s.notesReadonly}>
+            {lead.internalNotes?.trim()
+              ? lead.internalNotes
+              : 'No internal notes on this lead yet.'}
           </div>
+          <span style={s.notesHint}>Editing internal notes is coming soon.</span>
         </div>
       </div>
     </>
   );
 }
 
+function LeadListSkeleton({ s }: Readonly<{ s: Styles }>) {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} style={s.skeletonItem}>
+          <div style={{ ...s.skeletonBlock, width: 52, height: 52, borderRadius: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ ...s.skeletonBlock, height: 12, width: '60%' }} />
+            <div style={{ ...s.skeletonBlock, height: 10, width: '45%' }} />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function LeadsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
   const themeKey: LeadsTheme = theme === 'dark' ? 'dark' : 'light';
@@ -500,18 +468,23 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadLeads = useCallback(() => {
+    setLoading(true);
+    setError(null);
     api
       .get<Lead[]>('/api/leads')
       .then((res) => {
-        setLeads(res.data);
-        setLoading(false);
+        setLeads(Array.isArray(res.data) ? res.data : []);
       })
       .catch(() => {
-        setError('Failed to load leads');
-        setLoading(false);
-      });
+        setError('We couldn’t load your leads. Please check your connection and try again.');
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadLeads();
+  }, [loadLeads]);
 
   useEffect(() => {
     const selected = searchParams.get('selected');
@@ -551,41 +524,15 @@ export default function LeadsPage() {
     return { total, high, needsReply, conversionRate };
   }, [leads]);
 
-  if (error) {
-    return (
-      <div style={s.pageWrapper}>
-        <div style={s.emptyState}>
-          <span style={{ color: c.danger, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            {ICONS.alert} {error}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div style={s.pageWrapper}>
-        <div style={s.emptyState}>Loading leads…</div>
-      </div>
-    );
-  }
-
   return (
     <div style={s.pageWrapper}>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
       <div style={s.pageHeader}>
         <div>
           <h1 style={s.pageTitle}>Leads</h1>
           <p style={s.pageSubtitle}>
             Qualify enquiries, track priorities, and convert prospects into bookings.
           </p>
-        </div>
-        <div style={s.headerActions}>
-          <a href={NEW_LEAD_TARGET} style={{ textDecoration: 'none' }}>
-            <button type="button" style={s.invertedPrimaryButton}>
-              {ICONS.plus} New lead
-            </button>
-          </a>
         </div>
       </div>
 
@@ -619,69 +566,97 @@ export default function LeadsPage() {
         />
       </div>
 
-      <div style={s.container}>
-        <div style={s.listPanel}>
-          <div style={s.listHeader}>
-            <span style={s.listTitle}>All leads</span>
-            <span style={s.listSubtitle}>Sorted by event date · score, type & budget at a glance</span>
-            <div style={s.searchWrapper}>
-              <span style={s.searchIcon}>{ICONS.search}</span>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search name, email, type…"
-                style={s.searchBox}
-              />
+      {error ? (
+        <div style={{ ...s.listPanel, maxHeight: 'none' }}>
+          <div style={s.errorPanel}>
+            <div style={s.errorPanelTitle}>Couldn&apos;t load leads</div>
+            <div style={s.errorPanelText}>{error}</div>
+            <button type="button" style={s.retryButton} onClick={loadLeads}>
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={s.container}>
+          <div style={s.listPanel}>
+            <div style={s.listHeader}>
+              <span style={s.listTitle}>All leads</span>
+              <span style={s.listSubtitle}>Sorted by event date · score, type & budget at a glance</span>
+              <div style={s.searchWrapper}>
+                <span style={s.searchIcon}>{ICONS.search}</span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search name, email, type…"
+                  style={s.searchBox}
+                />
+              </div>
+            </div>
+
+            <div style={s.filterTabs}>
+              {(['All', 'High', 'Medium', 'Low'] as LeadFilter[]).map((status) => {
+                const isActive = filterStatus === status;
+                return (
+                  <button
+                    type="button"
+                    key={status}
+                    onClick={() => setFilterStatus(status)}
+                    style={{
+                      ...s.filterTab,
+                      ...(isActive ? s.filterTabActive : {}),
+                    }}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={s.listScroll}>
+              {loading ? (
+                <LeadListSkeleton s={s} />
+              ) : leads.length === 0 ? (
+                <div style={s.emptyState}>
+                  <div style={{ color: c.text, fontWeight: 600 }}>No leads yet</div>
+                  <div>New enquiries from your public booking page will appear here automatically.</div>
+                </div>
+              ) : filteredLeads.length === 0 ? (
+                <div style={s.emptyState}>
+                  <div style={{ color: c.text, fontWeight: 600 }}>No leads match</div>
+                  <div>Try a different filter or search term.</div>
+                </div>
+              ) : (
+                filteredLeads.map((lead) => (
+                  <LeadListItem
+                    key={lead.id}
+                    lead={lead}
+                    isActive={selectedLead?.id === lead.id}
+                    isHovered={hoveredId === lead.id}
+                    onSelect={() => setSelectedLeadId(lead.id)}
+                    onHover={(hov) => setHoveredId(hov ? lead.id : null)}
+                    s={s}
+                    c={c}
+                  />
+                ))
+              )}
             </div>
           </div>
 
-          <div style={s.filterTabs}>
-            {(['All', 'High', 'Medium', 'Low'] as LeadFilter[]).map((status) => {
-              const isActive = filterStatus === status;
-              return (
-                <button
-                  type="button"
-                  key={status}
-                  onClick={() => setFilterStatus(status)}
-                  style={{
-                    ...s.filterTab,
-                    ...(isActive ? s.filterTabActive : {}),
-                  }}
-                >
-                  {status}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={s.listScroll}>
-            {filteredLeads.length === 0 ? (
-              <div style={s.emptyState}>
-                <div style={{ color: c.text, fontWeight: 600 }}>No leads match</div>
-                <div>Try a different filter or search term.</div>
-              </div>
+          <div style={s.detailPanel}>
+            {loading ? (
+              <div style={s.emptyState}>Loading lead details…</div>
             ) : (
-              filteredLeads.map((lead) => (
-                <LeadListItem
-                  key={lead.id}
-                  lead={lead}
-                  isActive={selectedLead?.id === lead.id}
-                  isHovered={hoveredId === lead.id}
-                  onSelect={() => setSelectedLeadId(lead.id)}
-                  onHover={(hov) => setHoveredId(hov ? lead.id : null)}
-                  s={s}
-                  c={c}
-                />
-              ))
+              <LeadDetail
+                lead={selectedLead}
+                s={s}
+                c={c}
+                onConvert={() => router.push('/bookings')}
+              />
             )}
           </div>
         </div>
-
-        <div style={s.detailPanel}>
-          <LeadDetail lead={selectedLead} s={s} c={c} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

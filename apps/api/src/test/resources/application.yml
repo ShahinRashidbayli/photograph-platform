@@ -8,7 +8,11 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      # 'none' (matching production) — not 'validate'. In this schema-per-tenant
+      # app the tenant tables (bookings, photos, ...) live in tenant_* schemas
+      # created on demand by TenantSchemaInitializer, so a startup-time validate
+      # against the public schema cannot see them and fails the context.
+      ddl-auto: none
     open-in-view: false
 
   data:

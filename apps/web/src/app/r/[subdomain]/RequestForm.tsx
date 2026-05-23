@@ -4,6 +4,9 @@ import { useState, FormEvent } from 'react';
 
 interface Props {
   subdomain: string;
+  /** Visual variant. 'light' (default) is a white card; 'dark' is transparent
+      and inherits the surrounding page colors via CSS variables. */
+  variant?: 'light' | 'dark';
 }
 
 const EVENT_TYPES = [
@@ -28,35 +31,81 @@ type SubmitState =
   | { kind: 'ok' }
   | { kind: 'error'; message: string };
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 8,
-  border: '1px solid #CBD5E1',
-  fontSize: 14,
-  background: '#FFFFFF',
-  color: '#0F172A',
-  boxSizing: 'border-box',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 500,
-  color: '#334155',
-  marginBottom: 6,
-};
-
-export default function RequestForm({ subdomain }: Props) {
+export default function RequestForm({ subdomain, variant = 'light' }: Props) {
   const [state, setState] = useState<SubmitState>({ kind: 'idle' });
+  const isDark = variant === 'dark';
+
+  const palette = isDark
+    ? {
+        cardBg: 'transparent',
+        cardBorder: 'transparent',
+        cardPad: 0,
+        inputBg: 'transparent',
+        inputBorder: '#3F3F46',
+        inputBorderFocus: '#FAFAFA',
+        inputText: '#FAFAFA',
+        inputPlaceholder: '#71717A',
+        labelText: '#A1A1AA',
+        btnBg: '#FAFAFA',
+        btnText: '#0A0A0A',
+        btnDisabled: '#3F3F46',
+        successBg: 'rgba(34, 197, 94, 0.1)',
+        successBorder: 'rgba(34, 197, 94, 0.3)',
+        successText: '#86EFAC',
+        errorBg: 'rgba(239, 68, 68, 0.1)',
+        errorBorder: 'rgba(239, 68, 68, 0.3)',
+        errorText: '#FCA5A5',
+      }
+    : {
+        cardBg: '#FFFFFF',
+        cardBorder: '#E2E8F0',
+        cardPad: 24,
+        inputBg: '#FFFFFF',
+        inputBorder: '#CBD5E1',
+        inputBorderFocus: '#0F172A',
+        inputText: '#0F172A',
+        inputPlaceholder: '#94A3B8',
+        labelText: '#334155',
+        btnBg: '#0F172A',
+        btnText: '#FFFFFF',
+        btnDisabled: '#94A3B8',
+        successBg: '#ECFDF5',
+        successBorder: '#A7F3D0',
+        successText: '#065F46',
+        errorBg: '#FEF2F2',
+        errorBorder: '#FECACA',
+        errorText: '#991B1B',
+      };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: 8,
+    border: `1px solid ${palette.inputBorder}`,
+    fontSize: 14,
+    background: palette.inputBg,
+    color: palette.inputText,
+    boxSizing: 'border-box',
+    outline: 'none',
+    transition: 'border-color 0.15s ease',
+    fontFamily: 'inherit',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: palette.labelText,
+    marginBottom: 8,
+  };
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
 
-    // Honeypot — bots that auto-fill every input will populate this and the
-    // backend will silently 202 the request without persisting anything.
     const honeypot = String(data.get('website') ?? '');
 
     const payload = {
@@ -110,16 +159,17 @@ export default function RequestForm({ subdomain }: Props) {
     return (
       <div
         style={{
-          background: '#ECFDF5',
-          border: '1px solid #A7F3D0',
+          background: palette.successBg,
+          border: `1px solid ${palette.successBorder}`,
           borderRadius: 12,
-          padding: 24,
-          color: '#065F46',
+          padding: 32,
+          color: palette.successText,
         }}
       >
-        <h2 style={{ margin: '0 0 8px', fontSize: 18 }}>Thank you!</h2>
-        <p style={{ margin: 0 }}>
-          Your request was sent. You will receive a confirmation email shortly.
+        <div style={{ fontSize: 22, marginBottom: 8 }}>✓</div>
+        <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600 }}>Request sent</h3>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
+          You will receive a personal reply with availability and packages within a few hours.
         </p>
       </div>
     );
@@ -129,15 +179,21 @@ export default function RequestForm({ subdomain }: Props) {
     <form
       onSubmit={onSubmit}
       style={{
-        background: '#FFFFFF',
-        border: '1px solid #E2E8F0',
+        background: palette.cardBg,
+        border: isDark ? 'none' : `1px solid ${palette.cardBorder}`,
         borderRadius: 12,
-        padding: 24,
+        padding: palette.cardPad,
         display: 'grid',
         gap: 16,
       }}
     >
-      {/* Honeypot field — visually hidden, ignored by humans, filled by bots. */}
+      <style>{`
+        .lead-form-input:focus { border-color: ${palette.inputBorderFocus} !important; }
+        .lead-form-input::placeholder { color: ${palette.inputPlaceholder}; }
+        .lead-form-input option { background: ${isDark ? '#0A0A0A' : '#FFFFFF'}; color: ${palette.inputText}; }
+      `}</style>
+
+      {/* Honeypot — visually hidden, ignored by humans, filled by bots. */}
       <div
         aria-hidden="true"
         style={{
@@ -155,64 +211,81 @@ export default function RequestForm({ subdomain }: Props) {
         </label>
       </div>
 
-      <div>
-        <label style={labelStyle} htmlFor="name">
-          Your name *
-        </label>
-        <input id="name" name="name" type="text" required style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div>
+          <label style={labelStyle} htmlFor="name">
+            Your name *
+          </label>
+          <input id="name" name="name" type="text" required className="lead-form-input" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="email">
+            Email *
+          </label>
+          <input id="email" name="email" type="email" required className="lead-form-input" style={inputStyle} />
+        </div>
       </div>
 
-      <div>
-        <label style={labelStyle} htmlFor="email">
-          Email *
-        </label>
-        <input id="email" name="email" type="email" required style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div>
+          <label style={labelStyle} htmlFor="phone">
+            Phone (optional)
+          </label>
+          <input id="phone" name="phone" type="tel" className="lead-form-input" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="eventDate">
+            Event date *
+          </label>
+          <input id="eventDate" name="eventDate" type="date" required className="lead-form-input" style={inputStyle} />
+        </div>
       </div>
 
-      <div>
-        <label style={labelStyle} htmlFor="phone">
-          Phone (optional)
-        </label>
-        <input id="phone" name="phone" type="tel" style={inputStyle} />
-      </div>
-
-      <div>
-        <label style={labelStyle} htmlFor="eventDate">
-          Event date *
-        </label>
-        <input id="eventDate" name="eventDate" type="date" required style={inputStyle} />
-      </div>
-
-      <div>
-        <label style={labelStyle} htmlFor="eventType">
-          Session type *
-        </label>
-        <select id="eventType" name="eventType" required defaultValue="" style={inputStyle}>
-          <option value="" disabled>
-            Select…
-          </option>
-          {EVENT_TYPES.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div>
+          <label style={labelStyle} htmlFor="eventType">
+            Session type *
+          </label>
+          <select
+            id="eventType"
+            name="eventType"
+            required
+            defaultValue=""
+            className="lead-form-input"
+            style={inputStyle}
+          >
+            <option value="" disabled>
+              Select…
             </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label style={labelStyle} htmlFor="budgetRange">
-          Budget *
-        </label>
-        <select id="budgetRange" name="budgetRange" required defaultValue="" style={inputStyle}>
-          <option value="" disabled>
-            Select…
-          </option>
-          {BUDGET_RANGES.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+            {EVENT_TYPES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="budgetRange">
+            Budget *
+          </label>
+          <select
+            id="budgetRange"
+            name="budgetRange"
+            required
+            defaultValue=""
+            className="lead-form-input"
+            style={inputStyle}
+          >
+            <option value="" disabled>
+              Select…
             </option>
-          ))}
-        </select>
+            {BUDGET_RANGES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div>
@@ -223,6 +296,7 @@ export default function RequestForm({ subdomain }: Props) {
           id="message"
           name="message"
           rows={4}
+          className="lead-form-input"
           style={{ ...inputStyle, resize: 'vertical' }}
         />
       </div>
@@ -231,10 +305,10 @@ export default function RequestForm({ subdomain }: Props) {
         <div
           role="alert"
           style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
-            color: '#991B1B',
-            padding: '10px 12px',
+            background: palette.errorBg,
+            border: `1px solid ${palette.errorBorder}`,
+            color: palette.errorText,
+            padding: '10px 14px',
             borderRadius: 8,
             fontSize: 13,
           }}
@@ -247,17 +321,24 @@ export default function RequestForm({ subdomain }: Props) {
         type="submit"
         disabled={state.kind === 'submitting'}
         style={{
-          padding: '12px 16px',
+          padding: '14px 20px',
           borderRadius: 8,
-          background: state.kind === 'submitting' ? '#94A3B8' : '#0F172A',
-          color: '#FFFFFF',
+          background: state.kind === 'submitting' ? palette.btnDisabled : palette.btnBg,
+          color: palette.btnText,
           border: 'none',
           fontWeight: 600,
+          letterSpacing: '0.01em',
           cursor: state.kind === 'submitting' ? 'wait' : 'pointer',
           fontSize: 14,
+          transition: 'opacity 0.15s ease',
+          fontFamily: 'inherit',
         }}
+        onMouseEnter={(e) => {
+          if (state.kind !== 'submitting') e.currentTarget.style.opacity = '0.85';
+        }}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
       >
-        {state.kind === 'submitting' ? 'Sending…' : 'Send request'}
+        {state.kind === 'submitting' ? 'Sending…' : 'Send request →'}
       </button>
     </form>
   );

@@ -1,384 +1,531 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
+import api from '@/lib/api';
 import { Client } from '@/types/api';
-import { clientsStyles as styles } from './clients.styles';
+import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import {
+  getClientsColors,
+  getClientsStyles,
+  type ClientsTheme,
+} from './clients.styles';
 
-const MOCK_CLIENTS: Client[] = [
-  {
-    id: '1',
-    name: 'Maria & Klaus',
-    email: 'maria@example.com',
-    phone: '+49 176 333 2211',
-    location: 'Berlin, Germany',
-    totalSpent: 850,
-    bookingsCompleted: 1,
-    upcomingBookings: 0,
-    lastBookingDate: '2026-06-14',
-    notes: 'Wonderful couple, very happy with photos. Referred 3 friends.',
-    joinedAt: '2025-04-15',
-  },
-  {
-    id: '2',
-    name: 'Sophie Richter',
-    email: 'sophie@example.com',
-    phone: '+49 162 444 3322',
-    location: 'Munich, Germany',
-    totalSpent: 350,
-    bookingsCompleted: 1,
-    upcomingBookings: 0,
-    lastBookingDate: '2026-05-02',
-    notes: 'Professional client, very organized. Uses photos for LinkedIn.',
-    joinedAt: '2025-04-10',
-  },
-  {
-    id: '3',
-    name: 'Thomas Müller',
-    email: 'thomas@example.com',
-    phone: '+49 178 555 4433',
-    location: 'Hamburg, Germany',
-    totalSpent: 150,
-    bookingsCompleted: 1,
-    upcomingBookings: 1,
-    lastBookingDate: '2026-04-25',
-    notes: 'Casual family client, very relaxed during shoot.',
-    joinedAt: '2025-04-09',
-  },
-  {
-    id: '4',
-    name: 'Laura & Ben',
-    email: 'laura@example.com',
-    phone: '+49 151 666 5544',
-    location: 'Cologne, Germany',
-    totalSpent: 1200,
-    bookingsCompleted: 1,
-    upcomingBookings: 1,
-    lastBookingDate: '2026-07-20',
-    notes: 'Premium clients, very high satisfaction. Interest in album design.',
-    joinedAt: '2025-04-08',
-  },
-  {
-    id: '5',
-    name: 'Nina Kraft',
-    email: 'nina@example.com',
-    phone: '+49 175 777 6655',
-    location: 'Frankfurt, Germany',
-    totalSpent: 120,
-    bookingsCompleted: 2,
-    upcomingBookings: 0,
-    lastBookingDate: '2026-04-30',
-    notes: 'Repeat customer. Loves casual family photos.',
-    joinedAt: '2025-04-07',
-  },
-];
+type ClientFilter = 'All' | 'Active' | 'Repeat';
+
+function formatEUR(cents: number) {
+  return `€${(cents / 100).toLocaleString('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+}
+
+const ICONS = {
+  search: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  ),
+  plus: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  ),
+  whatsapp: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.6 6.32A7.85 7.85 0 0 0 12.05 4a7.94 7.94 0 0 0-6.88 11.91L4 20l4.2-1.1a7.93 7.93 0 0 0 3.84.98h.01a7.94 7.94 0 0 0 5.55-13.56Zm-5.55 12.21h-.01a6.6 6.6 0 0 1-3.36-.92l-.24-.14-2.5.65.67-2.43-.16-.25a6.6 6.6 0 0 1 10.3-8.13 6.55 6.55 0 0 1 1.94 4.69 6.6 6.6 0 0 1-6.64 6.53Zm3.61-4.94c-.2-.1-1.18-.58-1.36-.65s-.31-.1-.45.1c-.13.2-.5.65-.62.78-.11.13-.23.15-.43.05a5.42 5.42 0 0 1-1.6-.99 6 6 0 0 1-1.1-1.38c-.12-.2 0-.31.09-.41.09-.09.2-.23.3-.34.1-.12.13-.2.2-.33.07-.13.03-.25-.02-.35-.05-.1-.45-1.08-.61-1.48-.16-.39-.32-.34-.45-.34h-.38a.74.74 0 0 0-.53.25 2.21 2.21 0 0 0-.7 1.65c0 .97.71 1.91.81 2.05.1.13 1.4 2.13 3.39 2.99.47.2.85.32 1.14.41.48.15.92.13 1.26.08.39-.06 1.18-.48 1.35-.95.16-.47.16-.87.12-.95-.05-.08-.18-.13-.38-.23Z" />
+    </svg>
+  ),
+  email: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  ),
+  arrowRight: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  ),
+  users: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  calendar: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  ),
+  euro: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 10h12M4 14h9" />
+      <path d="M19 5a7 7 0 1 0 0 14" />
+    </svg>
+  ),
+};
+
+type Styles = Record<string, React.CSSProperties>;
+type ColorTokens = ReturnType<typeof getClientsColors>;
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+  iconBg,
+  iconColor,
+  s,
+}: Readonly<{
+  label: string;
+  value: number | string;
+  hint: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  s: Styles;
+}>) {
+  return (
+    <div style={s.statCard}>
+      <div style={s.statTopRow}>
+        <span style={s.statLabel}>{label}</span>
+        <span style={{ ...s.statIcon, background: iconBg, color: iconColor }}>{icon}</span>
+      </div>
+      <div style={s.statValue}>{value}</div>
+      <span style={s.statHint}>{hint}</span>
+    </div>
+  );
+}
 
 function ClientListItem({
   client,
   isActive,
+  isHovered,
   onSelect,
-  colors,
-}: Readonly<{ client: Client; isActive: boolean; onSelect: () => void; colors?: any }>) {
-  const defaultColors = { bg: '#F7F8FA', text: '#111827', subText: '#6B7280', cardBg: '#fff', border: '#E5E7EB', hover: '#F3F4F6' };
-  const c = colors || defaultColors;
+  onHover,
+  s,
+  c,
+}: Readonly<{
+  client: Client;
+  isActive: boolean;
+  isHovered: boolean;
+  onSelect: () => void;
+  onHover: (_hov: boolean) => void;
+  s: Styles;
+  c: ColorTokens;
+}>) {
+  const avatar = pickAvatarColor(client.id || client.fullName, c.isDark);
+
+  let itemStyle: React.CSSProperties = { ...s.listItem };
+  if (isActive) itemStyle = { ...itemStyle, ...s.listItemActive };
+  else if (isHovered) itemStyle = { ...itemStyle, ...s.listItemHover };
 
   return (
     <button
-      style={{
-        ...styles.listItem,
-        ...(isActive ? styles.listItemActive : {}),
-        border: 'none',
-        background: isActive ? `rgba(37, 99, 235, 0.1)` : c.cardBg,
-        textAlign: 'left',
-        cursor: 'pointer',
-        color: c.text,
-        transition: 'all 0.2s ease',
-      }}
+      type="button"
+      style={itemStyle}
       onClick={onSelect}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
     >
-      <div style={styles.listItemAvatar}>
-        {client.name
-          .split(' ')
-          .slice(0, 2)
-          .map((n) => n[0])
-          .join('')
-          .toUpperCase()}
+      <span style={{ ...s.listItemAvatar, background: avatar.bg, color: avatar.fg }}>
+        {getInitials(client.fullName)}
+      </span>
+      <div style={s.listItemContent}>
+        <span style={s.listItemName}>{client.fullName}</span>
+        <span style={s.listItemMeta}>
+          {client.totalBookings} booking{client.totalBookings !== 1 ? 's' : ''} · {formatEUR(client.totalSpentCents)}
+        </span>
       </div>
-      <div style={styles.listItemContent}>
-        <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '4px', letterSpacing: '-0.01em', lineHeight: '1.3', color: c.text }}>{client.name}</div>
-        <div style={{ fontSize: '12px', lineHeight: '1.4', fontWeight: 500, marginBottom: '3px', color: c.subText }}>
-          {client.bookingsCompleted} booking{client.bookingsCompleted !== 1 ? 's' : ''} · €{client.totalSpent}
-        </div>
-        <div style={{ fontSize: '11px', color: c.subText, lineHeight: '1.4' }}>
-          {client.location}
-        </div>
-      </div>
-      <div style={styles.listItemRight}>
-        {client.upcomingBookings > 0 && (
-          <div style={styles.upcomingBadge}>
-            {client.upcomingBookings} upcoming
-          </div>
-        )}
-      </div>
+      {client.upcomingBookings > 0 ? (
+        <span
+          style={{
+            ...s.badgeSm,
+            background: c.primaryBg,
+            color: c.primaryStrong,
+          }}
+        >
+          <span style={{ ...s.badgeDot, background: c.primary }} />
+          {client.upcomingBookings} upcoming
+        </span>
+      ) : null}
     </button>
   );
 }
 
-function ClientDetail({ client, colors }: Readonly<{ client: Client | null; colors?: any }>) {
-  const [notes, setNotes] = React.useState('');
-  const [hasChanges, setHasChanges] = React.useState(false);
-  const defaultColors = { text: '#111827', subText: '#6B7280', cardBg: '#fff', bg: '#f9fafb', border: '#e5e7eb' };
-  const c = colors || defaultColors;
-
-  React.useEffect(() => {
-    if (client) {
-      setNotes(client.notes || '');
-      setHasChanges(false);
-    }
-  }, [client]);
-
+function ClientDetail({
+  client,
+  s,
+  c,
+  onNewBooking,
+}: Readonly<{ client: Client | null; s: Styles; c: ColorTokens; onNewBooking: () => void }>) {
   if (!client) {
     return (
-      <div style={styles.emptyState}>
-        <div style={{ fontSize: '16px', color: c.subText }}>👥 Select a client to view details</div>
+      <div style={s.emptyState}>
+        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>No client selected</div>
+        <div>Pick a client from the list to see details.</div>
       </div>
     );
   }
 
   const lastBookingDate = client.lastBookingDate ? new Date(client.lastBookingDate) : null;
+  const joinedDate = new Date(client.createdAt);
+  const avatar = pickAvatarColor(client.id || client.fullName, c.isDark);
+  const waHref = client.phone
+    ? `https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`
+    : null;
 
   return (
     <>
-      <div style={{...styles.detailHeader, borderBottomColor: c.border}}>
-        <div>
-          <div style={{...styles.detailTitle, color: c.text}}>{client.name}</div>
-          <div style={{...styles.detailSubtitle, color: c.subText}}>
-            {client.location} · Joined {new Date(client.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+      <div style={s.detailHeader}>
+        <div style={s.detailHeaderLeft}>
+          <span style={{ ...s.detailAvatar, background: avatar.bg, color: avatar.fg }}>
+            {getInitials(client.fullName)}
+          </span>
+          <div style={s.detailHeaderText}>
+            <div style={s.detailTitleRow}>
+              <span style={s.detailTitle}>{client.fullName}</span>
+              {client.upcomingBookings > 0 ? (
+                <span
+                  style={{
+                    ...s.badge,
+                    background: c.primaryBg,
+                    color: c.primaryStrong,
+                  }}
+                >
+                  <span style={{ ...s.badgeDot, background: c.primary }} />
+                  {client.upcomingBookings} upcoming
+                </span>
+              ) : null}
+            </div>
+            <span style={s.detailSubtitle}>
+              Joined {joinedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            </span>
           </div>
         </div>
-        <div style={styles.detailActions}>
-          <button style={{ ...styles.actionButton, ...styles.actionButtonPrimary }}>
-            New Booking
+        <div style={s.detailActions}>
+          <a
+            href={waHref ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={!waHref}
+            title={waHref ? 'Open WhatsApp chat' : 'No phone number on file'}
+            style={{
+              ...s.secondaryButton,
+              textDecoration: 'none',
+              ...(waHref ? {} : { opacity: 0.5, pointerEvents: 'none' }),
+            }}
+          >
+            {ICONS.whatsapp} WhatsApp
+          </a>
+          <a
+            href={`mailto:${client.email}`}
+            title={`Email ${client.email}`}
+            style={{ ...s.secondaryButton, textDecoration: 'none' }}
+          >
+            {ICONS.email} Email
+          </a>
+          <button type="button" style={s.invertedPrimaryButton} onClick={onNewBooking}>
+            {ICONS.plus} New booking
           </button>
         </div>
       </div>
 
-      <div style={{...styles.detailBody}}>
-        <div style={styles.statsGrid}>
-          <div style={{...styles.statBox, background: 'rgba(0, 0, 0, 0.05)', borderColor: c.border}}>
-            <div style={{...styles.statBoxLabel, color: c.subText}}>Total Spent</div>
-            <div style={{...styles.statBoxValue, color: c.text}}>€{client.totalSpent}</div>
+      <div style={s.detailBody}>
+        <div style={s.statsGrid}>
+          <div style={s.statBox}>
+            <span style={s.statBoxLabel}>Total spent</span>
+            <span style={s.statBoxValue}>{formatEUR(client.totalSpentCents)}</span>
           </div>
-          <div style={{...styles.statBox, background: 'rgba(0, 0, 0, 0.05)', borderColor: c.border}}>
-            <div style={{...styles.statBoxLabel, color: c.subText}}>Bookings</div>
-            <div style={{...styles.statBoxValue, color: c.text}}>{client.bookingsCompleted}</div>
+          <div style={s.statBox}>
+            <span style={s.statBoxLabel}>Bookings</span>
+            <span style={s.statBoxValue}>{client.totalBookings}</span>
           </div>
-          <div style={{...styles.statBox, background: 'rgba(0, 0, 0, 0.05)', borderColor: c.border}}>
-            <div style={{...styles.statBoxLabel, color: c.subText}}>Upcoming</div>
-            <div style={{...styles.statBoxValue, color: c.text}}>{client.upcomingBookings}</div>
+          <div style={s.statBox}>
+            <span style={s.statBoxLabel}>Upcoming</span>
+            <span style={s.statBoxValue}>{client.upcomingBookings}</span>
           </div>
-          <div style={{...styles.statBox, background: 'rgba(0, 0, 0, 0.05)', borderColor: c.border}}>
-            <div style={{...styles.statBoxLabel, color: c.subText}}>Last Session</div>
-            <div style={{...styles.statBoxValue, color: c.text}}>
+          <div style={s.statBox}>
+            <span style={s.statBoxLabel}>Last session</span>
+            <span style={s.statBoxValue}>
               {lastBookingDate
                 ? lastBookingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                 : '—'}
+            </span>
+          </div>
+        </div>
+
+        <div style={s.section}>
+          <span style={s.sectionTitle}>Contact information</span>
+          <div style={s.sectionCard}>
+            <div style={s.infoGrid}>
+              <div style={s.infoRow}>
+                <span style={s.infoLabel}>Email</span>
+                <span style={s.infoValue}>{client.email}</span>
+              </div>
+              <div style={s.infoRow}>
+                <span style={s.infoLabel}>Phone</span>
+                <span style={s.infoValue}>{client.phone || '—'}</span>
+              </div>
+              <div style={s.infoRow}>
+                <span style={s.infoLabel}>Joined</span>
+                <span style={s.infoValue}>
+                  {joinedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div style={styles.section}>
-          <div style={{...styles.sectionTitle, color: c.subText}}>Contact Information</div>
-          <div style={styles.infoGrid}>
-            <div style={{...styles.infoRow, borderBottomColor: c.border}}>
-              <span style={{...styles.infoLabel, color: c.subText}}>Email</span>
-              <span style={{...styles.infoValue, color: c.text}}>{client.email}</span>
-            </div>
-            <div style={{...styles.infoRow, borderBottomColor: c.border}}>
-              <span style={{...styles.infoLabel, color: c.subText}}>Phone</span>
-              <span style={{...styles.infoValue, color: c.text}}>{client.phone || 'Not provided'}</span>
-            </div>
-            <div style={{ ...styles.infoRow, borderBottom: 'none', paddingBottom: 0 }}>
-              <span style={{...styles.infoLabel, color: c.subText}}>Location</span>
-              <span style={{...styles.infoValue, color: c.text}}>{client.location || 'Not provided'}</span>
-            </div>
+        <div style={s.section}>
+          <span style={s.sectionTitle}>Client notes</span>
+          <div style={s.notesReadonly}>
+            {client.notes?.trim()
+              ? client.notes
+              : 'No notes added for this client yet.'}
           </div>
-        </div>
-
-        <div style={styles.section}>
-          <div style={{...styles.sectionTitle, color: c.subText}}>Client Notes</div>
-          <textarea
-            value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-              setHasChanges(true);
-            }}
-            placeholder="Add notes about this client..."
-            style={{...styles.notesTextarea, color: c.text, backgroundColor: 'rgba(0, 0, 0, 0.05)', borderColor: c.border}}
-          />
-          {hasChanges && (
-            <button style={{ ...styles.actionButton, ...styles.actionButtonPrimary, width: '100%', marginTop: '10px' }}>
-              Save Notes
-            </button>
-          )}
-        </div>
-
-        <div style={styles.contactActions}>
-          <button style={{ ...styles.actionButton, ...styles.actionButtonOutline, flex: 1, color: c.text, borderColor: c.border, background: 'transparent' }}>
-            💬 WhatsApp
-          </button>
-          <button style={{ ...styles.actionButton, ...styles.actionButtonOutline, flex: 1, color: c.text, borderColor: c.border, background: c.cardBg }}>
-            📧 Email
-          </button>
+          <span style={s.notesHint}>Editing client notes is coming soon.</span>
         </div>
       </div>
     </>
   );
 }
 
+function ClientListSkeleton({ s }: Readonly<{ s: Styles }>) {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} style={s.skeletonItem}>
+          <div style={{ ...s.skeletonBlock, width: 44, height: 44, borderRadius: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ ...s.skeletonBlock, height: 12, width: '60%' }} />
+            <div style={{ ...s.skeletonBlock, height: 10, width: '40%' }} />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function ClientsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
-  const [clients] = useState<Client[]>(MOCK_CLIENTS);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Repeat'>('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const themeKey: ClientsTheme = theme === 'dark' ? 'dark' : 'light';
+  const s = useMemo(() => getClientsStyles(themeKey), [themeKey]);
+  const c = useMemo(() => getClientsColors(themeKey), [themeKey]);
 
-  const themeColors = {
-    light: { bg: '#F9FAFB', cardBg: '#FFFFFF', text: '#111827', subText: '#6B7280', border: '#E5E7EB', hover: '#F3F4F6' },
-    dark: { bg: '#111827', cardBg: '#1F2937', text: '#F3F4F6', subText: '#D1D5DB', border: '#374151', hover: '#374151' },
-  };
-  const colors = themeColors[theme];
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<ClientFilter>('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadClients = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    api
+      .get<Client[]>('/api/clients')
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setClients(list);
+        const selected = searchParams.get('selected');
+        setSelectedClientId(selected ?? list[0]?.id ?? null);
+      })
+      .catch(() => setError('We couldn’t load your clients. Please check your connection and try again.'))
+      .finally(() => setLoading(false));
+  }, [searchParams]);
 
   useEffect(() => {
-    const selected = searchParams.get('selected');
-    if (selected) {
-      setSelectedClientId(selected);
-    } else if (!selectedClientId) {
-      setSelectedClientId(MOCK_CLIENTS[0]?.id || null);
-    }
-  }, [searchParams, selectedClientId]);
+    loadClients();
+  }, [loadClients]);
 
   const filteredClients = useMemo(() => {
-    let filtered = clients;
-    if (filterStatus === 'Active') filtered = filtered.filter((c) => c.upcomingBookings > 0);
-    if (filterStatus === 'Repeat') filtered = filtered.filter((c) => c.bookingsCompleted > 1);
-    if (!searchQuery.trim()) return filtered;
-    const query = searchQuery.trim().toLowerCase();
-    return filtered.filter((client) =>
-      client.name.toLowerCase().includes(query)
-      || client.email.toLowerCase().includes(query)
-      || client.location?.toLowerCase().includes(query),
-    );
-  }, [clients, filterStatus, searchQuery]);
+    let list = clients;
+    if (filterStatus === 'Active') list = list.filter((cl) => cl.upcomingBookings > 0);
+    else if (filterStatus === 'Repeat') list = list.filter((cl) => cl.totalBookings > 1);
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((cl) => {
+        const haystack = `${cl.fullName} ${cl.email}`.toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return list;
+  }, [clients, filterStatus, searchTerm]);
 
   const selectedClient = useMemo(
-    () => clients.find((c) => c.id === selectedClientId) || clients[0] || null,
-    [clients, selectedClientId],
+    () => filteredClients.find((cl) => cl.id === selectedClientId) || filteredClients[0] || null,
+    [filteredClients, selectedClientId],
   );
 
   const stats = useMemo(() => {
     const total = clients.length;
-    const active = clients.filter((c) => c.upcomingBookings > 0).length;
-    const totalRevenue = clients.reduce((sum, c) => sum + c.totalSpent, 0);
-    const avgSpend = Math.round(totalRevenue / total);
-
-    return {
-      total,
-      active,
-      totalRevenue,
-      avgSpend,
-    };
+    const active = clients.filter((cl) => cl.upcomingBookings > 0).length;
+    const totalRevenueCents = clients.reduce((sum, cl) => sum + cl.totalSpentCents, 0);
+    const avgSpendCents = total > 0 ? Math.round(totalRevenueCents / total) : 0;
+    return { total, active, totalRevenueCents, avgSpendCents };
   }, [clients]);
 
-  const statsCards = useMemo(() => [
-    {
-      label: 'Total Clients',
-      value: stats.total,
-      change: `€${stats.totalRevenue} revenue`,
-    },
-    {
-      label: 'Active Bookings',
-      value: stats.active,
-      change: `Upcoming sessions`,
-    },
-    {
-      label: 'Average Spend',
-      value: `€${stats.avgSpend}`,
-      change: 'Per client',
-    },
-  ], [stats]);
-
   return (
-    <div style={{ ...styles.pageWrapper, background: colors.bg, color: colors.text, transition: 'background 0.3s ease, color 0.3s ease' }}>
-      <div style={{ ...styles.pageHeader, background: colors.cardBg, borderColor: colors.border, color: colors.text, transition: 'all 0.3s ease' }}>
+    <div style={s.pageWrapper}>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
+      <div style={s.pageHeader}>
         <div>
-          <div style={{ ...styles.pageTitle, color: colors.text }}>Clients</div>
-          <div style={{ ...styles.pageSubtitle, color: colors.subText }}>Manage client relationships, track sessions, and build lasting connections.</div>
+          <h1 style={s.pageTitle}>Clients</h1>
+          <p style={s.pageSubtitle}>
+            Manage client relationships, track sessions, and build lasting connections.
+          </p>
         </div>
-        <div style={styles.headerStats}>
-          {statsCards.map((card) => (
-            <div key={card.label} style={{ ...styles.headerStatCard, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease' }}>
-              <div style={{ ...styles.headerStatLabel, color: colors.subText }}>{card.label}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                <div style={{ ...styles.headerStatValue, color: colors.text }}>{card.value}</div>
-                <div style={{ ...styles.headerStatChange, color: colors.subText }}>{card.change}</div>
+        <div style={s.headerActions}>
+          <button
+            type="button"
+            style={s.invertedPrimaryButton}
+            onClick={() => router.push('/bookings')}
+          >
+            {ICONS.plus} New booking
+          </button>
+        </div>
+      </div>
+
+      <div style={s.summaryRow}>
+        <StatCard
+          label="Total clients"
+          value={stats.total}
+          hint={`${formatEUR(stats.totalRevenueCents)} lifetime revenue`}
+          icon={ICONS.users}
+          iconBg={c.primaryBg}
+          iconColor={c.primaryStrong}
+          s={s}
+        />
+        <StatCard
+          label="Active bookings"
+          value={stats.active}
+          hint="Clients with upcoming sessions"
+          icon={ICONS.calendar}
+          iconBg={c.primaryBg}
+          iconColor={c.primaryStrong}
+          s={s}
+        />
+        <StatCard
+          label="Average spend"
+          value={formatEUR(stats.avgSpendCents)}
+          hint="Per client lifetime"
+          icon={ICONS.euro}
+          iconBg={c.primaryBg}
+          iconColor={c.primaryStrong}
+          s={s}
+        />
+      </div>
+
+      {error ? (
+        <div style={{ ...s.listPanel, maxHeight: 'none' }}>
+          <div style={s.errorPanel}>
+            <div style={s.errorPanelTitle}>Couldn&apos;t load clients</div>
+            <div style={s.errorPanelText}>{error}</div>
+            <button type="button" style={s.retryButton} onClick={loadClients}>
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={s.container}>
+          <div style={s.listPanel}>
+            <div style={s.listHeader}>
+              <span style={s.listTitle}>All clients</span>
+              <span style={s.listSubtitle}>Sorted by recent activity · spend & bookings at a glance</span>
+              <div style={s.searchWrapper}>
+                <span style={s.searchIcon}>{ICONS.search}</span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search name or email…"
+                  style={s.searchBox}
+                />
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div style={{ ...styles.container, background: colors.bg }}>
-        <div style={{ ...styles.listPanel, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease' }}>
-          <div style={{...styles.listHeader, borderBottomColor: colors.border}}>
-            <div style={{...styles.listTitle, color: colors.text}}>Clients</div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search clients..."
-              style={{...styles.searchBox, background: colors.bg, color: colors.text, borderColor: colors.border}}
-            />
+            <div style={s.filterTabs}>
+              {(['All', 'Active', 'Repeat'] as ClientFilter[]).map((status) => {
+                const isActive = filterStatus === status;
+                return (
+                  <button
+                    type="button"
+                    key={status}
+                    onClick={() => setFilterStatus(status)}
+                    style={{
+                      ...s.filterTab,
+                      ...(isActive ? s.filterTabActive : {}),
+                    }}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={s.listScroll}>
+              {loading ? (
+                <ClientListSkeleton s={s} />
+              ) : clients.length === 0 ? (
+                <div style={s.emptyState}>
+                  <div style={{ color: c.text, fontWeight: 600 }}>No clients yet</div>
+                  <div>Clients appear here automatically once you create their first booking.</div>
+                  <button
+                    type="button"
+                    style={{ ...s.primaryButton, marginTop: '4px' }}
+                    onClick={() => router.push('/bookings')}
+                  >
+                    {ICONS.plus} New booking
+                  </button>
+                </div>
+              ) : filteredClients.length === 0 ? (
+                <div style={s.emptyState}>
+                  <div style={{ color: c.text, fontWeight: 600 }}>No clients match</div>
+                  <div>Try a different filter or search term.</div>
+                </div>
+              ) : (
+                filteredClients.map((client) => (
+                  <ClientListItem
+                    key={client.id}
+                    client={client}
+                    isActive={selectedClient?.id === client.id}
+                    isHovered={hoveredId === client.id}
+                    onSelect={() => setSelectedClientId(client.id)}
+                    onHover={(hov) => setHoveredId(hov ? client.id : null)}
+                    s={s}
+                    c={c}
+                  />
+                ))
+              )}
+            </div>
           </div>
 
-          <div style={{...styles.filterTabs, borderBottomColor: colors.border}}>
-            {(['All', 'Active', 'Repeat'] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                style={{
-                  ...styles.filterTab,
-                  ...(filterStatus === status ? styles.filterTabActive : {}),
-                  color: filterStatus === status ? '#fff' : colors.subText,
-                  background: filterStatus === status ? '#2563EB' : 'transparent',
-                  borderColor: colors.border,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-
-          <div style={styles.listScroll}>
-            {filteredClients.map((client) => (
-              <ClientListItem
-                key={client.id}
-                client={client}
-                isActive={selectedClientId === client.id}
-                onSelect={() => setSelectedClientId(client.id)}
-                colors={colors}
+          <div style={s.detailPanel}>
+            {loading ? (
+              <div style={s.emptyState}>Loading client details…</div>
+            ) : (
+              <ClientDetail
+                client={selectedClient}
+                s={s}
+                c={c}
+                onNewBooking={() => router.push('/bookings')}
               />
-            ))}
+            )}
           </div>
         </div>
-
-        <div style={{...styles.detailPanel, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease'}}>
-          <ClientDetail client={selectedClient} colors={colors} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

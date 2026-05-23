@@ -1,10 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
 import { Booking } from '@/types/api';
+import {
+  getBookingStatusMeta,
+  toneToVisual,
+  getAllowedTransitions,
+  STATUS_ACTION_LABEL,
+  type BookingStatusKey,
+} from '@/lib/booking-status';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   getBookingsColors,
   getBookingsStyles,
@@ -19,84 +27,11 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'pending', label: 'Pending' },
 ];
 
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'b1',
-    clientName: 'Yilmaz & Chen',
-    clientEmail: 'yilmaz@example.com',
-    eventDate: '2026-04-22',
-    eventType: 'Wedding Session',
-    location: 'Berlin, Germany',
-    totalAmountCents: 120000,
-    depositAmountCents: 30000,
-    status: 'DEPOSIT_PAID',
-    createdAt: '2026-03-20',
-  },
-  {
-    id: 'b2',
-    clientName: 'Braun family',
-    clientEmail: 'braun@example.com',
-    eventDate: '2026-04-26',
-    eventType: 'Family Session',
-    location: 'Munich, Germany',
-    totalAmountCents: 45000,
-    depositAmountCents: 45000,
-    status: 'CONFIRMED',
-    createdAt: '2026-03-15',
-  },
-  {
-    id: 'b3',
-    clientName: 'Stefan & Eva',
-    clientEmail: 'stefan@example.com',
-    eventDate: '2026-05-03',
-    eventType: 'Wedding Session',
-    location: 'Hamburg, Germany',
-    totalAmountCents: 180000,
-    depositAmountCents: 45000,
-    status: 'DEPOSIT_PAID',
-    createdAt: '2026-03-10',
-  },
-  {
-    id: 'b4',
-    clientName: 'Lena Hoffmann',
-    clientEmail: 'lena@example.com',
-    eventDate: '2026-05-12',
-    eventType: 'Portrait Session',
-    location: 'Cologne, Germany',
-    totalAmountCents: 35000,
-    depositAmountCents: 0,
-    status: 'ENQUIRY',
-    createdAt: '2026-04-01',
-  },
-  {
-    id: 'b5',
-    clientName: 'Markus Weber',
-    clientEmail: 'markus@example.com',
-    eventDate: '2026-05-18',
-    eventType: 'Corporate Headshots',
-    location: 'Frankfurt, Germany',
-    totalAmountCents: 92000,
-    depositAmountCents: 92000,
-    status: 'CONFIRMED',
-    createdAt: '2026-04-05',
-  },
-];
-
-const MOCK_PHONES: Record<string, string> = {
-  b1: '+49 176 333 2211',
-  b2: '+49 162 444 3322',
-  b3: '+49 178 555 4433',
-  b4: '+49 151 666 5544',
-  b5: '+49 175 777 6655',
-};
-
-const MOCK_NOTES: Record<string, string> = {
-  b1: 'Wedding ceremony at St. Michael Church, reception at Hotel Adlon. 6 hours coverage. Standard package.',
-  b2: 'Outdoor family shoot in English Garden. Two children (ages 4 and 7). Casual style.',
-  b3: 'Rooftop venue. Sunset ceremony preferred. Engagement album add-on requested.',
-  b4: 'Personal branding portraits for new website. Studio shoot, neutral backdrop.',
-  b5: 'Team of 12. Office location. LinkedIn-ready headshots, consistent lighting across all.',
-};
+// Pull the whole booking list in pages rather than a single capped request.
+// A flat `?size=50` silently dropped booking #51+, and the revenue/active
+// stat cards are summed over this list — a truncated list meant wrong totals.
+const PAGE_SIZE = 100;
+const MAX_PAGES = 25; // safety stop: 2500 bookings before we give up looping
 
 const AVATAR_PALETTE_LIGHT = [
   { bg: '#DBEAFE', fg: '#1D4ED8' },
@@ -134,6 +69,25 @@ function formatEUR(cents: number) {
   })}`;
 }
 
+/** Read the `{ error }` message the backend returns on 4xx/5xx, or fall back. */
+function extractApiError(err: unknown, fallback: string): string {
+  const message = (err as { response?: { data?: { error?: string } } })
+    ?.response?.data?.error;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
+/** Parse a euro amount typed by the user into integer cents (>= 0). */
+function eurosToCents(value: string): number {
+  const n = Number.parseFloat(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+/** Keep the list ordered by event date (ascending) after a local insert. */
+function insertSortedByDate(list: Booking[], booking: Booking): Booking[] {
+  return [...list, booking].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+}
+
 function matchesFilter(booking: Booking, filter: FilterKey) {
   if (filter === 'all') return true;
   if (filter === 'deposit') return booking.status === 'DEPOSIT_PAID';
@@ -154,51 +108,10 @@ function getStatusVisual(
   c: ReturnType<typeof getBookingsColors>,
   variant: 'list' | 'detail' = 'list',
 ): StatusVisual {
-  switch (status) {
-    case 'CONFIRMED':
-      return {
-        bg: c.primaryBg,
-        color: c.primaryStrong,
-        dot: c.primary,
-        label: 'Confirmed',
-      };
-    case 'DEPOSIT_PAID':
-      return {
-        bg: c.warningBg,
-        color: c.warningText,
-        dot: c.warning,
-        label: variant === 'detail' ? 'Deposit pending' : 'Deposit',
-      };
-    case 'FULLY_PAID':
-      return {
-        bg: c.successBg,
-        color: c.successText,
-        dot: c.success,
-        label: 'Fully paid',
-      };
-    case 'COMPLETED':
-      return {
-        bg: c.indigoBg,
-        color: c.indigoText,
-        dot: c.indigoText,
-        label: 'Completed',
-      };
-    case 'CANCELLED':
-      return {
-        bg: c.dangerBg,
-        color: c.dangerText,
-        dot: c.danger,
-        label: 'Cancelled',
-      };
-    case 'ENQUIRY':
-    default:
-      return {
-        bg: c.warningBg,
-        color: c.warningText,
-        dot: c.warning,
-        label: 'Pending',
-      };
-  }
+  const meta = getBookingStatusMeta(status);
+  const visual = toneToVisual(meta.tone, c);
+  const label = variant === 'detail' && meta.detailLabel ? meta.detailLabel : meta.label;
+  return { ...visual, label };
 }
 
 const ICONS = {
@@ -237,33 +150,58 @@ export default function BookingsPage() {
   const styles = useMemo(() => getBookingsStyles(theme), [theme]);
   const colors = useMemo(() => getBookingsColors(theme), [theme]);
 
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
+  const role = user?.role?.toUpperCase();
+  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(MOCK_BOOKINGS[0].id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  useEffect(() => {
-    const role = user?.role?.toUpperCase();
-    const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-    const endpoint = isPhotographer
-      ? '/api/photographerBookings?size=50'
-      : `/api/customerBookings?size=50&clientId=${user?.id}`;
+  const [showCreate, setShowCreate] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
-    api
-      .get<Booking[]>(endpoint)
-      .then((res) => {
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          setBookings(res.data);
-          setSelectedId(res.data[0].id);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
-  }, [user?.role, user?.id]);
+  const loadBookings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    // The customer endpoint identifies the caller from their session — no
+    // clientId is sent (the backend rejects a caller-supplied one as an IDOR).
+    const base = isPhotographer
+      ? '/api/photographerBookings'
+      : '/api/customerBookings';
+    try {
+      const all: Booking[] = [];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const res = await api.get<Booking[]>(
+          `${base}?page=${page}&size=${PAGE_SIZE}`,
+        );
+        const chunk = Array.isArray(res.data) ? res.data : [];
+        all.push(...chunk);
+        if (chunk.length < PAGE_SIZE) break;
+      }
+      setBookings(all);
+      setSelectedId((prev) =>
+        prev && all.some((b) => b.id === prev) ? prev : all[0]?.id ?? null,
+      );
+    } catch (err) {
+      setBookings([]);
+      setSelectedId(null);
+      setError(
+        extractApiError(err, 'We could not load your bookings. Please try again.'),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [isPhotographer]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
 
   const filteredBookings = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -300,6 +238,48 @@ export default function BookingsPage() {
     [bookings, filteredBookings, selectedId],
   );
 
+  // Clear any stale action error when the user switches bookings.
+  useEffect(() => {
+    setActionError(null);
+  }, [selectedId]);
+
+  async function performTransition(target: BookingStatusKey) {
+    if (!selected) return;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const res = await api.patch<Booking>(
+        `/api/bookings/${selected.id}/status`,
+        { status: target },
+      );
+      setBookings((prev) =>
+        prev.map((b) => (b.id === res.data.id ? res.data : b)),
+      );
+    } catch (err) {
+      setActionError(
+        extractApiError(err, 'Could not update the booking status.'),
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  function handleTransition(target: BookingStatusKey) {
+    if (!selected || actionBusy) return;
+    // Cancelling is destructive — confirm through a styled dialog first.
+    if (target === 'CANCELLED') {
+      setConfirmCancel(true);
+      return;
+    }
+    performTransition(target);
+  }
+
+  function handleCreated(created: Booking) {
+    setBookings((prev) => insertSortedByDate(prev, created));
+    setSelectedId(created.id);
+    setShowCreate(false);
+  }
+
   if (loading && bookings.length === 0) {
     return (
       <div
@@ -311,6 +291,30 @@ export default function BookingsPage() {
       >
         <div style={{ fontSize: '0.95rem', color: colors.textMuted }}>
           Loading bookings...
+        </div>
+      </div>
+    );
+  }
+
+  // A failed (or forbidden) fetch must not masquerade as an empty calendar.
+  if (error && bookings.length === 0) {
+    return (
+      <div style={styles.pageWrapper}>
+        <header style={styles.pageHeader}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={styles.pageTitle}>Bookings</h1>
+          </div>
+        </header>
+        <div style={styles.errorPanel}>
+          <div style={styles.errorPanelTitle}>Couldn&apos;t load bookings</div>
+          <div style={styles.errorPanelText}>{error}</div>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            onClick={loadBookings}
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
@@ -328,6 +332,7 @@ export default function BookingsPage() {
           .bk-summary { grid-template-columns: 1fr !important; }
           .bk-info-grid { grid-template-columns: 1fr !important; }
           .bk-payment-top { grid-template-columns: 1fr !important; }
+          .bk-form-row { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -336,35 +341,28 @@ export default function BookingsPage() {
         <div style={{ minWidth: 0 }}>
           <h1 style={styles.pageTitle}>Bookings</h1>
           <p style={styles.pageSubtitle}>
-            Manage all active bookings, payments, and client details in one place.
+            {isPhotographer
+              ? 'Manage all active bookings, payments, and client details in one place.'
+              : 'Track your sessions, payments, and upcoming events.'}
           </p>
         </div>
-        <div style={styles.headerActions}>
-          <button
-            type="button"
-            style={styles.secondaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.surface;
-            }}
-          >
-            Calendar
-          </button>
-          <button
-            type="button"
-            style={styles.invertedPrimaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            New booking
-          </button>
-        </div>
+        {isPhotographer && (
+          <div style={styles.headerActions}>
+            <button
+              type="button"
+              style={styles.invertedPrimaryButton}
+              onClick={() => setShowCreate(true)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              New booking
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Summary cards */}
@@ -382,8 +380,8 @@ export default function BookingsPage() {
           label="Revenue"
           value={formatEUR(stats.revenue)}
           icon={ICONS.euro}
-          iconBg={colors.successBg}
-          iconColor={colors.successText}
+          iconBg={colors.primaryBg}
+          iconColor={colors.primaryStrong}
         />
         <StatCard
           styles={styles}
@@ -473,13 +471,34 @@ export default function BookingsPage() {
             {filteredBookings.length === 0 ? (
               <div
                 style={{
-                  padding: '24px',
+                  padding: '32px 24px',
                   textAlign: 'center',
                   color: colors.textMuted,
                   fontSize: '0.875rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px',
                 }}
               >
-                No bookings match these filters.
+                {bookings.length === 0 ? (
+                  isPhotographer ? (
+                    <>
+                      <span>No bookings yet. Create your first booking to get started.</span>
+                      <button
+                        type="button"
+                        style={styles.primaryButton}
+                        onClick={() => setShowCreate(true)}
+                      >
+                        New booking
+                      </button>
+                    </>
+                  ) : (
+                    <span>You have no bookings yet.</span>
+                  )
+                ) : (
+                  <span>No bookings match these filters.</span>
+                )}
               </div>
             ) : (
               filteredBookings.map((booking) => (
@@ -503,14 +522,53 @@ export default function BookingsPage() {
         {/* Detail panel */}
         <section className="bk-detail-panel" style={styles.detailPanel}>
           {selected ? (
-            <BookingDetail booking={selected} styles={styles} colors={colors} />
+            <BookingDetail
+              booking={selected}
+              styles={styles}
+              colors={colors}
+              isPhotographer={isPhotographer}
+              actionBusy={actionBusy}
+              actionError={actionError}
+              onTransition={handleTransition}
+            />
           ) : (
             <div style={styles.emptyState}>
-              Select a booking to view details
+              {isPhotographer
+                ? 'Select a booking to view details, or create a new one.'
+                : 'Select a booking to view details.'}
             </div>
           )}
         </section>
       </div>
+
+      {showCreate && (
+        <CreateBookingModal
+          styles={styles}
+          colors={colors}
+          onClose={() => setShowCreate(false)}
+          onCreated={handleCreated}
+        />
+      )}
+
+      <ConfirmDialog
+        open={confirmCancel}
+        theme={theme}
+        tone="danger"
+        title="Cancel this booking?"
+        message={
+          selected
+            ? `This cancels the booking for ${selected.clientName}. This cannot be undone.`
+            : 'This cannot be undone.'
+        }
+        confirmLabel="Cancel booking"
+        cancelLabel="Keep booking"
+        busy={actionBusy}
+        onConfirm={() => {
+          setConfirmCancel(false);
+          performTransition('CANCELLED');
+        }}
+        onCancel={() => setConfirmCancel(false)}
+      />
     </div>
   );
 }
@@ -625,9 +683,21 @@ type DetailProps = {
   booking: Booking;
   styles: Record<string, React.CSSProperties>;
   colors: ReturnType<typeof getBookingsColors>;
+  isPhotographer: boolean;
+  actionBusy: boolean;
+  actionError: string | null;
+  onTransition: (_target: BookingStatusKey) => void;
 };
 
-function BookingDetail({ booking, styles, colors }: DetailProps) {
+function BookingDetail({
+  booking,
+  styles,
+  colors,
+  isPhotographer,
+  actionBusy,
+  actionError,
+  onTransition,
+}: DetailProps) {
   const date = new Date(booking.eventDate);
   const dateLabel = date.toLocaleString('en-US', {
     month: 'short',
@@ -638,8 +708,7 @@ function BookingDetail({ booking, styles, colors }: DetailProps) {
   const deposit = booking.depositAmountCents || 0;
   const remaining = Math.max(total - deposit, 0);
   const percent = total > 0 ? Math.min(100, Math.round((deposit / total) * 100)) : 0;
-  const phone = MOCK_PHONES[booking.id] ?? '—';
-  const notes = MOCK_NOTES[booking.id] ?? 'No notes added yet.';
+  const notes = booking.internalNotes?.trim() || 'No notes added yet.';
   const palette = pickAvatarColor(booking.id, colors.isDark);
 
   const progressColor =
@@ -650,6 +719,14 @@ function BookingDetail({ booking, styles, colors }: DetailProps) {
       : percent >= 100
         ? colors.successText
         : colors.primaryStrong;
+
+  // Photographer-only: lifecycle actions, mirrored from the backend state
+  // machine. Customers get a read-only view (the API would 403 the PATCH
+  // anyway — this just keeps the UI honest).
+  const transitions = isPhotographer ? getAllowedTransitions(booking.status) : [];
+  const advanceTargets = transitions.filter((t) => t !== 'CANCELLED');
+  const canCancel = transitions.includes('CANCELLED');
+  const isTerminal = isPhotographer && transitions.length === 0;
 
   return (
     <>
@@ -687,38 +764,51 @@ function BookingDetail({ booking, styles, colors }: DetailProps) {
             </div>
           </div>
         </div>
-        <div style={styles.detailActions}>
-          <button
-            type="button"
-            style={styles.secondaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.surface;
-            }}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            style={styles.primaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.primarySolidHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.primarySolid;
-            }}
-          >
-            Send message
-          </button>
-          <button type="button" style={styles.dangerButton}>
-            Cancel
-          </button>
-        </div>
+        {isPhotographer && (transitions.length > 0 || isTerminal) && (
+          <div style={styles.detailActions}>
+            {advanceTargets.map((target, index) => (
+              <button
+                key={target}
+                type="button"
+                disabled={actionBusy}
+                onClick={() => onTransition(target)}
+                style={{
+                  ...(index === 0 ? styles.primaryButton : styles.secondaryButton),
+                  ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
+                }}
+              >
+                {STATUS_ACTION_LABEL[target]}
+              </button>
+            ))}
+            {canCancel && (
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => onTransition('CANCELLED')}
+                style={{
+                  ...styles.dangerButton,
+                  ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
+                }}
+              >
+                Cancel
+              </button>
+            )}
+            {isTerminal && (
+              <span style={{ fontSize: '0.8rem', color: colors.textMuted }}>
+                This booking is closed.
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={styles.detailBody}>
+        {actionError && (
+          <div style={styles.actionError} role="alert">
+            {actionError}
+          </div>
+        )}
+
         {/* Client info */}
         <section style={styles.section}>
           <div style={styles.sectionTitle}>Client info</div>
@@ -733,7 +823,11 @@ function BookingDetail({ booking, styles, colors }: DetailProps) {
               value={booking.clientEmail}
               styles={styles}
             />
-            <InfoRow label="Phone" value={phone} styles={styles} />
+            <InfoRow
+              label="Event type"
+              value={booking.eventType ?? '—'}
+              styles={styles}
+            />
             <InfoRow
               label="Location"
               value={booking.location ?? '—'}
@@ -798,11 +892,14 @@ function BookingDetail({ booking, styles, colors }: DetailProps) {
           </div>
         </section>
 
-        {/* Notes */}
-        <section style={styles.section}>
-          <div style={styles.sectionTitle}>Notes</div>
-          <div style={styles.notesBox}>{notes}</div>
-        </section>
+        {/* Notes — internal to the photographer; the customer API never
+            returns this field, so the section is photographer-only. */}
+        {isPhotographer && (
+          <section style={styles.section}>
+            <div style={styles.sectionTitle}>Notes</div>
+            <div style={styles.notesBox}>{notes}</div>
+          </section>
+        )}
       </div>
     </>
   );
@@ -821,6 +918,307 @@ function InfoRow({
     <div style={styles.infoRow}>
       <span style={styles.infoLabel}>{label}</span>
       <span style={styles.infoValue}>{value}</span>
+    </div>
+  );
+}
+
+type CreateModalProps = {
+  styles: Record<string, React.CSSProperties>;
+  colors: ReturnType<typeof getBookingsColors>;
+  onClose: () => void;
+  onCreated: (_booking: Booking) => void;
+};
+
+const EMPTY_FORM = {
+  clientName: '',
+  clientEmail: '',
+  eventDate: '',
+  eventTime: '',
+  eventType: '',
+  location: '',
+  totalAmount: '',
+  depositAmount: '',
+  internalNotes: '',
+};
+
+function CreateBookingModal({ styles, colors, onClose, onCreated }: CreateModalProps) {
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Close on Escape — standard dialog affordance.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  function update(field: keyof typeof EMPTY_FORM, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+    if (!form.clientName.trim()) errors.clientName = 'Client name is required.';
+    if (!form.clientEmail.trim()) {
+      errors.clientEmail = 'Client email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())) {
+      errors.clientEmail = 'Enter a valid email address.';
+    }
+    if (!form.eventDate) errors.eventDate = 'Event date is required.';
+    const total = eurosToCents(form.totalAmount);
+    const deposit = eurosToCents(form.depositAmount);
+    if (form.depositAmount.trim() && deposit > total) {
+      errors.depositAmount = 'Deposit cannot exceed the total.';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  async function handleSubmit() {
+    if (submitting) return;
+    setSubmitError(null);
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        clientName: form.clientName.trim(),
+        clientEmail: form.clientEmail.trim(),
+        eventDate: form.eventDate,
+        eventTime: form.eventTime || null,
+        eventType: form.eventType.trim() || null,
+        location: form.location.trim() || null,
+        totalAmountCents: eurosToCents(form.totalAmount),
+        depositAmountCents: eurosToCents(form.depositAmount),
+        internalNotes: form.internalNotes.trim() || null,
+      };
+      const res = await api.post<Booking>('/api/bookings', payload);
+      onCreated(res.data);
+    } catch (err) {
+      setSubmitError(
+        extractApiError(err, 'Could not create the booking. Please try again.'),
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const fieldStyle = (field: keyof typeof EMPTY_FORM): React.CSSProperties => ({
+    ...styles.formInput,
+    ...(fieldErrors[field] ? { borderColor: colors.danger } : {}),
+  });
+
+  return (
+    <div
+      style={styles.modalOverlay}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={styles.modalCard}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create a new booking"
+      >
+        <div style={styles.modalHeader}>
+          <div style={{ minWidth: 0 }}>
+            <div style={styles.modalTitle}>New booking</div>
+            <div style={styles.modalSubtitle}>
+              The booking starts as an enquiry — you can advance it afterwards.
+            </div>
+          </div>
+          <button
+            type="button"
+            style={styles.modalClose}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={styles.modalBody}>
+          {submitError && (
+            <div style={styles.actionError} role="alert">
+              {submitError}
+            </div>
+          )}
+
+          <div style={styles.formField}>
+            <label style={styles.formLabel} htmlFor="bk-clientName">
+              Client name *
+            </label>
+            <input
+              id="bk-clientName"
+              type="text"
+              value={form.clientName}
+              onChange={(e) => update('clientName', e.target.value)}
+              style={fieldStyle('clientName')}
+              maxLength={200}
+            />
+            {fieldErrors.clientName && (
+              <span style={styles.fieldError}>{fieldErrors.clientName}</span>
+            )}
+          </div>
+
+          <div style={styles.formField}>
+            <label style={styles.formLabel} htmlFor="bk-clientEmail">
+              Client email *
+            </label>
+            <input
+              id="bk-clientEmail"
+              type="email"
+              value={form.clientEmail}
+              onChange={(e) => update('clientEmail', e.target.value)}
+              style={fieldStyle('clientEmail')}
+              maxLength={320}
+            />
+            {fieldErrors.clientEmail && (
+              <span style={styles.fieldError}>{fieldErrors.clientEmail}</span>
+            )}
+          </div>
+
+          <div className="bk-form-row" style={styles.formRow}>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-eventDate">
+                Event date *
+              </label>
+              <input
+                id="bk-eventDate"
+                type="date"
+                value={form.eventDate}
+                onChange={(e) => update('eventDate', e.target.value)}
+                style={fieldStyle('eventDate')}
+              />
+              {fieldErrors.eventDate && (
+                <span style={styles.fieldError}>{fieldErrors.eventDate}</span>
+              )}
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-eventTime">
+                Event time
+              </label>
+              <input
+                id="bk-eventTime"
+                type="time"
+                value={form.eventTime}
+                onChange={(e) => update('eventTime', e.target.value)}
+                style={styles.formInput}
+              />
+            </div>
+          </div>
+
+          <div className="bk-form-row" style={styles.formRow}>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-eventType">
+                Event type
+              </label>
+              <input
+                id="bk-eventType"
+                type="text"
+                value={form.eventType}
+                onChange={(e) => update('eventType', e.target.value)}
+                placeholder="Wedding, Portrait…"
+                style={styles.formInput}
+                maxLength={50}
+              />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-location">
+                Location
+              </label>
+              <input
+                id="bk-location"
+                type="text"
+                value={form.location}
+                onChange={(e) => update('location', e.target.value)}
+                style={styles.formInput}
+                maxLength={300}
+              />
+            </div>
+          </div>
+
+          <div className="bk-form-row" style={styles.formRow}>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-total">
+                Total amount (€)
+              </label>
+              <input
+                id="bk-total"
+                type="number"
+                min="0"
+                step="1"
+                value={form.totalAmount}
+                onChange={(e) => update('totalAmount', e.target.value)}
+                style={styles.formInput}
+              />
+            </div>
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-deposit">
+                Deposit (€)
+              </label>
+              <input
+                id="bk-deposit"
+                type="number"
+                min="0"
+                step="1"
+                value={form.depositAmount}
+                onChange={(e) => update('depositAmount', e.target.value)}
+                style={fieldStyle('depositAmount')}
+              />
+              {fieldErrors.depositAmount && (
+                <span style={styles.fieldError}>{fieldErrors.depositAmount}</span>
+              )}
+            </div>
+          </div>
+
+          <div style={styles.formField}>
+            <label style={styles.formLabel} htmlFor="bk-notes">
+              Internal notes
+            </label>
+            <textarea
+              id="bk-notes"
+              value={form.internalNotes}
+              onChange={(e) => update('internalNotes', e.target.value)}
+              style={styles.formTextarea}
+              placeholder="Only visible to you."
+            />
+          </div>
+        </div>
+
+        <div style={styles.modalFooter}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={{
+              ...styles.primaryButton,
+              ...(submitting ? { opacity: 0.6, cursor: 'wait' } : {}),
+            }}
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? 'Creating…' : 'Create booking'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

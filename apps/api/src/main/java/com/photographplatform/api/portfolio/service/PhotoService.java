@@ -3,6 +3,7 @@ package com.photographplatform.api.portfolio.service;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.portfolio.domain.Photo;
+import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadResponse;
 import com.photographplatform.api.portfolio.dto.PhotoResponse;
@@ -18,10 +19,14 @@ public class PhotoService {
 
     private final PhotoRepository photoRepository;
     private final Optional<R2StorageService> r2StorageService;
+    private final ThumbnailService thumbnailService;
 
-    public PhotoService(PhotoRepository photoRepository, Optional<R2StorageService> r2StorageService) {
+    public PhotoService(PhotoRepository photoRepository,
+                        Optional<R2StorageService> r2StorageService,
+                        ThumbnailService thumbnailService) {
         this.photoRepository = photoRepository;
         this.r2StorageService = r2StorageService;
+        this.thumbnailService = thumbnailService;
     }
 
     @Transactional
@@ -48,11 +53,41 @@ public class PhotoService {
 
     @Transactional(readOnly = true)
     public List<PhotoResponse> listAll() {
-        return photoRepository.findAll()
+        return photoRepository.findAllByOrderBySortOrderAsc()
             .stream()
-            .sorted((a, b) -> Integer.compare(a.getSortOrder(), b.getSortOrder()))
             .map(this::toResponse)
             .toList();
+    }
+
+    /**
+     * Marks an upload finished and tetiklenir thumbnail generation. Idempotent —
+     * re-calls overwrite the metadata and re-trigger the thumbnail. Width/height
+     * from the client are best-effort hints; the thumbnail job re-extracts them
+     * authoritatively when it decodes the image.
+     */
+    @Transactional
+    public PhotoResponse completeUpload(UUID photoId, CompleteUploadRequest req) {
+        Photo photo = photoRepository.findById(photoId)
+            .orElseThrow(() -> new NotFoundException("Photo not found: " + photoId));
+
+        if (req.fileSizeBytes() != null) {
+            photo.setFileSizeBytes(req.fileSizeBytes());
+        }
+        if (req.width() != null) {
+            photo.setWidth(req.width());
+        }
+        if (req.height() != null) {
+            photo.setHeight(req.height());
+        }
+
+        Photo saved = photoRepository.save(photo);
+
+        // Tenant must be captured for the @Async hand-off because the request
+        // thread's TenantContext clears as soon as this method returns.
+        String tenantId = TenantContext.getTenant();
+        thumbnailService.generateThumbnail(saved.getId(), tenantId);
+
+        return toResponse(saved);
     }
 
     @Transactional

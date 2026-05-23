@@ -1,0 +1,22 @@
+package com.photographplatform.api.common.config;
+
+import com.photographplatform.api.common.security.EmailVerificationInterceptor;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebMvcConfig implements WebMvcConfigurer {
+
+    private final EmailVerificationInterceptor emailVerificationInterceptor;
+
+    public WebMvcConfig(EmailVerificationInterceptor emailVerificationInterceptor) {
+        this.emailVerificationInterceptor = emailVerificationInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(@NonNull InterceptorRegistry registry) {
+        registry.addInterceptor(emailVerificationInterceptor);
+    }
+}

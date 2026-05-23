@@ -1,8 +1,12 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useThemeStore } from '@/store/themeStore';
-import { galleriesStyles as styles } from './galleries.styles';
+import api from '@/lib/api';
+import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
+
+type AppColors = ReturnType<typeof getGalleriesColors>;
+type AppStyles = ReturnType<typeof getGalleriesStyles>;
 
 interface Gallery {
   id: string;
@@ -18,173 +22,180 @@ interface Gallery {
   viewCount: number;
 }
 
-const MOCK_GALLERIES: Gallery[] = [
-  {
-    id: 'g1',
-    bookingId: 'b2',
-    bookingName: 'Portrait Session',
-    eventType: 'Portrait',
-    shootDate: '2026-05-02',
-    photoCount: 48,
-    downloadEnabled: true,
-    watermarkEnabled: false,
-    expiresAt: '2026-08-02',
-    accessToken: 'gal-abc123-portrait',
-    viewCount: 12,
-  },
-  {
-    id: 'g2',
-    bookingId: 'b3',
-    bookingName: 'Family Photos',
-    eventType: 'Family',
-    shootDate: '2026-04-25',
-    photoCount: 72,
-    downloadEnabled: true,
-    watermarkEnabled: false,
-    expiresAt: '2026-07-25',
-    accessToken: 'gal-def456-family',
-    viewCount: 8,
-  },
-];
+function daysUntil(dateStr: string) {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
 
+// ─── SVG icons ────────────────────────────────────────────────────────────────
+const IconEye = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+const IconCopy = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+const IconGallery = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+const IconClock = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+const IconX = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+// ─── GalleryListItem ──────────────────────────────────────────────────────────
 function GalleryListItem({
   gallery,
   isActive,
   onSelect,
+  styles,
   colors,
-}: Readonly<{ gallery: Gallery; isActive: boolean; onSelect: () => void; colors?: any }>) {
-  const defaultColors = { bg: '#F7F8FA', text: '#111827', subText: '#6B7280', cardBg: '#fff', border: '#E5E7EB' };
-  const c = colors || defaultColors;
-
-  const expiryDate = new Date(gallery.expiresAt);
-  const today = new Date();
-  const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const isExpired = daysUntilExpiry < 0;
-  const isWarning = daysUntilExpiry < 7 && daysUntilExpiry >= 0;
+}: Readonly<{ gallery: Gallery; isActive: boolean; onSelect: () => void; styles: AppStyles; colors: AppColors }>) {
+  const days = daysUntil(gallery.expiresAt);
+  const isExpired = days < 0;
+  const isWarning = days < 7 && days >= 0;
 
   return (
     <button
       style={{
         ...styles.listItem,
         ...(isActive ? styles.listItemActive : {}),
-        border: 'none',
-        background: isActive ? `rgba(37, 99, 235, 0.1)` : c.cardBg,
-        color: c.text,
-        transition: 'all 0.2s ease',
-        textAlign: 'left',
       }}
       onClick={onSelect}
     >
-      <div style={{ ...styles.listItemTitle, color: c.text }}>{gallery.bookingName}</div>
-      <div style={{ ...styles.listItemMeta, color: c.subText }}>
-        {gallery.eventType} • {gallery.photoCount} photos
+      <div style={styles.listItemTitle}>{gallery.bookingName}</div>
+      <div style={styles.listItemMeta}>
+        {gallery.eventType} · {gallery.photoCount} photos
       </div>
-      <div style={{ ...styles.listItemMeta, color: c.subText, fontSize: '10px' }}>
-        {isExpired
-          ? '❌ Expired'
-          : isWarning
-            ? `⏰ ${daysUntilExpiry} days left`
-            : `✓ ${daysUntilExpiry} days left`}
+      <div style={{ ...styles.listItemMeta, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        {isExpired ? (
+          <><IconX /><span style={{ color: colors.dangerText }}>Expired</span></>
+        ) : isWarning ? (
+          <><IconClock /><span style={{ color: colors.warningText }}>{days} days left</span></>
+        ) : (
+          <><IconCheck /><span style={{ color: colors.successText }}>{days} days left</span></>
+        )}
       </div>
     </button>
   );
 }
 
-function GalleryDetail({ gallery, colors }: Readonly<{ gallery: Gallery | null; colors?: any }>) {
-  const c = colors;
+// ─── GalleryDetail ────────────────────────────────────────────────────────────
+function GalleryDetail({
+  gallery,
+  styles,
+}: Readonly<{ gallery: Gallery | null; styles: AppStyles }>) {
+  const [copied, setCopied] = useState(false);
+
+  function copyLink() {
+    if (!gallery) return;
+    navigator.clipboard.writeText(`gallery.fotolio.app/${gallery.accessToken}`).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   if (!gallery) {
     return (
       <div style={styles.emptyState}>
-        <div style={{ fontSize: '16px', color: c.subText }}>🖼️ Select a gallery to view</div>
+        <IconGallery />
+        <span>Select a gallery to view</span>
       </div>
     );
   }
 
-  const shootDate = new Date(gallery.shootDate);
-  const expiryDate = new Date(gallery.expiresAt);
-  const today = new Date();
-  const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const isExpired = daysUntilExpiry < 0;
-  const isWarning = daysUntilExpiry < 7 && daysUntilExpiry >= 0;
+  const days = daysUntil(gallery.expiresAt);
+  const isExpired = days < 0;
+  const isWarning = days < 7 && days >= 0;
 
-  let expiryBadgeStyle = styles.expiryActive;
-  if (isExpired) expiryBadgeStyle = styles.expiryExpired;
-  else if (isWarning) expiryBadgeStyle = styles.expiryWarning;
+  const expiryBadgeStyle = isExpired
+    ? styles.expiryExpired
+    : isWarning
+      ? styles.expiryWarning
+      : styles.expiryActive;
+
+  const shootDate = new Date(gallery.shootDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const expiryDate = new Date(gallery.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <>
-      <div style={{ ...styles.detailHeader, borderBottomColor: c.border }}>
+      <div style={styles.detailHeader}>
         <div>
-          <div style={{ ...styles.detailTitle, color: c.text }}>{gallery.bookingName}</div>
-          <div style={{ ...styles.detailSubtitle, color: c.subText }}>
-            {gallery.eventType} • Shot on {shootDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          <div style={styles.detailTitle}>{gallery.bookingName}</div>
+          <div style={styles.detailSubtitle}>
+            {gallery.eventType} · Shot on {shootDate}
           </div>
         </div>
         <div style={styles.detailActions}>
-          <button
-            style={{
-              ...styles.actionButton,
-              ...styles.actionButtonPrimary,
-            }}
+          <a
+            href={`https://gallery.fotolio.app/${gallery.accessToken}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...styles.actionButton, ...styles.actionButtonPrimary, textDecoration: 'none' }}
           >
-            👁️ View Gallery
-          </button>
-          <button
-            style={{
-              ...styles.actionButton,
-              ...styles.actionButtonOutline,
-              color: c.text,
-              borderColor: c.border,
-              background: 'transparent',
-            }}
-          >
-            ⬇️ Download All
-          </button>
+            <IconEye /> View gallery
+          </a>
         </div>
       </div>
 
-      <div style={{ ...styles.detailBody }}>
+      <div style={styles.detailBody}>
         <div style={styles.statsGrid}>
-          <div style={{ ...styles.statBox, borderColor: c.border, background: c.bg === '#F9FAFB' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)' }}>
-            <div style={{ ...styles.statBoxLabel, color: c.subText }}>Photos</div>
-            <div style={{ ...styles.statBoxValue, color: c.text }}>{gallery.photoCount}</div>
+          <div style={styles.statBox}>
+            <div style={styles.statBoxLabel}>Photos</div>
+            <div style={styles.statBoxValue}>{gallery.photoCount}</div>
           </div>
-          <div style={{ ...styles.statBox, borderColor: c.border, background: c.bg === '#F9FAFB' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)' }}>
-            <div style={{ ...styles.statBoxLabel, color: c.subText }}>Views</div>
-            <div style={{ ...styles.statBoxValue, color: c.text }}>{gallery.viewCount}</div>
+          <div style={styles.statBox}>
+            <div style={styles.statBoxLabel}>Views</div>
+            <div style={styles.statBoxValue}>{gallery.viewCount}</div>
           </div>
-          <div style={{ ...styles.statBox, borderColor: c.border, background: c.bg === '#F9FAFB' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)' }}>
-            <div style={{ ...styles.statBoxLabel, color: c.subText }}>Expires</div>
-            <div style={{ ...styles.statBoxValue, color: c.text }}>
-              {isExpired ? '—' : daysUntilExpiry}
-            </div>
+          <div style={styles.statBox}>
+            <div style={styles.statBoxLabel}>Days left</div>
+            <div style={styles.statBoxValue}>{isExpired ? '—' : days}</div>
           </div>
         </div>
 
         <div style={styles.section}>
-          <div style={{ ...styles.sectionTitle, color: c.subText }}>Access Information</div>
+          <div style={styles.sectionTitle}>Access Information</div>
           <div style={styles.infoGrid}>
-            <div style={{ ...styles.infoRow, borderBottomColor: c.border }}>
-              <span style={{ ...styles.infoLabel, color: c.subText }}>Download</span>
-              <span style={{ ...styles.infoValue, color: c.text }}>
-                {gallery.downloadEnabled ? '✓ Enabled' : '✕ Disabled'}
+            <div style={styles.infoRow}>
+              <span style={styles.infoLabel}>Download</span>
+              <span style={{ ...styles.infoValue, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                {gallery.downloadEnabled ? <><IconCheck /> Enabled</> : <><IconX /> Disabled</>}
               </span>
             </div>
-            <div style={{ ...styles.infoRow, borderBottomColor: c.border }}>
-              <span style={{ ...styles.infoLabel, color: c.subText }}>Watermark</span>
-              <span style={{ ...styles.infoValue, color: c.text }}>
-                {gallery.watermarkEnabled ? '✓ Enabled' : '✕ Disabled'}
+            <div style={styles.infoRow}>
+              <span style={styles.infoLabel}>Watermark</span>
+              <span style={{ ...styles.infoValue, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                {gallery.watermarkEnabled ? <><IconCheck /> Enabled</> : <><IconX /> Disabled</>}
               </span>
             </div>
             <div style={{ ...styles.infoRow, borderBottom: 'none', paddingBottom: 0 }}>
-              <span style={{ ...styles.infoLabel, color: c.subText }}>Expires</span>
+              <span style={styles.infoLabel}>Expires</span>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                <span style={{ ...styles.infoValue, color: c.text }}>
-                  {expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
+                <span style={styles.infoValue}>{expiryDate}</span>
                 <span style={{ ...styles.expiryBadge, ...expiryBadgeStyle }}>
-                  {isExpired ? '❌ Expired' : isWarning ? `⏰ ${daysUntilExpiry} days` : `✓ ${daysUntilExpiry} days`}
+                  {isExpired ? 'Expired' : isWarning ? `${days} days` : `${days} days`}
                 </span>
               </div>
             </div>
@@ -192,34 +203,15 @@ function GalleryDetail({ gallery, colors }: Readonly<{ gallery: Gallery | null; 
         </div>
 
         <div style={styles.section}>
-          <div style={{ ...styles.sectionTitle, color: c.subText }}>Gallery Link</div>
-          <div
-            style={{
-              padding: '12px 14px',
-              background: c.bg === '#F9FAFB' ? '#F3F4F6' : '#374151',
-              borderRadius: '10px',
-              border: `1px solid ${c.border}`,
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              color: c.text,
-              wordBreak: 'break-all',
-              lineHeight: '1.5',
-            }}
-          >
+          <div style={styles.sectionTitle}>Gallery Link</div>
+          <div style={styles.codeBlock}>
             {`gallery.fotolio.app/${gallery.accessToken}`}
           </div>
           <button
-            style={{
-              ...styles.actionButton,
-              ...styles.actionButtonOutline,
-              width: '100%',
-              marginTop: '10px',
-              color: c.text,
-              borderColor: c.border,
-              background: 'transparent',
-            }}
+            style={{ ...styles.actionButton, ...styles.actionButtonOutline, width: '100%', marginTop: '10px', justifyContent: 'center' }}
+            onClick={copyLink}
           >
-            📋 Copy Link
+            <IconCopy /> {copied ? 'Copied!' : 'Copy Link'}
           </button>
         </div>
       </div>
@@ -227,117 +219,142 @@ function GalleryDetail({ gallery, colors }: Readonly<{ gallery: Gallery | null; 
   );
 }
 
+// ─── GalleriesPage ────────────────────────────────────────────────────────────
 export default function GalleriesPage() {
   const { theme } = useThemeStore();
-  const [galleries] = useState<Gallery[]>(MOCK_GALLERIES);
+  const styles = useMemo(() => getGalleriesStyles(theme), [theme]);
+  const colors = useMemo(() => getGalleriesColors(theme), [theme]);
+
+  const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Expired'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const themeColors = {
-    light: { bg: '#F9FAFB', cardBg: '#FFFFFF', text: '#111827', subText: '#6B7280', border: '#E5E7EB', hover: '#F3F4F6' },
-    dark: { bg: '#111827', cardBg: '#1F2937', text: '#F3F4F6', subText: '#D1D5DB', border: '#374151', hover: '#374151' },
-  };
-  const colors = themeColors[theme];
+  const loadGalleries = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    api
+      .get<Gallery[]>('/api/galleries')
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setGalleries(list);
+        setSelectedGalleryId(list[0]?.id ?? null);
+      })
+      .catch(() => setError('Could not load galleries. Please try again.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => {
-    if (!selectedGalleryId) {
-      setSelectedGalleryId(MOCK_GALLERIES[0]?.id || null);
-    }
-  }, [selectedGalleryId]);
+  useEffect(() => { loadGalleries(); }, [loadGalleries]);
 
   const filteredGalleries = useMemo(() => {
     let filtered = galleries;
-
-    if (filterStatus === 'Active') {
-      filtered = filtered.filter((g) => {
-        const daysUntilExpiry = Math.ceil((new Date(g.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-        return daysUntilExpiry >= 0;
-      });
-    } else if (filterStatus === 'Expired') {
-      filtered = filtered.filter((g) => {
-        const daysUntilExpiry = Math.ceil((new Date(g.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-        return daysUntilExpiry < 0;
-      });
-    }
-
-    if (!searchQuery.trim()) return filtered;
-
-    const query = searchQuery.trim().toLowerCase();
-    return filtered.filter((g) =>
-      g.bookingName.toLowerCase().includes(query) || g.eventType.toLowerCase().includes(query),
+    if (filterStatus === 'Active') filtered = filtered.filter(g => daysUntil(g.expiresAt) >= 0);
+    else if (filterStatus === 'Expired') filtered = filtered.filter(g => daysUntil(g.expiresAt) < 0);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filtered;
+    return filtered.filter(g =>
+      g.bookingName.toLowerCase().includes(q) || g.eventType.toLowerCase().includes(q),
     );
   }, [galleries, filterStatus, searchQuery]);
 
   const selectedGallery = useMemo(
-    () => galleries.find((g) => g.id === selectedGalleryId) || galleries[0] || null,
+    () => galleries.find(g => g.id === selectedGalleryId) ?? galleries[0] ?? null,
     [galleries, selectedGalleryId],
   );
 
-  const stats = useMemo(() => {
-    const total = galleries.length;
-    const active = galleries.filter((g) => {
-      const daysUntilExpiry = Math.ceil((new Date(g.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-      return daysUntilExpiry >= 0;
-    }).length;
-    const totalPhotos = galleries.reduce((sum, g) => sum + g.photoCount, 0);
+  const stats = useMemo(() => ({
+    total: galleries.length,
+    active: galleries.filter(g => daysUntil(g.expiresAt) >= 0).length,
+    totalPhotos: galleries.reduce((sum, g) => sum + g.photoCount, 0),
+  }), [galleries]);
 
-    return { total, active, totalPhotos };
-  }, [galleries]);
-
-  const statsCards = useMemo(
-    () => [
-      { label: 'Galleries', value: stats.total, change: `${stats.active} active` },
-      { label: 'Total Photos', value: stats.totalPhotos, change: 'available' },
-    ],
-    [stats],
-  );
-
-  return (
-    <div style={{ ...styles.pageWrapper, background: colors.bg, color: colors.text, transition: 'background 0.3s ease, color 0.3s ease' }}>
-      <div style={{ ...styles.pageHeader, background: colors.cardBg, borderColor: colors.border, color: colors.text, transition: 'all 0.3s ease' }}>
-        <div>
-          <div style={{ ...styles.pageTitle, color: colors.text }}>Your Galleries</div>
-          <div style={{ ...styles.pageSubtitle, color: colors.subText }}>View, download, and manage your photo galleries.</div>
-        </div>
-        <div style={styles.headerStats}>
-          {statsCards.map((card) => (
-            <div key={card.label} style={{ ...styles.headerStatCard, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease' }}>
-              <div style={{ ...styles.headerStatLabel, color: colors.subText }}>{card.label}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                <div style={{ ...styles.headerStatValue, color: colors.text }}>{card.value}</div>
-                <div style={{ ...styles.headerStatChange, color: colors.subText }}>{card.change}</div>
-              </div>
+  if (loading) {
+    return (
+      <div style={styles.pageWrapper}>
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
+        <div style={styles.container}>
+          <div style={styles.listPanel}>
+            <div style={styles.listScroll}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', marginBottom: 10 }}
+                >
+                  <div style={{ height: 13, width: '60%', borderRadius: 6, background: colors.surfaceAlt, animation: 'pulse 1.6s ease-in-out infinite' }} />
+                  <div style={{ height: 11, width: '40%', borderRadius: 6, background: colors.surfaceAlt, animation: 'pulse 1.6s ease-in-out infinite' }} />
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+          <div style={styles.detailPanel}>
+            <div style={styles.emptyState}>Loading galleries…</div>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <div style={{ ...styles.container, background: colors.bg }}>
-        <div style={{ ...styles.listPanel, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease' }}>
-          <div style={{ ...styles.listHeader, borderBottomColor: colors.border }}>
-            <div style={{ ...styles.listTitle, color: colors.text }}>Galleries</div>
+  if (error) {
+    return (
+      <div style={styles.pageWrapper}>
+        <div style={styles.errorPanel}>
+          <div style={{ fontWeight: 700, fontSize: '1rem' }}>Couldn&apos;t load galleries</div>
+          <div style={styles.errorText}>{error}</div>
+          <button style={styles.retryButton} onClick={loadGalleries}>Try again</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.pageWrapper}>
+      <header style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.pageTitle}>Your Galleries</h1>
+          <p style={styles.pageSubtitle}>View, download, and manage your photo galleries.</p>
+        </div>
+        <div style={styles.headerStats}>
+          <div style={styles.headerStatCard}>
+            <div style={styles.headerStatLabel}>Galleries</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+              <div style={styles.headerStatValue}>{stats.total}</div>
+              <div style={styles.headerStatChange}>{stats.active} active</div>
+            </div>
+          </div>
+          <div style={styles.headerStatCard}>
+            <div style={styles.headerStatLabel}>Total Photos</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+              <div style={styles.headerStatValue}>{stats.totalPhotos}</div>
+              <div style={styles.headerStatChange}>available</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div style={styles.container}>
+        <div style={styles.listPanel}>
+          <div style={styles.listHeader}>
+            <div style={styles.listTitle}>Galleries</div>
             <input
               type="text"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search galleries..."
-              style={{ ...styles.searchBox, background: colors.bg, color: colors.text, borderColor: colors.border }}
+              aria-label="Search galleries"
+              style={styles.searchBox}
             />
           </div>
 
-          <div style={{ ...styles.filterTabs, borderBottomColor: colors.border }}>
-            {(['All', 'Active', 'Expired'] as const).map((status) => (
+          <div style={styles.filterTabs}>
+            {(['All', 'Active', 'Expired'] as const).map(status => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
                 style={{
                   ...styles.filterTab,
                   ...(filterStatus === status ? styles.filterTabActive : {}),
-                  color: filterStatus === status ? '#fff' : colors.subText,
-                  background: filterStatus === status ? '#2563EB' : 'transparent',
-                  borderColor: colors.border,
-                  transition: 'all 0.2s ease',
                 }}
               >
                 {status}
@@ -346,20 +363,27 @@ export default function GalleriesPage() {
           </div>
 
           <div style={styles.listScroll}>
-            {filteredGalleries.map((gallery) => (
-              <GalleryListItem
-                key={gallery.id}
-                gallery={gallery}
-                isActive={selectedGalleryId === gallery.id}
-                onSelect={() => setSelectedGalleryId(gallery.id)}
-                colors={colors}
-              />
-            ))}
+            {filteredGalleries.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: colors.textMuted, fontSize: '0.875rem' }}>
+                {galleries.length === 0 ? 'No galleries yet.' : 'No galleries match these filters.'}
+              </div>
+            ) : (
+              filteredGalleries.map(gallery => (
+                <GalleryListItem
+                  key={gallery.id}
+                  gallery={gallery}
+                  isActive={selectedGalleryId === gallery.id}
+                  onSelect={() => setSelectedGalleryId(gallery.id)}
+                  styles={styles}
+                  colors={colors}
+                />
+              ))
+            )}
           </div>
         </div>
 
-        <div style={{ ...styles.detailPanel, background: colors.cardBg, borderColor: colors.border, transition: 'all 0.3s ease' }}>
-          <GalleryDetail gallery={selectedGallery} colors={colors} />
+        <div style={styles.detailPanel}>
+          <GalleryDetail gallery={selectedGallery} styles={styles} />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
+import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.audit.service.AuditService;
@@ -28,6 +29,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -253,6 +255,58 @@ public class AuthService {
             .orElseThrow(() -> new UnauthorizedException("User not found"));
         Tenant tenant = tenantRepository.findById(user.getTenantId())
             .orElseThrow(() -> new UnauthorizedException("Tenant not found"));
+        return toMeResponse(user, tenant);
+    }
+
+    private static final Pattern SUBDOMAIN_PATTERN =
+        Pattern.compile("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$");
+
+    /**
+     * Applies a partial profile update for the signed-in user. Only the
+     * non-null fields of the request are touched, so the Profile and Studio
+     * sections of the settings page can each save independently.
+     */
+    @Transactional
+    public MeResponse updateProfile(UUID userId, UpdateProfileRequest req) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new UnauthorizedException("User not found"));
+        Tenant tenant = tenantRepository.findById(user.getTenantId())
+            .orElseThrow(() -> new UnauthorizedException("Tenant not found"));
+
+        if (req.fullName() != null) {
+            String name = req.fullName().trim();
+            if (name.isEmpty()) {
+                throw new IllegalArgumentException("Full name cannot be empty.");
+            }
+            user.setFullName(name);
+            userRepository.save(user);
+        }
+
+        if (req.subdomain() != null) {
+            String subdomain = req.subdomain().trim().toLowerCase();
+            // Only validate/persist when it actually changes — re-saving the
+            // current value must never trip the uniqueness check.
+            if (!subdomain.equals(tenant.getSubdomain())) {
+                if (!SUBDOMAIN_PATTERN.matcher(subdomain).matches()) {
+                    throw new IllegalArgumentException(
+                        "Subdomain must be 3-63 characters, start and end with a letter or "
+                            + "number, and may contain hyphens in between.");
+                }
+                if (ReservedSubdomains.isReserved(subdomain)) {
+                    throw new ConflictException("This subdomain is reserved. Please choose another.");
+                }
+                if (tenantRepository.existsBySubdomain(subdomain)) {
+                    throw new ConflictException("That subdomain is already taken.");
+                }
+                tenant.setSubdomain(subdomain);
+                tenantRepository.save(tenant);
+            }
+        }
+
+        return toMeResponse(user, tenant);
+    }
+
+    private MeResponse toMeResponse(User user, Tenant tenant) {
         return new MeResponse(
             user.getId(), user.getEmail(), user.getFullName(), user.getRole(),
             user.isEmailVerified(),

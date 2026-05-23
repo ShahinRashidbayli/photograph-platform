@@ -19,6 +19,27 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+
+    // Email-not-verified gate: BE returns 403 with code=EMAIL_NOT_VERIFIED
+    // when an annotated endpoint is hit by an unverified user. Surface this
+    // globally via a window event so any listening UI (banner, toast) can
+    // react without each call site needing its own handler.
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'EMAIL_NOT_VERIFIED'
+    ) {
+      const message =
+        typeof error.response.data?.error === 'string'
+          ? error.response.data.error
+          : 'Please verify your email before performing this action.';
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('app:email-not-verified', { detail: { message } })
+        );
+      }
+      throw error;
+    }
+
     if (error.response?.status !== 401 || original._retry) {
       throw error;
     }

@@ -1,53 +1,9 @@
 import React from 'react';
+import { getColors, type Theme } from '@/lib/design-tokens';
 
-export type ClientsTheme = 'light' | 'dark';
+export type ClientsTheme = Theme;
 
-export const getClientsColors = (theme: ClientsTheme) => {
-  const isDark = theme === 'dark';
-  return {
-    isDark,
-    bg: isDark ? '#0B1220' : '#F7F8FB',
-    surface: isDark ? '#111A2E' : '#FFFFFF',
-    surfaceAlt: isDark ? '#0F1729' : '#F8FAFC',
-    surfaceHover: isDark ? '#172238' : '#F8FAFC',
-    surfaceActive: isDark ? 'rgba(59, 130, 246, 0.12)' : '#EFF6FF',
-    text: isDark ? '#F1F5F9' : '#0F172A',
-    textMuted: isDark ? '#94A3B8' : '#64748B',
-    textSubtle: isDark ? '#64748B' : '#94A3B8',
-    border: isDark ? '#1F2A44' : '#E5E7EB',
-    borderSoft: isDark ? '#172238' : '#F1F5F9',
-    borderActive: isDark ? 'rgba(59, 130, 246, 0.45)' : '#BFDBFE',
-    primary: '#2563EB',
-    primaryStrong: isDark ? '#3B82F6' : '#1D4ED8',
-    primaryBg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
-    primaryBorder: isDark ? 'rgba(59, 130, 246, 0.35)' : '#BFDBFE',
-    primarySolid: '#2563EB',
-    success: isDark ? '#34D399' : '#16A34A',
-    successBg: isDark ? 'rgba(16, 185, 129, 0.18)' : '#DCFCE7',
-    successText: isDark ? '#6EE7B7' : '#15803D',
-    successBorder: isDark ? 'rgba(16, 185, 129, 0.32)' : '#BBF7D0',
-    warning: isDark ? '#FBBF24' : '#D97706',
-    warningBg: isDark ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7',
-    warningText: isDark ? '#FCD34D' : '#92400E',
-    danger: isDark ? '#F87171' : '#DC2626',
-    dangerBg: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2',
-    dangerText: isDark ? '#FCA5A5' : '#B91C1C',
-    dangerBorder: isDark ? 'rgba(220, 38, 38, 0.35)' : '#FECACA',
-    indigo: isDark ? '#A5B4FC' : '#4338CA',
-    indigoBg: isDark ? 'rgba(99, 102, 241, 0.2)' : '#EEF2FF',
-    indigoText: isDark ? '#A5B4FC' : '#4338CA',
-    neutral: isDark ? '#94A3B8' : '#64748B',
-    neutralBg: isDark ? 'rgba(148, 163, 184, 0.12)' : '#F1F5F9',
-    neutralText: isDark ? '#CBD5E1' : '#475569',
-    divider: isDark ? '#1F2A44' : '#F1F5F9',
-    overlayShadow: isDark
-      ? '0 1px 2px rgba(0, 0, 0, 0.4)'
-      : '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04)',
-    elevatedShadow: isDark
-      ? '0 8px 24px rgba(0, 0, 0, 0.45)'
-      : '0 8px 24px rgba(15, 23, 42, 0.06)',
-  };
-};
+export const getClientsColors = getColors;
 
 export const getClientsStyles = (
   theme: ClientsTheme,
@@ -166,7 +122,7 @@ export const getClientsStyles = (
       display: 'flex',
       flexDirection: 'column',
       background: c.surface,
-      borderRadius: '16px',
+      borderRadius: '14px',
       border: `1px solid ${c.border}`,
       overflow: 'hidden',
       boxShadow: c.overlayShadow,
@@ -322,7 +278,7 @@ export const getClientsStyles = (
       flexDirection: 'column',
       minWidth: 0,
       background: c.surface,
-      borderRadius: '16px',
+      borderRadius: '14px',
       border: `1px solid ${c.border}`,
       overflow: 'hidden',
       boxShadow: c.overlayShadow,
@@ -346,7 +302,7 @@ export const getClientsStyles = (
     detailAvatar: {
       width: '52px',
       height: '52px',
-      borderRadius: '14px',
+      borderRadius: '12px',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -601,6 +557,63 @@ export const getClientsStyles = (
       flexDirection: 'column',
       gap: '8px',
       textAlign: 'center',
+    },
+
+    skeletonItem: {
+      display: 'grid',
+      gridTemplateColumns: '44px minmax(0, 1fr)',
+      gap: '12px',
+      alignItems: 'center',
+      padding: '12px',
+      marginBottom: '6px',
+    },
+    skeletonBlock: {
+      background: c.surfaceAlt,
+      border: `1px solid ${c.borderSoft}`,
+      borderRadius: '8px',
+      animation: 'pulse 1.6s ease-in-out infinite',
+    },
+    errorPanel: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '12px',
+      flex: 1,
+      padding: '48px 28px',
+      textAlign: 'center',
+    },
+    errorPanelTitle: {
+      fontSize: '1rem',
+      fontWeight: 700,
+      color: c.text,
+    },
+    errorPanelText: {
+      fontSize: '0.875rem',
+      color: c.textMuted,
+      maxWidth: '420px',
+      lineHeight: 1.5,
+    },
+    retryButton: {
+      padding: '9px 20px',
+      background: c.primarySolid,
+      color: '#FFFFFF',
+      border: 'none',
+      borderRadius: '10px',
+      fontSize: '0.875rem',
+      fontWeight: 600,
+      cursor: 'pointer',
+    },
+    notesReadonly: {
+      padding: '12px 14px',
+      background: c.surfaceAlt,
+      border: `1px solid ${c.border}`,
+      borderRadius: '12px',
+      fontSize: '0.875rem',
+      color: c.text,
+      lineHeight: 1.55,
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
     },
   };
 };

@@ -2,11 +2,9 @@
 
 import api from '@/lib/api';
 import { AuthUser, useAuthStore } from '@/store/authStore';
-import { FotolioLogo } from '@/components/FotolioLogo';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { authStyles } from '../auth.styles';
 
 type Step = 'role' | 'ph-form' | 'ph-success' | 'cu-info';
 type Role = 'photographer' | 'client' | null;
@@ -129,376 +127,464 @@ export default function RegisterPage() {
 
   const passwordStrength = getPasswordStrength(form.password);
 
+  const cardStyle = {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    padding: '48px 40px',
+    boxShadow: '0 12px 30px rgba(15, 23, 42, 0.08)',
+  };
+
+  const titleStyle = {
+    fontSize: '2rem',
+    fontWeight: 700,
+    color: '#0F172A',
+    margin: '0 0 8px 0',
+    lineHeight: 1.2,
+  };
+
+  const subtitleStyle = {
+    fontSize: '0.95rem',
+    color: '#64748B',
+    margin: 0,
+    lineHeight: 1.5,
+  };
+
+  const formGroupStyle = {
+    marginBottom: '20px',
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    color: '#0F172A',
+    marginBottom: '8px',
+    letterSpacing: '0.01em',
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '12px 14px',
+    fontSize: '0.95rem',
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    color: '#0F172A',
+    boxSizing: 'border-box' as const,
+    fontFamily: 'inherit',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  };
+
+  const buttonPrimaryStyle = {
+    width: '100%',
+    padding: '12px 18px',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    background: '#0F172A',
+    color: '#FFFFFF',
+    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+  };
+
+  const buttonDisabledStyle = {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  };
+
   return (
-    <div style={authStyles.page}>
-      <nav style={authStyles.navbar}>
-        <Link href="/" style={{ ...authStyles.navBrand, textDecoration: 'none' }}>
-          <FotolioLogo theme="light" showText={true} />
-        </Link>
-        <div style={authStyles.navRight}>
-          <Link
-            href="/login"
-            style={{ ...authStyles.navButton, ...authStyles.navButtonPrimary }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1E293B';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#0F172A';
-            }}
-          >
-            Sign in
-          </Link>
-        </div>
-      </nav>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #F7F8FB 0%, #E0E7FF 100%)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    }}>
+      <div style={{ width: '100%', maxWidth: '560px', padding: '40px 24px' }}>
+        {step === 'role' && (
+          <div style={cardStyle}>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={titleStyle}>Join Fotolio</h2>
+              <p style={subtitleStyle}>Choose your role to set up the right experience.</p>
+            </div>
 
-      <div style={authStyles.container}>
-        <div style={authStyles.content}>
-          {step === 'role' && (
-            <div style={authStyles.card}>
-              <div style={authStyles.header}>
-                <h2 style={authStyles.title}>Join Fotolio</h2>
-                <p style={authStyles.subtitle}>Choose your role to set up the right experience.</p>
-              </div>
-
-              <div
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '24px',
+                marginBottom: '32px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setRole('photographer')}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '22px',
-                  marginBottom: '28px',
+                  padding: '36px 28px',
+                  border: role === 'photographer' ? '2px solid #3B82F6' : '1px solid #E5E7EB',
+                  borderRadius: '16px',
+                  background: role === 'photographer' ? '#F0F9FF' : '#FFFFFF',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  textAlign: 'center',
+                  boxShadow:
+                    role === 'photographer'
+                      ? '0 10px 24px rgba(59, 130, 246, 0.12)'
+                      : '0 4px 12px rgba(15, 23, 42, 0.06)',
+                  outline: 'none',
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setRole('photographer')}
+                <div
                   style={{
-                    padding: '32px 26px',
-                    border: role === 'photographer' ? '2px solid #3B82F6' : '1px solid #E5E7EB',
-                    borderRadius: '18px',
-                    background: role === 'photographer' ? '#F0F9FF' : '#FFFFFF',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    textAlign: 'center',
-                    boxShadow:
-                      role === 'photographer'
-                        ? '0 10px 24px rgba(59, 130, 246, 0.12)'
-                        : '0 4px 12px rgba(15, 23, 42, 0.06)',
-                    outline: 'none',
+                    width: '60px',
+                    height: '60px',
+                    background: '#DBEAFE',
+                    borderRadius: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#3B82F6',
+                    fontSize: '32px',
+                    margin: '0 auto 20px',
                   }}
                 >
-                  <div
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      background: '#DBEAFE',
-                      borderRadius: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#3B82F6',
-                      fontSize: '30px',
-                      margin: '0 auto 18px',
-                    }}
-                  >
-                    💼
-                  </div>
-                  <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 10px 0', color: '#111827' }}>
-                    Photographer
-                  </h3>
-                  <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, lineHeight: '1.65' }}>
-                    I want to manage my bookings, leads, contracts and gallery delivery
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('client')}
-                  style={{
-                    padding: '32px 26px',
-                    border: role === 'client' ? '2px solid #10B981' : '1px solid #E5E7EB',
-                    borderRadius: '18px',
-                    background: role === 'client' ? '#F0FDF4' : '#FFFFFF',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    textAlign: 'center',
-                    boxShadow:
-                      role === 'client'
-                        ? '0 10px 24px rgba(16, 185, 129, 0.12)'
-                        : '0 4px 12px rgba(15, 23, 42, 0.06)',
-                    outline: 'none',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      background: '#D1FAE5',
-                      borderRadius: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#10B981',
-                      fontSize: '30px',
-                      margin: '0 auto 18px',
-                    }}
-                  >
-                    👤
-                  </div>
-                  <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 10px 0', color: '#111827' }}>
-                    Client
-                  </h3>
-                  <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, lineHeight: '1.65' }}>
-                    I want to track my booking, view my photos and communicate with my photographer
-                  </p>
-                </button>
-              </div>
+                  💼
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 12px 0', color: '#111827' }}>
+                  Photographer
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#6B7280', margin: 0, lineHeight: '1.65' }}>
+                  I want to manage my bookings, leads, contracts and gallery delivery
+                </p>
+              </button>
 
               <button
                 type="button"
-                onClick={handleRoleContinue}
-                disabled={!role}
+                onClick={() => setRole('client')}
                 style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  borderRadius: '12px',
-                  border: role ? '1px solid #D1D5DB' : '1px solid #E5E7EB',
-                  background: role ? '#FFFFFF' : '#F9FAFB',
-                  color: role ? '#111827' : '#9CA3AF',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  cursor: role ? 'pointer' : 'not-allowed',
-                  marginBottom: '20px',
+                  padding: '36px 28px',
+                  border: role === 'client' ? '2px solid #10B981' : '1px solid #E5E7EB',
+                  borderRadius: '16px',
+                  background: role === 'client' ? '#F0FDF4' : '#FFFFFF',
+                  cursor: 'pointer',
                   transition: 'all 0.3s ease',
-                  opacity: role ? 1 : 0.6,
+                  textAlign: 'center',
+                  boxShadow:
+                    role === 'client'
+                      ? '0 10px 24px rgba(16, 185, 129, 0.12)'
+                      : '0 4px 12px rgba(15, 23, 42, 0.06)',
+                  outline: 'none',
                 }}
               >
-                Continue as {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'role'} →
-              </button>
-
-              <div style={{ textAlign: 'center', marginTop: '8px' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: 500 }}>
-                  Already have an account?{' '}
-                  <Link
-                    href="/login"
-                    style={{ color: '#3B82F6', textDecoration: 'none', fontWeight: 700 }}
-                  >
-                    Sign in
-                  </Link>
-                </span>
-              </div>
-            </div>
-          )}
-
-          {step === 'ph-form' && (
-            <div style={authStyles.card}>
-              <div style={authStyles.header}>
-                <h2 style={authStyles.title}>Create your studio</h2>
-                <p style={authStyles.subtitle}>
-                  14-day free trial · No credit card required
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    background: '#D1FAE5',
+                    borderRadius: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#10B981',
+                    fontSize: '32px',
+                    margin: '0 auto 20px',
+                  }}
+                >
+                  👤
+                </div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 12px 0', color: '#111827' }}>
+                  Client
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#6B7280', margin: 0, lineHeight: '1.65' }}>
+                  I want to track my booking, view my photos and communicate with my photographer
                 </p>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRoleContinue}
+              disabled={!role}
+              style={{
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: '10px',
+                border: role ? '1px solid #D1D5DB' : '1px solid #E5E7EB',
+                background: role ? '#FFFFFF' : '#F9FAFB',
+                color: role ? '#111827' : '#9CA3AF',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: role ? 'pointer' : 'not-allowed',
+                marginBottom: '24px',
+                transition: 'all 0.3s ease',
+                opacity: role ? 1 : 0.6,
+              }}
+            >
+              Continue as {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'role'}
+            </button>
+
+            <div style={{ textAlign: 'center', marginTop: '12px' }}>
+              <span style={{ fontSize: '0.9rem', color: '#6B7280', fontWeight: 500 }}>
+                Already have an account?{' '}
+                <Link
+                  href="/login"
+                  style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}
+                >
+                  Sign in
+                </Link>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {step === 'ph-form' && (
+          <div style={cardStyle}>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={titleStyle}>Create your studio</h2>
+              <p style={subtitleStyle}>
+                14-day free trial · No credit card required
+              </p>
+            </div>
+
+            {error && (
+              <div style={{
+                background: '#FEF2F2',
+                color: '#991B1B',
+                border: '1px solid #FECACA',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                fontSize: '0.9rem',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}>
+                {error}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!loading) handlePhSubmit();
+              }}
+            >
+              <div style={formGroupStyle}>
+                <label style={labelStyle}>Full name</label>
+                <input
+                  type="text"
+                  style={inputStyle}
+                  placeholder="Anna Fischer"
+                  value={form.fullName}
+                  onChange={(e) => updateForm('fullName', e.target.value)}
+                  autoComplete="name"
+                />
               </div>
 
-              {error && <div style={authStyles.alertError}>{error}</div>}
+              <div style={formGroupStyle}>
+                <label style={labelStyle}>Email address</label>
+                <input
+                  type="email"
+                  style={inputStyle}
+                  placeholder="anna@fotografie.de"
+                  value={form.email}
+                  onChange={(e) => updateForm('email', e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!loading) handlePhSubmit();
-                }}
-              >
-                <div style={authStyles.formGroup}>
-                  <label style={authStyles.label}>Full name</label>
+              <div style={formGroupStyle}>
+                <label style={labelStyle}>Your subdomain</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
                   <input
                     type="text"
-                    style={authStyles.input}
-                    placeholder="Anna Fischer"
-                    value={form.fullName}
-                    onChange={(e) => updateForm('fullName', e.target.value)}
-                    autoComplete="name"
+                    style={inputStyle}
+                    placeholder="anna-foto"
+                    value={form.subdomain}
+                    onChange={(e) => updateForm('subdomain', slugifySubdomain(e.target.value))}
+                    autoComplete="off"
+                    spellCheck={false}
                   />
+                  <div
+                    style={{
+                      ...inputStyle,
+                      background: '#F8FAFC',
+                      cursor: 'default',
+                      color: '#64748B',
+                    }}
+                  >
+                    .fotolio.de
+                  </div>
                 </div>
-
-                <div style={authStyles.formGroup}>
-                  <label style={authStyles.label}>Email address</label>
-                  <input
-                    type="email"
-                    style={authStyles.input}
-                    placeholder="anna@fotografie.de"
-                    value={form.email}
-                    onChange={(e) => updateForm('email', e.target.value)}
-                    autoComplete="email"
-                  />
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                  3–63 characters · lowercase letters, digits and hyphens
                 </div>
+              </div>
 
-                <div style={authStyles.formGroup}>
-                  <label style={authStyles.label}>Your subdomain</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
-                    <input
-                      type="text"
-                      style={authStyles.input}
-                      placeholder="anna-foto"
-                      value={form.subdomain}
-                      onChange={(e) => updateForm('subdomain', slugifySubdomain(e.target.value))}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
+              <div style={formGroupStyle}>
+                <label style={labelStyle}>Password</label>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={(e) => updateForm('password', e.target.value)}
+                  autoComplete="new-password"
+                />
+                {form.password ? (
+                  <div style={{ marginTop: '8px' }}>
                     <div
                       style={{
-                        ...authStyles.input,
-                        background: '#F8FAFC',
-                        cursor: 'default',
-                        color: '#64748B',
+                        height: '4px',
+                        borderRadius: '999px',
+                        background: '#F1F5F9',
+                        overflow: 'hidden',
                       }}
                     >
-                      .fotolio.de
-                    </div>
-                  </div>
-                  <div style={authStyles.helperText}>
-                    3–63 characters · lowercase letters, digits and hyphens
-                  </div>
-                </div>
-
-                <div style={authStyles.formGroup}>
-                  <label style={authStyles.label}>Password</label>
-                  <input
-                    type="password"
-                    style={authStyles.input}
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={(e) => updateForm('password', e.target.value)}
-                    autoComplete="new-password"
-                  />
-                  {form.password ? (
-                    <div style={{ marginTop: '8px' }}>
                       <div
                         style={{
-                          height: '4px',
-                          borderRadius: '999px',
-                          background: '#F1F5F9',
-                          overflow: 'hidden',
+                          height: '100%',
+                          width: `${(passwordStrength.score / 5) * 100}%`,
+                          background: passwordStrength.color,
+                          transition: 'width 0.2s ease, background 0.2s ease',
                         }}
-                      >
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${(passwordStrength.score / 5) * 100}%`,
-                            background: passwordStrength.color,
-                            transition: 'width 0.2s ease, background 0.2s ease',
-                          }}
-                        />
-                      </div>
-                      <div
-                        style={{
-                          ...authStyles.helperText,
-                          color: passwordStrength.color,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {passwordStrength.label}
-                      </div>
+                      />
                     </div>
-                  ) : (
-                    <div style={authStyles.helperText}>Min. 10 characters, with at least one letter and one digit</div>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  style={{
-                    ...authStyles.button,
-                    ...authStyles.buttonPrimary,
-                    ...(loading ? authStyles.buttonDisabled : {}),
-                  }}
-                  disabled={loading}
-                  onMouseEnter={(e) => {
-                    if (!loading) Object.assign(e.currentTarget.style, authStyles.buttonPrimaryHover);
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!loading) Object.assign(e.currentTarget.style, authStyles.buttonPrimary);
-                  }}
-                >
-                  {loading ? 'Creating studio…' : 'Create studio →'}
-                </button>
-              </form>
-
-              <div style={authStyles.centerText}>
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  style={{
-                    ...authStyles.link,
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← Back
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 'ph-success' && (
-            <div style={authStyles.card}>
-              <div style={authStyles.header}>
-                <div style={authStyles.successIcon}>✓</div>
-                <h2 style={authStyles.title}>Welcome to Fotolio!</h2>
-                <p style={authStyles.successText}>
-                  Your studio is live at {form.subdomain}.fotolio.de. Redirecting to your dashboard…
-                </p>
-              </div>
-            </div>
-          )}
-
-          {step === 'cu-info' && (
-            <div style={authStyles.card}>
-              <div style={authStyles.header}>
-                <div style={authStyles.successIcon}>📧</div>
-                <h2 style={authStyles.title}>Clients are invited</h2>
-                <p style={authStyles.subtitle}>
-                  Fotolio clients don&apos;t self-register. Your photographer will send you a secure
-                  magic link by email after they&apos;ve added you to a booking.
-                </p>
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        color: passwordStrength.color,
+                        fontWeight: 600,
+                        marginTop: '4px',
+                      }}
+                    >
+                      {passwordStrength.label}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                    Min. 10 characters, with at least one letter and one digit
+                  </div>
+                )}
               </div>
 
-              <div style={authStyles.alertInfo}>
-                Already received a magic link? Click the link in your email to sign in — no password
-                needed.
-              </div>
-
-              <Link
-                href="/login"
+              <button
+                type="submit"
                 style={{
-                  ...authStyles.button,
-                  ...authStyles.buttonPrimary,
-                  textDecoration: 'none',
-                  display: 'inline-block',
-                  textAlign: 'center',
-                  boxSizing: 'border-box',
+                  ...buttonPrimaryStyle,
+                  ...(loading ? buttonDisabledStyle : {}),
+                }}
+                disabled={loading}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.background = '#1E293B';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.2)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.background = '#0F172A';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.15)';
+                  }
                 }}
               >
-                Go to sign in
-              </Link>
+                {loading ? 'Creating studio…' : 'Create studio'}
+              </button>
+            </form>
 
-              <div style={authStyles.centerText}>
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  style={{
-                    ...authStyles.link,
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← Back
-                </button>
-              </div>
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={{
+                  color: '#2563EB',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                ← Back
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {step === 'ph-success' && (
+          <div style={cardStyle}>
+            <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>✓</div>
+              <h2 style={titleStyle}>Welcome to Fotolio!</h2>
+              <p style={{ fontSize: '14px', color: '#64748B', textAlign: 'center' }}>
+                Your studio is live at {form.subdomain}.fotolio.de. Redirecting to your dashboard…
+              </p>
+            </div>
+          </div>
+        )}
+
+        {step === 'cu-info' && (
+          <div style={cardStyle}>
+            <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📧</div>
+              <h2 style={titleStyle}>Clients are invited</h2>
+              <p style={subtitleStyle}>
+                Fotolio clients don&apos;t self-register. Your photographer will send you a secure
+                magic link by email after they&apos;ve added you to a booking.
+              </p>
+            </div>
+
+            <div style={{
+              background: '#F0F9FF',
+              color: '#0C4A6E',
+              border: '1px solid #BFDBFE',
+              padding: '14px 16px',
+              borderRadius: '10px',
+              fontSize: '0.9rem',
+              marginBottom: '20px',
+            }}>
+              Already received a magic link? Click the link in your email to sign in — no password
+              needed.
+            </div>
+
+            <Link
+              href="/customer/auth/login"
+              style={{
+                ...buttonPrimaryStyle,
+                textDecoration: 'none',
+                display: 'inline-block',
+                textAlign: 'center',
+                boxSizing: 'border-box',
+              }}
+            >
+              Go to client sign in
+            </Link>
+
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={{
+                  color: '#2563EB',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                ← Back
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

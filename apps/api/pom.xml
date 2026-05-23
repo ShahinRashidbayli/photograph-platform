@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.4</version>
+        <version>3.4.7</version>
         <relativePath/>
     </parent>
 
@@ -21,6 +21,12 @@
     <properties>
         <java.version>21</java.version>
         <checkstyle.version>10.18.1</checkstyle.version>
+        <!-- Override the Testcontainers version pinned by the Spring Boot 3.4.x
+             BOM (1.20.6). That release ships an older docker-java that talks a
+             Docker API version Docker Engine 29+ no longer accepts (the daemon
+             answers /info with HTTP 400). 1.21.x bundles a docker-java that
+             negotiates the API version, restoring compatibility. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -130,6 +136,15 @@
             <artifactId>s3</artifactId>
             <version>2.25.60</version>
         </dependency>
+
+        <!-- Thumbnailator — pure-Java image scaling, no native deps. Used by
+             ThumbnailService to produce 400px JPEGs from uploaded portfolio
+             photos. Outputs JPEG (not WebP) to keep the build native-free. -->
+        <dependency>
+            <groupId>net.coobird</groupId>
+            <artifactId>thumbnailator</artifactId>
+            <version>0.4.20</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -150,7 +165,14 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-DDOCKER_API_VERSION=1.47</argLine>
+                    <!--
+                      net.bytebuddy.experimental=true lets Mockito's ByteBuddy
+                      instrument class files from JDKs newer than it officially
+                      knows about (e.g. JDK 25 on a dev laptop while the build
+                      targets 21). Without it, every @MockBean test errors with
+                      "Java N is not supported".
+                    -->
+                    <argLine>-DDOCKER_API_VERSION=1.47 -Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
 

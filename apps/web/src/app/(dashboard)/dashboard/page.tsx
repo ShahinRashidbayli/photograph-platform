@@ -1,157 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Booking, Lead } from '@/types/api';
+import { getBookingStatusMeta, toneToVisual } from '@/lib/booking-status';
+import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { useRouter } from 'next/navigation';
 import {
   getDashboardColors,
   getDashboardStyles,
 } from './dashboard.styles';
-
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'b1',
-    clientName: 'Yilmaz & Chen',
-    clientEmail: 'yilmaz@example.com',
-    eventDate: '2026-04-28',
-    eventType: 'Wedding Session',
-    location: 'Berlin, Germany',
-    totalAmountCents: 120000,
-    depositAmountCents: 30000,
-    status: 'DEPOSIT_PAID',
-    createdAt: '2026-03-20',
-  },
-  {
-    id: 'b2',
-    clientName: 'Braun family',
-    clientEmail: 'braun@example.com',
-    eventDate: '2026-05-02',
-    eventType: 'Family Session',
-    location: 'Munich, Germany',
-    totalAmountCents: 45000,
-    depositAmountCents: 45000,
-    status: 'CONFIRMED',
-    createdAt: '2026-03-15',
-  },
-  {
-    id: 'b3',
-    clientName: 'Stefan & Eva',
-    clientEmail: 'stefan@example.com',
-    eventDate: '2026-05-10',
-    eventType: 'Wedding Session',
-    location: 'Hamburg, Germany',
-    totalAmountCents: 180000,
-    depositAmountCents: 45000,
-    status: 'DEPOSIT_PAID',
-    createdAt: '2026-03-10',
-  },
-  {
-    id: 'b4',
-    clientName: 'Markus Weber',
-    clientEmail: 'markus@example.com',
-    eventDate: '2026-05-18',
-    eventType: 'Corporate Headshots',
-    location: 'Frankfurt, Germany',
-    totalAmountCents: 92000,
-    depositAmountCents: 92000,
-    status: 'CONFIRMED',
-    createdAt: '2026-04-05',
-  },
-];
-
-const MOCK_LEADS: Lead[] = [
-  {
-    id: 'l1',
-    name: 'Anna & Felix',
-    email: 'anna@example.com',
-    message: 'Looking for a wedding photographer in late June.',
-    eventDate: '2026-06-28',
-    eventType: 'WEDDING',
-    budgetRange: 'OVER_1000',
-    score: 'HIGH',
-    status: 'NEW',
-    createdAt: '2026-04-25',
-  },
-  {
-    id: 'l2',
-    name: 'Lukas Bauer',
-    email: 'lukas@example.com',
-    message: 'Need engagement photos before summer.',
-    eventDate: '2026-06-05',
-    eventType: 'ENGAGEMENT',
-    budgetRange: '500_1000',
-    score: 'HIGH',
-    status: 'NEW',
-    createdAt: '2026-04-24',
-  },
-  {
-    id: 'l3',
-    name: 'Sophia Klein',
-    email: 'sophia@example.com',
-    message: 'Family portraits, two kids.',
-    eventDate: '2026-05-15',
-    eventType: 'FAMILY',
-    budgetRange: '200_500',
-    score: 'MED',
-    status: 'NEW',
-    createdAt: '2026-04-23',
-  },
-  {
-    id: 'l4',
-    name: 'Daniel Hoffmann',
-    email: 'daniel@example.com',
-    message: 'Newborn shoot in 3 weeks.',
-    eventDate: '2026-05-17',
-    eventType: 'NEWBORN',
-    budgetRange: '200_500',
-    score: 'MED',
-    status: 'REPLIED',
-    createdAt: '2026-04-22',
-  },
-  {
-    id: 'l5',
-    name: 'Julia Schwarz',
-    email: 'julia@example.com',
-    message: 'Quick LinkedIn portrait.',
-    eventDate: '2026-05-04',
-    eventType: 'PORTRAIT',
-    budgetRange: 'UNDER_200',
-    score: 'LOW',
-    status: 'NEW',
-    createdAt: '2026-04-21',
-  },
-];
-
-function getInitials(name: string) {
-  const parts = (name ?? '').trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
-const AVATAR_PALETTE_LIGHT = [
-  { bg: '#DBEAFE', fg: '#1D4ED8' },
-  { bg: '#FCE7F3', fg: '#BE185D' },
-  { bg: '#DCFCE7', fg: '#15803D' },
-  { bg: '#FEF3C7', fg: '#B45309' },
-  { bg: '#EDE9FE', fg: '#6D28D9' },
-];
-const AVATAR_PALETTE_DARK = [
-  { bg: 'rgba(59, 130, 246, 0.22)', fg: '#93C5FD' },
-  { bg: 'rgba(236, 72, 153, 0.22)', fg: '#F9A8D4' },
-  { bg: 'rgba(16, 185, 129, 0.22)', fg: '#6EE7B7' },
-  { bg: 'rgba(217, 119, 6, 0.22)', fg: '#FCD34D' },
-  { bg: 'rgba(139, 92, 246, 0.22)', fg: '#C4B5FD' },
-];
-
-function pickAvatarColor(seed: string, isDark: boolean) {
-  const palette = isDark ? AVATAR_PALETTE_DARK : AVATAR_PALETTE_LIGHT;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return palette[hash % palette.length];
-}
 
 const ICONS = {
   calendar: (
@@ -212,8 +73,9 @@ export default function DashboardPage() {
   const styles = useMemo(() => getDashboardStyles(theme), [theme]);
   const colors = useMemo(() => getDashboardColors(theme), [theme]);
 
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  const router = useRouter();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
@@ -222,23 +84,33 @@ export default function DashboardPage() {
       api.get<Booking[]>('/api/photographerBookings?size=50'),
       api.get<Lead[]>('/api/leads'),
     ]).then(([bookingsRes, leadsRes]) => {
-      if (
-        bookingsRes.status === 'fulfilled' &&
-        Array.isArray(bookingsRes.value.data) &&
-        bookingsRes.value.data.length > 0
-      ) {
-        setBookings(bookingsRes.value.data);
-      }
-      if (
-        leadsRes.status === 'fulfilled' &&
-        Array.isArray(leadsRes.value.data) &&
-        leadsRes.value.data.length > 0
-      ) {
-        setLeads(leadsRes.value.data);
-      }
+      setBookings(
+        bookingsRes.status === 'fulfilled' && Array.isArray(bookingsRes.value.data)
+          ? bookingsRes.value.data
+          : [],
+      );
+      setLeads(
+        leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value.data)
+          ? leadsRes.value.data
+          : [],
+      );
       setLoading(false);
     });
   }, []);
+
+  const kpis = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthBookings = bookings.filter(b => new Date(b.eventDate) >= monthStart);
+    const revenue = bookings
+      .filter(b => b.status !== 'CANCELLED')
+      .reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    const activeClients = new Set(
+      bookings.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED').map(b => b.clientEmail),
+    ).size;
+    const newLeads = leads.filter(l => l.status === 'NEW').length;
+    return { thisMonth: thisMonthBookings.length, revenue, activeClients, newLeads };
+  }, [bookings, leads]);
 
   const upcomingBookings = useMemo(() => {
     const now = new Date();
@@ -291,32 +163,8 @@ export default function DashboardPage() {
       : 'Event';
 
   const getBookingStatusStyle = (status: string) => {
-    if (
-      status === 'CONFIRMED' ||
-      status === 'FULLY_PAID' ||
-      status === 'COMPLETED'
-    ) {
-      return {
-        bg: colors.successBg,
-        color: colors.successText,
-        dot: colors.success,
-        label: status === 'CONFIRMED' ? 'Confirmed' : status === 'FULLY_PAID' ? 'Paid' : 'Done',
-      };
-    }
-    if (status === 'DEPOSIT_PAID') {
-      return {
-        bg: colors.warningBg,
-        color: colors.warningText,
-        dot: colors.warning,
-        label: 'Deposit',
-      };
-    }
-    return {
-      bg: colors.neutralBg,
-      color: colors.neutralText,
-      dot: colors.neutral,
-      label: status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, ' '),
-    };
+    const meta = getBookingStatusMeta(status);
+    return { ...toneToVisual(meta.tone, colors), label: meta.label };
   };
 
   const getLeadScoreStyle = (score: string) => {
@@ -350,7 +198,7 @@ export default function DashboardPage() {
         <div style={styles.pageHeader}>
           <div>
             <h1 style={styles.pageTitle}>
-              Welcome back, {user?.fullName ?? user?.email} <span aria-hidden>👋</span>
+              Welcome back, {user?.fullName ?? user?.email}
             </h1>
             <p style={styles.pageSubtitle}>
               View your upcoming bookings and galleries.
@@ -381,8 +229,7 @@ export default function DashboardPage() {
       <header style={styles.pageHeader}>
         <div style={{ minWidth: 0 }}>
           <h1 style={styles.pageTitle}>
-            Welcome back, {user?.fullName ?? user?.email}{' '}
-            <span aria-hidden>👋</span>
+            Welcome back, {user?.fullName ?? user?.email}
             {user?.tenant?.plan && (
               <span style={styles.planBadge}>{user.tenant.plan} Plan</span>
             )}
@@ -403,24 +250,18 @@ export default function DashboardPage() {
           <button
             type="button"
             style={styles.secondaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.surface;
-            }}
+            onClick={() => router.push('/portfolio')}
+            onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = colors.surface; }}
           >
             View portfolio
           </button>
           <button
             type="button"
             style={styles.primaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
+            onClick={() => router.push('/bookings')}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
             {ICONS.plus}
             Create booking
@@ -434,55 +275,37 @@ export default function DashboardPage() {
           styles={styles}
           colors={colors}
           label="Bookings this month"
-          value="14"
+          value={String(kpis.thisMonth)}
           iconBg={colors.primaryBg}
           iconColor={colors.primaryStrong}
           icon={ICONS.calendar}
-          trendValue="18%"
-          trendLabel="from last month"
-          trendBg={colors.successBg}
-          trendColor={colors.successText}
-          positive
         />
         <MetricCard
           styles={styles}
           colors={colors}
-          label="Revenue (Apr)"
-          value="€4,720"
-          iconBg={colors.successBg}
-          iconColor={colors.successText}
+          label="Total revenue"
+          value={`€${(kpis.revenue / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          iconBg={colors.primaryBg}
+          iconColor={colors.primaryStrong}
           icon={ICONS.euro}
-          trendValue="12%"
-          trendLabel="from last month"
-          trendBg={colors.successBg}
-          trendColor={colors.successText}
-          positive
         />
         <MetricCard
           styles={styles}
           colors={colors}
           label="Active clients"
-          value="32"
-          iconBg={colors.indigoBg}
-          iconColor={colors.indigoText}
+          value={String(kpis.activeClients)}
+          iconBg={colors.primaryBg}
+          iconColor={colors.primaryStrong}
           icon={ICONS.users}
-          trendValue="8 new"
-          trendLabel="this month"
-          trendBg={colors.indigoBg}
-          trendColor={colors.indigoText}
         />
         <MetricCard
           styles={styles}
           colors={colors}
           label="New leads"
-          value="7"
-          iconBg={colors.warningBg}
-          iconColor={colors.warningText}
+          value={String(kpis.newLeads)}
+          iconBg={colors.primaryBg}
+          iconColor={colors.primaryStrong}
           icon={ICONS.trending}
-          trendValue="3 high"
-          trendLabel="priority this week"
-          trendBg={colors.warningBg}
-          trendColor={colors.warningText}
         />
       </div>
 
@@ -494,7 +317,7 @@ export default function DashboardPage() {
             <h3 id="upcoming-bookings" style={styles.cardTitle}>
               Upcoming bookings
             </h3>
-            <a
+            <Link
               href="/bookings"
               style={styles.cardLink}
               onMouseEnter={(e) => {
@@ -505,7 +328,7 @@ export default function DashboardPage() {
               }}
             >
               View all {ICONS.arrowRight}
-            </a>
+            </Link>
           </div>
 
           {loading ? (
@@ -576,7 +399,7 @@ export default function DashboardPage() {
             <h3 id="recent-leads" style={styles.cardTitle}>
               Recent leads
             </h3>
-            <a
+            <Link
               href="/leads"
               style={styles.cardLink}
               onMouseEnter={(e) => {
@@ -587,7 +410,7 @@ export default function DashboardPage() {
               }}
             >
               View all {ICONS.arrowRight}
-            </a>
+            </Link>
           </div>
 
           {loading ? (
@@ -667,11 +490,6 @@ type MetricCardProps = {
   icon: React.ReactNode;
   iconBg: string;
   iconColor: string;
-  trendValue: string;
-  trendLabel: string;
-  trendBg: string;
-  trendColor: string;
-  positive?: boolean;
 };
 
 function MetricCard({
@@ -682,11 +500,6 @@ function MetricCard({
   icon,
   iconBg,
   iconColor,
-  trendValue,
-  trendLabel,
-  trendBg,
-  trendColor,
-  positive,
 }: MetricCardProps) {
   const [hover, setHover] = useState(false);
   return (
@@ -713,33 +526,6 @@ function MetricCard({
         </span>
       </div>
       <div style={styles.metricValue}>{value}</div>
-      <div style={styles.metricTrend}>
-        <span
-          style={{
-            ...styles.metricTrendBadge,
-            background: trendBg,
-            color: trendColor,
-          }}
-        >
-          {positive && (
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-          )}
-          {trendValue}
-        </span>
-        <span>{trendLabel}</span>
-      </div>
     </div>
   );
 }

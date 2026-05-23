@@ -3,55 +3,76 @@
 import api from '@/lib/api';
 import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { getColors } from '@/lib/design-tokens';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const PHOTOGRAPHER_NAV = [
   { label: 'Overview', href: '/dashboard', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/></svg>
   )},
   { label: 'Bookings', href: '/bookings', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
   )},
   { label: 'Leads', href: '/leads', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l3-3 2 2 3-4 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2 11l3-3 2 2 3-4 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
   )},
   { label: 'Clients', href: '/clients', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.49 2.01-4.5 4.5-4.5S10 9.51 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M10 6.5l1.5 1.5L14 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.49 2.01-4.5 4.5-4.5S10 9.51 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M10 6.5l1.5 1.5L14 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
   )},
   { label: 'Portfolio', href: '/portfolio', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 4.5h7M3.5 7h5M3.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 4.5h7M3.5 7h5M3.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
   )},
-];
-
-const PHOTOGRAPHER_FINANCE = [
-  { label: 'Payments', href: '#', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4.5V6M7 8.5V9.5M5.5 6.5a1.5 1.5 0 013 0c0 .83-.67 1.5-1.5 1.5s-1.5.67-1.5 1.5a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-  )},
-  { label: 'Galleries', href: '#', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+  { label: 'Galleries', href: '/galleries', icon: (
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
   )},
 ];
 
 const CLIENT_NAV = [
   { label: 'My Bookings', href: '/bookings', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
   )},
   { label: 'Galleries', href: '/galleries', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-  )},
-  { label: 'Settings', href: '/settings', icon: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/><path d="M7 1v2M7 11v2M1 7H3M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
   )},
 ];
+
+// Settings is pinned to the bottom of the sidebar for every role.
+const SETTINGS_NAV = { label: 'Settings', href: '/settings', icon: (
+  <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/><path d="M7 1v2M7 11v2M1 7H3M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+)};
 
 function getInitials(name: string) {
   const trimmed = (name ?? '').trim();
   if (!trimmed) return 'U';
   const parts = trimmed.split(/\s+/);
   return (parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '');
+}
+
+type NavItem = { label: string; href: string; icon: React.ReactNode };
+
+function SidebarLink({ item, active, theme, colors }: {
+  item: NavItem;
+  active: boolean;
+  theme: string;
+  colors: { text: string; subText: string; primary: string };
+}) {
+  const activeColor = theme === 'light' ? '#EFF6FF' : '#1E293B';
+  const hoverColor = theme === 'light' ? '#F8FAFC' : '#334155';
+  return (
+    <Link
+      href={item.href}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', marginBottom: '4px', borderRadius: '8px', color: active ? colors.text : colors.subText, background: active ? activeColor : 'transparent', textDecoration: 'none', fontWeight: active ? 700 : 500, fontSize: '0.9rem', transition: 'all 0.2s ease', cursor: 'pointer', borderLeft: active ? '3px solid #2563EB' : '3px solid transparent' }}
+      onMouseEnter={(e) => !active && (e.currentTarget.style.background = hoverColor)}
+      onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
+      aria-current={active ? 'page' : undefined}
+    >
+      <span style={{ opacity: active ? 1 : 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? colors.primary : colors.subText, transition: 'color 0.3s ease' }}>{item.icon}</span>
+      {item.label}
+    </Link>
+  );
 }
 
 export default function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -96,19 +117,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
 
     const role = user.role.toUpperCase();
     const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-    const customerOnlyPages = ['/settings', '/galleries'];
+    // Settings is shared — both roles manage their own account there.
     const photographerOnlyPages = ['/dashboard', '/leads', '/clients', '/portfolio'];
 
-    const isOnCustomerPage = customerOnlyPages.some(page => pathname === page || pathname.startsWith(page + '/'));
     const isOnPhotographerPage = photographerOnlyPages.some(page => pathname === page || pathname.startsWith(page + '/'));
 
-    // Photographers cannot access customer-only pages
-    if (isPhotographer && isOnCustomerPage) {
-      setAccessDenied(true);
-      router.replace('/dashboard');
-    }
     // Customers cannot access photographer-only pages (redirect to /bookings)
-    else if (!isPhotographer && isOnPhotographerPage) {
+    if (!isPhotographer && isOnPhotographerPage) {
       setAccessDenied(true);
       router.replace('/bookings');
     } else {
@@ -139,9 +154,22 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   }
 
   if (loading) {
+    // Read the persisted theme directly so the loading screen doesn't flash
+    // light before the theme store hydrates. zustand persists under
+    // "theme-storage" as { state: { theme }, version }.
+    let isDark = theme === 'dark';
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('theme-storage');
+        if (raw) isDark = JSON.parse(raw)?.state?.theme === 'dark';
+      } catch {
+        /* fall back to the store value */
+      }
+    }
+    const lc = getColors(isDark ? 'dark' : 'light');
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F3F4F6' }}>
-        <div style={{ color: '#111827', fontSize: '0.95rem' }}>Loading dashboard...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: lc.bg }}>
+        <div style={{ color: lc.text, fontSize: '0.95rem' }}>Loading dashboard...</div>
       </div>
     );
   }
@@ -149,32 +177,20 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   const role = user?.role?.toUpperCase();
   const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
   const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
-  const financeItems = isPhotographer ? PHOTOGRAPHER_FINANCE : [];
 
-  const themeColors = {
-    light: {
-      bg: '#F9FAFB',
-      pageBg: '#F9FAFB',
-      text: '#111827',
-      subText: '#6B7280',
-      border: '#E5E7EB',
-      cardBg: '#FFFFFF',
-      headerBg: '#FFFFFF',
-      sidebarBg: '#FFFFFF',
-    },
-    dark: {
-      bg: '#111827',
-      pageBg: '#111827',
-      text: '#F3F4F6',
-      subText: '#D1D5DB',
-      border: '#374151',
-      cardBg: '#1F2937',
-      headerBg: '#1F2937',
-      sidebarBg: '#1F2937',
-    },
+  const c = getColors(theme);
+  const colors = {
+    bg: c.bg,
+    pageBg: c.bg,
+    text: c.text,
+    subText: c.textMuted,
+    border: c.border,
+    cardBg: c.surface,
+    headerBg: c.surface,
+    sidebarBg: c.surface,
+    primary: c.primary,
+    surfaceHover: c.surfaceHover,
   };
-
-  const colors = themeColors[theme];
 
   return (
     <div style={{ minHeight: '100vh', background: colors.bg, color: colors.text, transition: 'background 0.3s ease, color 0.3s ease' }}>
@@ -186,7 +202,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         .mobile-menu-btn { display: none; }
         .mobile-overlay { display: none; }
         @media (max-width: 768px) {
-          aside { position: fixed; left: 0; top: 70px; height: calc(100vh - 70px); z-index: 40; transform: translateX(${isOpen ? '0' : '-100%'}); transition: transform 0.3s ease; }
+          aside { position: fixed; left: 0; top: 60px; height: calc(100vh - 60px); z-index: 40; transform: translateX(${isOpen ? '0' : '-100%'}); transition: transform 0.3s ease; }
           main { margin-left: 0; }
           .mobile-menu-btn { display: inline-flex; }
           .mobile-overlay { display: block; }
@@ -194,126 +210,18 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         }
       `}</style>
 
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: colors.headerBg, borderBottom: `1px solid ${colors.border}`, boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="banner">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-          <button
-            className="mobile-menu-btn"
-            onClick={() => setIsOpen((v) => !v)}
-            aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            style={{ width: 34, height: 34, borderRadius: '8px', border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, cursor: 'pointer', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
-          {/* Fotolio Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <FotolioLogo theme={theme} showText={true} />
-          </div>
-        </div>
+      <Header user={user} theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} role="navigation" aria-label="User account">
-          <div className="user-meta" style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: colors.text, lineHeight: 1.2, transition: 'color 0.3s ease' }}>{user?.fullName ?? user?.email}</div>
-            <div style={{ fontSize: '0.7rem', color: colors.subText, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, transition: 'color 0.3s ease' }}>{user?.tenant?.plan}</div>
+      <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
+        <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label="Main navigation">
+          {navItems.map((item) => (
+            <SidebarLink key={item.label} item={item} active={pathname === item.href} theme={theme} colors={colors} />
+          ))}
+          {/* Settings pinned to the bottom for every role. */}
+          <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+            <div style={{ height: '1px', background: colors.border, margin: '0 -4px 8px' }} />
+            <SidebarLink item={SETTINGS_NAV} active={pathname === SETTINGS_NAV.href} theme={theme} colors={colors} />
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme === 'light' ? '#3B82F6' : '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, transition: 'background 0.3s ease' }} title={user?.fullName ?? 'User'}>
-            {getInitials(user?.fullName ?? 'TU')}
-          </div>
-          <button
-            onClick={() => toggleTheme()}
-            style={{
-              padding: '6px 6px',
-              fontSize: '1.2rem',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              borderRadius: '8px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: colors.text,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = theme === 'light' ? '#F3F4F6' : '#374151'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-          >
-            {theme === 'light' ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" />
-                <line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={handleLogout}
-            style={{ padding: '8px 16px', fontSize: '0.8rem', color: colors.text, fontWeight: 500, border: `1px solid ${colors.border}`, background: colors.cardBg, cursor: 'pointer', borderRadius: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s ease' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = theme === 'light' ? '#F3F4F6' : '#374151'; e.currentTarget.style.borderColor = theme === 'light' ? '#D1D5DB' : '#4B5563'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = colors.cardBg; e.currentTarget.style.borderColor = colors.border; }}
-            aria-label="Sign out from account"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 70px)' }}>
-        <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 70, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label="Main navigation">
-          {navItems.map((item) => {
-            const active = pathname === item.href;
-            const activeColor = theme === 'light' ? '#EFF6FF' : '#1E293B';
-            const hoverColor = theme === 'light' ? '#F8FAFC' : '#334155';
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', marginBottom: '4px', borderRadius: '8px', color: active ? colors.text : colors.subText, background: active ? activeColor : 'transparent', textDecoration: 'none', fontWeight: active ? 700 : 500, fontSize: '0.9rem', transition: 'all 0.2s ease', cursor: 'pointer' }}
-                onMouseEnter={(e) => !active && (e.currentTarget.style.background = hoverColor)}
-                onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
-                aria-current={active ? 'page' : undefined}
-              >
-                <span style={{ opacity: active ? 1 : 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? colors.text : colors.subText, transition: 'color 0.3s ease', fontSize: '0.85rem' }}>{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
-
-          {financeItems.length > 0 && (
-            <>
-              <div style={{ marginTop: '14px', marginBottom: '8px', fontSize: '0.65rem', letterSpacing: '0.1em', color: theme === 'light' ? '#94A3B8' : '#64748B', textTransform: 'uppercase', fontWeight: 700, transition: 'color 0.3s ease' }}>Finance</div>
-              {financeItems.map((item) => {
-                const hoverColor = theme === 'light' ? '#F8FAFC' : '#334155';
-                return (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', marginBottom: '4px', borderRadius: '8px', textDecoration: 'none', color: colors.subText, background: 'transparent', fontWeight: 500, fontSize: '0.9rem', transition: 'all 0.2s ease', cursor: 'pointer' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = hoverColor, e.currentTarget.style.color = colors.text)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent', e.currentTarget.style.color = colors.subText)}
-                    aria-label={item.label}
-                  >
-                    <span style={{ opacity: 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem' }}>{item.icon}</span>
-                    {item.label}
-                  </a>
-                );
-              })}
-            </>
-          )}
         </aside>
 
         <main style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', background: colors.pageBg, transition: 'background 0.3s ease', height: '100%' }} role="main">
@@ -339,6 +247,219 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
           aria-hidden="true"
         />
       )}
+
+      <EmailVerifyToast />
+    </div>
+  );
+}
+
+function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsOpen }: {
+  user: AuthUser | null;
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  handleLogout: () => void;
+  colors: { headerBg: string; border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
+  isOpen: boolean;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLButtonElement>(null);
+
+  // Close the menu and return focus to the avatar trigger so keyboard
+  // users aren't stranded.
+  const closeMenu = () => {
+    setMenuOpen(false);
+    avatarRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
+
+  return (
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: colors.headerBg, borderBottom: `1px solid ${colors.border}`, boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)', transition: 'background 0.3s ease, border-color 0.3s ease', position: 'sticky', top: 0, zIndex: 50 }} role="banner">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setIsOpen((v) => !v)}
+          aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          style={{ width: 34, height: 34, borderRadius: '8px', border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, cursor: 'pointer', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        {/* Fotolio Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <FotolioLogo theme={theme} showText={true} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} role="navigation" aria-label="User account">
+        <button
+          onClick={() => toggleTheme()}
+          style={{
+            width: 34, height: 34,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            borderRadius: '8px',
+            transition: 'background 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: colors.text,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+        >
+          {theme === 'light' ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          )}
+        </button>
+
+        {/* User menu — avatar opens a dropdown holding the account actions. */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            ref={avatarRef}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Account menu"
+            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: theme === 'light' ? '#3B82F6' : '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, cursor: 'pointer', transition: 'background 0.3s ease' }}
+            title={user?.fullName ?? 'User'}
+          >
+            {getInitials(user?.fullName ?? 'TU')}
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', minWidth: 220, background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: '12px', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.16)', padding: '6px', zIndex: 60 }}
+            >
+              <div style={{ padding: '8px 10px 10px', borderBottom: `1px solid ${colors.border}`, marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: colors.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.fullName ?? user?.email}</div>
+                {user?.tenant?.plan && (
+                  <div style={{ fontSize: '0.7rem', color: colors.subText, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginTop: '2px' }}>{user.tenant.plan} plan</div>
+                )}
+              </div>
+              <Link
+                href="/settings"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+                style={{ display: 'block', padding: '8px 10px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 500, color: colors.text, textDecoration: 'none' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Settings
+              </Link>
+              <button
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); handleLogout(); }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 500, color: colors.text, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function EmailVerifyToast() {
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      setMessage(detail?.message ?? 'Please verify your email before performing this action.');
+      window.setTimeout(() => setMessage(null), 6000);
+    };
+    window.addEventListener('app:email-not-verified', handler);
+    return () => window.removeEventListener('app:email-not-verified', handler);
+  }, []);
+
+  if (!message) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed',
+        right: 20,
+        bottom: 24,
+        zIndex: 60,
+        maxWidth: 360,
+        background: '#0F172A',
+        color: '#F8FAFC',
+        padding: '14px 18px',
+        borderRadius: 10,
+        boxShadow: '0 12px 32px rgba(15, 23, 42, 0.35)',
+        display: 'flex',
+        gap: 12,
+        alignItems: 'flex-start',
+        fontSize: 14,
+        lineHeight: 1.5,
+        animation: 'toast-in 0.2s ease-out',
+      }}
+    >
+      <style>{`@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+      <span style={{ flex: '0 0 auto', marginTop: 2 }}>⚠️</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>Verify your email</div>
+        <div style={{ color: '#CBD5E1' }}>{message}</div>
+      </div>
+      <button
+        onClick={() => setMessage(null)}
+        aria-label="Dismiss"
+        style={{
+          flex: '0 0 auto',
+          width: 24,
+          height: 24,
+          border: 'none',
+          background: 'transparent',
+          color: '#CBD5E1',
+          cursor: 'pointer',
+          fontSize: 18,
+          lineHeight: 1,
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }

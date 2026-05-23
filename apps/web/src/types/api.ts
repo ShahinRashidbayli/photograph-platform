@@ -15,16 +15,15 @@ export interface Lead {
 
 export interface Client {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
   phone?: string;
-  location?: string;
-  totalSpent: number;
-  bookingsCompleted: number;
+  notes?: string;
+  totalBookings: number;
+  totalSpentCents: number;
   upcomingBookings: number;
   lastBookingDate?: string;
-  notes?: string;
-  joinedAt: string;
+  createdAt: string;
 }
 
 export interface Booking {
@@ -39,6 +38,7 @@ export interface Booking {
   totalAmountCents: number;
   depositAmountCents: number;
   status: 'ENQUIRY' | 'CONFIRMED' | 'DEPOSIT_PAID' | 'FULLY_PAID' | 'COMPLETED' | 'CANCELLED';
+  internalNotes?: string;
   createdAt: string;
 }
 

@@ -18,7 +18,11 @@ dist/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.iml
+
+# Build artifacts
+*.tsbuildinfo
 
 # OS
 .DS_Store

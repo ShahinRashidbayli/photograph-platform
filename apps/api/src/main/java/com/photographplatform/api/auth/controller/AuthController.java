@@ -6,7 +6,9 @@ import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
+import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.dto.VerifyEmailRequest;
+import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.AuthService;
 import com.photographplatform.api.auth.service.EmailVerificationService;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -14,15 +16,12 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,33 +32,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private static final String ACCESS_TOKEN_COOKIE  = "access_token";
-    private static final String REFRESH_TOKEN_COOKIE = "refresh_token";
-
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
-    private final long accessTokenExpiryMs;
-    private final long refreshTokenExpiryMs;
-    private final boolean cookieSecure;
-    private final String cookieSameSite;
-    private final String cookieDomain;
+    private final AuthCookieWriter cookies;
 
     public AuthController(
         AuthService authService,
         EmailVerificationService emailVerificationService,
-        @Value("${app.jwt.access-token-expiry-ms}") long accessTokenExpiryMs,
-        @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs,
-        @Value("${app.cookie.secure:false}") boolean cookieSecure,
-        @Value("${app.cookie.same-site:Lax}") String cookieSameSite,
-        @Value("${app.cookie.domain:}") String cookieDomain
+        AuthCookieWriter cookies
     ) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
-        this.accessTokenExpiryMs = accessTokenExpiryMs;
-        this.refreshTokenExpiryMs = refreshTokenExpiryMs;
-        this.cookieSecure = cookieSecure;
-        this.cookieSameSite = cookieSameSite;
-        this.cookieDomain = cookieDomain;
+        this.cookies = cookies;
     }
 
     @PostMapping("/register")
@@ -70,7 +54,7 @@ public class AuthController {
         HttpServletResponse response
     ) {
         AuthResult result = authService.register(request, resolveClientIp(httpRequest));
-        setAuthCookies(response, result.accessToken(), result.refreshToken());
+        cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }
 
@@ -81,7 +65,7 @@ public class AuthController {
         HttpServletResponse response
     ) {
         AuthResult result = authService.login(request, resolveClientIp(httpRequest));
-        setAuthCookies(response, result.accessToken(), result.refreshToken());
+        cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }
 
@@ -93,7 +77,7 @@ public class AuthController {
     ) {
         String refreshToken = resolveRefreshToken(body, request);
         AuthResult result = authService.refresh(new RefreshRequest(refreshToken));
-        setAuthCookies(response, result.accessToken(), result.refreshToken());
+        cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }
 
@@ -111,19 +95,22 @@ public class AuthController {
                 // Malformed principal — nothing to invalidate, still clear cookies.
             }
         }
-        clearAuthCookies(response);
+        cookies.clearAuthCookies(response);
     }
 
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal String userId) {
-        if (userId == null || userId.isBlank()) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        try {
-            return authService.me(UUID.fromString(userId));
-        } catch (IllegalArgumentException ex) {
-            throw new UnauthorizedException("Authentication required");
-        }
+        return authService.me(requireUserId(userId));
+    }
+
+    @PatchMapping("/me")
+    public MeResponse updateMe(
+        @AuthenticationPrincipal String userId,
+        @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        // Parse the principal before calling the service so a malformed
+        // principal stays a 401 and never masks a service validation error.
+        return authService.updateProfile(requireUserId(userId), request);
     }
 
     @PostMapping("/verify-email")
@@ -148,33 +135,18 @@ public class AuthController {
         }
     }
 
-    // ── cookie helpers ────────────────────────────────────────────────────────
+    // ── helpers ───────────────────────────────────────────────────────────────
 
-    private void setAuthCookies(HttpServletResponse response, String accessToken, String refreshToken) {
-        long accessMaxAge = Duration.ofMillis(accessTokenExpiryMs).getSeconds();
-        long refreshMaxAge = Duration.ofMillis(refreshTokenExpiryMs).getSeconds();
-        response.addHeader(HttpHeaders.SET_COOKIE,
-            buildCookie(ACCESS_TOKEN_COOKIE, accessToken, accessMaxAge).toString());
-        response.addHeader(HttpHeaders.SET_COOKIE,
-            buildCookie(REFRESH_TOKEN_COOKIE, refreshToken, refreshMaxAge).toString());
-    }
-
-    private void clearAuthCookies(HttpServletResponse response) {
-        response.addHeader(HttpHeaders.SET_COOKIE, buildCookie(ACCESS_TOKEN_COOKIE, "", 0).toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, buildCookie(REFRESH_TOKEN_COOKIE, "", 0).toString());
-    }
-
-    private ResponseCookie buildCookie(String name, String value, long maxAgeSeconds) {
-        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
-            .httpOnly(true)
-            .secure(cookieSecure)
-            .sameSite(cookieSameSite)
-            .path("/")
-            .maxAge(maxAgeSeconds);
-        if (cookieDomain != null && !cookieDomain.isBlank()) {
-            builder.domain(cookieDomain);
+    /** Resolves the authenticated user's id, or 401s if the principal is missing/malformed. */
+    private UUID requireUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new UnauthorizedException("Authentication required");
         }
-        return builder.build();
+        try {
+            return UUID.fromString(userId);
+        } catch (IllegalArgumentException ex) {
+            throw new UnauthorizedException("Authentication required");
+        }
     }
 
     private String resolveClientIp(HttpServletRequest request) {
@@ -191,7 +163,7 @@ public class AuthController {
         }
         if (request.getCookies() != null) {
             return Arrays.stream(request.getCookies())
-                .filter(c -> REFRESH_TOKEN_COOKIE.equals(c.getName()))
+                .filter(c -> AuthCookieWriter.REFRESH_TOKEN_COOKIE.equals(c.getName()))
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElseThrow(() -> new UnauthorizedException("No refresh token provided"));

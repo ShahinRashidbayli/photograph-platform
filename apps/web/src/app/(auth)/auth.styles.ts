@@ -3,7 +3,7 @@ export const authStyles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column' as const,
-    background: '#EAEAE4',
+    background: 'linear-gradient(135deg, #F7F8FB 0%, #E0E7FF 100%)',
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
@@ -11,7 +11,7 @@ export const authStyles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '18px 28px',
+    padding: '20px 32px',
     borderBottom: '1px solid #E2E8F0',
     background: '#FFFFFF',
     position: 'sticky' as const,
@@ -22,8 +22,8 @@ export const authStyles = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    fontSize: '19px',
-    fontWeight: 600,
+    fontSize: '1.1rem',
+    fontWeight: 700,
     color: '#0F172A',
     textDecoration: 'none',
     cursor: 'pointer',
@@ -43,11 +43,11 @@ export const authStyles = {
   navRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
+    gap: '16px',
   },
   navButton: {
-    padding: '10px 18px',
-    fontSize: '14px',
+    padding: '10px 20px',
+    fontSize: '0.9rem',
     fontWeight: 600,
     border: '1px solid #E2E8F0',
     background: 'transparent',
@@ -61,6 +61,12 @@ export const authStyles = {
     background: '#0F172A',
     color: '#FFFFFF',
     border: 'none',
+    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+  },
+  navButtonPrimaryHover: {
+    background: '#1E293B',
+    transform: 'translateY(-1px)',
+    boxShadow: '0 6px 16px rgba(15, 23, 42, 0.2)',
   },
 
   container: {
@@ -68,7 +74,7 @@ export const authStyles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '32px 24px',
+    padding: '40px 24px',
   },
   content: {
     width: '100%',
@@ -76,24 +82,25 @@ export const authStyles = {
   },
   card: {
     background: '#FFFFFF',
-    borderRadius: '20px',
-    padding: '40px',
+    borderRadius: '16px',
+    padding: '48px 40px',
     boxShadow: '0 12px 30px rgba(15, 23, 42, 0.08)',
   },
   header: {
-    marginBottom: '28px',
+    marginBottom: '32px',
   },
   title: {
-    fontSize: '30px',
+    fontSize: '2rem',
     fontWeight: 700,
     color: '#0F172A',
-    margin: '0 0 10px 0',
+    margin: '0 0 8px 0',
+    lineHeight: 1.2,
   },
   subtitle: {
-    fontSize: '15px',
+    fontSize: '0.95rem',
     color: '#64748B',
     margin: 0,
-    lineHeight: '1.6',
+    lineHeight: 1.5,
   },
 
   // Step indicators
@@ -134,24 +141,26 @@ export const authStyles = {
 
   // Form groups
   formGroup: {
-    marginBottom: '18px',
+    marginBottom: '20px',
   },
   label: {
     display: 'block',
-    fontSize: '14px',
+    fontSize: '0.85rem',
     fontWeight: 600,
     color: '#0F172A',
     marginBottom: '8px',
+    letterSpacing: '0.01em',
   },
   input: {
     width: '100%',
-    padding: '14px 16px',
-    fontSize: '15px',
+    padding: '12px 14px',
+    fontSize: '0.95rem',
     border: '1px solid #E2E8F0',
-    borderRadius: '12px',
+    borderRadius: '10px',
     color: '#0F172A',
     boxSizing: 'border-box' as const,
     fontFamily: 'inherit',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
   },
   inputFocus: {
     borderColor: '#3B82F6',
@@ -167,21 +176,23 @@ export const authStyles = {
   // Buttons
   button: {
     width: '100%',
-    padding: '14px 18px',
-    fontSize: '15px',
+    padding: '12px 18px',
+    fontSize: '0.9rem',
     fontWeight: 600,
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   buttonPrimary: {
     background: '#0F172A',
     color: '#FFFFFF',
+    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
   },
   buttonPrimaryHover: {
     background: '#1E293B',
-    opacity: 0.9,
+    transform: 'translateY(-1px)',
+    boxShadow: '0 6px 16px rgba(15, 23, 42, 0.2)',
   },
   buttonSecondary: {
     background: 'transparent',
@@ -226,10 +237,13 @@ export const authStyles = {
     background: '#FEF2F2',
     color: '#991B1B',
     border: '1px solid #FECACA',
-    padding: '12px 14px',
+    padding: '14px 16px',
     borderRadius: '10px',
-    fontSize: '13px',
-    marginBottom: '16px',
+    fontSize: '0.9rem',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
   },
 
   // Role selection cards
@@ -242,7 +256,7 @@ export const authStyles = {
   roleCard: {
     padding: '20px',
     border: '2px solid transparent',
-    borderRadius: '12px',
+    borderRadius: '14px',
     cursor: 'pointer',
     transition: 'all 0.2s',
     textAlign: 'center' as const,
@@ -320,26 +334,27 @@ export const authStyles = {
 
   // Links & Footer text
   link: {
-    color: '#3B82F6',
+    color: '#2563EB',
     textDecoration: 'none',
-    fontWeight: 500,
+    fontWeight: 600,
     cursor: 'pointer',
     transition: 'color 0.2s',
   },
   linkHover: {
-    color: '#2563EB',
+    color: '#1D4ED8',
   },
   centerText: {
     textAlign: 'center' as const,
-    fontSize: '14px',
+    fontSize: '0.9rem',
     color: '#64748B',
-    marginTop: '16px',
+    marginTop: '20px',
+    lineHeight: 1.5,
   },
   divider: {
     textAlign: 'center' as const,
-    fontSize: '12px',
+    fontSize: '0.85rem',
     color: '#94A3B8',
-    margin: '16px 0',
+    margin: '24px 0',
     position: 'relative' as const,
   },
   dividerLine: {

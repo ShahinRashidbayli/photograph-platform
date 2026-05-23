@@ -17,5 +17,6 @@ public record BookingResponse(
     Integer totalAmountCents,
     Integer depositAmountCents,
     String status,
+    String internalNotes,
     OffsetDateTime createdAt
 ) {}

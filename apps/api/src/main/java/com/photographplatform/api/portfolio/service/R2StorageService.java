@@ -4,6 +4,10 @@ import com.photographplatform.api.portfolio.config.R2Properties;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -14,10 +18,12 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 public class R2StorageService {
 
     private final S3Presigner presigner;
+    private final S3Client s3Client;
     private final R2Properties props;
 
-    public R2StorageService(S3Presigner r2S3Presigner, R2Properties props) {
+    public R2StorageService(S3Presigner r2S3Presigner, S3Client r2S3Client, R2Properties props) {
         this.presigner = r2S3Presigner;
+        this.s3Client = r2S3Client;
         this.props = props;
     }
 
@@ -64,5 +70,34 @@ public class R2StorageService {
                 .build();
 
         return presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    /**
+     * Server-side download of an object's bytes. Used by ThumbnailService to
+     * read the original after the client's direct PUT to R2. Avoid for large
+     * objects — the whole payload lands in heap.
+     */
+    public byte[] downloadBytes(String r2Key) {
+        software.amazon.awssdk.services.s3.model.GetObjectRequest getRequest =
+            software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                .bucket(props.getBucket())
+                .key(r2Key)
+                .build();
+        ResponseBytes<GetObjectResponse> resp = s3Client.getObjectAsBytes(getRequest);
+        return resp.asByteArray();
+    }
+
+    /**
+     * Server-side upload of a byte array. Used by ThumbnailService to write the
+     * generated thumbnail back to R2.
+     */
+    public void uploadBytes(String r2Key, String contentType, byte[] bytes) {
+        PutObjectRequest putRequest = PutObjectRequest.builder()
+            .bucket(props.getBucket())
+            .key(r2Key)
+            .contentType(contentType)
+            .contentLength((long) bytes.length)
+            .build();
+        s3Client.putObject(putRequest, RequestBody.fromBytes(bytes));
     }
 }

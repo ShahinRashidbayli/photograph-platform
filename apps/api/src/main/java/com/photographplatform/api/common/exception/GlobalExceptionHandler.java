@@ -32,6 +32,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(ERROR_KEY, "Forbidden"));
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, String>> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        // Structured `code` lets the FE distinguish this from a generic 403 and
+        // surface a "verify your email" prompt instead of a permission error.
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+            ERROR_KEY, ex.getMessage(),
+            "code", "EMAIL_NOT_VERIFIED"
+        ));
+    }
+
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(ERROR_KEY, ex.getMessage()));
@@ -63,5 +73,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(NotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(ERROR_KEY, ex.getMessage()));
+    }
+
+    // Last-resort handler. Without this an uncaught exception falls through to
+    // Spring's default error mapping, which renders an HTML error page that the
+    // FE cannot consume. Log the cause server-side; return a generic message so
+    // we do not leak stack traces, table names, or framework internals.
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleUnexpected(Exception ex) {
+        LOG.error("Unhandled exception", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(Map.of(ERROR_KEY, "Internal server error"));
     }
 }

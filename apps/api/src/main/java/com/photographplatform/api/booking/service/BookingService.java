@@ -12,6 +12,8 @@ import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.lead.domain.Lead;
+import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -75,6 +77,52 @@ public class BookingService {
         booking.setTotalAmountCents(request.totalAmountCents() != null ? request.totalAmountCents() : 0);
         booking.setDepositAmountCents(request.depositAmountCents() != null ? request.depositAmountCents() : 0);
         booking.setInternalNotes(trimToNull(request.internalNotes()));
+        booking.setStatus(BookingStatus.ENQUIRY.name());
+
+        Booking saved = bookingRepository.save(booking);
+
+        auditService.log(
+            "BOOKING_CREATED",
+            "BOOKING",
+            saved.getId(),
+            tenantId,
+            actorId,
+            ipAddress
+        );
+
+        return toResponse(saved);
+    }
+
+    /**
+     * Create a booking from an existing lead. Used by the lead-conversion
+     * endpoint: the contact + event basics come from the lead, the
+     * photographer fills in the operational fields (time, location, pricing)
+     * via {@link ConvertLeadRequest}. The booking is linked back to the lead
+     * through {@code leadId} so the audit trail and reporting can join them.
+     *
+     * <p>Always created in {@code ENQUIRY} for the same reason as the manual
+     * create path: lifecycle changes must go through {@link #changeStatus}.
+     */
+    @Transactional
+    public BookingResponse createFromLead(Lead lead, ConvertLeadRequest overrides, String ipAddress) {
+        UUID actorId = currentUserId();
+        UUID tenantId = userRepository.findById(actorId)
+            .map(User::getTenantId)
+            .orElse(null);
+
+        Booking booking = new Booking(
+            lead.getName().trim(),
+            lead.getEmail().trim().toLowerCase(),
+            lead.getEventDate()
+        );
+        booking.setLeadId(lead.getId());
+        booking.setEventType(trimToNull(lead.getEventType()));
+        booking.setEventTime(overrides.eventTime());
+        booking.setLocation(trimToNull(overrides.location()));
+        booking.setPackageId(overrides.packageId());
+        booking.setTotalAmountCents(overrides.totalAmountCents() != null ? overrides.totalAmountCents() : 0);
+        booking.setDepositAmountCents(overrides.depositAmountCents() != null ? overrides.depositAmountCents() : 0);
+        booking.setInternalNotes(trimToNull(overrides.internalNotes()));
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);

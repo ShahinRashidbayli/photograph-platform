@@ -1,8 +1,11 @@
 package com.photographplatform.api.lead.controller;
 
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
+import com.photographplatform.api.common.security.RequiresVerifiedEmail;
+import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
 import com.photographplatform.api.lead.dto.LeadResponse;
 import com.photographplatform.api.lead.service.LeadService;
@@ -12,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -68,6 +72,30 @@ public class LeadController {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    /**
+     * Convert a lead into a booking. The booking inherits the lead's contact
+     * info, event date and event type; the body carries operational overrides
+     * (time, location, pricing) the photographer fills in during the call.
+     *
+     * <p>Returns 201 with the new {@link BookingResponse}. 404 if the lead is
+     * unknown in this tenant, 409 if the lead is already converted.
+     *
+     * <p>Email-verification gated: conversion triggers downstream client emails
+     * (deposit request, contract), which must not go out under an unverified
+     * photographer identity. {@code /api/leads/**} is already role-gated to
+     * PHOTOGRAPHER/ADMIN in {@code SecurityConfig}.
+     */
+    @RequiresVerifiedEmail
+    @PostMapping("/leads/{id}/convert")
+    public ResponseEntity<BookingResponse> convertLead(
+        @PathVariable UUID id,
+        @Valid @RequestBody ConvertLeadRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        BookingResponse booking = leadService.convertLead(id, request, resolveClientIp(httpRequest));
+        return ResponseEntity.status(HttpStatus.CREATED).body(booking);
     }
 
     @GetMapping("/leads")

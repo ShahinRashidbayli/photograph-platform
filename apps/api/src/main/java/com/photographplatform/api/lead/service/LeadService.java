@@ -1,7 +1,15 @@
 package com.photographplatform.api.lead.service;
 
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.auth.domain.User;
+import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.common.exception.ConflictException;
+import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.lead.domain.Lead;
+import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
 import com.photographplatform.api.lead.dto.LeadResponse;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
@@ -13,21 +21,83 @@ import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LeadService {
 
+    private static final String LEAD_STATUS_BOOKED = "BOOKED";
+
     private final LeadRepository leadRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditService auditService;
+    private final BookingService bookingService;
+    private final UserRepository userRepository;
 
     public LeadService(LeadRepository leadRepository, ApplicationEventPublisher eventPublisher,
-                       AuditService auditService) {
+                       AuditService auditService, BookingService bookingService,
+                       UserRepository userRepository) {
         this.leadRepository = leadRepository;
         this.eventPublisher = eventPublisher;
         this.auditService = auditService;
+        this.bookingService = bookingService;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * Convert a lead into a booking. The booking inherits the lead's contact
+     * info, event date and type; the photographer supplies the remaining
+     * operational fields (time, location, pricing) via {@link ConvertLeadRequest}.
+     *
+     * <p>Idempotent on the lead side: a second convert call against a lead that
+     * is already {@code BOOKED} returns HTTP 409 rather than silently producing
+     * a duplicate booking. Booking creation and the lead status flip happen in
+     * the same transaction so a failure midway never leaves the lead
+     * advertising "BOOKED" without a matching booking row.
+     */
+    @Transactional
+    public BookingResponse convertLead(UUID leadId, ConvertLeadRequest overrides, String ipAddress) {
+        Lead lead = leadRepository.findById(leadId)
+            .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
+
+        if (LEAD_STATUS_BOOKED.equalsIgnoreCase(lead.getStatus())) {
+            throw new ConflictException("Lead already converted: " + leadId);
+        }
+
+        BookingResponse booking = bookingService.createFromLead(lead, overrides, ipAddress);
+
+        String previousStatus = lead.getStatus();
+        lead.setStatus(LEAD_STATUS_BOOKED);
+        leadRepository.save(lead);
+
+        UUID actorId = currentUserId();
+        UUID tenantId = userRepository.findById(actorId).map(User::getTenantId).orElse(null);
+        auditService.log(
+            "LEAD_CONVERTED",
+            "LEAD",
+            lead.getId(),
+            tenantId,
+            actorId,
+            ipAddress,
+            previousStatus,
+            LEAD_STATUS_BOOKED
+        );
+
+        return booking;
+    }
+
+    private UUID currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+        try {
+            return UUID.fromString(auth.getPrincipal().toString());
+        } catch (IllegalArgumentException ex) {
+            throw new UnauthorizedException("Authentication required");
+        }
     }
 
     @Transactional

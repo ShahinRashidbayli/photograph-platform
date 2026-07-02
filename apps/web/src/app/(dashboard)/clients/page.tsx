@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Client } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { formatEUR } from '@/lib/helpers';
 import {
   getClientsColors,
   getClientsStyles,
@@ -14,12 +15,7 @@ import {
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
 
-function formatEUR(cents: number) {
-  return `€${(cents / 100).toLocaleString('de-DE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
+ 
 
 const ICONS = {
   search: (

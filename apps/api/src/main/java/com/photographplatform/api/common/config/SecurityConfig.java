@@ -94,6 +94,7 @@ public class SecurityConfig {
                     "/api/clients/**",
                     "/api/leads/**",
                     "/api/galleries/**",
+                    "/api/packages/**",
                     "/api/photographerBookings",
                     "/api/bookings/**"
                 ).hasAnyRole("PHOTOGRAPHER", "ADMIN")

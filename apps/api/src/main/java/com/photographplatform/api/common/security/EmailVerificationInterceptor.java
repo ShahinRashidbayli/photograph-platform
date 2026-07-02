@@ -6,6 +6,10 @@ import com.photographplatform.api.common.exception.EmailNotVerifiedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -26,10 +30,32 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class EmailVerificationInterceptor implements HandlerInterceptor {
 
-    private final UserRepository userRepository;
+    private static final Logger LOG = LoggerFactory.getLogger(EmailVerificationInterceptor.class);
 
-    public EmailVerificationInterceptor(UserRepository userRepository) {
+    private final UserRepository userRepository;
+    /**
+     * Master switch for the {@link RequiresVerifiedEmail} gate. Defaults to
+     * {@code true} (production-safe). Set {@code app.email.verification-enforced=false}
+     * (or {@code APP_EMAIL_VERIFICATION_ENFORCED=false}) in environments where
+     * outbound email isn't wired up yet — e.g. local dev before SMTP/Resend is
+     * configured, so the photographer can advance bookings / convert leads
+     * without being blocked on an email they can't receive.
+     *
+     * <p>Never ship a non-dev environment with this set to {@code false}: it
+     * makes every annotated endpoint reachable by any authenticated session,
+     * which is precisely the misuse the gate exists to prevent.
+     */
+    private final boolean verificationEnforced;
+    // One-shot log latch so we don't spam a warning line on every request when
+    // verification is disabled, while still making the bypass obvious in logs.
+    private final AtomicBoolean bypassWarned = new AtomicBoolean(false);
+
+    public EmailVerificationInterceptor(
+        UserRepository userRepository,
+        @Value("${app.email.verification-enforced:true}") boolean verificationEnforced
+    ) {
         this.userRepository = userRepository;
+        this.verificationEnforced = verificationEnforced;
     }
 
     @Override
@@ -41,6 +67,17 @@ public class EmailVerificationInterceptor implements HandlerInterceptor {
         boolean required = method.hasMethodAnnotation(RequiresVerifiedEmail.class)
             || method.getBeanType().isAnnotationPresent(RequiresVerifiedEmail.class);
         if (!required) {
+            return true;
+        }
+
+        if (!verificationEnforced) {
+            if (bypassWarned.compareAndSet(false, true)) {
+                LOG.warn(
+                    "Email-verification gate DISABLED (app.email.verification-enforced=false). "
+                    + "All @RequiresVerifiedEmail endpoints are reachable without a verified address. "
+                    + "Re-enable before staging/production deploys."
+                );
+            }
             return true;
         }
 

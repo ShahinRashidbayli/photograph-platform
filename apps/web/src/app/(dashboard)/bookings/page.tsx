@@ -5,6 +5,8 @@ import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
 import { Booking } from '@/types/api';
+import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { formatEUR, extractApiError, insertSortedByDate } from '@/lib/helpers';
 import {
   getBookingStatusMeta,
   toneToVisual,
@@ -17,6 +19,8 @@ import {
   getBookingsColors,
   getBookingsStyles,
 } from './bookings.styles';
+import { BookingsCalendarView } from './BookingsCalendarView';
+import { CreateBookingModal } from './CreateBookingModal';
 
 type FilterKey = 'all' | 'deposit' | 'confirmed' | 'pending';
 
@@ -33,60 +37,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 const PAGE_SIZE = 100;
 const MAX_PAGES = 25; // safety stop: 2500 bookings before we give up looping
 
-const AVATAR_PALETTE_LIGHT = [
-  { bg: '#DBEAFE', fg: '#1D4ED8' },
-  { bg: '#FCE7F3', fg: '#BE185D' },
-  { bg: '#DCFCE7', fg: '#15803D' },
-  { bg: '#FEF3C7', fg: '#B45309' },
-  { bg: '#EDE9FE', fg: '#6D28D9' },
-];
-const AVATAR_PALETTE_DARK = [
-  { bg: 'rgba(59, 130, 246, 0.22)', fg: '#93C5FD' },
-  { bg: 'rgba(236, 72, 153, 0.22)', fg: '#F9A8D4' },
-  { bg: 'rgba(16, 185, 129, 0.22)', fg: '#6EE7B7' },
-  { bg: 'rgba(217, 119, 6, 0.22)', fg: '#FCD34D' },
-  { bg: 'rgba(139, 92, 246, 0.22)', fg: '#C4B5FD' },
-];
-
-function pickAvatarColor(seed: string, isDark: boolean) {
-  const palette = isDark ? AVATAR_PALETTE_DARK : AVATAR_PALETTE_LIGHT;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return palette[hash % palette.length];
-}
-
-function getInitials(name: string) {
-  const parts = (name ?? '').trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
-function formatEUR(cents: number) {
-  return `€${(cents / 100).toLocaleString('de-DE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
-
-/** Read the `{ error }` message the backend returns on 4xx/5xx, or fall back. */
-function extractApiError(err: unknown, fallback: string): string {
-  const message = (err as { response?: { data?: { error?: string } } })
-    ?.response?.data?.error;
-  return typeof message === 'string' && message.trim() ? message : fallback;
-}
-
-/** Parse a euro amount typed by the user into integer cents (>= 0). */
-function eurosToCents(value: string): number {
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
-}
-
-/** Keep the list ordered by event date (ascending) after a local insert. */
-function insertSortedByDate(list: Booking[], booking: Booking): Booking[] {
-  return [...list, booking].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
-}
+// Use shared avatar and helper utilities from `src/lib`
 
 function matchesFilter(booking: Booking, filter: FilterKey) {
   if (filter === 'all') return true;
@@ -165,6 +116,10 @@ export default function BookingsPage() {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Master-pane view mode. The detail panel (status actions, cancel, deposit)
+  // stays put on the right in either mode — only the left pane swaps between
+  // the searchable list and the FullCalendar grid.
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -328,6 +283,15 @@ export default function BookingsPage() {
           .bk-container { grid-template-columns: 1fr !important; }
           .bk-list-panel, .bk-detail-panel { max-height: none !important; }
         }
+        /* Calendar mode: detail panel becomes a narrow side rail
+           (≈320–380px). The 2-column info grid would force long values like
+           emails to wrap mid-domain ("thomas.mueller@exa" / "mple.com"); a
+           single column lets each value use the rail's full width. */
+        .bk-calendar-mode .bk-info-grid { grid-template-columns: 1fr !important; }
+        .bk-calendar-mode .bk-payment-top { grid-template-columns: 1fr !important; }
+        .bk-calendar-mode .bk-detail-panel .bk-info-value {
+          overflow-wrap: anywhere;
+        }
         @media (max-width: 600px) {
           .bk-summary { grid-template-columns: 1fr !important; }
           .bk-info-grid { grid-template-columns: 1fr !important; }
@@ -348,6 +312,52 @@ export default function BookingsPage() {
         </div>
         {isPhotographer && (
           <div style={styles.headerActions}>
+            {/* Master-pane view switcher. Calendar mode swaps the searchable
+                list on the left for the FullCalendar grid; the detail panel
+                on the right is unaffected, so status actions stay reachable
+                in either mode. */}
+            <div
+              role="tablist"
+              aria-label="Bookings view"
+              style={{
+                display: 'inline-flex',
+                padding: '2px',
+                borderRadius: '10px',
+                border: `1px solid ${colors.border}`,
+                background: colors.surface,
+                gap: '2px',
+              }}
+            >
+              {(['table', 'calendar'] as const).map((mode) => {
+                const active = viewMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setViewMode(mode)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      // Use the muted primary background instead of the solid
+                      // primary fill — the segmented control sits next to the
+                      // dark "New booking" CTA, and a second saturated blue
+                      // pulls the eye away from the actual action.
+                      background: active ? colors.primaryBg : 'transparent',
+                      color: active ? colors.primaryText : colors.textMuted,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {mode}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               style={styles.invertedPrimaryButton}
@@ -393,9 +403,30 @@ export default function BookingsPage() {
         />
       </div>
 
-      {/* Master + detail */}
-      <div className="bk-container" style={styles.container}>
+      {/* Master + detail. In calendar mode we flip the column ratio so the
+          calendar gets the lion's share of the width — the table-mode pinning
+          (a narrow 320–380px list) leaves the calendar so cramped that event
+          titles truncate mid-word. The detail panel stays as a side rail on
+          the right; status actions remain reachable. */}
+      <div
+        className={`bk-container${viewMode === 'calendar' ? ' bk-calendar-mode' : ''}`}
+        style={{
+          ...styles.container,
+          ...(viewMode === 'calendar'
+            ? { gridTemplateColumns: 'minmax(0, 2.2fr) minmax(320px, 1fr)' }
+            : {}),
+        }}
+      >
         {/* List panel */}
+        {viewMode === 'calendar' ? (
+          <BookingsCalendarView
+            bookings={bookings}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelectedId}
+            colors={colors}
+            isDark={theme === 'dark'}
+          />
+        ) : (
         <section className="bk-list-panel" style={styles.listPanel}>
           <div style={styles.listHeader}>
             <div style={styles.listTitle}>Search bookings</div>
@@ -518,6 +549,7 @@ export default function BookingsPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* Detail panel */}
         <section className="bk-detail-panel" style={styles.detailPanel}>
@@ -917,308 +949,8 @@ function InfoRow({
   return (
     <div style={styles.infoRow}>
       <span style={styles.infoLabel}>{label}</span>
-      <span style={styles.infoValue}>{value}</span>
+      <span className="bk-info-value" style={styles.infoValue}>{value}</span>
     </div>
   );
 }
 
-type CreateModalProps = {
-  styles: Record<string, React.CSSProperties>;
-  colors: ReturnType<typeof getBookingsColors>;
-  onClose: () => void;
-  onCreated: (_booking: Booking) => void;
-};
-
-const EMPTY_FORM = {
-  clientName: '',
-  clientEmail: '',
-  eventDate: '',
-  eventTime: '',
-  eventType: '',
-  location: '',
-  totalAmount: '',
-  depositAmount: '',
-  internalNotes: '',
-};
-
-function CreateBookingModal({ styles, colors, onClose, onCreated }: CreateModalProps) {
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Close on Escape — standard dialog affordance.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  function update(field: keyof typeof EMPTY_FORM, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setFieldErrors((prev) => {
-      if (!prev[field]) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  }
-
-  function validate(): boolean {
-    const errors: Record<string, string> = {};
-    if (!form.clientName.trim()) errors.clientName = 'Client name is required.';
-    if (!form.clientEmail.trim()) {
-      errors.clientEmail = 'Client email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())) {
-      errors.clientEmail = 'Enter a valid email address.';
-    }
-    if (!form.eventDate) errors.eventDate = 'Event date is required.';
-    const total = eurosToCents(form.totalAmount);
-    const deposit = eurosToCents(form.depositAmount);
-    if (form.depositAmount.trim() && deposit > total) {
-      errors.depositAmount = 'Deposit cannot exceed the total.';
-    }
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  }
-
-  async function handleSubmit() {
-    if (submitting) return;
-    setSubmitError(null);
-    if (!validate()) return;
-
-    setSubmitting(true);
-    try {
-      const payload = {
-        clientName: form.clientName.trim(),
-        clientEmail: form.clientEmail.trim(),
-        eventDate: form.eventDate,
-        eventTime: form.eventTime || null,
-        eventType: form.eventType.trim() || null,
-        location: form.location.trim() || null,
-        totalAmountCents: eurosToCents(form.totalAmount),
-        depositAmountCents: eurosToCents(form.depositAmount),
-        internalNotes: form.internalNotes.trim() || null,
-      };
-      const res = await api.post<Booking>('/api/bookings', payload);
-      onCreated(res.data);
-    } catch (err) {
-      setSubmitError(
-        extractApiError(err, 'Could not create the booking. Please try again.'),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const fieldStyle = (field: keyof typeof EMPTY_FORM): React.CSSProperties => ({
-    ...styles.formInput,
-    ...(fieldErrors[field] ? { borderColor: colors.danger } : {}),
-  });
-
-  return (
-    <div
-      style={styles.modalOverlay}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        style={styles.modalCard}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Create a new booking"
-      >
-        <div style={styles.modalHeader}>
-          <div style={{ minWidth: 0 }}>
-            <div style={styles.modalTitle}>New booking</div>
-            <div style={styles.modalSubtitle}>
-              The booking starts as an enquiry — you can advance it afterwards.
-            </div>
-          </div>
-          <button
-            type="button"
-            style={styles.modalClose}
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-
-        <div style={styles.modalBody}>
-          {submitError && (
-            <div style={styles.actionError} role="alert">
-              {submitError}
-            </div>
-          )}
-
-          <div style={styles.formField}>
-            <label style={styles.formLabel} htmlFor="bk-clientName">
-              Client name *
-            </label>
-            <input
-              id="bk-clientName"
-              type="text"
-              value={form.clientName}
-              onChange={(e) => update('clientName', e.target.value)}
-              style={fieldStyle('clientName')}
-              maxLength={200}
-            />
-            {fieldErrors.clientName && (
-              <span style={styles.fieldError}>{fieldErrors.clientName}</span>
-            )}
-          </div>
-
-          <div style={styles.formField}>
-            <label style={styles.formLabel} htmlFor="bk-clientEmail">
-              Client email *
-            </label>
-            <input
-              id="bk-clientEmail"
-              type="email"
-              value={form.clientEmail}
-              onChange={(e) => update('clientEmail', e.target.value)}
-              style={fieldStyle('clientEmail')}
-              maxLength={320}
-            />
-            {fieldErrors.clientEmail && (
-              <span style={styles.fieldError}>{fieldErrors.clientEmail}</span>
-            )}
-          </div>
-
-          <div className="bk-form-row" style={styles.formRow}>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-eventDate">
-                Event date *
-              </label>
-              <input
-                id="bk-eventDate"
-                type="date"
-                value={form.eventDate}
-                onChange={(e) => update('eventDate', e.target.value)}
-                style={fieldStyle('eventDate')}
-              />
-              {fieldErrors.eventDate && (
-                <span style={styles.fieldError}>{fieldErrors.eventDate}</span>
-              )}
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-eventTime">
-                Event time
-              </label>
-              <input
-                id="bk-eventTime"
-                type="time"
-                value={form.eventTime}
-                onChange={(e) => update('eventTime', e.target.value)}
-                style={styles.formInput}
-              />
-            </div>
-          </div>
-
-          <div className="bk-form-row" style={styles.formRow}>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-eventType">
-                Event type
-              </label>
-              <input
-                id="bk-eventType"
-                type="text"
-                value={form.eventType}
-                onChange={(e) => update('eventType', e.target.value)}
-                placeholder="Wedding, Portrait…"
-                style={styles.formInput}
-                maxLength={50}
-              />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-location">
-                Location
-              </label>
-              <input
-                id="bk-location"
-                type="text"
-                value={form.location}
-                onChange={(e) => update('location', e.target.value)}
-                style={styles.formInput}
-                maxLength={300}
-              />
-            </div>
-          </div>
-
-          <div className="bk-form-row" style={styles.formRow}>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-total">
-                Total amount (€)
-              </label>
-              <input
-                id="bk-total"
-                type="number"
-                min="0"
-                step="1"
-                value={form.totalAmount}
-                onChange={(e) => update('totalAmount', e.target.value)}
-                style={styles.formInput}
-              />
-            </div>
-            <div style={styles.formField}>
-              <label style={styles.formLabel} htmlFor="bk-deposit">
-                Deposit (€)
-              </label>
-              <input
-                id="bk-deposit"
-                type="number"
-                min="0"
-                step="1"
-                value={form.depositAmount}
-                onChange={(e) => update('depositAmount', e.target.value)}
-                style={fieldStyle('depositAmount')}
-              />
-              {fieldErrors.depositAmount && (
-                <span style={styles.fieldError}>{fieldErrors.depositAmount}</span>
-              )}
-            </div>
-          </div>
-
-          <div style={styles.formField}>
-            <label style={styles.formLabel} htmlFor="bk-notes">
-              Internal notes
-            </label>
-            <textarea
-              id="bk-notes"
-              value={form.internalNotes}
-              onChange={(e) => update('internalNotes', e.target.value)}
-              style={styles.formTextarea}
-              placeholder="Only visible to you."
-            />
-          </div>
-        </div>
-
-        <div style={styles.modalFooter}>
-          <button
-            type="button"
-            style={styles.secondaryButton}
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            style={{
-              ...styles.primaryButton,
-              ...(submitting ? { opacity: 0.6, cursor: 'wait' } : {}),
-            }}
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? 'Creating…' : 'Create booking'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

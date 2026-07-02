@@ -1,6 +1,7 @@
 package com.photographplatform.api.auth.controller;
 
 import com.photographplatform.api.auth.dto.AuthResponse;
+import com.photographplatform.api.auth.dto.AvatarPresignResponse;
 import com.photographplatform.api.auth.dto.AuthResult;
 import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
@@ -11,20 +12,26 @@ import com.photographplatform.api.auth.dto.VerifyEmailRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.AuthService;
 import com.photographplatform.api.auth.service.EmailVerificationService;
+import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.security.ClientIp;
+import com.photographplatform.api.portfolio.service.R2StorageService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,15 +42,18 @@ public class AuthController {
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
     private final AuthCookieWriter cookies;
+    private final Optional<R2StorageService> r2StorageService;
 
     public AuthController(
         AuthService authService,
         EmailVerificationService emailVerificationService,
-        AuthCookieWriter cookies
+        AuthCookieWriter cookies,
+        Optional<R2StorageService> r2StorageService
     ) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
         this.cookies = cookies;
+        this.r2StorageService = r2StorageService;
     }
 
     @PostMapping("/register")
@@ -53,7 +63,7 @@ public class AuthController {
         HttpServletRequest httpRequest,
         HttpServletResponse response
     ) {
-        AuthResult result = authService.register(request, resolveClientIp(httpRequest));
+        AuthResult result = authService.register(request, ClientIp.from(httpRequest));
         cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }
@@ -64,7 +74,7 @@ public class AuthController {
         HttpServletRequest httpRequest,
         HttpServletResponse response
     ) {
-        AuthResult result = authService.login(request, resolveClientIp(httpRequest));
+        AuthResult result = authService.login(request, ClientIp.from(httpRequest));
         cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }
@@ -129,10 +139,41 @@ public class AuthController {
             throw new UnauthorizedException("Authentication required");
         }
         try {
-            emailVerificationService.resend(UUID.fromString(userId), resolveClientIp(httpRequest));
+            emailVerificationService.resend(UUID.fromString(userId), ClientIp.from(httpRequest));
         } catch (IllegalArgumentException ex) {
             throw new UnauthorizedException("Authentication required");
         }
+    }
+
+    /**
+     * Step 1 of profile-photo upload: returns a pre-signed PUT URL so the
+     * browser can upload the avatar directly to R2, and a view URL to store
+     * in the profile after the upload succeeds.
+     * <p>
+     * Accepts an optional {@code contentType} query param (default {@code image/jpeg}).
+     * After uploading, the client should {@code PATCH /api/auth/me} with
+     * {@code {"avatarUrl": "<viewUrl>"}}.  The view URL is a pre-signed GET
+     * URL that refreshes on the next call, so callers should not cache it.
+     */
+    @PostMapping("/me/avatar/presign")
+    public ResponseEntity<AvatarPresignResponse> presignAvatar(
+        @AuthenticationPrincipal String userId,
+        @RequestParam(defaultValue = "image/jpeg") String contentType
+    ) {
+        requireUserId(userId);
+
+        if (!r2StorageService.isPresent()) {
+            throw new IllegalStateException("R2 storage is not configured. Please contact support.");
+        }
+
+        String tenantId = TenantContext.getTenant();
+        String ext = contentType.contains("png") ? ".png"
+            : contentType.contains("webp") ? ".webp" : ".jpg";
+        String r2Key = "avatars/" + tenantId + "/" + UUID.randomUUID() + ext;
+        R2StorageService r2 = r2StorageService.get();
+        String uploadUrl = r2.generateUploadUrl(r2Key, contentType);
+        String viewUrl = r2.generateDownloadUrl(r2Key);
+        return ResponseEntity.ok(new AvatarPresignResponse(uploadUrl, viewUrl, r2Key));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -147,14 +188,6 @@ public class AuthController {
         } catch (IllegalArgumentException ex) {
             throw new UnauthorizedException("Authentication required");
         }
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String resolveRefreshToken(RefreshRequest body, HttpServletRequest request) {

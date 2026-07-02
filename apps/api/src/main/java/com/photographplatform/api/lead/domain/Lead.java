@@ -40,6 +40,9 @@ public class Lead {
     @Column(columnDefinition = "TEXT")
     private String message;
 
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
     @Column(nullable = false, length = 10)
     private String score = "LOW";
 
@@ -48,6 +51,15 @@ public class Lead {
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
+
+    @Column(length = 30)
+    private String source;
+
+    @Column(name = "ig_message_id", length = 100)
+    private String igMessageId;
+
+    @Column(name = "ig_username", length = 100)
+    private String igUsername;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -128,6 +140,14 @@ public class Lead {
         this.message = message;
     }
 
+    public String getInternalNotes() {
+        return internalNotes;
+    }
+
+    public void setInternalNotes(String internalNotes) {
+        this.internalNotes = internalNotes;
+    }
+
     public String getScore() {
         return score;
     }
@@ -154,5 +174,29 @@ public class Lead {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getIgMessageId() {
+        return igMessageId;
+    }
+
+    public void setIgMessageId(String igMessageId) {
+        this.igMessageId = igMessageId;
+    }
+
+    public String getIgUsername() {
+        return igUsername;
+    }
+
+    public void setIgUsername(String igUsername) {
+        this.igUsername = igUsername;
     }
 }

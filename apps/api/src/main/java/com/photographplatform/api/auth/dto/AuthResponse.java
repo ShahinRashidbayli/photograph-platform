@@ -13,7 +13,8 @@ public record AuthResponse(
     String fullName,
     String role,
     boolean emailVerified,
-    TenantInfo tenant
+    TenantInfo tenant,
+    String avatarUrl
 ) {
     public record TenantInfo(String subdomain, String plan) {
     }

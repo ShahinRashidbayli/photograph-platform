@@ -12,6 +12,13 @@
     <property name="severity" value="error"/>
     <property name="fileExtensions" value="java"/>
 
+    <!-- File-level suppressions (e.g. HTML email templates that contain
+         long content lines, not long *code* lines). -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
+        <property name="optional" value="true"/>
+    </module>
+
     <!-- No tab characters -->
     <module name="FileTabCharacter">
         <property name="eachLine" value="true"/>
@@ -28,7 +35,11 @@
     <!-- Line length — must be under Checker, not TreeWalker -->
     <module name="LineLength">
         <property name="max" value="120"/>
-        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+        <!-- Ignore: package/import lines, URLs, and HTML markup inside text
+             blocks (lines whose first non-whitespace char is '<' or '"' for
+             the text-block delimiter). Java source never legitimately starts
+             a line with '<', so this can't mask a real long line of code. -->
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://|^\s*&lt;|^\s*&quot;&quot;&quot;"/>
     </module>
 
     <module name="TreeWalker">

@@ -8,8 +8,28 @@ export interface Lead {
   eventType: 'WEDDING' | 'ENGAGEMENT' | 'PORTRAIT' | 'FAMILY' | 'NEWBORN' | 'CORPORATE';
   budgetRange: 'UNDER_200' | '200_500' | '500_1000' | 'OVER_1000';
   score: 'HIGH' | 'MED' | 'LOW';
+  // Component scores 0-100 computed by the backend (see LeadService.scoreBreakdown).
+  // Optional because older responses or non-lead endpoints may omit them.
+  budgetScore?: number;
+  typeScore?: number;
+  timeScore?: number;
   status: 'NEW' | 'REPLIED' | 'BOOKED' | 'REJECTED';
   internalNotes?: string;
+  createdAt: string;
+}
+
+/**
+ * Audit-log entry as exposed by GET /api/leads/{id}/activity. Mirrors the
+ * backend AuditLogResponse record.
+ */
+export interface LeadActivity {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  actorId?: string | null;
   createdAt: string;
 }
 
@@ -24,6 +44,17 @@ export interface Client {
   upcomingBookings: number;
   lastBookingDate?: string;
   createdAt: string;
+}
+
+export interface Package {
+  id: string;
+  name: string;
+  priceCents: number;
+  currency: string;
+  durationHours?: number;
+  includedPhotos?: number;
+  active: boolean;
+  sortOrder: number;
 }
 
 export interface Booking {
@@ -50,6 +81,13 @@ export interface Gallery {
   downloadEnabled: boolean;
   watermarkEnabled: boolean;
   viewCount: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
 }
 
 export interface DashboardData {

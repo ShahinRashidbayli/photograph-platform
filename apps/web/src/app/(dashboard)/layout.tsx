@@ -9,40 +9,74 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-const PHOTOGRAPHER_NAV = [
-  { label: 'Overview', href: '/dashboard', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/></svg>
-  )},
-  { label: 'Bookings', href: '/bookings', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-  )},
-  { label: 'Leads', href: '/leads', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2 11l3-3 2 2 3-4 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-  )},
-  { label: 'Clients', href: '/clients', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.49 2.01-4.5 4.5-4.5S10 9.51 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M10 6.5l1.5 1.5L14 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-  )},
-  { label: 'Portfolio', href: '/portfolio', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 4.5h7M3.5 7h5M3.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-  )},
-  { label: 'Galleries', href: '/galleries', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-  )},
+// Nav grouped into sections so the sidebar mirrors the mental model:
+// daily-work pages first, content-management in the middle, analytics
+// (revenue, reports) at the bottom. Each group renders with an uppercase
+// section header for grouping signal without using horizontal dividers.
+type NavLeaf = { label: string; href: string; icon: React.ReactNode; badgeKey?: 'unrepliedLeads' };
+type NavGroup = { title?: string; items: NavLeaf[] };
+
+const PHOTOGRAPHER_NAV: NavGroup[] = [
+  {
+    // Untitled first group — primary daily-work pages live here.
+    items: [
+      { label: 'Overview', href: '/dashboard', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/></svg>
+      )},
+      { label: 'Bookings', href: '/bookings', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      )},
+      // Leads carries a live count badge of un-replied leads — "you have N
+      // enquiries waiting" surfaces from the sidebar without needing to
+      // open the page first.
+      { label: 'Leads', href: '/leads', badgeKey: 'unrepliedLeads', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2 11l3-3 2 2 3-4 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      )},
+      { label: 'Clients', href: '/clients', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.49 2.01-4.5 4.5-4.5S10 9.51 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M10 6.5l1.5 1.5L14 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      )},
+    ],
+  },
+  {
+    title: 'Content',
+    items: [
+      { label: 'Portfolio', href: '/portfolio', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 4.5h7M3.5 7h5M3.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      )},
+      { label: 'Galleries', href: '/galleries', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+      )},
+    ],
+  },
+  {
+    title: 'Analytics',
+    items: [
+      // Reports + Revenue are stubbed pages today — they render a "coming
+      // soon" placeholder. The sidebar entries exist now to validate the
+      // information architecture; the real implementations land in later
+      // sprints (revenue analytics is Sprint 2.5 in the master plan).
+      { label: 'Reports', href: '/reports', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4 10V7M7 10V5M10 10V8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      )},
+      { label: 'Revenue', href: '/revenue', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M10.5 4c0-1.1-1.57-2-3.5-2s-3.5.9-3.5 2 1.57 2 3.5 2 3.5.9 3.5 2-1.57 2-3.5 2-3.5-.9-3.5-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      )},
+    ],
+  },
 ];
 
-const CLIENT_NAV = [
-  { label: 'My Bookings', href: '/bookings', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-  )},
-  { label: 'Galleries', href: '/galleries', icon: (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
-  )},
+const CLIENT_NAV: NavGroup[] = [
+  {
+    items: [
+      { label: 'My Bookings', href: '/bookings', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      )},
+      { label: 'Galleries', href: '/galleries', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+      )},
+    ],
+  },
 ];
-
-// Settings is pinned to the bottom of the sidebar for every role.
-const SETTINGS_NAV = { label: 'Settings', href: '/settings', icon: (
-  <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/><path d="M7 1v2M7 11v2M1 7H3M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-)};
 
 function getInitials(name: string) {
   const trimmed = (name ?? '').trim();
@@ -51,16 +85,21 @@ function getInitials(name: string) {
   return (parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '');
 }
 
-type NavItem = { label: string; href: string; icon: React.ReactNode };
+type NavItem = NavLeaf;
 
-function SidebarLink({ item, active, theme, colors }: {
+function SidebarLink({ item, active, theme, colors, badgeCount }: {
   item: NavItem;
   active: boolean;
   theme: string;
   colors: { text: string; subText: string; primary: string };
+  // Optional unread-style count. Rendered as a small pill on the right of
+  // the row — null/0 collapses the pill so the row stays clean when there's
+  // nothing to flag.
+  badgeCount?: number | null;
 }) {
   const activeColor = theme === 'light' ? '#EFF6FF' : '#1E293B';
   const hoverColor = theme === 'light' ? '#F8FAFC' : '#334155';
+  const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
   return (
     <Link
       href={item.href}
@@ -70,8 +109,51 @@ function SidebarLink({ item, active, theme, colors }: {
       aria-current={active ? 'page' : undefined}
     >
       <span style={{ opacity: active ? 1 : 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? colors.primary : colors.subText, transition: 'color 0.3s ease' }}>{item.icon}</span>
-      {item.label}
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {showBadge && (
+        <span
+          aria-label={`${badgeCount} unread`}
+          style={{
+            minWidth: '20px',
+            height: '18px',
+            padding: '0 6px',
+            borderRadius: '999px',
+            background: '#2563EB',
+            color: '#fff',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
     </Link>
+  );
+}
+
+/**
+ * Uppercase section header for sidebar groups (Content / Analytics). Skipped
+ * when the group has no title — the first group is the untitled "primary
+ * pages" cluster which renders without a header for visual lightness.
+ */
+function SidebarSectionHeader({ title, colors }: { title: string; colors: { subText: string } }) {
+  return (
+    <div
+      style={{
+        padding: '14px 12px 6px',
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        color: colors.subText,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}
+    >
+      {title}
+    </div>
   );
 }
 
@@ -118,7 +200,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     const role = user.role.toUpperCase();
     const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
     // Settings is shared — both roles manage their own account there.
-    const photographerOnlyPages = ['/dashboard', '/leads', '/clients', '/portfolio'];
+    const photographerOnlyPages = ['/dashboard', '/leads', '/clients', '/portfolio', '/reports', '/revenue'];
 
     const isOnPhotographerPage = photographerOnlyPages.some(page => pathname === page || pathname.startsWith(page + '/'));
 
@@ -153,10 +235,47 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     }
   }
 
+  const role = user?.role?.toUpperCase();
+  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+  const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
+  const [unrepliedLeads, setUnrepliedLeads] = useState<number | null>(null);
+
+  // Sidebar badge: count of leads in NEW status (un-replied). Polled every
+  // 60s — cheap and "good enough" for an inbox indicator without a websocket.
+  // Failures are silent: an outage shouldn't make the badge flicker.
+  useEffect(() => {
+    if (!isPhotographer) return;
+    let cancelled = false;
+    const fetchCount = () => {
+      api
+        .get<Array<{ status: string }>>('/api/leads')
+        .then((res) => {
+          if (cancelled) return;
+          const list = Array.isArray(res.data) ? res.data : [];
+          setUnrepliedLeads(list.filter((l) => l.status === 'NEW').length);
+        })
+        .catch(() => {
+          // Don't clobber a previously-known count on a transient error.
+        });
+    };
+    fetchCount();
+    const id = window.setInterval(fetchCount, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isPhotographer]);
+
   if (loading) {
     // Read the persisted theme directly so the loading screen doesn't flash
     // light before the theme store hydrates. zustand persists under
     // "theme-storage" as { state: { theme }, version }.
+    //
+    // This intentionally diverges between server (no window → default theme)
+    // and client (reads localStorage). The mismatch is by design — the
+    // alternative is a guaranteed white-flash on dark-mode users. We
+    // suppress the hydration warning on the two affected nodes so React
+    // doesn't surface what is *deliberately* server-different content.
     let isDark = theme === 'dark';
     if (typeof window !== 'undefined') {
       try {
@@ -168,15 +287,26 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     }
     const lc = getColors(isDark ? 'dark' : 'light');
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: lc.bg }}>
-        <div style={{ color: lc.text, fontSize: '0.95rem' }}>Loading dashboard...</div>
+      <div
+        suppressHydrationWarning
+        style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: lc.bg }}
+      >
+        <div
+          suppressHydrationWarning
+          style={{ color: lc.text, fontSize: '0.95rem' }}
+        >
+          Loading dashboard...
+        </div>
       </div>
     );
   }
 
-  const role = user?.role?.toUpperCase();
-  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-  const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
+  // Map a badgeKey on a NavLeaf to its concrete count. Easy to extend with
+  // future badges (unread messages, expiring galleries, …) by adding cases.
+  const badgeFor = (key?: 'unrepliedLeads'): number | null => {
+    if (key === 'unrepliedLeads') return unrepliedLeads;
+    return null;
+  };
 
   const c = getColors(theme);
   const colors = {
@@ -210,17 +340,95 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         }
       `}</style>
 
-      <Header user={user} theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} />
+      <Header user={user} theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} unrepliedLeads={unrepliedLeads} />
 
       <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
         <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label="Main navigation">
-          {navItems.map((item) => (
-            <SidebarLink key={item.label} item={item} active={pathname === item.href} theme={theme} colors={colors} />
+          {navItems.map((group, gi) => (
+            <div key={group.title ?? `group-${gi}`}>
+              {group.title && <SidebarSectionHeader title={group.title} colors={colors} />}
+              {group.items.map((item) => (
+                <SidebarLink
+                  key={item.label}
+                  item={item}
+                  active={pathname === item.href}
+                  theme={theme}
+                  colors={colors}
+                  badgeCount={badgeFor(item.badgeKey)}
+                />
+              ))}
+            </div>
           ))}
-          {/* Settings pinned to the bottom for every role. */}
+          {/* Profile card pinned to the bottom for every role. */}
           <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
             <div style={{ height: '1px', background: colors.border, margin: '0 -4px 8px' }} />
-            <SidebarLink item={SETTINGS_NAV} active={pathname === SETTINGS_NAV.href} theme={theme} colors={colors} />
+            {user && (
+              <Link
+                href="/settings"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 8px',
+                  marginTop: '6px',
+                  borderRadius: '10px',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = colors.surfaceHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                aria-label="Open settings — current account"
+              >
+                <span
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: theme === 'light' ? '#3B82F6' : '#60A5FA',
+                    color: '#fff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                    flexShrink: 0,
+                  }}
+                  aria-hidden
+                >
+                  {getInitials(user.fullName ?? user.email ?? 'U')}
+                </span>
+                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: colors.text,
+                      lineHeight: 1.2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {user.fullName ?? user.email}
+                  </div>
+                  {user.tenant?.plan && (
+                    <div
+                      style={{
+                        fontSize: '0.65rem',
+                        color: colors.subText,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        fontWeight: 600,
+                        marginTop: '2px',
+                      }}
+                    >
+                      {user.tenant.plan} plan
+                    </div>
+                  )}
+                </div>
+              </Link>
+            )}
           </div>
         </aside>
 
@@ -253,7 +461,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   );
 }
 
-function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsOpen }: {
+function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsOpen, unrepliedLeads }: {
   user: AuthUser | null;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -261,10 +469,18 @@ function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsO
   colors: { headerBg: string; border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  // Same value the sidebar Leads badge consumes — when > 0 the bell shows a
+  // red dot. Clicking the bell navigates to /leads since that's where the
+  // attention is actually needed today. A real notifications stack
+  // (announcements, payment events, gallery views) lives in v2.0+; until
+  // then this gives the bell semantic weight without inventing fake content.
+  unrepliedLeads: number | null;
 }) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
+  const hasAlerts = (unrepliedLeads ?? 0) > 0;
 
   // Close the menu and return focus to the avatar trigger so keyboard
   // users aren't stranded.
@@ -309,6 +525,53 @@ function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsO
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} role="navigation" aria-label="User account">
+        {/* Notifications bell. Today's only "notification" is unreplied leads
+            (mirrors the sidebar Leads badge); clicking the bell navigates to
+            the page where the user can actually act. When a real
+            notifications stack lands this becomes a popover; the entry point
+            stays the same so users don't re-learn it. */}
+        <button
+          onClick={() => router.push('/leads')}
+          aria-label={hasAlerts ? `${unrepliedLeads} unreplied lead${unrepliedLeads === 1 ? '' : 's'}` : 'No new notifications'}
+          title={hasAlerts ? `${unrepliedLeads} unreplied lead${unrepliedLeads === 1 ? '' : 's'} — open Leads` : 'No new notifications'}
+          style={{
+            width: 34, height: 34,
+            position: 'relative',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            borderRadius: '8px',
+            transition: 'background 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: colors.text,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+          {hasAlerts && (
+            <span
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 7,
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: '#DC2626',
+                border: `2px solid ${colors.headerBg}`,
+                boxSizing: 'content-box',
+              }}
+            />
+          )}
+        </button>
+
         <button
           onClick={() => toggleTheme()}
           style={{

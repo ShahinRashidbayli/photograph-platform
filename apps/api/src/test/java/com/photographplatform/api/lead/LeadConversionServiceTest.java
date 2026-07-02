@@ -1,10 +1,10 @@
 package com.photographplatform.api.lead;
 
 import com.photographplatform.api.audit.service.AuditService;
-import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.lead.domain.Lead;
@@ -68,24 +68,30 @@ class LeadConversionServiceTest {
         userRepository = mock(UserRepository.class);
         auditService = mock(AuditService.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+        // AuditLogRepository was added in Phase 2 for the lead-activity
+        // endpoint. The conversion path doesn't read from it, but the
+        // constructor requires it — passing a no-op mock keeps these tests
+        // focused on conversion behaviour without coupling them to activity.
+        com.photographplatform.api.audit.repository.AuditLogRepository auditLogRepository =
+            mock(com.photographplatform.api.audit.repository.AuditLogRepository.class);
 
         leadService = new LeadService(leadRepository, eventPublisher, auditService,
-            bookingService, userRepository);
+            bookingService, userRepository, auditLogRepository);
 
         // Authenticate as the photographer for currentUserId() — the audit row
         // must record *who* converted the lead.
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null)
         );
-
-        User actor = mock(User.class);
-        when(actor.getTenantId()).thenReturn(TENANT_ID);
-        when(userRepository.findById(ACTOR_ID)).thenReturn(Optional.of(actor));
+        // Tenant id is read from TenantContext (set from the JWT claim in
+        // production) rather than a User→tenant DB lookup, so pin it here.
+        TenantContext.setTenant(TENANT_ID.toString());
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        TenantContext.clear();
     }
 
     @Test

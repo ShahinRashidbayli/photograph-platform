@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 //   /login, /register   — auth flows
 //   /p/...              — public photographer portfolio (SSR)
 //   /r/...              — public booking-request form
-const PUBLIC_PATHS = ['/login', '/register', '/p/', '/r/'];
+const PUBLIC_PATHS = ['/login', '/register', '/p/', '/r/', '/customer/'];
 
 // Apex host without protocol. In dev defaults to `localhost:3000`; in prod set
 // APEX_HOST to e.g. `fotoplatform.de`. Subdomains of this apex (anna.<APEX>)

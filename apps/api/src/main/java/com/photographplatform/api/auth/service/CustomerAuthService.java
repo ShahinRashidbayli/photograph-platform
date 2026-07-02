@@ -240,7 +240,8 @@ public class CustomerAuthService {
             user.getFullName(),
             user.getRole(),
             user.isEmailVerified(),
-            new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan())
+            new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
+            user.getAvatarUrl()
         );
         return new AuthResult(response, accessToken, rawRefresh);
     }

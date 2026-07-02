@@ -6,6 +6,7 @@ import com.photographplatform.api.auth.dto.CustomerMagicLinkRequest;
 import com.photographplatform.api.auth.dto.CustomerMagicLinkVerifyRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.CustomerAuthService;
+import com.photographplatform.api.common.security.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -51,7 +52,7 @@ public class CustomerAuthController {
             request.subdomain(),
             request.email(),
             request.fullName(),
-            resolveClientIp(httpRequest)
+            ClientIp.from(httpRequest)
         );
     }
 
@@ -65,16 +66,8 @@ public class CustomerAuthController {
         HttpServletRequest httpRequest,
         HttpServletResponse response
     ) {
-        AuthResult result = service.verifyMagicLink(request.token(), resolveClientIp(httpRequest));
+        AuthResult result = service.verifyMagicLink(request.token(), ClientIp.from(httpRequest));
         cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

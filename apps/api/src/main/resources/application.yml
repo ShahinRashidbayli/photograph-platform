@@ -32,6 +32,15 @@ resend:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3002}
+  email:
+    # Master switch for the @RequiresVerifiedEmail gate. Set to false locally
+    # (or APP_EMAIL_VERIFICATION_ENFORCED=false) before SMTP/Resend is wired
+    # up, so the photographer can advance bookings and convert leads without
+    # being blocked on an email they can't receive. MUST stay true in any
+    # staging/production deploy — otherwise every annotated endpoint is
+    # reachable by any authenticated session, which is the misuse the gate
+    # exists to prevent.
+    verification-enforced: ${APP_EMAIL_VERIFICATION_ENFORCED:true}
   web:
     # Public origin of the web app — used to build absolute links inside emails.
     base-url: ${APP_WEB_BASE_URL:http://localhost:3000}

@@ -190,6 +190,11 @@
                 </dependencies>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
+                    <!-- Lets checkstyle.xml resolve ${config_loc}/... paths
+                         (e.g. checkstyle-suppressions.xml) relative to the
+                         module root rather than failing with "property not
+                         set". -->
+                    <propertyExpansion>config_loc=${project.basedir}</propertyExpansion>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>

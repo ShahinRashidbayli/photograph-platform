@@ -7,6 +7,7 @@ export interface AuthUser {
   role: string;
   emailVerified: boolean;
   tenant: { subdomain: string; plan: string };
+  avatarUrl?: string | null;
 }
 
 interface AuthState {

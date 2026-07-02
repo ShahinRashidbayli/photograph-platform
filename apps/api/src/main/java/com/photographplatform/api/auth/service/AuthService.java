@@ -303,6 +303,11 @@ public class AuthService {
             }
         }
 
+        if (req.avatarUrl() != null) {
+            user.setAvatarUrl(req.avatarUrl().isBlank() ? null : req.avatarUrl().trim());
+            userRepository.save(user);
+        }
+
         return toMeResponse(user, tenant);
     }
 
@@ -310,7 +315,8 @@ public class AuthService {
         return new MeResponse(
             user.getId(), user.getEmail(), user.getFullName(), user.getRole(),
             user.isEmailVerified(),
-            new MeResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan())
+            new MeResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
+            user.getAvatarUrl()
         );
     }
 
@@ -334,7 +340,8 @@ public class AuthService {
             user.getFullName(),
             user.getRole(),
             user.isEmailVerified(),
-            new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan())
+            new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
+            user.getAvatarUrl()
         );
         return new AuthResult(response, accessToken, rawRefresh);
     }

@@ -97,13 +97,13 @@ function SidebarLink({ item, active, theme, colors, badgeCount }: {
   // nothing to flag.
   badgeCount?: number | null;
 }) {
-  const activeColor = theme === 'light' ? '#EFF6FF' : '#1E293B';
-  const hoverColor = theme === 'light' ? '#F8FAFC' : '#334155';
+  const activeColor = theme === 'light' ? '#EEF2FF' : 'rgba(99, 102, 241, 0.14)';
+  const hoverColor = theme === 'light' ? '#F8FAFC' : '#1C1C22';
   const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
   return (
     <Link
       href={item.href}
-      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', marginBottom: '4px', borderRadius: '8px', color: active ? colors.text : colors.subText, background: active ? activeColor : 'transparent', textDecoration: 'none', fontWeight: active ? 700 : 500, fontSize: '0.9rem', transition: 'all 0.2s ease', cursor: 'pointer', borderLeft: active ? '3px solid #2563EB' : '3px solid transparent' }}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', marginBottom: '4px', borderRadius: '8px', color: active ? colors.text : colors.subText, background: active ? activeColor : 'transparent', textDecoration: 'none', fontWeight: active ? 700 : 500, fontSize: '0.9rem', transition: 'all 0.2s ease', cursor: 'pointer', borderLeft: active ? `3px solid ${colors.primary}` : '3px solid transparent' }}
       onMouseEnter={(e) => !active && (e.currentTarget.style.background = hoverColor)}
       onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
       aria-current={active ? 'page' : undefined}
@@ -118,7 +118,7 @@ function SidebarLink({ item, active, theme, colors, badgeCount }: {
             height: '18px',
             padding: '0 6px',
             borderRadius: '999px',
-            background: '#2563EB',
+            background: colors.primary,
             color: '#fff',
             fontSize: '0.65rem',
             fontWeight: 700,
@@ -327,7 +327,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       {/* Global Styles */}
       <style>{`
         * { box-sizing: border-box; }
-        a:focus-visible, button:focus-visible { outline: 2px solid #0284C7; outline-offset: 2px; }
+        a:focus-visible, button:focus-visible { outline: 2px solid #6366F1; outline-offset: 2px; }
         body { background: ${colors.bg}; color: ${colors.text}; }
         .mobile-menu-btn { display: none; }
         .mobile-overlay { display: none; }
@@ -385,7 +385,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    background: theme === 'light' ? '#3B82F6' : '#60A5FA',
+                    background: theme === 'light' ? '#6366F1' : '#818CF8',
                     color: '#fff',
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -618,7 +618,7 @@ function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsO
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-label="Account menu"
-            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: theme === 'light' ? '#3B82F6' : '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, cursor: 'pointer', transition: 'background 0.3s ease' }}
+            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: theme === 'light' ? '#6366F1' : '#818CF8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, cursor: 'pointer', transition: 'background 0.3s ease' }}
             title={user?.fullName ?? 'User'}
           >
             {getInitials(user?.fullName ?? 'TU')}

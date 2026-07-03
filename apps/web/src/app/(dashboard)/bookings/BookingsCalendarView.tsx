@@ -24,7 +24,7 @@ function colorForStatus(status: string): { bg: string; border: string; text: str
     case 'ENQUIRY':
       return { bg: '#94A3B8', border: '#64748B', text: '#FFFFFF' };
     case 'CONFIRMED':
-      return { bg: '#2563EB', border: '#1D4ED8', text: '#FFFFFF' };
+      return { bg: '#6366F1', border: '#4F46E5', text: '#FFFFFF' };
     case 'DEPOSIT_PAID':
       return { bg: '#D97706', border: '#B45309', text: '#FFFFFF' };
     case 'FULLY_PAID':
@@ -96,7 +96,7 @@ export function BookingsCalendarView({
       '--fc-page-bg-color': colors.surface,
       '--fc-neutral-bg-color': colors.surfaceAlt,
       '--fc-neutral-text-color': colors.text,
-      '--fc-today-bg-color': isDark ? 'rgba(59, 130, 246, 0.10)' : '#EFF6FF',
+      '--fc-today-bg-color': isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF',
       '--fc-button-bg-color': colors.surface,
       '--fc-button-border-color': colors.border,
       '--fc-button-text-color': colors.text,

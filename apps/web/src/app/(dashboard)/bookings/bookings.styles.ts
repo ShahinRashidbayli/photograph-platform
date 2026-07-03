@@ -94,11 +94,18 @@ export const getBookingsStyles = (
       flexShrink: 0,
     },
     statValue: {
-      fontSize: '1.5rem',
-      fontWeight: 800,
+      fontSize: '1.6rem',
+      fontWeight: 700,
       color: c.text,
       letterSpacing: '-0.02em',
       lineHeight: 1.1,
+    },
+    statTrend: {
+      fontSize: '0.76rem',
+      fontWeight: 600,
+      color: c.textMuted,
+      lineHeight: 1.3,
+      letterSpacing: '0.005em',
     },
 
     container: {
@@ -502,7 +509,7 @@ export const getBookingsStyles = (
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
-      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(37, 99, 235, 0.25)',
+      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
     },
     invertedPrimaryButton: {
       padding: '9px 16px',

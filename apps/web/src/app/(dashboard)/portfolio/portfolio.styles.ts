@@ -129,9 +129,9 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   filterTabActive: {
-    background: '#2563EB',
+    background: '#6366F1',
     color: '#fff',
-    border: '1px solid #2563EB',
+    border: '1px solid #6366F1',
   },
   listScroll: {
     flex: 1,
@@ -151,9 +151,9 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     gap: '8px',
   },
   listItemActive: {
-    background: 'rgba(37, 99, 235, 0.1)',
-    border: '1px solid rgba(37, 99, 235, 0.3)',
-    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.12)',
+    background: 'rgba(99, 102, 241, 0.1)',
+    border: '1px solid rgba(99, 102, 241, 0.3)',
+    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.12)',
   },
   listItemTitle: {
     fontSize: '15px',
@@ -218,9 +218,9 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #E5E7EB',
   },
   actionButtonPrimary: {
-    background: '#2563EB',
+    background: '#6366F1',
     color: '#fff',
-    border: '1px solid #2563EB',
+    border: '1px solid #6366F1',
     fontWeight: 700,
     letterSpacing: '-0.01em',
     padding: '9px 20px',

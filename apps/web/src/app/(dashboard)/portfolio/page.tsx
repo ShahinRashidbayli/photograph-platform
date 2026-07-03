@@ -684,8 +684,8 @@ function useColors(theme: Theme): ColorTokens {
     danger: c.danger,
     dangerBg: c.dangerBg,
     dangerText: c.dangerText,
-    invertedBg: c.isDark ? '#F1F5F9' : '#0F172A',
-    invertedText: c.isDark ? '#0F172A' : '#FFFFFF',
+    invertedBg: c.primarySolid,
+    invertedText: '#FFFFFF',
   };
 }
 

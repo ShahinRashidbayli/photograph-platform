@@ -66,27 +66,6 @@ function getStatusVisual(
 }
 
 const ICONS = {
-  calendar: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-    </svg>
-  ),
-  euro: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 7c-1.5-1.5-3.5-2.5-6-2.5C7.5 4.5 4 8 4 12s3.5 7.5 8 7.5c2.5 0 4.5-1 6-2.5" />
-      <line x1="3" y1="10" x2="13" y2="10" />
-      <line x1="3" y1="14" x2="13" y2="14" />
-    </svg>
-  ),
-  clock: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  ),
   search: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="7" />
@@ -176,12 +155,27 @@ export default function BookingsPage() {
       (b) => b.status !== 'CANCELLED' && b.status !== 'COMPLETED',
     );
     const revenue = active.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    const collected = active.reduce(
+      (sum, b) => sum + (b.depositAmountCents || 0),
+      0,
+    );
     const pending = active.reduce(
       (sum, b) =>
         sum + Math.max((b.totalAmountCents || 0) - (b.depositAmountCents || 0), 0),
       0,
     );
-    return { active: active.length, revenue, pending };
+    const confirmed = active.filter((b) => b.status === 'CONFIRMED').length;
+    const openBalance = active.filter(
+      (b) => (b.totalAmountCents || 0) - (b.depositAmountCents || 0) > 0,
+    ).length;
+    return {
+      active: active.length,
+      revenue,
+      collected,
+      pending,
+      confirmed,
+      openBalance,
+    };
   }, [bookings]);
 
   const selected = useMemo(
@@ -360,7 +354,7 @@ export default function BookingsPage() {
             </div>
             <button
               type="button"
-              style={styles.invertedPrimaryButton}
+              style={styles.primaryButton}
               onClick={() => setShowCreate(true)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -381,25 +375,26 @@ export default function BookingsPage() {
           styles={styles}
           label="Active bookings"
           value={String(stats.active)}
-          icon={ICONS.calendar}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
+          trend={`${stats.confirmed} confirmed · ${Math.max(stats.active - stats.confirmed, 0)} in progress`}
+          trendColor={colors.textMuted}
         />
         <StatCard
           styles={styles}
-          label="Revenue"
+          label="Booked revenue"
           value={formatEUR(stats.revenue)}
-          icon={ICONS.euro}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
+          trend={`${formatEUR(stats.collected)} collected so far`}
+          trendColor={colors.successText}
         />
         <StatCard
           styles={styles}
-          label="Pending"
+          label="Awaiting payment"
           value={formatEUR(stats.pending)}
-          icon={ICONS.clock}
-          iconBg={colors.warningBg}
-          iconColor={colors.warningText}
+          trend={
+            stats.openBalance === 0
+              ? 'All balances settled'
+              : `${stats.openBalance} ${stats.openBalance === 1 ? 'booking' : 'bookings'} with open balance`
+          }
+          trendColor={stats.openBalance === 0 ? colors.successText : colors.warningText}
         />
       </div>
 
@@ -609,28 +604,22 @@ type StatCardProps = {
   styles: Record<string, React.CSSProperties>;
   label: string;
   value: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
+  // Contextual line under the value (e.g. "3 bookings with open balance").
+  // Always derived from real data — never a fabricated period-over-period %.
+  trend?: string;
+  trendColor?: string;
 };
 
-function StatCard({ styles, label, value, icon, iconBg, iconColor }: StatCardProps) {
+function StatCard({ styles, label, value, trend, trendColor }: StatCardProps) {
   return (
     <div style={styles.statCard}>
-      <div style={styles.statTopRow}>
-        <span style={styles.statLabel}>{label}</span>
-        <span
-          style={{
-            ...styles.statIcon,
-            background: iconBg,
-            color: iconColor,
-          }}
-          aria-hidden
-        >
-          {icon}
-        </span>
-      </div>
+      <span style={styles.statLabel}>{label}</span>
       <div style={styles.statValue}>{value}</div>
+      {trend && (
+        <div style={{ ...styles.statTrend, color: trendColor ?? styles.statTrend?.color }}>
+          {trend}
+        </div>
+      )}
     </div>
   );
 }

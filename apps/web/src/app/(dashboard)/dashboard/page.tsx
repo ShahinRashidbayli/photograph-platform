@@ -15,41 +15,6 @@ import {
 } from './dashboard.styles';
 
 const ICONS = {
-  calendar: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-    </svg>
-  ),
-  euro: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 7c-1.5-1.5-3.5-2.5-6-2.5C7.5 4.5 4 8 4 12s3.5 7.5 8 7.5c2.5 0 4.5-1 6-2.5" />
-      <line x1="3" y1="10" x2="13" y2="10" />
-      <line x1="3" y1="14" x2="13" y2="14" />
-    </svg>
-  ),
-  users: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  trending: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-      <polyline points="17 6 23 6 23 12" />
-    </svg>
-  ),
-  arrowUp: (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
-  ),
   plus: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
@@ -100,17 +65,32 @@ export default function DashboardPage() {
 
   const kpis = useMemo(() => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonthBookings = bookings.filter(b => new Date(b.eventDate) >= monthStart);
-    const revenue = bookings
-      .filter(b => b.status !== 'CANCELLED')
-      .reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    const notCancelled = bookings.filter(b => b.status !== 'CANCELLED');
+    const revenue = notCancelled.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    const collected = notCancelled.reduce((sum, b) => sum + (b.depositAmountCents || 0), 0);
     const activeClients = new Set(
       bookings.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED').map(b => b.clientEmail),
     ).size;
+    const upcoming = bookings.filter(
+      b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && new Date(b.eventDate) >= now,
+    ).length;
     const newLeads = leads.filter(l => l.status === 'NEW').length;
-    return { thisMonth: thisMonthBookings.length, revenue, activeClients, newLeads };
+    return {
+      thisMonth: thisMonthBookings.length,
+      revenue,
+      collected,
+      activeClients,
+      upcoming,
+      newLeads,
+      totalLeads: leads.length,
+    };
   }, [bookings, leads]);
+
+  const formatEURShort = (cents: number) =>
+    `€${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   const upcomingBookings = useMemo(() => {
     const now = new Date();
@@ -276,36 +256,34 @@ export default function DashboardPage() {
           colors={colors}
           label="Bookings this month"
           value={String(kpis.thisMonth)}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
-          icon={ICONS.calendar}
+          trend={`${kpis.upcoming} upcoming in total`}
+          trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
           colors={colors}
           label="Total revenue"
-          value={`€${(kpis.revenue / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
-          icon={ICONS.euro}
+          value={formatEURShort(kpis.revenue)}
+          trend={`${formatEURShort(kpis.collected)} collected so far`}
+          trendColor={colors.successText}
         />
         <MetricCard
           styles={styles}
           colors={colors}
           label="Active clients"
           value={String(kpis.activeClients)}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
-          icon={ICONS.users}
+          trend={
+            kpis.activeClients === 1 ? 'with an open booking' : 'with open bookings'
+          }
+          trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
           colors={colors}
           label="New leads"
           value={String(kpis.newLeads)}
-          iconBg={colors.primaryBg}
-          iconColor={colors.primaryStrong}
-          icon={ICONS.trending}
+          trend={`${kpis.totalLeads} ${kpis.totalLeads === 1 ? 'lead' : 'leads'} in total`}
+          trendColor={kpis.newLeads > 0 ? colors.warningText : colors.textMuted}
         />
       </div>
 
@@ -487,9 +465,9 @@ type MetricCardProps = {
   colors: ReturnType<typeof getDashboardColors>;
   label: string;
   value: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
+  // Contextual line under the value, always derived from real data.
+  trend?: string;
+  trendColor?: string;
 };
 
 function MetricCard({
@@ -497,9 +475,8 @@ function MetricCard({
   colors,
   label,
   value,
-  icon,
-  iconBg,
-  iconColor,
+  trend,
+  trendColor,
 }: MetricCardProps) {
   const [hover, setHover] = useState(false);
   return (
@@ -512,20 +489,13 @@ function MetricCard({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={styles.metricTopRow}>
-        <span style={styles.metricLabel}>{label}</span>
-        <span
-          style={{
-            ...styles.metricIcon,
-            background: iconBg,
-            color: iconColor,
-          }}
-          aria-hidden
-        >
-          {icon}
-        </span>
-      </div>
+      <span style={styles.metricLabel}>{label}</span>
       <div style={styles.metricValue}>{value}</div>
+      {trend && (
+        <div style={{ ...styles.metricTrend, color: trendColor ?? styles.metricTrend?.color }}>
+          {trend}
+        </div>
+      )}
     </div>
   );
 }

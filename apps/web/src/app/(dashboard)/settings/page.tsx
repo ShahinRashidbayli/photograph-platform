@@ -74,8 +74,8 @@ export default function SettingsPage() {
 
   const saveBtn: React.CSSProperties = {
     padding: '10px 24px',
-    background: c.isDark ? '#F1F5F9' : '#0F172A',
-    color: c.isDark ? '#0F172A' : '#fff',
+    background: c.primarySolid,
+    color: '#fff',
     border: 'none',
     borderRadius: '10px',
     fontSize: '0.9rem',
@@ -334,19 +334,19 @@ export default function SettingsPage() {
                 ...input,
                 fontSize: '0.95rem',
                 fontWeight: 500,
-                background: c.isDark ? '#1E293B' : '#F8FAFC'
+                background: c.surfaceHover
               }}
             />
             <div style={{
               padding: '10px 14px',
-              background: c.isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
-              border: `1px solid ${c.isDark ? '#60A5FA' : '#93C5FD'}`,
+              background: c.primaryBg,
+              border: `1px solid ${c.primaryBorder}`,
               borderRadius: '8px',
               fontSize: '0.85rem',
-              color: c.isDark ? '#BFDBFE' : '#1E40AF',
+              color: c.primaryText,
               marginTop: '8px'
             }}>
-              Your public address: <strong style={{ color: c.isDark ? '#E0F2FE' : '#1E40AF' }}>
+              Your public address: <strong style={{ color: c.primaryStrong }}>
                 {(subdomainInput.trim() || 'your-studio').toLowerCase()}.fotolio.app
               </strong>
             </div>
@@ -634,8 +634,8 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
   };
   const primaryBtn: React.CSSProperties = {
     padding: '10px 20px',
-    background: c.isDark ? '#F1F5F9' : '#0F172A',
-    color: c.isDark ? '#0F172A' : '#fff',
+    background: c.primarySolid,
+    color: '#fff',
     border: 'none',
     borderRadius: '10px',
     fontSize: '0.9rem',
@@ -685,7 +685,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             style={{
               ...input,
               fontSize: '0.95rem',
-              background: c.isDark ? '#1E293B' : '#F8FAFC'
+              background: c.surfaceHover
             }}
             placeholder="e.g. Standard Wedding"
             maxLength={200}
@@ -703,7 +703,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             style={{
               ...input,
               fontSize: '0.95rem',
-              background: c.isDark ? '#1E293B' : '#F8FAFC'
+              background: c.surfaceHover
             }}
             placeholder="e.g. 1800"
           />
@@ -720,7 +720,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             style={{
               ...input,
               fontSize: '0.95rem',
-              background: c.isDark ? '#1E293B' : '#F8FAFC'
+              background: c.surfaceHover
             }}
             placeholder="e.g. 8"
           />
@@ -737,7 +737,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             style={{
               ...input,
               fontSize: '0.95rem',
-              background: c.isDark ? '#1E293B' : '#F8FAFC'
+              background: c.surfaceHover
             }}
             placeholder="e.g. 300"
           />
@@ -753,7 +753,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             style={{
               ...input,
               fontSize: '0.95rem',
-              background: c.isDark ? '#1E293B' : '#F8FAFC'
+              background: c.surfaceHover
             }}
           />
         </div>

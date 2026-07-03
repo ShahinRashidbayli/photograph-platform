@@ -86,8 +86,8 @@ export function EditNoteModal({
   };
   const primaryBtn: React.CSSProperties = {
     padding: '9px 18px',
-    background: c.isDark ? '#F1F5F9' : '#0F172A',
-    color: c.isDark ? '#0F172A' : '#fff',
+    background: c.primarySolid,
+    color: '#fff',
     border: 'none',
     borderRadius: '8px',
     fontSize: '0.88rem',

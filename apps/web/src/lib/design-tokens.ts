@@ -63,32 +63,34 @@ export const getColors = (theme: Theme) => {
     isDark,
 
     // ─── Surfaces & ink ────────────────────────────────────────
-    bg: isDark ? '#0B1220' : '#F7F8FB',
-    surface: isDark ? '#111A2E' : '#FFFFFF',
-    surfaceAlt: isDark ? '#0F1729' : '#F8FAFC',
-    surfaceHover: isDark ? '#172238' : '#F8FAFC',
-    surfaceActive: isDark ? 'rgba(59, 130, 246, 0.12)' : '#EFF6FF',
+    // Dark mode uses a neutral charcoal ramp (not blue-navy) so the violet
+    // accent reads as the single source of colour on the page.
+    bg: isDark ? '#0A0A0C' : '#F7F8FB',
+    surface: isDark ? '#141418' : '#FFFFFF',
+    surfaceAlt: isDark ? '#101014' : '#F8FAFC',
+    surfaceHover: isDark ? '#1C1C22' : '#F8FAFC',
+    surfaceActive: isDark ? 'rgba(99, 102, 241, 0.14)' : '#EEF2FF',
 
-    text: isDark ? '#F1F5F9' : '#0F172A',
+    text: isDark ? '#F4F4F5' : '#0F172A',
     // textMuted — body-level secondary text. AA-compliant in both modes.
-    textMuted: isDark ? '#94A3B8' : '#64748B',
+    textMuted: isDark ? '#A1A1AA' : '#64748B',
     // textSubtle — low-emphasis text (meta, eyebrows, placeholders). Bumped
     // to clear WCAG AA for normal text: #6B7280 ≈ 4.8:1 on white.
-    textSubtle: isDark ? '#94A3B8' : '#6B7280',
+    textSubtle: isDark ? '#A1A1AA' : '#6B7280',
 
-    border: isDark ? '#1F2A44' : '#E5E7EB',
-    borderSoft: isDark ? '#172238' : '#F1F5F9',
-    borderActive: isDark ? 'rgba(59, 130, 246, 0.45)' : '#BFDBFE',
-    divider: isDark ? '#1F2A44' : '#F1F5F9',
+    border: isDark ? '#26262E' : '#E5E7EB',
+    borderSoft: isDark ? '#1C1C22' : '#F1F5F9',
+    borderActive: isDark ? 'rgba(99, 102, 241, 0.45)' : '#C7D2FE',
+    divider: isDark ? '#26262E' : '#F1F5F9',
 
-    // ─── Primary (interactive / CTA — blue-600) ────────────────
-    primary: '#2563EB',
-    primaryStrong: isDark ? '#3B82F6' : '#1D4ED8',
-    primaryBg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
-    primaryText: isDark ? '#93C5FD' : '#1D4ED8',
-    primaryBorder: isDark ? 'rgba(59, 130, 246, 0.35)' : '#BFDBFE',
-    primarySolid: '#2563EB',
-    primarySolidHover: isDark ? '#3B82F6' : '#1D4ED8',
+    // ─── Primary (interactive / CTA — indigo/violet-500) ───────
+    primary: '#6366F1',
+    primaryStrong: isDark ? '#818CF8' : '#4F46E5',
+    primaryBg: isDark ? 'rgba(99, 102, 241, 0.16)' : '#EEF2FF',
+    primaryText: isDark ? '#A5B4FC' : '#4F46E5',
+    primaryBorder: isDark ? 'rgba(99, 102, 241, 0.38)' : '#C7D2FE',
+    primarySolid: '#6366F1',
+    primarySolidHover: isDark ? '#818CF8' : '#4F46E5',
 
     // ─── Success (positive outcome — green-600) ────────────────
     success: isDark ? '#34D399' : '#16A34A',
@@ -108,24 +110,26 @@ export const getColors = (theme: Theme) => {
     dangerText: isDark ? '#FCA5A5' : '#B91C1C',
     dangerBorder: isDark ? 'rgba(220, 38, 38, 0.35)' : '#FECACA',
 
-    // ─── Info (completed / archived — indigo-700) ──────────────
-    info: isDark ? '#A5B4FC' : '#4338CA',
-    infoBg: isDark ? 'rgba(99, 102, 241, 0.20)' : '#EEF2FF',
-    infoText: isDark ? '#A5B4FC' : '#4338CA',
-    infoBorder: isDark ? 'rgba(99, 102, 241, 0.40)' : '#C7D2FE',
+    // ─── Info (completed / archived — sky-600) ─────────────────
+    // Sky, kept distinct from the violet primary so "completed/archived"
+    // terminal states don't read as an interactive/CTA colour.
+    info: isDark ? '#7DD3FC' : '#0369A1',
+    infoBg: isDark ? 'rgba(14, 165, 233, 0.18)' : '#E0F2FE',
+    infoText: isDark ? '#7DD3FC' : '#0369A1',
+    infoBorder: isDark ? 'rgba(14, 165, 233, 0.38)' : '#BAE6FD',
 
-    // ─── Neutral (indeterminate / low emphasis — slate-500) ────
-    neutral: isDark ? '#94A3B8' : '#64748B',
-    neutralBg: isDark ? 'rgba(148, 163, 184, 0.12)' : '#F1F5F9',
-    neutralText: isDark ? '#CBD5E1' : '#475569',
-    neutralBorder: isDark ? 'rgba(148, 163, 184, 0.28)' : '#E2E8F0',
+    // ─── Neutral (indeterminate / low emphasis — zinc-500) ─────
+    neutral: isDark ? '#A1A1AA' : '#64748B',
+    neutralBg: isDark ? 'rgba(161, 161, 170, 0.12)' : '#F1F5F9',
+    neutralText: isDark ? '#D4D4D8' : '#475569',
+    neutralBorder: isDark ? 'rgba(161, 161, 170, 0.26)' : '#E2E8F0',
 
     // ─── Shadows ───────────────────────────────────────────────
     overlayShadow: isDark
-      ? '0 1px 2px rgba(0, 0, 0, 0.4)'
+      ? '0 1px 2px rgba(0, 0, 0, 0.5)'
       : '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04)',
     elevatedShadow: isDark
-      ? '0 8px 24px rgba(0, 0, 0, 0.45)'
+      ? '0 8px 24px rgba(0, 0, 0, 0.55)'
       : '0 8px 24px rgba(15, 23, 42, 0.06)',
   };
 };

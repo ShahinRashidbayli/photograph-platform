@@ -11,6 +11,9 @@ type CreateModalProps = {
   colors: ReturnType<typeof getBookingsColors>;
   onClose: () => void;
   onCreated: (_booking: Booking) => void;
+  // Pre-fills the event date — set when the modal is opened by clicking a
+  // calendar day, so the photographer doesn't re-enter a date they just picked.
+  initialDate?: string;
 };
 
 const EMPTY_FORM = {
@@ -26,8 +29,14 @@ const EMPTY_FORM = {
   internalNotes: '',
 };
 
-export function CreateBookingModal({ styles, colors, onClose, onCreated }: CreateModalProps) {
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+export function CreateBookingModal({
+  styles,
+  colors,
+  onClose,
+  onCreated,
+  initialDate,
+}: CreateModalProps) {
+  const [form, setForm] = useState({ ...EMPTY_FORM, eventDate: initialDate ?? '' });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

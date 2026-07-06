@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // Routes accessible without an access_token cookie. Keep this list narrow:
 // every entry here bypasses the auth gate, so anything sensitive must NOT
 // match these prefixes.
-//   /login, /register   — auth flows
+//   /login, /register, /forgot-password  — auth flows
 //   /p/...              — public photographer portfolio (SSR)
 //   /r/...              — public booking-request form
-const PUBLIC_PATHS = ['/login', '/register', '/p/', '/r/', '/customer/'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/p/', '/r/', '/customer/'];
 
 // Apex host without protocol. In dev defaults to `localhost:3000`; in prod set
 // APEX_HOST to e.g. `fotoplatform.de`. Subdomains of this apex (anna.<APEX>)
@@ -56,6 +56,13 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value;
   const origin = request.nextUrl.origin;
 
+  // The apex root is the public marketing landing page — reachable without a
+  // token. Matched exactly (not via PUBLIC_PATHS prefixes) so only `/` opens up,
+  // never every route beneath it.
+  if (pathname === '/') {
+    return NextResponse.next();
+  }
+
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
@@ -73,5 +80,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // The trailing `.*\.[\w]+$` alternative skips any request for a file with an
+  // extension (e.g. /brand/auth-visual.jpg, *.svg) so static assets in /public
+  // aren't caught by the auth gate and redirected to /login.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.[\\w]+$).*)'],
 };

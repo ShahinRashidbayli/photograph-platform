@@ -1,5 +1,5 @@
 import React from 'react';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { getColors, radius, type Theme } from '@/lib/design-tokens';
 
 export type BookingsTheme = Theme;
 
@@ -168,7 +168,7 @@ export const getBookingsStyles = (
     },
     filterTab: {
       padding: '7px 14px',
-      borderRadius: '999px',
+      borderRadius: radius.pill,
       fontSize: '0.8rem',
       fontWeight: 600,
       cursor: 'pointer',
@@ -299,14 +299,15 @@ export const getBookingsStyles = (
       boxShadow: c.overlayShadow,
       maxHeight: 'calc(100vh - 240px)',
     },
+    // Header is a vertical stack — identity on top, a dedicated action bar
+    // below — so the status actions never get crammed next to the name in the
+    // narrow calendar-mode rail (which forced an ugly two-row wrap).
     detailHeader: {
       padding: '20px 24px',
       borderBottom: `1px solid ${c.border}`,
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: 'column',
       gap: '16px',
-      flexWrap: 'wrap',
     },
     detailHeaderLeft: {
       display: 'flex',
@@ -351,8 +352,29 @@ export const getBookingsStyles = (
     },
     detailActions: {
       display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+    },
+    // Constructive advance actions share a row and grow to fill it; in the
+    // narrow rail they wrap to full-width stacked buttons instead of cramming.
+    detailAdvanceRow: {
+      display: 'flex',
       gap: '8px',
       flexWrap: 'wrap',
+    },
+    // Destructive action is de-emphasised: a low-weight ghost button, kept
+    // apart from the primary actions so "Cancel" never competes for the eye.
+    detailCancelButton: {
+      alignSelf: 'flex-start',
+      padding: '6px 10px',
+      borderRadius: radius.control,
+      fontSize: '0.82rem',
+      fontWeight: 600,
+      border: '1px solid transparent',
+      background: 'transparent',
+      color: c.dangerText,
+      cursor: 'pointer',
+      transition: 'background 0.18s ease',
     },
 
     detailBody: {
@@ -488,7 +510,7 @@ export const getBookingsStyles = (
 
     secondaryButton: {
       padding: '9px 16px',
-      borderRadius: '10px',
+      borderRadius: radius.control,
       fontSize: '0.875rem',
       fontWeight: 600,
       border: `1px solid ${c.border}`,
@@ -500,7 +522,7 @@ export const getBookingsStyles = (
     },
     primaryButton: {
       padding: '9px 16px',
-      borderRadius: '10px',
+      borderRadius: radius.control,
       fontSize: '0.875rem',
       fontWeight: 600,
       border: '1px solid transparent',
@@ -513,7 +535,7 @@ export const getBookingsStyles = (
     },
     invertedPrimaryButton: {
       padding: '9px 16px',
-      borderRadius: '10px',
+      borderRadius: radius.control,
       fontSize: '0.875rem',
       fontWeight: 600,
       border: '1px solid transparent',
@@ -524,19 +546,6 @@ export const getBookingsStyles = (
       whiteSpace: 'nowrap',
       boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(15, 23, 42, 0.18)',
     },
-    dangerButton: {
-      padding: '9px 16px',
-      borderRadius: '10px',
-      fontSize: '0.875rem',
-      fontWeight: 600,
-      border: `1px solid ${c.dangerBorder}`,
-      background: c.dangerBg,
-      color: c.dangerText,
-      cursor: 'pointer',
-      transition: 'all 0.18s ease',
-      whiteSpace: 'nowrap',
-    },
-
     emptyState: {
       display: 'flex',
       alignItems: 'center',

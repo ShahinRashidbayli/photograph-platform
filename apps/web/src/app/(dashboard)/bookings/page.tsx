@@ -92,6 +92,8 @@ export default function BookingsPage() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
+  // Date pre-filled into the create modal when it's opened from a calendar day.
+  const [createDate, setCreateDate] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -227,6 +229,7 @@ export default function BookingsPage() {
     setBookings((prev) => insertSortedByDate(prev, created));
     setSelectedId(created.id);
     setShowCreate(false);
+    setCreateDate(null);
   }
 
   if (loading && bookings.length === 0) {
@@ -418,6 +421,14 @@ export default function BookingsPage() {
             bookings={bookings}
             selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
+            onDateClick={
+              isPhotographer
+                ? (dateStr) => {
+                    setCreateDate(dateStr);
+                    setShowCreate(true);
+                  }
+                : undefined
+            }
             colors={colors}
             isDark={theme === 'dark'}
           />
@@ -572,7 +583,11 @@ export default function BookingsPage() {
         <CreateBookingModal
           styles={styles}
           colors={colors}
-          onClose={() => setShowCreate(false)}
+          initialDate={createDate ?? undefined}
+          onClose={() => {
+            setShowCreate(false);
+            setCreateDate(null);
+          }}
           onCreated={handleCreated}
         />
       )}
@@ -787,31 +802,42 @@ function BookingDetail({
         </div>
         {isPhotographer && (transitions.length > 0 || isTerminal) && (
           <div style={styles.detailActions}>
-            {advanceTargets.map((target, index) => (
-              <button
-                key={target}
-                type="button"
-                disabled={actionBusy}
-                onClick={() => onTransition(target)}
-                style={{
-                  ...(index === 0 ? styles.primaryButton : styles.secondaryButton),
-                  ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
-                }}
-              >
-                {STATUS_ACTION_LABEL[target]}
-              </button>
-            ))}
+            {advanceTargets.length > 0 && (
+              <div style={styles.detailAdvanceRow}>
+                {advanceTargets.map((target, index) => (
+                  <button
+                    key={target}
+                    type="button"
+                    disabled={actionBusy}
+                    onClick={() => onTransition(target)}
+                    style={{
+                      ...(index === 0 ? styles.primaryButton : styles.secondaryButton),
+                      flex: '1 1 140px',
+                      ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
+                    }}
+                  >
+                    {STATUS_ACTION_LABEL[target]}
+                  </button>
+                ))}
+              </div>
+            )}
             {canCancel && (
               <button
                 type="button"
                 disabled={actionBusy}
                 onClick={() => onTransition('CANCELLED')}
                 style={{
-                  ...styles.dangerButton,
+                  ...styles.detailCancelButton,
                   ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
                 }}
+                onMouseEnter={(e) => {
+                  if (!actionBusy) e.currentTarget.style.background = colors.dangerBg;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
               >
-                Cancel
+                Cancel booking
               </button>
             )}
             {isTerminal && (

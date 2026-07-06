@@ -1,20 +1,46 @@
 'use client';
 
 import api from '@/lib/api';
+import { AuthSplitLayout } from '@/components/AuthSplitLayout';
+import { getColors } from '@/lib/design-tokens';
 import { AuthUser, useAuthStore } from '@/store/authStore';
+import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { getAuthStyles } from '../auth.styles';
+
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="10" cy="10" r="2.6" stroke="currentColor" strokeWidth="1.4" />
+      {off && (
+        <path d="M3.5 3.5l13 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
+  const theme = useThemeStore((st) => st.theme);
+  const colors = getColors(theme);
+  const s = getAuthStyles(theme);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,248 +76,110 @@ export default function LoginPage() {
     }
   };
 
-  const cardStyle = {
-    background: '#FFFFFF',
-    borderRadius: '16px',
-    padding: '48px 40px',
-    boxShadow: '0 12px 30px rgba(15, 23, 42, 0.08)',
-  };
-
-  const titleStyle = {
-    fontSize: '2rem',
-    fontWeight: 700,
-    color: '#0F172A',
-    margin: '0 0 8px 0',
-    lineHeight: 1.2,
-  };
-
-  const subtitleStyle = {
-    fontSize: '0.95rem',
-    color: '#64748B',
-    margin: 0,
-    lineHeight: 1.5,
-  };
-
-  const formGroupStyle = {
-    marginBottom: '20px',
-  };
-
-  const labelStyle = {
-    display: 'block',
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    color: '#0F172A',
-    marginBottom: '8px',
-    letterSpacing: '0.01em',
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '12px 14px',
-    fontSize: '0.95rem',
-    border: '1px solid #E2E8F0',
-    borderRadius: '10px',
-    color: '#0F172A',
-    boxSizing: 'border-box' as const,
-    fontFamily: 'inherit',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  };
-
-  const buttonPrimaryStyle = {
-    width: '100%',
-    padding: '12px 18px',
-    fontSize: '0.9rem',
-    fontWeight: 600,
-    border: 'none',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    background: '#0F172A',
-    color: '#FFFFFF',
-    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
-  };
-
-  const buttonDisabledStyle = {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  };
-
-  const dividerStyle = {
-    textAlign: 'center' as const,
-    fontSize: '0.85rem',
-    color: '#94A3B8',
-    margin: '24px 0',
-    position: 'relative' as const,
-  };
-
-  const dividerLineStyle = {
-    borderTop: '1px solid #E2E8F0',
-    marginTop: '8px',
-    marginBottom: '8px',
-  };
-
-  const centerTextStyle = {
-    textAlign: 'center' as const,
-    fontSize: '0.9rem',
-    color: '#64748B',
-    marginTop: '20px',
-    lineHeight: 1.5,
-  };
+  const inputStyle = (field: 'email' | 'password') => ({
+    ...s.input,
+    ...(focused === field ? s.inputFocus : {}),
+  });
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #F7F8FB 0%, #E0E7FF 100%)',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    }}>
-      <div style={{ width: '100%', maxWidth: '560px', padding: '40px 24px' }}>
-        <div style={cardStyle}>
-          <div style={{ marginBottom: '32px' }}>
-            <h2 style={titleStyle}>Welcome back</h2>
-            <p style={subtitleStyle}>Enter your email and password to sign in.</p>
-          </div>
-
-          {error && (
-            <div style={{
-              background: '#FEF2F2',
-              color: '#991B1B',
-              border: '1px solid #FECACA',
-              padding: '14px 16px',
-              borderRadius: '10px',
-              fontSize: '0.9rem',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-            }}>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Email address</label>
-              <input
-                type="email"
-                style={inputStyle}
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  style={{ ...inputStyle, paddingRight: 40 }}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: inputStyle.color,
-                    opacity: 0.5,
-                    padding: 4,
-                    fontSize: 14,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.5'; }}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? '👁️' : '🙈'}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-              <Link
-                href="/login"
-                style={{
-                  color: '#2563EB',
-                  fontSize: '0.85rem',
-                  textDecoration: 'none',
-                  fontWeight: 600,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#1D4ED8'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#2563EB'; }}
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            <button
-              type="submit"
-              style={{
-                ...buttonPrimaryStyle,
-                ...(loading ? buttonDisabledStyle : {}),
-              }}
-              disabled={loading}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.background = '#1E293B';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.2)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.background = '#0F172A';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.15)';
-                }
-              }}
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          <div style={dividerStyle}>
-            <div style={dividerLineStyle} />
-          </div>
-
-          <p style={centerTextStyle}>
-            Don&apos;t have an account?{' '}
-            <Link
-              href="/register"
-              style={{
-                color: '#2563EB',
-                textDecoration: 'none',
-                fontWeight: 600,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#1D4ED8'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#2563EB'; }}
-            >
-              Create one
-            </Link>
-          </p>
-
-          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9rem', color: '#64748B' }}>
-            Are you a client?{' '}
-            <Link
-              href="/customer/auth/login"
-              style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}
-            >
-              Sign in with a magic link
-            </Link>
-          </p>
-        </div>
+    // Clients sign in via the "Client sign in" cross-link — they normally
+    // arrive on their photographer's own subdomain, so the platform login
+    // keeps that path low-emphasis rather than duplicating it here.
+    <AuthSplitLayout crossLink={{ href: '/customer/auth/login', label: 'Client sign in' }}>
+      <div style={s.header}>
+        <h2 style={s.title}>Welcome back</h2>
+        <p style={s.subtitle}>Sign in to your Fotolio studio.</p>
       </div>
-    </div>
+
+      {error && <div style={s.alertError}>{error}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div style={s.formGroup}>
+          <label style={s.label}>Email address</label>
+          <input
+            type="email"
+            style={inputStyle('email')}
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onFocus={() => setFocused('email')}
+            onBlur={() => setFocused(null)}
+            autoComplete="email"
+          />
+        </div>
+
+        <div style={s.formGroup}>
+          <label style={s.label}>Password</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              style={{ ...inputStyle('password'), paddingRight: 44 }}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => setFocused('password')}
+              onBlur={() => setFocused(null)}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: colors.textSubtle,
+                padding: 6,
+              }}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <EyeIcon off={showPassword} />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <Link href="/forgot-password" style={{ ...s.link, fontSize: '0.85rem' }}>
+            Forgot password?
+          </Link>
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            ...s.button,
+            ...s.buttonPrimary,
+            ...(loading ? s.buttonDisabled : {}),
+          }}
+          disabled={loading}
+          onMouseEnter={(e) => {
+            if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimaryHover);
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimary);
+          }}
+        >
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+
+      <div style={s.divider}>
+        <div style={s.dividerLine} />
+      </div>
+
+      <p style={s.centerText}>
+        Don&apos;t have an account?{' '}
+        <Link href="/register" style={s.link}>
+          Create one
+        </Link>
+      </p>
+    </AuthSplitLayout>
   );
 }

@@ -5,6 +5,7 @@ import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { FotolioLogo } from '@/components/FotolioLogo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -165,7 +166,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   const [isOpen, setIsOpen] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { theme, toggleTheme } = useThemeStore();
+  const { theme } = useThemeStore();
 
   useEffect(() => {
     if (user) {
@@ -230,7 +231,9 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       // Navigate first so the dashboard layout unmounts before we clear the
       // user — otherwise the /api/auth/me effect refires against cleared
       // cookies and produces a spurious 401 in the console.
-      router.replace('/login');
+      // Land on the public marketing page, not /login — signing out returns
+      // the visitor to the top of the funnel, and /me runs client-side there.
+      router.replace('/');
       clearUser();
     }
   }
@@ -340,7 +343,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         }
       `}</style>
 
-      <Header user={user} theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} unrepliedLeads={unrepliedLeads} />
+      <Header user={user} theme={theme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} unrepliedLeads={unrepliedLeads} />
 
       <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
         <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label="Main navigation">
@@ -461,10 +464,9 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   );
 }
 
-function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsOpen, unrepliedLeads }: {
+function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unrepliedLeads }: {
   user: AuthUser | null;
   theme: 'light' | 'dark';
-  toggleTheme: () => void;
   handleLogout: () => void;
   colors: { headerBg: string; border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
   isOpen: boolean;
@@ -572,43 +574,7 @@ function Header({ user, theme, toggleTheme, handleLogout, colors, isOpen, setIsO
           )}
         </button>
 
-        <button
-          onClick={() => toggleTheme()}
-          style={{
-            width: 34, height: 34,
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            borderRadius: '8px',
-            transition: 'background 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: colors.text,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-        >
-          {theme === 'light' ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-          )}
-        </button>
+        <ThemeToggle variant="bare" />
 
         {/* User menu — avatar opens a dropdown holding the account actions. */}
         <div ref={menuRef} style={{ position: 'relative' }}>

@@ -57,6 +57,23 @@ export const radius = {
   pill: '999px',
 } as const;
 
+/**
+ * Font stacks. `sans` is the product/UI face used everywhere in the dashboard.
+ * `serif` is an editorial *display* face reserved for marketing/brand surfaces
+ * (the public landing page headings) — it gives the marketing site more
+ * personality without touching the dense, sans-first dashboard UI. `mono` is
+ * for data-ish labels, eyebrows and numeric chips.
+ *
+ * All three are system-font stacks (no webfont fetch), so there is no network
+ * request, no layout shift and no license to manage.
+ */
+export const fonts = {
+  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  serif:
+    '"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace',
+} as const;
+
 export const getColors = (theme: Theme) => {
   const isDark = theme === 'dark';
   return {

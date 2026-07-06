@@ -6,6 +6,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventInput, EventClickArg } from '@fullcalendar/core';
+import type { DateClickArg } from '@fullcalendar/interaction';
 
 import { Booking } from '@/types/api';
 import { getBookingsColors } from './bookings.styles';
@@ -76,12 +77,16 @@ export function BookingsCalendarView({
   bookings,
   selectedId,
   onSelect,
+  onDateClick,
   colors,
   isDark,
 }: Readonly<{
   bookings: Booking[];
   selectedId: string | null;
   onSelect: (_id: string) => void;
+  // Clicking an empty day opens the create-booking modal pre-filled with that
+  // date. Optional so the calendar stays usable for read-only (customer) views.
+  onDateClick?: (_dateStr: string) => void;
   colors: Colors;
   isDark: boolean;
 }>) {
@@ -242,6 +247,13 @@ export function BookingsCalendarView({
           arg.jsEvent.preventDefault();
           onSelect(arg.event.id);
         }}
+        dateClick={
+          onDateClick
+            ? // Week/Day views append a time to dateStr; the create form's date
+              // input wants a bare YYYY-MM-DD, so keep just the date part.
+              (arg: DateClickArg) => onDateClick(arg.dateStr.slice(0, 10))
+            : undefined
+        }
         height="auto"
         // Per-event color is set on the EventInput; FullCalendar's defaults
         // would otherwise paint the unified blue for everything.

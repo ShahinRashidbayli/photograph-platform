@@ -24,19 +24,35 @@ spring:
 server:
   port: 8080
 
-resend:
-  api-key: ${RESEND_API_KEY:}
-  from-email: ${RESEND_FROM:noreply@fotoplatform.de}
-  base-url: https://api.resend.com
-
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3002}
   email:
+    # Active transport, chosen at runtime by the matching EmailSender bean:
+    #   sendgrid | resend | none   ('none' logs and drops — safe for local/dev)
+    #
+    # Validated at startup by EmailProperties: naming a real provider without
+    # its API key (or EMAIL_FROM) FAILS THE BOOT rather than silently dropping
+    # every message. That is deliberate — sends are best-effort by design, so a
+    # missing key would otherwise look exactly like a healthy system while no
+    # customer ever receives a magic link. Running without email is still fine,
+    # but it has to be said out loud: EMAIL_PROVIDER=none.
+    provider: ${EMAIL_PROVIDER:sendgrid}
+    # Sender identity applied to every outbound message. `from` MUST be a
+    # verified sender in the active provider's account (SendGrid Single Sender
+    # / domain authentication), or the provider rejects the send with a 403.
+    from: ${EMAIL_FROM:noreply@fotolio.de}
+    from-name: ${EMAIL_FROM_NAME:Fotolio}
+    sendgrid:
+      api-key: ${SENDGRID_API_KEY:}
+      base-url: ${SENDGRID_BASE_URL:https://api.sendgrid.com}
+    resend:
+      api-key: ${RESEND_API_KEY:}
+      base-url: ${RESEND_BASE_URL:https://api.resend.com}
     # Master switch for the @RequiresVerifiedEmail gate. Set to false locally
-    # (or APP_EMAIL_VERIFICATION_ENFORCED=false) before SMTP/Resend is wired
-    # up, so the photographer can advance bookings and convert leads without
-    # being blocked on an email they can't receive. MUST stay true in any
+    # (or APP_EMAIL_VERIFICATION_ENFORCED=false) before email is wired up, so
+    # the photographer can advance bookings and convert leads without being
+    # blocked on an email they can't receive. MUST stay true in any
     # staging/production deploy — otherwise every annotated endpoint is
     # reachable by any authenticated session, which is the misuse the gate
     # exists to prevent.

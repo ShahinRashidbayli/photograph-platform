@@ -1,3 +1,4 @@
+import { useTranslation } from '@/lib/i18n';
 import type { ColorTokens } from './leadTypes';
 
 /**
@@ -21,12 +22,13 @@ export function ScoreBreakdown({
   typeScore?: number;
   timeScore?: number;
 }>) {
+  const { t } = useTranslation();
   if (budgetScore == null && typeScore == null && timeScore == null) return null;
 
   const rows: Array<{ label: string; value: number }> = [];
-  if (budgetScore != null) rows.push({ label: 'Budget', value: budgetScore });
-  if (typeScore != null) rows.push({ label: 'Event type', value: typeScore });
-  if (timeScore != null) rows.push({ label: 'Lead time', value: timeScore });
+  if (budgetScore != null) rows.push({ label: t('leadScoreRow.budget'), value: budgetScore });
+  if (typeScore != null) rows.push({ label: t('leadScoreRow.eventType'), value: typeScore });
+  if (timeScore != null) rows.push({ label: t('leadScoreRow.leadTime'), value: timeScore });
 
   // Uniform primary fill — the numeric score on the right already encodes
   // strength, so tier-coloring the bars themselves (green/amber/red) is
@@ -57,7 +59,7 @@ export function ScoreBreakdown({
             aria-valuenow={r.value}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${r.label} score`}
+            aria-label={t('leadScoreRow.aria', { label: r.label })}
             style={{
               height: '6px',
               borderRadius: '999px',

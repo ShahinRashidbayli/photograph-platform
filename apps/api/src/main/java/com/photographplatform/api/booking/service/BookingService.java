@@ -6,7 +6,6 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingResponse;
-import com.photographplatform.api.booking.dto.CalendarEventResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
@@ -18,7 +17,6 @@ import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -167,26 +165,6 @@ public class BookingService {
     }
 
     /**
-     * Feed the bookings calendar in FullCalendar's expected JSON shape.
-     *
-     * <p>An optional date range trims the result (FullCalendar passes the
-     * visible window's {@code from} / {@code to} on every nav). When omitted
-     * we return every booking — fine at MVP scale, but worth pushing the
-     * filter into the repository once a tenant accumulates years of history.
-     *
-     * <p>Cancelled bookings are intentionally included: the photographer's
-     * calendar should still show "this slot was held" so a freshly-cancelled
-     * date isn't immediately double-booked. The frontend distinguishes them
-     * by colour using {@code extendedProps.status}.
-     */
-    @Transactional(readOnly = true)
-    public List<CalendarEventResponse> getCalendarFeed(LocalDate from, LocalDate to) {
-        return bookingRepository.findCalendarFeed(from, to).stream()
-            .map(BookingService::toCalendarEvent)
-            .toList();
-    }
-
-    /**
      * Transition a booking to a new status, enforcing the legal lifecycle
      * defined in {@link BookingStatus}. Illegal transitions raise HTTP 409
      * (via {@code ConflictException}); unknown booking IDs raise HTTP 404.
@@ -267,26 +245,6 @@ public class BookingService {
             booking.getStatus(),
             booking.getInternalNotes(),
             booking.getCreatedAt()
-        );
-    }
-
-    private static CalendarEventResponse toCalendarEvent(Booking booking) {
-        // FullCalendar accepts either a date ("YYYY-MM-DD" → all-day event) or
-        // a date-time ("YYYY-MM-DDTHH:MM:SS" → timed event). Bookings without
-        // an event_time render as all-day blocks, which matches reality: the
-        // photographer hasn't pinned a start time yet.
-        String start = booking.getEventTime() != null
-            ? booking.getEventDate() + "T" + booking.getEventTime()
-            : booking.getEventDate().toString();
-        String title = booking.getEventType() != null && !booking.getEventType().isBlank()
-            ? booking.getClientName() + " — " + booking.getEventType()
-            : booking.getClientName();
-        return new CalendarEventResponse(
-            booking.getId(),
-            title,
-            start,
-            null,
-            new CalendarEventResponse.ExtendedProps(booking.getStatus(), booking.getClientEmail())
         );
     }
 

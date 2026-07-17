@@ -30,7 +30,7 @@ export const getLeadsStyles = (
     pageHeader: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: '20px',
       flexWrap: 'wrap',
     },

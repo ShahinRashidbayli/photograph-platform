@@ -10,6 +10,7 @@ import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadResponse;
 import com.photographplatform.api.portfolio.dto.PhotoResponse;
 import com.photographplatform.api.portfolio.dto.PublicPortfolioResponse;
+import com.photographplatform.api.portfolio.dto.UpdatePhotoCategoryRequest;
 import com.photographplatform.api.portfolio.service.PhotoService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -115,6 +117,25 @@ public class PortfolioController {
     public ResponseEntity<PhotoResponse> publishPhoto(@PathVariable UUID id) {
         PhotoResponse photo = photoService.publish(id);
         return ResponseEntity.ok(photo);
+    }
+
+    // Return a published photo to draft — the inverse of publish. Same verified-
+    // email gate for symmetry (both change what the public page shows).
+    @RequiresVerifiedEmail
+    @PostMapping("/portfolio/photos/{id}/unpublish")
+    public ResponseEntity<PhotoResponse> unpublishPhoto(@PathVariable UUID id) {
+        PhotoResponse photo = photoService.unpublish(id);
+        return ResponseEntity.ok(photo);
+    }
+
+    // Assign or clear a photo's category. Not gated on verified email: it only
+    // reorganises the owner's own library, it doesn't push new public content.
+    @PatchMapping("/portfolio/photos/{id}/category")
+    public ResponseEntity<PhotoResponse> setPhotoCategory(
+        @PathVariable UUID id,
+        @RequestBody UpdatePhotoCategoryRequest request
+    ) {
+        return ResponseEntity.ok(photoService.setCategory(id, request.categoryId()));
     }
 
     @DeleteMapping("/portfolio/photos/{id}")

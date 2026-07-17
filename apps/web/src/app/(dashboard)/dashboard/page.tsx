@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Booking, Lead } from '@/types/api';
 import { getBookingStatusMeta, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
 import {
   getDashboardColors,
@@ -32,8 +33,8 @@ const ICONS = {
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const theme = useThemeStore((s) => s.theme);
-  const role = user?.role?.toUpperCase();
-  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+  const isPhotographer = useIsPhotographer();
+  const { t, tPlural, format } = useTranslation();
 
   const styles = useMemo(() => getDashboardStyles(theme), [theme]);
   const colors = useMemo(() => getDashboardColors(theme), [theme]);
@@ -89,9 +90,6 @@ export default function DashboardPage() {
     };
   }, [bookings, leads]);
 
-  const formatEURShort = (cents: number) =>
-    `€${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
   const upcomingBookings = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -116,35 +114,33 @@ export default function DashboardPage() {
       .slice(0, 4);
   }, [leads]);
 
-  const getMonthShort = (date: string) =>
-    new Date(date)
-      .toLocaleDateString('en-US', { month: 'short' })
-      .toUpperCase();
   const getDay = (date: string) => new Date(date).getDate();
 
   const formatBudget = (range?: string | null) => {
     switch (range) {
       case 'OVER_1000':
-        return '€1000+';
+        return t('budget.OVER_1000');
       case '500_1000':
-        return '€500–999';
+        return t('budget.500_1000');
       case '200_500':
-        return '€200–499';
+        return t('budget.200_500');
       case 'UNDER_200':
-        return 'under €200';
+        return t('budget.UNDER_200');
       default:
-        return '—';
+        return t('budget.unknown');
     }
   };
 
   const formatEventType = (type: string) =>
     type
       ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()
-      : 'Event';
+      : t('dashboard.eventFallback');
 
+  // The tone (colour bucket) still comes from the shared status map; only the
+  // label is re-resolved here so the badge follows the active language.
   const getBookingStatusStyle = (status: string) => {
     const meta = getBookingStatusMeta(status);
-    return { ...toneToVisual(meta.tone, colors), label: meta.label };
+    return { ...toneToVisual(meta.tone, colors), label: t(meta.labelKey) };
   };
 
   const getLeadScoreStyle = (score: string) => {
@@ -153,7 +149,7 @@ export default function DashboardPage() {
         bg: colors.successBg,
         color: colors.successText,
         dot: colors.success,
-        label: 'High',
+        label: t('leadScore.HIGH'),
       };
     }
     if (score === 'MED') {
@@ -161,14 +157,14 @@ export default function DashboardPage() {
         bg: colors.warningBg,
         color: colors.warningText,
         dot: colors.warning,
-        label: 'Medium',
+        label: t('leadScore.MED'),
       };
     }
     return {
       bg: colors.neutralBg,
       color: colors.neutralText,
       dot: colors.neutral,
-      label: 'Low',
+      label: t('leadScore.LOW'),
     };
   };
 
@@ -178,10 +174,10 @@ export default function DashboardPage() {
         <div style={styles.pageHeader}>
           <div>
             <h1 style={styles.pageTitle}>
-              Welcome back, {user?.fullName ?? user?.email}
+              {t('dashboard.welcome', { name: user?.fullName ?? user?.email ?? '' })}
             </h1>
             <p style={styles.pageSubtitle}>
-              View your upcoming bookings and galleries.
+              {t('dashboard.clientSubtitle')}
             </p>
           </div>
         </div>
@@ -209,13 +205,13 @@ export default function DashboardPage() {
       <header style={styles.pageHeader}>
         <div style={{ minWidth: 0 }}>
           <h1 style={styles.pageTitle}>
-            Welcome back, {user?.fullName ?? user?.email}
+            {t('dashboard.welcome', { name: user?.fullName ?? user?.email ?? '' })}
             {user?.tenant?.plan && (
-              <span style={styles.planBadge}>{user.tenant.plan} Plan</span>
+              <span style={styles.planBadge}>{t('dashboard.planBadge', { plan: user.tenant.plan })}</span>
             )}
           </h1>
           <p style={styles.pageSubtitle}>
-            Here&apos;s your studio overview
+            {t('dashboard.subtitle')}
             {user?.tenant?.subdomain && (
               <>
                 <span aria-hidden style={{ color: colors.textSubtle }}>•</span>
@@ -234,7 +230,7 @@ export default function DashboardPage() {
             onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = colors.surface; }}
           >
-            View portfolio
+            {t('dashboard.viewPortfolio')}
           </button>
           <button
             type="button"
@@ -244,7 +240,7 @@ export default function DashboardPage() {
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
             {ICONS.plus}
-            Create booking
+            {t('dashboard.createBooking')}
           </button>
         </div>
       </header>
@@ -254,35 +250,33 @@ export default function DashboardPage() {
         <MetricCard
           styles={styles}
           colors={colors}
-          label="Bookings this month"
+          label={t('dashboard.kpi.bookingsThisMonth')}
           value={String(kpis.thisMonth)}
-          trend={`${kpis.upcoming} upcoming in total`}
+          trend={t('dashboard.kpi.upcomingTotal', { count: kpis.upcoming })}
           trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
           colors={colors}
-          label="Total revenue"
-          value={formatEURShort(kpis.revenue)}
-          trend={`${formatEURShort(kpis.collected)} collected so far`}
+          label={t('dashboard.kpi.totalRevenue')}
+          value={format.eur(kpis.revenue)}
+          trend={t('dashboard.kpi.collected', { amount: format.eur(kpis.collected) })}
           trendColor={colors.successText}
         />
         <MetricCard
           styles={styles}
           colors={colors}
-          label="Active clients"
+          label={t('dashboard.kpi.activeClients')}
           value={String(kpis.activeClients)}
-          trend={
-            kpis.activeClients === 1 ? 'with an open booking' : 'with open bookings'
-          }
+          trend={tPlural('dashboard.kpi.openBooking', kpis.activeClients)}
           trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
           colors={colors}
-          label="New leads"
+          label={t('dashboard.kpi.newLeads')}
           value={String(kpis.newLeads)}
-          trend={`${kpis.totalLeads} ${kpis.totalLeads === 1 ? 'lead' : 'leads'} in total`}
+          trend={tPlural('dashboard.kpi.leadsTotal', kpis.totalLeads)}
           trendColor={kpis.newLeads > 0 ? colors.warningText : colors.textMuted}
         />
       </div>
@@ -293,7 +287,7 @@ export default function DashboardPage() {
         <section style={styles.sectionCard} aria-labelledby="upcoming-bookings">
           <div style={styles.cardHeader}>
             <h3 id="upcoming-bookings" style={styles.cardTitle}>
-              Upcoming bookings
+              {t('dashboard.upcomingBookings')}
             </h3>
             <Link
               href="/bookings"
@@ -305,14 +299,14 @@ export default function DashboardPage() {
                 e.currentTarget.style.gap = '4px';
               }}
             >
-              View all {ICONS.arrowRight}
+              {t('dashboard.viewAll')} {ICONS.arrowRight}
             </Link>
           </div>
 
           {loading ? (
             <ListSkeleton styles={styles} colors={colors} kind="booking" />
           ) : upcomingBookings.length === 0 ? (
-            <div style={styles.emptyState}>No upcoming bookings.</div>
+            <div style={styles.emptyState}>{t('dashboard.emptyBookings')}</div>
           ) : (
             <div style={styles.listContainer}>
               {upcomingBookings.map((booking, idx) => {
@@ -335,7 +329,7 @@ export default function DashboardPage() {
                     <div style={styles.listRowLeft}>
                       <div style={styles.bookingDatePill}>
                         <span style={styles.bookingDateMonth}>
-                          {getMonthShort(booking.eventDate)}
+                          {format.monthAbbrUpper(booking.eventDate)}
                         </span>
                         <span style={styles.bookingDateDay}>
                           {getDay(booking.eventDate)}
@@ -344,7 +338,7 @@ export default function DashboardPage() {
                       <div style={styles.rowMetaInfo}>
                         <div style={styles.rowName}>{booking.clientName}</div>
                         <div style={styles.rowMeta}>
-                          {booking.eventType || 'Event'}
+                          {booking.eventType || t('dashboard.eventFallback')}
                           {booking.location ? ` • ${booking.location}` : ''}
                         </div>
                       </div>
@@ -375,7 +369,7 @@ export default function DashboardPage() {
         <section style={styles.sectionCard} aria-labelledby="recent-leads">
           <div style={styles.cardHeader}>
             <h3 id="recent-leads" style={styles.cardTitle}>
-              Recent leads
+              {t('dashboard.recentLeads')}
             </h3>
             <Link
               href="/leads"
@@ -387,14 +381,14 @@ export default function DashboardPage() {
                 e.currentTarget.style.gap = '4px';
               }}
             >
-              View all {ICONS.arrowRight}
+              {t('dashboard.viewAll')} {ICONS.arrowRight}
             </Link>
           </div>
 
           {loading ? (
             <ListSkeleton styles={styles} colors={colors} kind="lead" />
           ) : sortedLeads.length === 0 ? (
-            <div style={styles.emptyState}>No recent leads.</div>
+            <div style={styles.emptyState}>{t('dashboard.emptyLeads')}</div>
           ) : (
             <div style={styles.listContainer}>
               {sortedLeads.map((lead, idx) => {

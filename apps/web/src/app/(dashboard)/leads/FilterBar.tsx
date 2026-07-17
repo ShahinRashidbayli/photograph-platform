@@ -1,9 +1,17 @@
 import React from 'react';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import type {
   ColorTokens,
   LeadPipelineFilter,
   LeadScoreFilter,
 } from './leadTypes';
+
+const PIPELINE_LABEL_KEY: Record<LeadPipelineFilter, TranslationKey> = {
+  Active: 'leads.pipeline.Active',
+  Booked: 'leads.pipeline.Booked',
+  Rejected: 'leads.pipeline.Rejected',
+  All: 'leads.pipeline.All',
+};
 
 /**
  * Compact filter bar for the leads list panel.
@@ -36,6 +44,7 @@ export function FilterBar({
   setSearchTerm: (_q: string) => void;
   pipelineCounts: Record<LeadPipelineFilter, number>;
 }>) {
+  const { t } = useTranslation();
   const segmented: React.CSSProperties = {
     display: 'inline-flex',
     padding: '3px',
@@ -98,7 +107,7 @@ export function FilterBar({
     >
       {/* Pipeline segmented control. Macro-OS-style: subtle filled active
           state inside a single container, not a row of outlined buttons. */}
-      <div style={segmented} role="tablist" aria-label="Pipeline filter">
+      <div style={segmented} role="tablist" aria-label={t('leads.filter.aria')}>
         {(['Active', 'Booked', 'Rejected', 'All'] as LeadPipelineFilter[]).map((stage) => {
           const active = filterPipeline === stage;
           return (
@@ -110,7 +119,7 @@ export function FilterBar({
               onClick={() => setFilterPipeline(stage)}
               style={segmentBtn(active)}
             >
-              {stage}
+              {t(PIPELINE_LABEL_KEY[stage])}
               <span
                 aria-hidden
                 style={{
@@ -154,21 +163,21 @@ export function FilterBar({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search name, email, type…"
+            placeholder={t('leads.search.placeholder')}
             style={search}
-            aria-label="Search leads"
+            aria-label={t('leads.search.aria')}
           />
         </label>
         <select
           value={filterScore}
           onChange={(e) => setFilterScore(e.target.value as LeadScoreFilter)}
           style={select}
-          aria-label="Filter by score"
+          aria-label={t('leads.score.aria')}
         >
-          <option value="All">All scores</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
+          <option value="All">{t('leads.score.all')}</option>
+          <option value="High">{t('leadScore.HIGH')}</option>
+          <option value="Medium">{t('leadScore.MED')}</option>
+          <option value="Low">{t('leadScore.LOW')}</option>
         </select>
       </div>
     </div>

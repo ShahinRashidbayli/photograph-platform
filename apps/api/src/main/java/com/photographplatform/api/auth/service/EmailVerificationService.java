@@ -54,7 +54,6 @@ public class EmailVerificationService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final StringRedisTemplate redis;
-    private final String fromEmail;
     private final String webBaseUrl;
 
     public EmailVerificationService(
@@ -62,14 +61,12 @@ public class EmailVerificationService {
         UserRepository userRepository,
         EmailService emailService,
         StringRedisTemplate redis,
-        @Value("${resend.from-email:noreply@fotoplatform.local}") String fromEmail,
         @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
     ) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.redis = redis;
-        this.fromEmail = fromEmail;
         this.webBaseUrl = webBaseUrl;
     }
 
@@ -197,7 +194,7 @@ public class EmailVerificationService {
             """.formatted(escapeHtml(user.getFullName()), link, link);
         try {
             emailService.send(new EmailMessage(
-                user.getEmail(), fromEmail, "Confirm your Fotolio email", html));
+                user.getEmail(), "Confirm your Fotolio email", html));
         } catch (RuntimeException ex) {
             // Email delivery is best-effort — log loudly but never fail the caller.
             LOG.warn("Failed to send verification email to {}", user.getEmail(), ex);

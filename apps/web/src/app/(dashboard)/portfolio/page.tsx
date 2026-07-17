@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Photo {
   id: string;
+  categoryId: string | null;
   viewUrl: string | null;
   thumbnailUrl: string | null;
   fileSizeBytes: number | null;
@@ -15,6 +16,13 @@ interface Photo {
   height: number | null;
   sortOrder: number;
   published: boolean;
+  createdAt: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  sortOrder: number;
   createdAt: string;
 }
 
@@ -40,6 +48,8 @@ export default function PortfolioAdminPage() {
   const colors = useColors(theme);
 
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | 'all' | 'none'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingUpload[]>([]);
@@ -59,9 +69,44 @@ export default function PortfolioAdminPage() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const { data } = await api.get<Category[]>('/api/portfolio/categories');
+      setCategories(Array.isArray(data) ? data : []);
+    } catch {
+      // Categories are a secondary surface — a failure here shouldn't blank the
+      // whole page, so it degrades to "no categories" silently.
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    loadCategories();
+  }, [refresh, loadCategories]);
+
+  async function createCategory(name: string) {
+    const { data } = await api.post<Category>('/api/portfolio/categories', { name });
+    setCategories((prev) => [...prev, data]);
+  }
+
+  async function renameCategory(id: string, name: string) {
+    const { data } = await api.patch<Category>(`/api/portfolio/categories/${id}`, { name });
+    setCategories((prev) => prev.map((c) => (c.id === id ? data : c)));
+  }
+
+  async function deleteCategory(id: string) {
+    await api.delete(`/api/portfolio/categories/${id}`);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    // Photos keep their now-dangling categoryId server-side until reassigned;
+    // reflect the removal locally so the filter and chips stay consistent.
+    setPhotos((prev) => prev.map((p) => (p.categoryId === id ? { ...p, categoryId: null } : p)));
+    setActiveCategory((cur) => (cur === id ? 'all' : cur));
+  }
+
+  async function setPhotoCategory(photo: Photo, categoryId: string | null) {
+    const { data } = await api.patch<Photo>(`/api/portfolio/photos/${photo.id}/category`, { categoryId });
+    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? data : p)));
+  }
 
   const stats = useMemo(() => {
     const total = photos.length;
@@ -135,22 +180,25 @@ export default function PortfolioAdminPage() {
   }
 
   async function togglePublish(photo: Photo) {
-    if (photo.published) {
-      // No unpublish endpoint yet — just visual hint
-      return;
-    }
+    const action = photo.published ? 'unpublish' : 'publish';
     try {
-      await api.post(`/api/portfolio/photos/${photo.id}/publish`);
-      refresh();
+      const { data } = await api.post<Photo>(`/api/portfolio/photos/${photo.id}/${action}`);
+      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? data : p)));
     } catch (e) {
       const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
       // EMAIL_NOT_VERIFIED is surfaced globally by the axios interceptor toast
       // — no need to alert again here.
       if (code !== 'EMAIL_NOT_VERIFIED') {
-        setError(e instanceof Error ? e.message : 'Publish failed');
+        setError(e instanceof Error ? e.message : `${action} failed`);
       }
     }
   }
+
+  const visiblePhotos = useMemo(() => {
+    if (activeCategory === 'all') return photos;
+    if (activeCategory === 'none') return photos.filter((p) => !p.categoryId);
+    return photos.filter((p) => p.categoryId === activeCategory);
+  }, [photos, activeCategory]);
 
   async function confirmDelete() {
     if (!photoToDelete) return;
@@ -207,12 +255,37 @@ export default function PortfolioAdminPage() {
 
       {error && <ErrorBanner colors={colors} message={error} onDismiss={() => setError(null)} />}
 
+      {!loading && photos.length > 0 && (
+        <CategoryBar
+          colors={colors}
+          categories={categories}
+          photos={photos}
+          active={activeCategory}
+          onSelect={setActiveCategory}
+          onCreate={createCategory}
+          onRename={renameCategory}
+          onDelete={deleteCategory}
+          onError={(m) => setError(m)}
+        />
+      )}
+
       {loading ? (
         <Skeleton colors={colors} />
       ) : photos.length === 0 ? (
         <EmptyState colors={colors} onUploadClick={() => fileInputRef.current?.click()} />
+      ) : visiblePhotos.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 24px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 12, color: colors.subText }}>
+          No photos in this category yet.
+        </div>
       ) : (
-        <Grid colors={colors} photos={photos} onPublish={togglePublish} onDelete={setPhotoToDelete} />
+        <Grid
+          colors={colors}
+          photos={visiblePhotos}
+          categories={categories}
+          onPublish={togglePublish}
+          onDelete={setPhotoToDelete}
+          onSetCategory={setPhotoCategory}
+        />
       )}
 
       <ConfirmDialog
@@ -412,18 +485,30 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
 function Grid({
   colors,
   photos,
+  categories,
   onPublish,
   onDelete,
+  onSetCategory,
 }: {
   colors: ColorTokens;
   photos: Photo[];
+  categories: Category[];
   onPublish: (_photo: Photo) => void;
   onDelete: (_photo: Photo) => void;
+  onSetCategory: (_photo: Photo, _categoryId: string | null) => void;
 }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
       {photos.map((photo) => (
-        <Card key={photo.id} colors={colors} photo={photo} onPublish={onPublish} onDelete={onDelete} />
+        <Card
+          key={photo.id}
+          colors={colors}
+          photo={photo}
+          categories={categories}
+          onPublish={onPublish}
+          onDelete={onDelete}
+          onSetCategory={onSetCategory}
+        />
       ))}
     </div>
   );
@@ -432,13 +517,17 @@ function Grid({
 function Card({
   colors,
   photo,
+  categories,
   onPublish,
   onDelete,
+  onSetCategory,
 }: {
   colors: ColorTokens;
   photo: Photo;
+  categories: Category[];
   onPublish: (_photo: Photo) => void;
   onDelete: (_photo: Photo) => void;
+  onSetCategory: (_photo: Photo, _categoryId: string | null) => void;
 }) {
   const src = photo.thumbnailUrl ?? photo.viewUrl ?? '';
   const aspect = photo.width && photo.height ? photo.width / photo.height : 4 / 3;
@@ -484,53 +573,245 @@ function Card({
           {photo.published ? 'PUBLISHED' : 'DRAFT'}
         </span>
       </div>
-      <div style={{ padding: 12, display: 'flex', gap: 8 }}>
-        <button
-          disabled={photo.published}
-          onClick={() => onPublish(photo)}
-          title={
-            photo.published
-              ? 'Unpublishing isn’t available yet'
-              : 'Publish this photo to your public page'
-          }
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <select
+          value={photo.categoryId ?? ''}
+          onChange={(e) => onSetCategory(photo, e.target.value || null)}
+          aria-label="Photo category"
+          title="Assign a category"
           style={{
-            flex: 1,
-            padding: '8px 10px',
-            border: '1px solid transparent',
-            background: photo.published ? 'transparent' : colors.invertedBg,
-            color: photo.published ? colors.subText : colors.invertedText,
-            borderColor: photo.published ? colors.border : 'transparent',
-            borderRadius: 8,
-            cursor: photo.published ? 'not-allowed' : 'pointer',
-            fontWeight: 600,
-            fontSize: 12,
-          }}
-        >
-          {photo.published ? 'Published' : 'Publish'}
-        </button>
-        <button
-          onClick={() => onDelete(photo)}
-          aria-label="Delete photo"
-          title="Delete photo"
-          style={{
-            padding: '8px 10px',
+            width: '100%',
+            padding: '7px 8px',
             border: `1px solid ${colors.border}`,
-            background: 'transparent',
-            color: colors.dangerText,
+            background: colors.bg,
+            color: colors.text,
             borderRadius: 8,
+            fontSize: 12,
             cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-            <path d="M10 11v6M14 11v6" />
-          </svg>
-        </button>
+          <option value="">Uncategorised</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => onPublish(photo)}
+            title={photo.published ? 'Return this photo to draft' : 'Publish this photo to your public page'}
+            style={{
+              flex: 1,
+              padding: '8px 10px',
+              border: '1px solid transparent',
+              background: photo.published ? 'transparent' : colors.invertedBg,
+              color: photo.published ? colors.text : colors.invertedText,
+              borderColor: photo.published ? colors.border : 'transparent',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 12,
+            }}
+          >
+            {photo.published ? 'Unpublish' : 'Publish'}
+          </button>
+          <button
+            onClick={() => onDelete(photo)}
+            aria-label="Delete photo"
+            title="Delete photo"
+            style={{
+              padding: '8px 10px',
+              border: `1px solid ${colors.border}`,
+              background: 'transparent',
+              color: colors.dangerText,
+              borderRadius: 8,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M10 11v6M14 11v6" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+// ─── CategoryBar ─────────────────────────────────────────────────────────────
+function CategoryBar({
+  colors,
+  categories,
+  photos,
+  active,
+  onSelect,
+  onCreate,
+  onRename,
+  onDelete,
+  onError,
+}: {
+  colors: ColorTokens;
+  categories: Category[];
+  photos: Photo[];
+  active: string | 'all' | 'none';
+  onSelect: (_id: string | 'all' | 'none') => void;
+  onCreate: (_name: string) => Promise<void>;
+  onRename: (_id: string, _name: string) => Promise<void>;
+  onDelete: (_id: string) => Promise<void>;
+  onError: (_message: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const countFor = (id: string | 'all' | 'none') =>
+    id === 'all' ? photos.length
+      : id === 'none' ? photos.filter((p) => !p.categoryId).length
+        : photos.filter((p) => p.categoryId === id).length;
+
+  async function submitNew() {
+    const name = draft.trim();
+    if (!name) { setAdding(false); return; }
+    try {
+      await onCreate(name);
+      setDraft('');
+      setAdding(false);
+    } catch {
+      onError('Could not create the category.');
+    }
+  }
+
+  const chip = (label: string, id: string | 'all' | 'none', count: number): React.ReactNode => (
+    <button
+      key={id}
+      onClick={() => onSelect(id)}
+      style={{
+        padding: '6px 12px',
+        borderRadius: 999,
+        border: `1px solid ${active === id ? colors.invertedBg : colors.border}`,
+        background: active === id ? colors.invertedBg : 'transparent',
+        color: active === id ? colors.invertedText : colors.text,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label} <span style={{ opacity: 0.6 }}>{count}</span>
+    </button>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+      {chip('All', 'all', countFor('all'))}
+      {categories.map((cat) => (
+        <CategoryChip
+          key={cat.id}
+          colors={colors}
+          category={cat}
+          active={active === cat.id}
+          count={countFor(cat.id)}
+          onSelect={() => onSelect(cat.id)}
+          onRename={(name) => onRename(cat.id, name).catch(() => onError('Could not rename the category.'))}
+          onDelete={() => onDelete(cat.id).catch(() => onError('Could not delete the category.'))}
+        />
+      ))}
+      {countFor('none') > 0 && chip('Uncategorised', 'none', countFor('none'))}
+
+      {adding ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={submitNew}
+          onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); if (e.key === 'Escape') { setDraft(''); setAdding(false); } }}
+          placeholder="Category name"
+          style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 12.5, width: 150 }}
+        />
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          style={{ padding: '6px 12px', borderRadius: 999, border: `1px dashed ${colors.border}`, background: 'transparent', color: colors.subText, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Category
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CategoryChip({
+  colors,
+  category,
+  active,
+  count,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  colors: ColorTokens;
+  category: Category;
+  active: boolean;
+  count: number;
+  onSelect: () => void;
+  onRename: (_name: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category.name);
+
+  function commit() {
+    const next = name.trim();
+    if (next && next !== category.name) onRename(next);
+    else setName(category.name);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setName(category.name); setEditing(false); } }}
+        style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 12.5, width: 150 }}
+      />
+    );
+  }
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px 6px 12px',
+        borderRadius: 999,
+        border: `1px solid ${active ? colors.invertedBg : colors.border}`,
+        background: active ? colors.invertedBg : 'transparent',
+        color: active ? colors.invertedText : colors.text,
+      }}
+    >
+      <button
+        onClick={onSelect}
+        onDoubleClick={() => setEditing(true)}
+        title="Click to filter · double-click to rename"
+        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, padding: 0 }}
+      >
+        {category.name} <span style={{ opacity: 0.6 }}>{count}</span>
+      </button>
+      <button
+        onClick={() => { if (window.confirm(`Delete category “${category.name}”? Photos in it become uncategorised.`)) onDelete(); }}
+        aria-label={`Delete ${category.name}`}
+        title="Delete category"
+        style={{ background: 'none', border: 'none', color: 'inherit', opacity: 0.6, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+      >
+        ×
+      </button>
+    </span>
   );
 }
 

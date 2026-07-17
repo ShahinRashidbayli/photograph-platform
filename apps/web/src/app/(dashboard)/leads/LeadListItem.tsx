@@ -1,11 +1,13 @@
 import React from 'react';
 import { Lead } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { useTranslation } from '@/lib/i18n';
 import {
-  BUDGET_LABELS,
-  EVENT_LABELS,
-  SCORE_SHORT,
-  STATUS_LABEL,
+  translateOr,
+  BUDGET_LABEL_KEYS,
+  EVENT_LABEL_KEYS,
+  SCORE_SHORT_KEY,
+  STATUS_LABEL_KEY,
   type ColorTokens,
   type LeadScore,
   type LeadStatus,
@@ -36,6 +38,7 @@ export function LeadListItem({
   s: Styles;
   c: ColorTokens;
 }>) {
+  const { t, format } = useTranslation();
   const score = lead.score as LeadScore;
   const scoreVisual = getScoreVisual(score, c);
   // Days-until tells the photographer "how soon do I need to act?" — far
@@ -44,11 +47,7 @@ export function LeadListItem({
   const daysUntil = daysUntilEvent(lead.eventDate);
   const urgency = getUrgencyVisual(daysUntil, c);
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
-  const eventDateShort = new Date(lead.eventDate).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const eventDateShort = format.monthDayYear(lead.eventDate);
 
   let itemStyle: React.CSSProperties = { ...s.listItem };
   if (isActive) itemStyle = { ...itemStyle, ...s.listItemActive };
@@ -127,7 +126,7 @@ export function LeadListItem({
                     border: `1px solid ${sv.border}`,
                   }}
                 >
-                  {STATUS_LABEL[lead.status as LeadStatus] ?? lead.status}
+                  {translateOr(t, STATUS_LABEL_KEY[lead.status as LeadStatus], lead.status)}
                 </span>
               );
             }
@@ -140,7 +139,7 @@ export function LeadListItem({
                 }}
               >
                 <span style={{ ...s.badgeDot, background: scoreVisual.dot }} />
-                {SCORE_SHORT[score]}
+                {t(SCORE_SHORT_KEY[score])}
               </span>
             );
           })()}
@@ -149,10 +148,11 @@ export function LeadListItem({
         {/* Subtitle row: event type · budget. */}
         <div style={{ ...s.listItemBottomRow, color: c.textMuted, fontSize: '0.78rem' }}>
           <span>
-            {EVENT_LABELS[lead.eventType] ?? lead.eventType} · {BUDGET_LABELS[lead.budgetRange] ?? lead.budgetRange}
+            {translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)} ·{' '}
+            {translateOr(t, BUDGET_LABEL_KEYS[lead.budgetRange], lead.budgetRange)}
           </span>
           {lead.internalNotes ? (
-            <span style={s.listItemNoteDot} title="Has internal notes">
+            <span style={s.listItemNoteDot} title={t('leadList.hasNotes')}>
               {ICONS.document}
             </span>
           ) : null}
@@ -170,9 +170,9 @@ export function LeadListItem({
               background: urgency.bg,
               color: urgency.color,
             }}
-            title={`Event in ${daysUntil} days`}
+            title={t('leadUrgency.title', { count: String(daysUntil) })}
           >
-            {urgency.label}
+            {t(urgency.labelKey, { count: String(daysUntil) })}
           </span>
         </div>
       </div>

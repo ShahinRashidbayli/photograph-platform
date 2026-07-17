@@ -18,6 +18,21 @@ public record RegisterRequest(
     String subdomain,
     @NotNull @Pattern(regexp = "PHOTOGRAPHER|CUSTOMER",
         message = "role must be PHOTOGRAPHER or CUSTOMER")
-    String role
+    String role,
+
+    /**
+     * Plan the visitor picked on the pricing page. Optional — a signup that
+     * skips the pricing cards (nav "Get started", footer) sends nothing and
+     * lands on STARTER.
+     *
+     * <p>This is a <em>trial</em> selection, not an entitlement: every plan is
+     * free for the 14-day trial, so trusting the client here grants nothing it
+     * would not already get. That stops being true the moment plan gates or
+     * billing land — at which point the plan must come from a paid
+     * subscription, never from this field. See docs/PRICING.md §4, §7.6.
+     */
+    @Pattern(regexp = "STARTER|PRO|STUDIO",
+        message = "plan must be STARTER, PRO or STUDIO")
+    String plan
 ) {
 }

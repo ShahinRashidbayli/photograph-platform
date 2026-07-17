@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Lead } from '@/types/api';
+import { useTranslation } from '@/lib/i18n';
 import type { ColorTokens } from './leadTypes';
 
 /**
@@ -26,6 +27,7 @@ export function AddLeadModal({
   onClose: () => void;
   onCreated: (_lead: Lead) => void;
 }>) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -53,14 +55,14 @@ export function AddLeadModal({
     // constraints — surfacing them inline saves a round-trip and a generic
     // 400 error message.
     const errors: Record<string, string> = {};
-    if (!name.trim()) errors.name = 'Name is required.';
+    if (!name.trim()) errors.name = t('addLead.errName');
     if (!email.trim()) {
-      errors.email = 'Email is required.';
+      errors.email = t('addLead.errEmail');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      errors.email = 'Enter a valid email address.';
+      errors.email = t('createBooking.errEmailInvalid');
     }
-    if (!eventDate) errors.eventDate = 'Event date is required.';
-    if (!message.trim()) errors.message = 'Add a short note about the enquiry.';
+    if (!eventDate) errors.eventDate = t('createBooking.errDate');
+    if (!message.trim()) errors.message = t('addLead.errMessage');
     setFieldError(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -79,7 +81,7 @@ export function AddLeadModal({
     } catch (err) {
       const message = (err as { response?: { data?: { error?: string } } })
         ?.response?.data?.error;
-      setSubmitError(message ?? 'Could not save the lead. Please try again.');
+      setSubmitError(message ?? t('addLead.errSubmit'));
     } finally {
       setSubmitting(false);
     }
@@ -187,20 +189,20 @@ export function AddLeadModal({
         if (e.target === e.currentTarget && !submitting) onClose();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Add a new lead" style={card}>
+      <div role="dialog" aria-modal="true" aria-label={t('addLead.aria')} style={card}>
         <div style={header}>
           <div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
-              New lead
+              {t('addLead.title')}
             </div>
             <div style={{ fontSize: '0.85rem', color: c.textMuted, marginTop: '4px' }}>
-              Add an enquiry that came in off-platform (phone, WhatsApp, walk-in).
+              {t('addLead.subtitle')}
             </div>
           </div>
           <button
             type="button"
             onClick={() => !submitting && onClose()}
-            aria-label="Close"
+            aria-label={t('common.close')}
             style={{
               background: 'transparent',
               border: 'none',
@@ -232,7 +234,7 @@ export function AddLeadModal({
           )}
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-name">Client name *</label>
+            <label style={label} htmlFor="al-name">{t('addLead.name')}</label>
             <input
               id="al-name"
               type="text"
@@ -248,7 +250,7 @@ export function AddLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-email">Email *</label>
+              <label style={label} htmlFor="al-email">{t('addLead.email')}</label>
               <input
                 id="al-email"
                 type="email"
@@ -262,7 +264,7 @@ export function AddLeadModal({
               )}
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-phone">Phone</label>
+              <label style={label} htmlFor="al-phone">{t('addLead.phone')}</label>
               <input
                 id="al-phone"
                 type="tel"
@@ -277,7 +279,7 @@ export function AddLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-date">Event date *</label>
+              <label style={label} htmlFor="al-date">{t('addLead.eventDate')}</label>
               <input
                 id="al-date"
                 type="date"
@@ -290,46 +292,46 @@ export function AddLeadModal({
               )}
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-type">Event type</label>
+              <label style={label} htmlFor="al-type">{t('addLead.eventType')}</label>
               <select
                 id="al-type"
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value as Lead['eventType'])}
                 style={input(false)}
               >
-                <option value="WEDDING">Wedding</option>
-                <option value="ENGAGEMENT">Engagement</option>
-                <option value="PORTRAIT">Portrait</option>
-                <option value="FAMILY">Family</option>
-                <option value="NEWBORN">Newborn</option>
-                <option value="CORPORATE">Corporate</option>
+                <option value="WEDDING">{t('leadEvent.WEDDING')}</option>
+                <option value="ENGAGEMENT">{t('leadEvent.ENGAGEMENT')}</option>
+                <option value="PORTRAIT">{t('leadEvent.PORTRAIT')}</option>
+                <option value="FAMILY">{t('leadEvent.FAMILY')}</option>
+                <option value="NEWBORN">{t('leadEvent.NEWBORN')}</option>
+                <option value="CORPORATE">{t('leadEvent.CORPORATE')}</option>
               </select>
             </div>
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-budget">Budget range</label>
+            <label style={label} htmlFor="al-budget">{t('addLead.budget')}</label>
             <select
               id="al-budget"
               value={budgetRange}
               onChange={(e) => setBudgetRange(e.target.value as Lead['budgetRange'])}
               style={input(false)}
             >
-              <option value="UNDER_200">Under €200</option>
-              <option value="200_500">€200–500</option>
-              <option value="500_1000">€500–1,000</option>
-              <option value="OVER_1000">Over €1,000</option>
+              <option value="UNDER_200">{t('addLead.budget.UNDER_200')}</option>
+              <option value="200_500">{t('addLead.budget.200_500')}</option>
+              <option value="500_1000">{t('addLead.budget.500_1000')}</option>
+              <option value="OVER_1000">{t('addLead.budget.OVER_1000')}</option>
             </select>
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-msg">Notes / message *</label>
+            <label style={label} htmlFor="al-msg">{t('addLead.message')}</label>
             <textarea
               id="al-msg"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               style={{ ...input(!!fieldError.message), minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }}
-              placeholder="What did the client ask for?"
+              placeholder={t('addLead.messagePlaceholder')}
             />
             {fieldError.message && (
               <span style={{ fontSize: '0.78rem', color: c.dangerText }}>{fieldError.message}</span>
@@ -339,10 +341,10 @@ export function AddLeadModal({
 
         <div style={footer}>
           <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="button" style={primaryBtn} onClick={handleSubmit} disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save lead'}
+            {submitting ? t('common.saving') : t('addLead.submit')}
           </button>
         </div>
       </div>

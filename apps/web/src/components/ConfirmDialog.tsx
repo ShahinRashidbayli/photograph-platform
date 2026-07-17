@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { getColors, type Theme } from '@/lib/design-tokens';
+import { useTranslation } from '@/lib/i18n';
 
 /**
  * Styled, theme-aware confirmation dialog — a replacement for the native
@@ -11,8 +12,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   tone = 'danger',
   theme,
   busy = false,
@@ -22,7 +23,9 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
   message: string;
+  /** Defaults to a translated "Confirm" when omitted. */
   confirmLabel?: string;
+  /** Defaults to a translated "Cancel" when omitted. */
   cancelLabel?: string;
   tone?: 'danger' | 'primary';
   theme: Theme;
@@ -30,6 +33,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }>) {
+  const { t } = useTranslation();
   const c = getColors(theme);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -100,7 +104,7 @@ export function ConfirmDialog({
               cursor: busy ? 'not-allowed' : 'pointer',
             }}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             ref={confirmRef}
@@ -119,7 +123,7 @@ export function ConfirmDialog({
               minWidth: '96px',
             }}
           >
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? t('common.working') : confirmLabel ?? t('common.confirm')}
           </button>
         </div>
       </div>

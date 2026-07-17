@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useThemeStore } from '@/store/themeStore';
+import { useIsPhotographer, useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
+import { formatMonthDayYear } from '@/lib/helpers';
 import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
 
 type AppColors = ReturnType<typeof getGalleriesColors>;
@@ -17,12 +19,27 @@ interface Gallery {
   photoCount: number;
   downloadEnabled: boolean;
   watermarkEnabled: boolean;
-  expiresAt: string;
+  expiresAt: string | null;
   accessToken: string;
   viewCount: number;
 }
 
-function daysUntil(dateStr: string) {
+interface BookingOption {
+  id: string;
+  clientName: string;
+  eventType: string | null;
+  eventDate: string;
+}
+
+interface InitiateUploadResponse {
+  photoId: string;
+  r2Key: string;
+  uploadUrl: string;
+}
+
+/** Whole days until a date, or null when there's no expiry set. */
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
@@ -63,6 +80,32 @@ const IconX = () => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
+const IconPlus = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+const IconUpload = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
+function expiryLabel(days: number | null): { text: string; kind: 'none' | 'expired' | 'warning' | 'ok' } {
+  if (days === null) return { text: 'No expiry', kind: 'none' };
+  if (days < 0) return { text: 'Expired', kind: 'expired' };
+  if (days < 7) return { text: `${days} days left`, kind: 'warning' };
+  return { text: `${days} days left`, kind: 'ok' };
+}
 
 // ─── GalleryListItem ──────────────────────────────────────────────────────────
 function GalleryListItem({
@@ -72,16 +115,16 @@ function GalleryListItem({
   styles,
   colors,
 }: Readonly<{ gallery: Gallery; isActive: boolean; onSelect: () => void; styles: AppStyles; colors: AppColors }>) {
-  const days = daysUntil(gallery.expiresAt);
-  const isExpired = days < 0;
-  const isWarning = days < 7 && days >= 0;
+  const label = expiryLabel(daysUntil(gallery.expiresAt));
+  const tone =
+    label.kind === 'expired' ? colors.dangerText
+      : label.kind === 'warning' ? colors.warningText
+        : label.kind === 'ok' ? colors.successText
+          : colors.textMuted;
 
   return (
     <button
-      style={{
-        ...styles.listItem,
-        ...(isActive ? styles.listItemActive : {}),
-      }}
+      style={{ ...styles.listItem, ...(isActive ? styles.listItemActive : {}) }}
       onClick={onSelect}
     >
       <div style={styles.listItemTitle}>{gallery.bookingName}</div>
@@ -89,13 +132,8 @@ function GalleryListItem({
         {gallery.eventType} · {gallery.photoCount} photos
       </div>
       <div style={{ ...styles.listItemMeta, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-        {isExpired ? (
-          <><IconX /><span style={{ color: colors.dangerText }}>Expired</span></>
-        ) : isWarning ? (
-          <><IconClock /><span style={{ color: colors.warningText }}>{days} days left</span></>
-        ) : (
-          <><IconCheck /><span style={{ color: colors.successText }}>{days} days left</span></>
-        )}
+        {label.kind === 'expired' ? <IconX /> : label.kind === 'warning' ? <IconClock /> : <IconCheck />}
+        <span style={{ color: tone }}>{label.text}</span>
       </div>
     </button>
   );
@@ -104,13 +142,38 @@ function GalleryListItem({
 // ─── GalleryDetail ────────────────────────────────────────────────────────────
 function GalleryDetail({
   gallery,
+  subdomain,
   styles,
-}: Readonly<{ gallery: Gallery | null; styles: AppStyles }>) {
+  colors,
+  busy,
+  onPatch,
+  onDelete,
+  onUpload,
+}: Readonly<{
+  gallery: Gallery | null;
+  subdomain: string | null;
+  styles: AppStyles;
+  colors: AppColors;
+  busy: boolean;
+  onPatch: (id: string, body: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
+  onUpload: (id: string, files: FileList) => void;
+}>) {
   const [copied, setCopied] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // The viewer lives in-app at /g/{subdomain}/{token}. Without a subdomain the
+  // link can't be built (the token alone can't resolve the tenant schema).
+  const shareUrl = gallery && subdomain
+    ? `${window.location.origin}/g/${subdomain}/${gallery.accessToken}`
+    : null;
+  const shareDisplay = gallery && subdomain
+    ? `${window.location.host}/g/${subdomain}/${gallery.accessToken}`
+    : 'Gallery link unavailable';
 
   function copyLink() {
-    if (!gallery) return;
-    navigator.clipboard.writeText(`gallery.fotolio.app/${gallery.accessToken}`).then(() => {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -126,17 +189,25 @@ function GalleryDetail({
   }
 
   const days = daysUntil(gallery.expiresAt);
-  const isExpired = days < 0;
-  const isWarning = days < 7 && days >= 0;
+  const label = expiryLabel(days);
+  const expiryBadgeStyle =
+    label.kind === 'expired' ? styles.expiryExpired
+      : label.kind === 'warning' ? styles.expiryWarning
+        : styles.expiryActive;
 
-  const expiryBadgeStyle = isExpired
-    ? styles.expiryExpired
-    : isWarning
-      ? styles.expiryWarning
-      : styles.expiryActive;
+  const shootDate = formatMonthDayYear(gallery.shootDate);
 
-  const shootDate = new Date(gallery.shootDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const expiryDate = new Date(gallery.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Extend from the later of "now" and the current expiry, so extending an
+  // already-expired gallery gives a fresh 30-day window rather than a date in
+  // the past.
+  function extend30() {
+    if (!gallery) return;
+    const base = gallery.expiresAt && new Date(gallery.expiresAt) > new Date()
+      ? new Date(gallery.expiresAt)
+      : new Date();
+    base.setDate(base.getDate() + 30);
+    onPatch(gallery.id, { expiresAt: base.toISOString() });
+  }
 
   return (
     <>
@@ -148,14 +219,34 @@ function GalleryDetail({
           </div>
         </div>
         <div style={styles.detailActions}>
-          <a
-            href={`https://gallery.fotolio.app/${gallery.accessToken}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ ...styles.actionButton, ...styles.actionButtonPrimary, textDecoration: 'none' }}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) onUpload(gallery.id, e.target.files);
+              e.target.value = '';
+            }}
+          />
+          <button
+            style={{ ...styles.actionButton, ...styles.actionButtonOutline }}
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
           >
-            <IconEye /> View gallery
-          </a>
+            <IconUpload /> {busy ? 'Uploading…' : 'Upload'}
+          </button>
+          {shareUrl && (
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...styles.actionButton, ...styles.actionButtonPrimary, textDecoration: 'none' }}
+            >
+              <IconEye /> View gallery
+            </a>
+          )}
         </div>
       </div>
 
@@ -171,7 +262,7 @@ function GalleryDetail({
           </div>
           <div style={styles.statBox}>
             <div style={styles.statBoxLabel}>Days left</div>
-            <div style={styles.statBoxValue}>{isExpired ? '—' : days}</div>
+            <div style={styles.statBoxValue}>{days === null ? '∞' : days < 0 ? '—' : days}</div>
           </div>
         </div>
 
@@ -180,23 +271,40 @@ function GalleryDetail({
           <div style={styles.infoGrid}>
             <div style={styles.infoRow}>
               <span style={styles.infoLabel}>Download</span>
-              <span style={{ ...styles.infoValue, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={() => onPatch(gallery.id, { downloadEnabled: !gallery.downloadEnabled })}
+                disabled={busy}
+                style={{ ...styles.infoValue, background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', color: gallery.downloadEnabled ? colors.successText : colors.textMuted }}
+              >
                 {gallery.downloadEnabled ? <><IconCheck /> Enabled</> : <><IconX /> Disabled</>}
-              </span>
+              </button>
             </div>
             <div style={styles.infoRow}>
               <span style={styles.infoLabel}>Watermark</span>
-              <span style={{ ...styles.infoValue, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={() => onPatch(gallery.id, { watermarkEnabled: !gallery.watermarkEnabled })}
+                disabled={busy}
+                style={{ ...styles.infoValue, background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', color: gallery.watermarkEnabled ? colors.successText : colors.textMuted }}
+              >
                 {gallery.watermarkEnabled ? <><IconCheck /> Enabled</> : <><IconX /> Disabled</>}
-              </span>
+              </button>
             </div>
             <div style={{ ...styles.infoRow, borderBottom: 'none', paddingBottom: 0 }}>
               <span style={styles.infoLabel}>Expires</span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                <span style={styles.infoValue}>{expiryDate}</span>
-                <span style={{ ...styles.expiryBadge, ...expiryBadgeStyle }}>
-                  {isExpired ? 'Expired' : isWarning ? `${days} days` : `${days} days`}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                <span style={styles.infoValue}>
+                  {gallery.expiresAt ? formatMonthDayYear(gallery.expiresAt) : 'No expiry'}
                 </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ ...styles.expiryBadge, ...expiryBadgeStyle }}>{label.text}</span>
+                  <button
+                    onClick={extend30}
+                    disabled={busy}
+                    style={{ ...styles.actionButton, ...styles.actionButtonOutline, padding: '3px 9px', fontSize: '0.75rem' }}
+                  >
+                    +30 days
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -204,18 +312,128 @@ function GalleryDetail({
 
         <div style={styles.section}>
           <div style={styles.sectionTitle}>Gallery Link</div>
-          <div style={styles.codeBlock}>
-            {`gallery.fotolio.app/${gallery.accessToken}`}
-          </div>
+          <div style={styles.codeBlock}>{shareDisplay}</div>
           <button
             style={{ ...styles.actionButton, ...styles.actionButtonOutline, width: '100%', marginTop: '10px', justifyContent: 'center' }}
             onClick={copyLink}
+            disabled={!shareUrl}
           >
             <IconCopy /> {copied ? 'Copied!' : 'Copy Link'}
           </button>
         </div>
+
+        <div style={styles.section}>
+          <button
+            onClick={() => onDelete(gallery.id)}
+            disabled={busy}
+            style={{ ...styles.actionButton, ...styles.actionButtonOutline, width: '100%', justifyContent: 'center', color: colors.dangerText, borderColor: colors.dangerText }}
+          >
+            <IconTrash /> Delete gallery
+          </button>
+        </div>
       </div>
     </>
+  );
+}
+
+// ─── CreateGalleryModal ─────────────────────────────────────────────────────────
+function CreateGalleryModal({
+  colors,
+  onClose,
+  onCreated,
+}: Readonly<{ colors: AppColors; onClose: () => void; onCreated: (g: Gallery) => void }>) {
+  const [bookings, setBookings] = useState<BookingOption[]>([]);
+  const [bookingId, setBookingId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<BookingOption[]>('/api/photographerBookings?size=100')
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setBookings(list);
+        setBookingId(list[0]?.id ?? '');
+      })
+      .catch(() => setError('Could not load bookings.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function submit() {
+    if (!bookingId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { data } = await api.post<Gallery>('/api/galleries', { bookingId });
+      onCreated(data);
+    } catch {
+      setError('Could not create the gallery. Please try again.');
+      setSubmitting(false);
+    }
+  }
+
+  const overlay: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
+  };
+  const card: React.CSSProperties = {
+    background: colors.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 440,
+    border: `1px solid ${colors.border}`, color: colors.text,
+  };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={card} onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 4 }}>New gallery</h2>
+        <p style={{ fontSize: '0.85rem', color: colors.textMuted, marginBottom: 18 }}>
+          Create a delivery gallery for a booking, then upload the photos.
+        </p>
+
+        {loading ? (
+          <div style={{ color: colors.textMuted, padding: '20px 0' }}>Loading bookings…</div>
+        ) : bookings.length === 0 ? (
+          <div style={{ color: colors.textMuted, padding: '12px 0', fontSize: '0.9rem' }}>
+            You have no bookings yet — create a booking first, then come back to deliver its gallery.
+          </div>
+        ) : (
+          <>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: colors.textMuted }}>
+              Booking
+            </label>
+            <select
+              value={bookingId}
+              onChange={(e) => setBookingId(e.target.value)}
+              style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: '0.9rem' }}
+            >
+              {bookings.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.clientName}{b.eventType ? ` · ${b.eventType}` : ''} · {formatMonthDayYear(b.eventDate)}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+
+        {error && <p style={{ color: colors.dangerText, fontSize: '0.82rem', marginTop: 12 }}>{error}</p>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '9px 16px', borderRadius: 10, border: `1px solid ${colors.border}`, background: 'transparent', color: colors.text, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!bookingId || submitting}
+            style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: colors.primarySolid, color: '#fff', fontWeight: 600, cursor: !bookingId || submitting ? 'default' : 'pointer', opacity: !bookingId || submitting ? 0.6 : 1 }}
+          >
+            {submitting ? 'Creating…' : 'Create gallery'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -224,6 +442,8 @@ export default function GalleriesPage() {
   const { theme } = useThemeStore();
   const styles = useMemo(() => getGalleriesStyles(theme), [theme]);
   const colors = useMemo(() => getGalleriesColors(theme), [theme]);
+  const isPhotographer = useIsPhotographer();
+  const subdomain = useAuthStore((s) => s.user?.tenant?.subdomain ?? null);
 
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null);
@@ -231,6 +451,8 @@ export default function GalleriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadGalleries = useCallback(() => {
     setLoading(true);
@@ -240,18 +462,74 @@ export default function GalleriesPage() {
       .then((res) => {
         const list = Array.isArray(res.data) ? res.data : [];
         setGalleries(list);
-        setSelectedGalleryId(list[0]?.id ?? null);
+        setSelectedGalleryId((prev) => prev ?? list[0]?.id ?? null);
       })
       .catch(() => setError('Could not load galleries. Please try again.'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadGalleries(); }, [loadGalleries]);
+  useEffect(() => {
+    if (isPhotographer) loadGalleries();
+  }, [isPhotographer, loadGalleries]);
+
+  const patchGallery = useCallback(async (id: string, body: Record<string, unknown>) => {
+    setBusyId(id);
+    try {
+      const { data } = await api.patch<Gallery>(`/api/galleries/${id}`, body);
+      setGalleries((prev) => prev.map((g) => (g.id === id ? data : g)));
+    } catch {
+      setError('Could not update the gallery.');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const deleteGallery = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this gallery and all its photos? This cannot be undone.')) return;
+    setBusyId(id);
+    try {
+      await api.delete(`/api/galleries/${id}`);
+      setGalleries((prev) => {
+        const next = prev.filter((g) => g.id !== id);
+        setSelectedGalleryId(next[0]?.id ?? null);
+        return next;
+      });
+    } catch {
+      setError('Could not delete the gallery.');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const uploadPhotos = useCallback(async (galleryId: string, files: FileList) => {
+    setBusyId(galleryId);
+    try {
+      for (const file of Array.from(files)) {
+        const { data: init } = await api.post<InitiateUploadResponse>(
+          `/api/galleries/${galleryId}/photos/initiate-upload`,
+          { filename: file.name, contentType: file.type || 'application/octet-stream' },
+        );
+        await fetch(init.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        });
+        await api.post(`/api/galleries/photos/${init.photoId}/complete`, { fileSizeBytes: file.size });
+      }
+      // Re-read so photoCount reflects the new uploads.
+      const { data } = await api.get<Gallery[]>('/api/galleries');
+      if (Array.isArray(data)) setGalleries(data);
+    } catch {
+      setError('Some photos could not be uploaded. Please try again.');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
 
   const filteredGalleries = useMemo(() => {
     let filtered = galleries;
-    if (filterStatus === 'Active') filtered = filtered.filter(g => daysUntil(g.expiresAt) >= 0);
-    else if (filterStatus === 'Expired') filtered = filtered.filter(g => daysUntil(g.expiresAt) < 0);
+    if (filterStatus === 'Active') filtered = filtered.filter(g => { const d = daysUntil(g.expiresAt); return d === null || d >= 0; });
+    else if (filterStatus === 'Expired') filtered = filtered.filter(g => { const d = daysUntil(g.expiresAt); return d !== null && d < 0; });
     const q = searchQuery.trim().toLowerCase();
     if (!q) return filtered;
     return filtered.filter(g =>
@@ -266,9 +544,42 @@ export default function GalleriesPage() {
 
   const stats = useMemo(() => ({
     total: galleries.length,
-    active: galleries.filter(g => daysUntil(g.expiresAt) >= 0).length,
+    active: galleries.filter(g => { const d = daysUntil(g.expiresAt); return d === null || d >= 0; }).length,
     totalPhotos: galleries.reduce((sum, g) => sum + g.photoCount, 0),
   }), [galleries]);
+
+  // Client view: no tenant-wide gallery list for them (and no customer gallery
+  // API yet), so present a calm empty state instead of a retry-loop error.
+  if (!isPhotographer) {
+    return (
+      <div style={styles.pageWrapper}>
+        <header style={styles.pageHeader}>
+          <div>
+            <h1 style={styles.pageTitle}>Your Galleries</h1>
+            <p style={styles.pageSubtitle}>Your delivered photo galleries will appear here.</p>
+          </div>
+        </header>
+        <div
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            textAlign: 'center', padding: '64px 24px', gap: '14px', color: colors.textMuted,
+          }}
+        >
+          <div style={{ width: 56, height: 56, borderRadius: '14px', background: colors.surfaceAlt, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="15" rx="2" />
+              <circle cx="8.5" cy="9.5" r="1.5" />
+              <path d="M21 16l-5-5-6 6-3-3-4 4" />
+            </svg>
+          </div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: colors.text }}>No galleries yet</div>
+          <div style={{ fontSize: '0.9rem', maxWidth: 360 }}>
+            Your photos will appear here once your photographer delivers them.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -278,10 +589,7 @@ export default function GalleriesPage() {
           <div style={styles.listPanel}>
             <div style={styles.listScroll}>
               {[0, 1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', marginBottom: 10 }}
-                >
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', marginBottom: 10 }}>
                   <div style={{ height: 13, width: '60%', borderRadius: 6, background: colors.surfaceAlt, animation: 'pulse 1.6s ease-in-out infinite' }} />
                   <div style={{ height: 11, width: '40%', borderRadius: 6, background: colors.surfaceAlt, animation: 'pulse 1.6s ease-in-out infinite' }} />
                 </div>
@@ -296,7 +604,7 @@ export default function GalleriesPage() {
     );
   }
 
-  if (error) {
+  if (error && galleries.length === 0) {
     return (
       <div style={styles.pageWrapper}>
         <div style={styles.errorPanel}>
@@ -310,6 +618,18 @@ export default function GalleriesPage() {
 
   return (
     <div style={styles.pageWrapper}>
+      {showCreate && (
+        <CreateGalleryModal
+          colors={colors}
+          onClose={() => setShowCreate(false)}
+          onCreated={(g) => {
+            setGalleries((prev) => [g, ...prev]);
+            setSelectedGalleryId(g.id);
+            setShowCreate(false);
+          }}
+        />
+      )}
+
       <header style={styles.pageHeader}>
         <div>
           <h1 style={styles.pageTitle}>Your Galleries</h1>
@@ -330,6 +650,12 @@ export default function GalleriesPage() {
               <div style={styles.headerStatChange}>available</div>
             </div>
           </div>
+          <button
+            style={{ ...styles.actionButton, ...styles.actionButtonPrimary, alignSelf: 'center' }}
+            onClick={() => setShowCreate(true)}
+          >
+            <IconPlus /> New gallery
+          </button>
         </div>
       </header>
 
@@ -352,10 +678,7 @@ export default function GalleriesPage() {
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
-                style={{
-                  ...styles.filterTab,
-                  ...(filterStatus === status ? styles.filterTabActive : {}),
-                }}
+                style={{ ...styles.filterTab, ...(filterStatus === status ? styles.filterTabActive : {}) }}
               >
                 {status}
               </button>
@@ -383,7 +706,16 @@ export default function GalleriesPage() {
         </div>
 
         <div style={styles.detailPanel}>
-          <GalleryDetail gallery={selectedGallery} styles={styles} />
+          <GalleryDetail
+            gallery={selectedGallery}
+            subdomain={subdomain}
+            styles={styles}
+            colors={colors}
+            busy={busyId !== null && busyId === selectedGallery?.id}
+            onPatch={patchGallery}
+            onDelete={deleteGallery}
+            onUpload={uploadPhotos}
+          />
         </div>
       </div>
     </div>

@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { extractApiError, eurosToCents } from '@/lib/helpers';
 import { Booking, Lead, Package } from '@/types/api';
-import { EVENT_LABELS, type ColorTokens } from './leadTypes';
+import { useTranslation } from '@/lib/i18n';
+import { translateOr, EVENT_LABEL_KEYS, type ColorTokens } from './leadTypes';
 
 export function ConvertLeadModal({
   lead,
@@ -17,6 +18,7 @@ export function ConvertLeadModal({
   onClose: () => void;
   onConverted: (_booking: Booking) => void;
 }>) {
+  const { t, format } = useTranslation();
   const [eventTime, setEventTime] = useState('');
   const [location, setLocation] = useState('');
   const [packageId, setPackageId] = useState('');
@@ -83,7 +85,7 @@ export function ConvertLeadModal({
       const total = totalTyped ? eurosToCents(totalAmount) : 0;
       const deposit = eurosToCents(depositAmount);
       if (deposit > total) {
-        setFieldError('Deposit cannot exceed the total.');
+        setFieldError(t('createBooking.errDeposit'));
         return;
       }
     }
@@ -108,19 +110,14 @@ export function ConvertLeadModal({
       // 409 from the backend means the lead was already converted (idempotency
       // contract). Surface it plainly rather than the generic error.
       setSubmitError(
-        extractApiError(err, 'Could not convert the lead. Please try again.'),
+        extractApiError(err, t('convertLead.errSubmit')),
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formattedEventDate = new Date(lead.eventDate).toLocaleDateString('en-US', {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  const formattedEventDate = format.fullDate(lead.eventDate);
 
   // Styles ───────────────────────────────────────────────────────────────────
   const overlay: React.CSSProperties = {
@@ -243,23 +240,23 @@ export function ConvertLeadModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Convert ${lead.name} to a booking`}
+        aria-label={t('convertLead.aria', { name: lead.name })}
         style={card}
       >
         <div style={header}>
           <div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
-              Convert to booking
+              {t('leads.convertToBooking')}
             </div>
             <div style={{ fontSize: '0.85rem', color: c.textMuted, marginTop: '4px' }}>
-              The booking starts as an enquiry — you can advance it afterwards.
+              {t('createBooking.subtitle')}
             </div>
           </div>
           <button
             type="button"
             style={closeBtn}
             onClick={() => !submitting && onClose()}
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             ×
           </button>
@@ -278,24 +275,24 @@ export function ConvertLeadModal({
             }}
           >
             <div style={{ fontSize: '0.78rem', fontWeight: 700, color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-              From this lead
+              {t('convertLead.fromLead')}
             </div>
             <div style={readOnlyRow}>
-              <span style={label}>Client</span>
+              <span style={label}>{t('convertLead.client')}</span>
               <span style={{ color: c.text }}>{lead.name}</span>
             </div>
             <div style={readOnlyRow}>
-              <span style={label}>Email</span>
+              <span style={label}>{t('convertLead.email')}</span>
               <span style={{ color: c.text }}>{lead.email}</span>
             </div>
             <div style={readOnlyRow}>
-              <span style={label}>Event date</span>
+              <span style={label}>{t('convertLead.eventDate')}</span>
               <span style={{ color: c.text }}>{formattedEventDate}</span>
             </div>
             <div style={readOnlyRow}>
-              <span style={label}>Event type</span>
+              <span style={label}>{t('convertLead.eventType')}</span>
               <span style={{ color: c.text }}>
-                {EVENT_LABELS[lead.eventType] ?? lead.eventType}
+                {translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)}
               </span>
             </div>
           </div>
@@ -318,7 +315,7 @@ export function ConvertLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-time">Event time</label>
+              <label style={label} htmlFor="cv-time">{t('createBooking.eventTime')}</label>
               <input
                 id="cv-time"
                 type="time"
@@ -328,7 +325,7 @@ export function ConvertLeadModal({
               />
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-location">Location</label>
+              <label style={label} htmlFor="cv-location">{t('createBooking.location')}</label>
               <input
                 id="cv-location"
                 type="text"
@@ -343,14 +340,14 @@ export function ConvertLeadModal({
 
           {packages.length > 0 && (
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-package">Package</label>
+              <label style={label} htmlFor="cv-package">{t('createBooking.package')}</label>
               <select
                 id="cv-package"
                 value={packageId}
                 onChange={(e) => handlePackageChange(e.target.value)}
                 style={input}
               >
-                <option value="">No package — custom price</option>
+                <option value="">{t('createBooking.noPackage')}</option>
                 {packages.map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>
                     {pkg.name} — €{(pkg.priceCents / 100).toFixed(0)}
@@ -358,14 +355,14 @@ export function ConvertLeadModal({
                 ))}
               </select>
               <span style={{ fontSize: '0.78rem', color: c.textMuted }}>
-                Picking a package fills the total below. Override the total to use a custom price.
+                {t('createBooking.packageHelp')}
               </span>
             </div>
           )}
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-total">Total (€)</label>
+              <label style={label} htmlFor="cv-total">{t('convertLead.total')}</label>
               <input
                 id="cv-total"
                 type="number"
@@ -377,7 +374,7 @@ export function ConvertLeadModal({
               />
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-deposit">Deposit (€)</label>
+              <label style={label} htmlFor="cv-deposit">{t('createBooking.deposit')}</label>
               <input
                 id="cv-deposit"
                 type="number"
@@ -400,20 +397,20 @@ export function ConvertLeadModal({
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="cv-notes">Internal notes</label>
+            <label style={label} htmlFor="cv-notes">{t('createBooking.notes')}</label>
             <textarea
               id="cv-notes"
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
               style={{ ...input, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit' }}
-              placeholder="Only visible to you."
+              placeholder={t('createBooking.notesPlaceholder')}
             />
           </div>
         </div>
 
         <div style={footer}>
           <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -421,7 +418,7 @@ export function ConvertLeadModal({
             onClick={handleSubmit}
             disabled={submitting}
           >
-            {submitting ? 'Converting…' : 'Convert to booking'}
+            {submitting ? t('convertLead.submitting') : t('leads.convertToBooking')}
           </button>
         </div>
       </div>

@@ -89,4 +89,8 @@ public class Client {
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
 }

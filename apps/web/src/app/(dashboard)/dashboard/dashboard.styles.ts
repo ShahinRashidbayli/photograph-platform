@@ -27,7 +27,7 @@ export const getDashboardStyles = (
       display: 'flex',
       justifyContent: 'space-between',
       gap: '20px',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       marginBottom: '28px',
       flexWrap: 'wrap',
     },

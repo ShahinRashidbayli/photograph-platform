@@ -1,11 +1,14 @@
 "use client";
 
 import api from '@/lib/api';
-import { AuthUser, useAuthStore } from '@/store/authStore';
+import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
+import { ComingSoon } from '@/components/ComingSoon';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -14,65 +17,75 @@ import { useEffect, useRef, useState } from 'react';
 // daily-work pages first, content-management in the middle, analytics
 // (revenue, reports) at the bottom. Each group renders with an uppercase
 // section header for grouping signal without using horizontal dividers.
-type NavLeaf = { label: string; href: string; icon: React.ReactNode; badgeKey?: 'unrepliedLeads' };
-type NavGroup = { title?: string; items: NavLeaf[] };
+type NavLeaf = { labelKey: TranslationKey; href: string; icon: React.ReactNode; badgeKey?: 'unrepliedLeads'; soon?: boolean };
+type NavGroup = { titleKey?: TranslationKey; items: NavLeaf[] };
 
 const PHOTOGRAPHER_NAV: NavGroup[] = [
   {
     // Untitled first group — primary daily-work pages live here.
     items: [
-      { label: 'Overview', href: '/dashboard', icon: (
+      { labelKey: 'nav.overview', href: '/dashboard', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/></svg>
       )},
-      { label: 'Bookings', href: '/bookings', icon: (
+      { labelKey: 'nav.bookings', href: '/bookings', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
       )},
       // Leads carries a live count badge of un-replied leads — "you have N
       // enquiries waiting" surfaces from the sidebar without needing to
       // open the page first.
-      { label: 'Leads', href: '/leads', badgeKey: 'unrepliedLeads', icon: (
+      { labelKey: 'nav.leads', href: '/leads', badgeKey: 'unrepliedLeads', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2 11l3-3 2 2 3-4 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       )},
-      { label: 'Clients', href: '/clients', icon: (
+      { labelKey: 'nav.clients', href: '/clients', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 12c0-2.49 2.01-4.5 4.5-4.5S10 9.51 10 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M10 6.5l1.5 1.5L14 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       )},
     ],
   },
   {
-    title: 'Content',
+    titleKey: 'nav.section.content',
     items: [
-      { label: 'Portfolio', href: '/portfolio', icon: (
+      { labelKey: 'nav.portfolio', href: '/portfolio', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 4.5h7M3.5 7h5M3.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
       )},
-      { label: 'Galleries', href: '/galleries', icon: (
+      { labelKey: 'nav.galleries', href: '/galleries', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
       )},
     ],
   },
   {
-    title: 'Analytics',
+    titleKey: 'nav.section.analytics',
     items: [
       // Reports + Revenue are stubbed pages today — they render a "coming
       // soon" placeholder. The sidebar entries exist now to validate the
       // information architecture; the real implementations land in later
       // sprints (revenue analytics is Sprint 2.5 in the master plan).
-      { label: 'Reports', href: '/reports', icon: (
+      { labelKey: 'nav.reports', href: '/reports', soon: true, icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4 10V7M7 10V5M10 10V8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
       )},
-      { label: 'Revenue', href: '/revenue', icon: (
+      { labelKey: 'nav.revenue', href: '/revenue', soon: true, icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M10.5 4c0-1.1-1.57-2-3.5-2s-3.5.9-3.5 2 1.57 2 3.5 2 3.5.9 3.5 2-1.57 2-3.5 2-3.5-.9-3.5-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       )},
     ],
   },
 ];
 
+// Payments is linked and reads REAL data — it derives every amount from the
+// client's own bookings (deposit paid, balance due, totals), so there are no
+// invented invoices. Documents stays UNLINKED: unlike Payments it is still built
+// against hard-coded sample data (a contract awaiting signature) with no
+// e-signature backend, and a "Soon" badge would not stop a client from opening
+// it and reading a fabricated contract as their own. It stays in the tree —
+// re-linking it is a one-line change once the document flow lands.
 const CLIENT_NAV: NavGroup[] = [
   {
     items: [
-      { label: 'My Bookings', href: '/bookings', icon: (
+      { labelKey: 'nav.myBookings', href: '/bookings', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="9.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
       )},
-      { label: 'Galleries', href: '/galleries', icon: (
+      { labelKey: 'nav.payments', href: '/payments', icon: (
+        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5.5h12" stroke="currentColor" strokeWidth="1.2"/><path d="M3.5 8.5h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      )},
+      { labelKey: 'nav.galleries', href: '/galleries', icon: (
         <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
       )},
     ],
@@ -98,6 +111,7 @@ function SidebarLink({ item, active, theme, colors, badgeCount }: {
   // nothing to flag.
   badgeCount?: number | null;
 }) {
+  const { t } = useTranslation();
   const activeColor = theme === 'light' ? '#EEF2FF' : 'rgba(99, 102, 241, 0.14)';
   const hoverColor = theme === 'light' ? '#F8FAFC' : '#1C1C22';
   const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
@@ -110,10 +124,11 @@ function SidebarLink({ item, active, theme, colors, badgeCount }: {
       aria-current={active ? 'page' : undefined}
     >
       <span style={{ opacity: active ? 1 : 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? colors.primary : colors.subText, transition: 'color 0.3s ease' }}>{item.icon}</span>
-      <span style={{ flex: 1 }}>{item.label}</span>
+      <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
+      {item.soon && <ComingSoon size="sm" />}
       {showBadge && (
         <span
-          aria-label={`${badgeCount} unread`}
+          aria-label={t('nav.aria.badgeUnread', { count: badgeCount })}
           style={{
             minWidth: '20px',
             height: '18px',
@@ -162,11 +177,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   const router = useRouter();
   const pathname = usePathname();
   const { user, setUser, clearUser } = useAuthStore();
+  const isPhotographer = useIsPhotographer();
   const [loading, setLoading] = useState(!user);
   const [isOpen, setIsOpen] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { theme } = useThemeStore();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (user) {
@@ -198,8 +215,6 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   useEffect(() => {
     if (!user?.role) return;
 
-    const role = user.role.toUpperCase();
-    const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
     // Settings is shared — both roles manage their own account there.
     const photographerOnlyPages = ['/dashboard', '/leads', '/clients', '/portfolio', '/reports', '/revenue'];
 
@@ -212,7 +227,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     } else {
       setAccessDenied(false);
     }
-  }, [pathname, user?.role, router]);
+  }, [pathname, user?.role, isPhotographer, router]);
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : '';
@@ -238,8 +253,6 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     }
   }
 
-  const role = user?.role?.toUpperCase();
-  const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
   const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
   const [unrepliedLeads, setUnrepliedLeads] = useState<number | null>(null);
 
@@ -298,7 +311,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
           suppressHydrationWarning
           style={{ color: lc.text, fontSize: '0.95rem' }}
         >
-          Loading dashboard...
+          {t('chrome.loading')}
         </div>
       </div>
     );
@@ -346,13 +359,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       <Header user={user} theme={theme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} unrepliedLeads={unrepliedLeads} />
 
       <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
-        <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label="Main navigation">
+        <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label={t('nav.aria.main')}>
           {navItems.map((group, gi) => (
-            <div key={group.title ?? `group-${gi}`}>
-              {group.title && <SidebarSectionHeader title={group.title} colors={colors} />}
+            <div key={group.titleKey ?? `group-${gi}`}>
+              {group.titleKey && <SidebarSectionHeader title={t(group.titleKey)} colors={colors} />}
               {group.items.map((item) => (
                 <SidebarLink
-                  key={item.label}
+                  key={item.labelKey}
                   item={item}
                   active={pathname === item.href}
                   theme={theme}
@@ -381,7 +394,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = colors.surfaceHover)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                aria-label="Open settings — current account"
+                aria-label={t('nav.aria.profile')}
               >
                 <span
                   style={{
@@ -415,7 +428,9 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                   >
                     {user.fullName ?? user.email}
                   </div>
-                  {user.tenant?.plan && (
+                  {/* Plan tier is the photographer's tenant billing — clients
+                      belong to that tenant but must not see its plan. */}
+                  {isPhotographer && user.tenant?.plan && (
                     <div
                       style={{
                         fontSize: '0.65rem',
@@ -426,7 +441,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                         marginTop: '2px',
                       }}
                     >
-                      {user.tenant.plan} plan
+                      {t('nav.plan', { plan: user.tenant.plan })}
                     </div>
                   )}
                 </div>
@@ -440,7 +455,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
             {user && !user.emailVerified ? <VerifyEmailBanner email={user.email} /> : null}
             {accessDenied ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 70px)', color: colors.subText }}>
-                Redirecting...
+                {t('chrome.redirecting')}
               </div>
             ) : (
               children
@@ -482,7 +497,16 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
+  const isPhotographer = useIsPhotographer();
+  const { t, tPlural } = useTranslation();
   const hasAlerts = (unrepliedLeads ?? 0) > 0;
+  const count = unrepliedLeads ?? 0;
+  const bellLabel = hasAlerts
+    ? tPlural('chrome.notifications.alert', count)
+    : t('chrome.notifications.none');
+  const bellTitle = hasAlerts
+    ? tPlural('chrome.notifications.open', count)
+    : t('chrome.notifications.none');
 
   // Close the menu and return focus to the avatar trigger so keyboard
   // users aren't stranded.
@@ -511,7 +535,7 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
         <button
           className="mobile-menu-btn"
           onClick={() => setIsOpen((v) => !v)}
-          aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-label={isOpen ? t('chrome.closeMenu') : t('chrome.openMenu')}
           style={{ width: 34, height: 34, borderRadius: '8px', border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text, cursor: 'pointer', alignItems: 'center', justifyContent: 'center' }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -526,7 +550,7 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} role="navigation" aria-label="User account">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} role="navigation" aria-label={t('chrome.aria.account')}>
         {/* Notifications bell. Today's only "notification" is unreplied leads
             (mirrors the sidebar Leads badge); clicking the bell navigates to
             the page where the user can actually act. When a real
@@ -534,8 +558,8 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
             stays the same so users don't re-learn it. */}
         <button
           onClick={() => router.push('/leads')}
-          aria-label={hasAlerts ? `${unrepliedLeads} unreplied lead${unrepliedLeads === 1 ? '' : 's'}` : 'No new notifications'}
-          title={hasAlerts ? `${unrepliedLeads} unreplied lead${unrepliedLeads === 1 ? '' : 's'} — open Leads` : 'No new notifications'}
+          aria-label={bellLabel}
+          title={bellTitle}
           style={{
             width: 34, height: 34,
             position: 'relative',
@@ -574,6 +598,8 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
           )}
         </button>
 
+        <LanguageToggle variant="bare" />
+
         <ThemeToggle variant="bare" />
 
         {/* User menu — avatar opens a dropdown holding the account actions. */}
@@ -583,7 +609,7 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
             onClick={() => setMenuOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            aria-label="Account menu"
+            aria-label={t('chrome.accountMenu')}
             style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: theme === 'light' ? '#6366F1' : '#818CF8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, cursor: 'pointer', transition: 'background 0.3s ease' }}
             title={user?.fullName ?? 'User'}
           >
@@ -597,8 +623,8 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
             >
               <div style={{ padding: '8px 10px 10px', borderBottom: `1px solid ${colors.border}`, marginBottom: '4px' }}>
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: colors.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.fullName ?? user?.email}</div>
-                {user?.tenant?.plan && (
-                  <div style={{ fontSize: '0.7rem', color: colors.subText, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginTop: '2px' }}>{user.tenant.plan} plan</div>
+                {isPhotographer && user?.tenant?.plan && (
+                  <div style={{ fontSize: '0.7rem', color: colors.subText, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600, marginTop: '2px' }}>{t('nav.plan', { plan: user.tenant.plan })}</div>
                 )}
               </div>
               <Link
@@ -609,7 +635,7 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
                 onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                Settings
+                {t('chrome.settings')}
               </Link>
               <button
                 role="menuitem"
@@ -618,7 +644,7 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
                 onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                Sign out
+                {t('chrome.signOut')}
               </button>
             </div>
           )}
@@ -629,19 +655,24 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
 }
 
 function EmailVerifyToast() {
-  const [message, setMessage] = useState<string | null>(null);
+  // Holds the server-supplied message, or an empty string when the event
+  // carried none — the fallback is resolved at render so it follows the
+  // active language rather than the one in effect when the event fired.
+  const [toast, setToast] = useState<{ text: string } | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail;
-      setMessage(detail?.message ?? 'Please verify your email before performing this action.');
-      window.setTimeout(() => setMessage(null), 6000);
+      setToast({ text: detail?.message ?? '' });
+      window.setTimeout(() => setToast(null), 6000);
     };
     window.addEventListener('app:email-not-verified', handler);
     return () => window.removeEventListener('app:email-not-verified', handler);
   }, []);
 
-  if (!message) return null;
+  if (!toast) return null;
+  const message = toast.text || t('verify.toastDefault');
 
   return (
     <div
@@ -669,12 +700,12 @@ function EmailVerifyToast() {
       <style>{`@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
       <span style={{ flex: '0 0 auto', marginTop: 2 }}>⚠️</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, marginBottom: 2 }}>Verify your email</div>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('verify.toastTitle')}</div>
         <div style={{ color: '#CBD5E1' }}>{message}</div>
       </div>
       <button
-        onClick={() => setMessage(null)}
-        aria-label="Dismiss"
+        onClick={() => setToast(null)}
+        aria-label={t('verify.dismiss')}
         style={{
           flex: '0 0 auto',
           width: 24,
@@ -696,6 +727,7 @@ function EmailVerifyToast() {
 function VerifyEmailBanner({ email }: { email: string }) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const { t } = useTranslation();
 
   async function resend() {
     setState('sending');
@@ -703,11 +735,11 @@ function VerifyEmailBanner({ email }: { email: string }) {
     try {
       await api.post('/api/auth/resend-verification');
       setState('sent');
-      setMessage(`We sent a fresh verification link to ${email}. It expires in 24 hours.`);
+      setMessage(t('verify.bannerSent', { email }));
     } catch (err: unknown) {
       const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setState('error');
-      setMessage(apiMessage ?? 'Could not send verification email. Please try again later.');
+      setMessage(apiMessage ?? t('verify.bannerError'));
     }
   }
 
@@ -729,10 +761,10 @@ function VerifyEmailBanner({ email }: { email: string }) {
       }}
     >
       <span style={{ flex: 1, minWidth: 220 }}>
-        <strong>Confirm your email.</strong>{' '}
+        <strong>{t('verify.bannerTitle')}</strong>{' '}
         {state === 'sent' || state === 'error'
           ? message
-          : `We sent a verification link to ${email}. Some features will stay locked until you confirm.`}
+          : t('verify.bannerBody', { email })}
       </span>
       <button
         type="button"
@@ -749,7 +781,7 @@ function VerifyEmailBanner({ email }: { email: string }) {
           cursor: state === 'sending' || state === 'sent' ? 'not-allowed' : 'pointer',
         }}
       >
-        {state === 'sending' ? 'Sending…' : state === 'sent' ? 'Email sent' : 'Resend email'}
+        {state === 'sending' ? t('verify.sending') : state === 'sent' ? t('verify.sent') : t('verify.resend')}
       </button>
     </div>
   );

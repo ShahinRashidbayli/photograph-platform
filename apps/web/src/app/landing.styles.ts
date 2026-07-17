@@ -590,6 +590,17 @@ export const getLandingStyles = (theme: Theme) => {
     priceFeatures: { listStyle: 'none', padding: 0, margin: '24px 0 0', display: 'flex', flexDirection: 'column', gap: 12 },
     priceItem: { display: 'flex', alignItems: 'center', gap: 11, fontSize: '0.9rem', color: c.text },
     priceChk: { width: 20, height: 20, borderRadius: 6, background: c.primaryBg, color: c.primaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    // Footnote marker sits tight to the label; the note itself is centred under
+    // the whole grid so it reads as a caveat on the pricing, not on one card.
+    priceFootMark: { color: c.textMuted, marginLeft: 2, fontWeight: 700 },
+    priceFootnote: {
+      maxWidth: 720,
+      margin: '28px auto 0',
+      textAlign: 'center',
+      fontSize: '0.8rem',
+      lineHeight: 1.6,
+      color: c.textMuted,
+    },
 
     // ─── Closing CTA ───────────────────────────────────────────
     ctaWrap: { maxWidth: 1180, margin: '0 auto', padding: '100px 32px' },

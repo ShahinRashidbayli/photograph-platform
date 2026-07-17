@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthUser, useAuthStore } from '@/store/authStore';
+import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -9,13 +9,16 @@ import type { Package } from '@/types/api';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-type SectionKey = 'account';
-
 export default function SettingsPage() {
   const user = useAuthStore(st => st.user);
   const setUser = useAuthStore(st => st.setUser);
   const { theme } = useThemeStore();
   const c = useMemo(() => getColors(theme), [theme]);
+
+  // Clients (CUSTOMER role) share this page but must not see the studio,
+  // packages or billing surfaces — those are the photographer's tenant-level
+  // concerns (subdomain, plan tier). A client only manages their own account.
+  const isPhotographer = useIsPhotographer();
 
   // Controlled inputs — kept in state so we can submit and reset them.
   const [fullNameInput, setFullNameInput] = useState(user?.fullName ?? '');
@@ -40,7 +43,7 @@ export default function SettingsPage() {
   useEffect(() => {
     setFullNameInput(user?.fullName ?? '');
     setSubdomainInput(user?.tenant?.subdomain ?? '');
-    setDirty({});
+    setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -130,10 +133,11 @@ export default function SettingsPage() {
     setSaved(false);
     setError(null);
     try {
-      const payload = {
-        fullName: fullNameInput.trim(),
-        subdomain: subdomainInput.trim(),
-      };
+      // Clients can only change their own name — subdomain is a tenant-level
+      // field they neither see nor own, so it's omitted from their payload.
+      const payload = isPhotographer
+        ? { fullName: fullNameInput.trim(), subdomain: subdomainInput.trim() }
+        : { fullName: fullNameInput.trim() };
       const { data } = await api.patch<AuthUser>('/api/auth/me', payload);
       setUser(data);
       setFullNameInput(data.fullName ?? '');
@@ -181,16 +185,20 @@ export default function SettingsPage() {
         Settings
       </h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: '32px' }}>
-        Manage your account, studio and billing preferences.
+        {isPhotographer
+          ? 'Manage your account, studio and billing preferences.'
+          : 'Manage your account.'}
       </p>
 
       {/* Account & Studio */}
       <section style={section} aria-labelledby="settings-account">
         <h2 id="settings-account" style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}>
-          Account & Studio
+          {isPhotographer ? 'Account & Studio' : 'Account'}
         </h2>
         <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
-          Your personal information and studio details.
+          {isPhotographer
+            ? 'Your personal information and studio details.'
+            : 'Your personal information.'}
         </p>
 
         {/* Avatar */}
@@ -309,49 +317,53 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Studio subdomain */}
-        <div style={{ height: '1px', background: c.divider, margin: '24px 0' }} />
-        <div style={{
-          padding: '16px',
-          background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-          borderRadius: '12px',
-          border: `1px solid ${c.borderSoft}`
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label htmlFor="settings-subdomain" style={{
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              color: c.textMuted,
-              letterSpacing: '0.02em'
-            }}>
-              Studio name / subdomain
-            </label>
-            <input
-              id="settings-subdomain"
-              value={subdomainInput}
-              onChange={(e) => { setSubdomainInput(e.target.value); markDirty(); }}
-              style={{
-                ...input,
-                fontSize: '0.95rem',
-                fontWeight: 500,
-                background: c.surfaceHover
-              }}
-            />
+        {/* Studio subdomain — photographer/tenant-level, hidden from clients */}
+        {isPhotographer && (
+          <>
+            <div style={{ height: '1px', background: c.divider, margin: '24px 0' }} />
             <div style={{
-              padding: '10px 14px',
-              background: c.primaryBg,
-              border: `1px solid ${c.primaryBorder}`,
-              borderRadius: '8px',
-              fontSize: '0.85rem',
-              color: c.primaryText,
-              marginTop: '8px'
+              padding: '16px',
+              background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+              borderRadius: '12px',
+              border: `1px solid ${c.borderSoft}`
             }}>
-              Your public address: <strong style={{ color: c.primaryStrong }}>
-                {(subdomainInput.trim() || 'your-studio').toLowerCase()}.fotolio.app
-              </strong>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label htmlFor="settings-subdomain" style={{
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  color: c.textMuted,
+                  letterSpacing: '0.02em'
+                }}>
+                  Studio name / subdomain
+                </label>
+                <input
+                  id="settings-subdomain"
+                  value={subdomainInput}
+                  onChange={(e) => { setSubdomainInput(e.target.value); markDirty(); }}
+                  style={{
+                    ...input,
+                    fontSize: '0.95rem',
+                    fontWeight: 500,
+                    background: c.surfaceHover
+                  }}
+                />
+                <div style={{
+                  padding: '10px 14px',
+                  background: c.primaryBg,
+                  border: `1px solid ${c.primaryBorder}`,
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  color: c.primaryText,
+                  marginTop: '8px'
+                }}>
+                  Your public address: <strong style={{ color: c.primaryStrong }}>
+                    {(subdomainInput.trim() || 'your-studio').toLowerCase()}.fotolio.app
+                  </strong>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Save button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '24px', flexWrap: 'wrap' }}>
@@ -371,10 +383,11 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Packages */}
-      <PackagesSection theme={theme} />
+      {/* Packages — photographer-only service catalog */}
+      {isPhotographer && <PackagesSection theme={theme} />}
 
-      {/* Billing */}
+      {/* Billing — the tenant's subscription; never shown to clients */}
+      {isPhotographer && (
       <section style={section} aria-labelledby="settings-billing">
         <h2 id="settings-billing" style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}>
           Plan &amp; Billing
@@ -418,6 +431,7 @@ export default function SettingsPage() {
           Billing history and invoice management coming soon.
         </div>
       </section>
+      )}
 
       {/* Danger zone */}
       <section style={{ ...section, borderColor: c.dangerBorder, marginTop: '20px' }} aria-labelledby="settings-danger">

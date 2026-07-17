@@ -99,6 +99,24 @@ public class PhotoService {
         return toResponse(photoRepository.save(photo));
     }
 
+    /** Return a published photo to draft, removing it from the public page. */
+    @Transactional
+    public PhotoResponse unpublish(UUID photoId) {
+        Photo photo = photoRepository.findById(photoId)
+            .orElseThrow(() -> new NotFoundException("Photo not found: " + photoId));
+        photo.setPublished(false);
+        return toResponse(photoRepository.save(photo));
+    }
+
+    /** Assign (or clear, when {@code categoryId} is null) a photo's category. */
+    @Transactional
+    public PhotoResponse setCategory(UUID photoId, UUID categoryId) {
+        Photo photo = photoRepository.findById(photoId)
+            .orElseThrow(() -> new NotFoundException("Photo not found: " + photoId));
+        photo.setCategoryId(categoryId);
+        return toResponse(photoRepository.save(photo));
+    }
+
     @Transactional
     public void delete(UUID photoId) {
         photoRepository.deleteById(photoId);

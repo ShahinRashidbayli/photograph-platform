@@ -6,6 +6,25 @@
 > decisions (Magic Link auth, InquiryRequest entity, source tracking on
 > User/Lead, DM auto-reply triggers) are documented here — implementing
 > something that conflicts with the roadmap is almost always a mistake.
+>
+> **Pricing and plan tiers are deliberately *not* covered here** — see
+> `PRICING.md`. The Starter/Pro/Studio split is still a DRAFT proposal and
+> nothing in the codebase enforces it, so do not build a paywall against the
+> landing page's pricing table until that document is agreed.
+>
+> **Galleries expire** (Starter 60 days / Pro 1 year / Studio 2 years). The
+> deletion job is gated by four hard requirements — client reminder emails, a
+> photographer-side extend, soft-delete before hard-delete, and AGB wording —
+> in `adr/001-gallery-retention-and-deletion.md`. **Do not ship gallery expiry
+> without them:** it destroys a client's wedding photos irreversibly, and the
+> blame lands on the photographer.
+>
+> **One payment decision there is already binding and affects §4.5 below:**
+> Starter pays a commission on collected payments instead of being locked out of
+> them, which means **Stripe must be built on Connect (Express) from the start**
+> — the platform takes an `application_fee_amount`, and photographers onboard
+> with Stripe-hosted KYC before they can accept money. Building plain Checkout
+> first would mean rewriting the whole payment path. See `PRICING.md` §4.
 
 ---
 

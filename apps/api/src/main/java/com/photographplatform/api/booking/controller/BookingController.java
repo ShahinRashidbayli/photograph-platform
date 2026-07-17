@@ -1,7 +1,6 @@
 package com.photographplatform.api.booking.controller;
 
 import com.photographplatform.api.booking.dto.BookingResponse;
-import com.photographplatform.api.booking.dto.CalendarEventResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.dto.UpdateBookingStatusRequest;
@@ -10,12 +9,10 @@ import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,20 +62,6 @@ public class BookingController {
         }
 
         return ResponseEntity.ok(bookings);
-    }
-
-    /**
-     * Feed for the bookings calendar UI. Returns FullCalendar-shaped events.
-     * Optional {@code from} / {@code to} (ISO-8601 dates) trim to the visible
-     * window — FullCalendar sends these on every nav so the response stays
-     * small as a tenant accumulates history.
-     */
-    @GetMapping("/api/bookings/calendar")
-    public ResponseEntity<List<CalendarEventResponse>> calendar(
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
-    ) {
-        return ResponseEntity.ok(bookingService.getCalendarFeed(from, to));
     }
 
     /**

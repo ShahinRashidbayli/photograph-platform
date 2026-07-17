@@ -3,10 +3,29 @@ import { NextRequest, NextResponse } from 'next/server';
 // Routes accessible without an access_token cookie. Keep this list narrow:
 // every entry here bypasses the auth gate, so anything sensitive must NOT
 // match these prefixes.
-//   /login, /register, /forgot-password  — auth flows
+//   /login, /register, /forgot-password,
+//   /reset-password     — auth flows. Password recovery is by definition done
+//                         by someone who cannot sign in, so the reset link from
+//                         the email must open without a token cookie.
 //   /p/...              — public photographer portfolio (SSR)
 //   /r/...              — public booking-request form
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/p/', '/r/', '/customer/'];
+//   /g/...              — client gallery viewer, addressed by access token. The
+//                         token is the credential; recipients have no account.
+//   /impressum, /datenschutz, /agb        — legal pages (must be reachable
+//                                            without login; §5 DDG / DSGVO)
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/p/',
+  '/r/',
+  '/g/',
+  '/customer/',
+  '/impressum',
+  '/datenschutz',
+  '/agb',
+];
 
 // Apex host without protocol. In dev defaults to `localhost:3000`; in prod set
 // APEX_HOST to e.g. `fotoplatform.de`. Subdomains of this apex (anna.<APEX>)

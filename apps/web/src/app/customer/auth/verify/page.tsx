@@ -36,7 +36,10 @@ function CustomerVerifyInner() {
         setUser(user);
         setStatus('success');
         setMessage('You are signed in. Redirecting to your bookings…');
-        setTimeout(() => router.push('/bookings'), 800);
+        // replace, not push: drops the token-bearing /verify URL from history so
+        // the single-use magic-link token can't resurface via Back or be leaked
+        // through the referrer of a later navigation.
+        setTimeout(() => router.replace('/bookings'), 800);
       } catch (err: unknown) {
         if (cancelled) return;
         const apiMessage =

@@ -43,6 +43,26 @@ public class Gallery {
     protected Gallery() {
     }
 
+    public Gallery(UUID bookingId, OffsetDateTime expiresAt,
+                   boolean downloadEnabled, boolean watermarkEnabled) {
+        this.bookingId = bookingId;
+        this.accessToken = generateToken();
+        this.expiresAt = expiresAt;
+        this.downloadEnabled = downloadEnabled;
+        this.watermarkEnabled = watermarkEnabled;
+        this.viewCount = 0;
+    }
+
+    /**
+     * 64-char opaque share token. The column also carries a DB default, but a
+     * JPA insert always supplies every column, so the token is generated here
+     * rather than relying on the default ever firing.
+     */
+    private static String generateToken() {
+        return UUID.randomUUID().toString().replace("-", "")
+            + UUID.randomUUID().toString().replace("-", "");
+    }
+
     public UUID getId() {
         return id;
     }
@@ -73,5 +93,21 @@ public class Gallery {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void setExpiresAt(OffsetDateTime expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public void setDownloadEnabled(Boolean downloadEnabled) {
+        this.downloadEnabled = downloadEnabled;
+    }
+
+    public void setWatermarkEnabled(Boolean watermarkEnabled) {
+        this.watermarkEnabled = watermarkEnabled;
+    }
+
+    public void incrementViewCount() {
+        this.viewCount = (this.viewCount == null ? 0 : this.viewCount) + 1;
     }
 }

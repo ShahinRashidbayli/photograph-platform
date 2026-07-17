@@ -2,6 +2,7 @@
 
 import { getColors } from '@/lib/design-tokens';
 import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/lib/i18n';
 import type { CSSProperties } from 'react';
 
 /**
@@ -34,9 +35,11 @@ const ICON_PROPS = {
 
 export function ThemeToggle({ variant = 'pill', style }: Readonly<ThemeToggleProps>) {
   const { theme, toggleTheme } = useThemeStore();
+  const { t } = useTranslation();
   const c = getColors(theme);
   const isPill = variant === 'pill';
   const iconSize = isPill ? 17 : 20;
+  const switchLabel = theme === 'light' ? t('theme.switchToDark') : t('theme.switchToLight');
 
   const shell: CSSProperties = isPill
     ? { width: 38, height: 38, borderRadius: 999, border: `1px solid ${c.border}` }
@@ -46,8 +49,8 @@ export function ThemeToggle({ variant = 'pill', style }: Readonly<ThemeTogglePro
     <button
       type="button"
       onClick={toggleTheme}
-      aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-      title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+      aria-label={switchLabel}
+      title={switchLabel}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = c.surfaceHover;
         if (isPill) e.currentTarget.style.borderColor = c.primaryBorder;

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Lead, LeadActivity } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { useTranslation } from '@/lib/i18n';
 import {
-  BUDGET_LABELS,
-  EVENT_LABELS,
-  SCORE_LABEL,
+  translateOr,
+  BUDGET_LABEL_KEYS,
+  EVENT_LABEL_KEYS,
+  SCORE_LABEL_KEY,
   type ColorTokens,
   type LeadScore,
   type Styles,
@@ -35,6 +37,7 @@ export function LeadDetail({
   onAddNote: () => void;
   onMarkReplied: () => void;
 }>) {
+  const { t, format } = useTranslation();
   // Activity is fetched per-selected-lead. Loading state lets the timeline
   // section show a spinner instead of "no activity" while the request is in
   // flight (which would misleadingly suggest the lead has no history).
@@ -70,8 +73,10 @@ export function LeadDetail({
   if (!lead) {
     return (
       <div style={s.emptyState}>
-        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>No lead selected</div>
-        <div>Pick a lead from the list to see details.</div>
+        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>
+          {t('leadDetail.noneSelectedTitle')}
+        </div>
+        <div>{t('leadDetail.noneSelectedBody')}</div>
       </div>
     );
   }
@@ -80,12 +85,7 @@ export function LeadDetail({
   const scoreVisual = getScoreVisual(score, c);
   const daysUntil = daysUntilEvent(lead.eventDate);
   const urgency = getUrgencyVisual(daysUntil, c);
-  const formattedEventDate = new Date(lead.eventDate).toLocaleString('en-US', {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  const formattedEventDate = format.fullDate(lead.eventDate);
 
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
   const waHref = lead.phone
@@ -110,11 +110,11 @@ export function LeadDetail({
                 }}
               >
                 <span style={{ ...s.badgeDot, background: scoreVisual.dot }} />
-                {SCORE_LABEL[score]}
+                {t(SCORE_LABEL_KEY[score])}
               </span>
             </div>
             <span style={s.detailSubtitle}>
-              {EVENT_LABELS[lead.eventType] ?? lead.eventType} · {formattedEventDate}
+              {translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)} · {formattedEventDate}
             </span>
           </div>
         </div>
@@ -124,26 +124,26 @@ export function LeadDetail({
             target="_blank"
             rel="noopener noreferrer"
             aria-disabled={!waHref}
-            title={waHref ? 'Open WhatsApp chat' : 'No phone number on file'}
+            title={waHref ? t('contact.whatsappTitle') : t('contact.noPhone')}
             style={{
               ...s.secondaryButton,
               textDecoration: 'none',
               ...(waHref ? {} : { opacity: 0.5, pointerEvents: 'none' }),
             }}
           >
-            {ICONS.whatsapp} WhatsApp
+            {ICONS.whatsapp} {t('contact.whatsapp')}
           </a>
           <a
             href={lead.email ? `mailto:${lead.email}` : undefined}
             aria-disabled={!lead.email}
-            title={lead.email ? `Email ${lead.email}` : 'No email on file'}
+            title={lead.email ? t('contact.emailTitle', { email: lead.email }) : t('contact.noEmail')}
             style={{
               ...s.secondaryButton,
               textDecoration: 'none',
               ...(lead.email ? {} : { opacity: 0.5, pointerEvents: 'none' }),
             }}
           >
-            {ICONS.email} Email
+            {ICONS.email} {t('contact.email')}
           </a>
           {lead.status === 'BOOKED' ? (
             // Already converted — replace the Convert button with a clear
@@ -152,7 +152,7 @@ export function LeadDetail({
             // Convert on a lead that's already been booked.
             <>
               <span
-                aria-label="Lead already converted to a booking"
+                aria-label={t('leadDetail.bookedAria')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -168,19 +168,19 @@ export function LeadDetail({
                   textTransform: 'uppercase',
                 }}
               >
-                Booked ✓
+                {t('leadDetail.bookedPill')}
               </span>
               <button
                 type="button"
                 style={s.invertedPrimaryButton}
                 onClick={onViewBooking}
               >
-                View in Bookings →
+                {t('leads.viewInBookings')} →
               </button>
             </>
           ) : (
             <button type="button" style={s.invertedPrimaryButton} onClick={onConvert}>
-              {ICONS.plus} Convert to booking
+              {ICONS.plus} {t('leads.convertToBooking')}
             </button>
           )}
         </div>
@@ -203,7 +203,7 @@ export function LeadDetail({
             own visual treatment (highlighted, chip, etc.) without fighting
             the row alongside them. */}
         <div style={s.section}>
-          <span style={s.sectionTitle}>Lead facts</span>
+          <span style={s.sectionTitle}>{t('leadDetail.facts')}</span>
           <div
             style={{
               display: 'grid',
@@ -214,31 +214,36 @@ export function LeadDetail({
           >
             <FactCard
               c={c}
-              label="Email"
+              label={t('leadDetail.fact.email')}
               value={lead.email || '—'}
               valueColor={lead.email ? c.primaryText : c.textMuted}
             />
             <FactCard
               c={c}
-              label="Phone"
+              label={t('leadDetail.fact.phone')}
               value={lead.phone || '—'}
               valueColor={lead.phone ? c.text : c.textMuted}
             />
-            <FactCard c={c} label="Event date" value={formattedEventDate} />
+            <FactCard c={c} label={t('leadDetail.fact.eventDate')} value={formattedEventDate} />
             <FactCard
               c={c}
-              label="Time to event"
-              chip={{ bg: urgency.bg, color: urgency.color, dot: urgency.dot, label: urgency.label }}
+              label={t('leadDetail.fact.timeToEvent')}
+              chip={{
+                bg: urgency.bg,
+                color: urgency.color,
+                dot: urgency.dot,
+                label: t(urgency.labelKey, { count: String(daysUntil) }),
+              }}
             />
             <FactCard
               c={c}
-              label="Event type"
-              value={EVENT_LABELS[lead.eventType] ?? lead.eventType}
+              label={t('leadDetail.fact.eventType')}
+              value={translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)}
             />
             <FactCard
               c={c}
-              label="Budget range"
-              value={BUDGET_LABELS[lead.budgetRange] ?? lead.budgetRange}
+              label={t('leadDetail.fact.budget')}
+              value={translateOr(t, BUDGET_LABEL_KEYS[lead.budgetRange], lead.budgetRange)}
               // Highlight high budgets in success-green so the most important
               // qualifier on a lead (can they actually pay?) reads first.
               valueColor={
@@ -260,7 +265,7 @@ export function LeadDetail({
           || lead.typeScore != null
           || lead.timeScore != null) && (
           <div style={s.section}>
-            <span style={s.sectionTitle}>Score breakdown</span>
+            <span style={s.sectionTitle}>{t('leadDetail.scoreBreakdown')}</span>
             <ScoreBreakdown
               c={c}
               budgetScore={lead.budgetScore}
@@ -273,26 +278,24 @@ export function LeadDetail({
         {/* Client message */}
         {lead.message ? (
           <div style={s.section}>
-            <span style={s.sectionTitle}>Client message</span>
+            <span style={s.sectionTitle}>{t('leadDetail.clientMessage')}</span>
             <div style={s.messageQuote}>&ldquo;{lead.message}&rdquo;</div>
           </div>
         ) : null}
 
         {/* Activity timeline */}
         <div style={s.section}>
-          <span style={s.sectionTitle}>Activity</span>
+          <span style={s.sectionTitle}>{t('leadDetail.activity')}</span>
           <ActivityTimeline activity={activity} loading={activityLoading} c={c} />
         </div>
 
         {/* Internal notes */}
         <div style={s.section}>
-          <span style={s.sectionTitle}>Internal notes</span>
+          <span style={s.sectionTitle}>{t('leadDetail.internalNotes')}</span>
           <div style={s.notesReadonly}>
-            {lead.internalNotes?.trim()
-              ? lead.internalNotes
-              : 'No internal notes on this lead yet.'}
+            {lead.internalNotes?.trim() ? lead.internalNotes : t('leadDetail.noNotes')}
           </div>
-          <span style={s.notesHint}>Use the &quot;Add note&quot; button below to edit this note.</span>
+          <span style={s.notesHint}>{t('leadDetail.notesHint')}</span>
         </div>
       </div>
 
@@ -334,7 +337,7 @@ export function LeadDetail({
                 cursor: 'pointer',
               }}
             >
-              × Reject
+              × {t('leadDetail.reject')}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -357,9 +360,9 @@ export function LeadDetail({
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
-                title="Move this enquiry out of 'Needs reply' — you've responded off-platform."
+                title={t('leadDetail.markRepliedTitle')}
               >
-                ✓ Mark replied
+                ✓ {t('leadDetail.markReplied')}
               </button>
             )}
             <button
@@ -376,7 +379,7 @@ export function LeadDetail({
                 cursor: 'pointer',
               }}
             >
-              {lead.internalNotes ? 'Edit note' : 'Add note'}
+              {lead.internalNotes ? t('leadDetail.editNote') : t('leadDetail.addNote')}
             </button>
             <button
               type="button"
@@ -392,7 +395,7 @@ export function LeadDetail({
                 cursor: 'pointer',
               }}
             >
-              + Convert to booking
+              + {t('leads.convertToBooking')}
             </button>
           </div>
         </div>

@@ -42,6 +42,16 @@ body {
 
 /* Two-column hero → single column below the breakpoint. Text stays first in
  * the DOM so it reads before the visual on mobile and wins the LCP. */
+/* Centre nav anchor links. Hidden on narrower viewports where the logo, the
+   language/theme toggles and the auth buttons would otherwise crowd them — the
+   same sections are still reachable by scrolling. Overrides the inline
+   `display: flex` via !important (a media rule beats a non-important inline). */
+@media (max-width: 860px) {
+  .landing-nav-links {
+    display: none !important;
+  }
+}
+
 .landing-hero-grid {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
@@ -192,15 +202,17 @@ body {
   }
 }
 
-/* Pricing row. The Pro card is lifted slightly on wide screens only. */
+/* Pricing row. The Pro card is emphasised by its border, shadow and badge
+ * (see priceCardHot) rather than a scale transform — scaling lifted its CTA a
+ * few pixels above the Starter/Studio buttons and broke the row alignment. */
 .landing-prices {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
-  align-items: start;
-}
-.landing-price-pro {
-  transform: scale(1.035);
+  /* Stretch so all three cards share the tallest card's height. Starter
+   * carries one more feature row than Pro/Studio, so sizing to content left
+   * it visibly longer than its neighbours. */
+  align-items: stretch;
 }
 @media (max-width: 820px) {
   .landing-prices {
@@ -208,9 +220,6 @@ body {
     max-width: 420px;
     margin-left: auto;
     margin-right: auto;
-  }
-  .landing-price-pro {
-    transform: none;
   }
 }
 

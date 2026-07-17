@@ -6,7 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Client } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
-import { formatEUR } from '@/lib/helpers';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
   getClientsColors,
   getClientsStyles,
@@ -14,6 +14,12 @@ import {
 } from './clients.styles';
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
+
+const FILTER_LABEL_KEY: Record<ClientFilter, TranslationKey> = {
+  All: 'clients.filter.All',
+  Active: 'clients.filter.Active',
+  Repeat: 'clients.filter.Repeat',
+};
 
  
 
@@ -117,6 +123,7 @@ function ClientListItem({
   s: Styles;
   c: ColorTokens;
 }>) {
+  const { t, tPlural, format } = useTranslation();
   const avatar = pickAvatarColor(client.id || client.fullName, c.isDark);
 
   let itemStyle: React.CSSProperties = { ...s.listItem };
@@ -137,7 +144,8 @@ function ClientListItem({
       <div style={s.listItemContent}>
         <span style={s.listItemName}>{client.fullName}</span>
         <span style={s.listItemMeta}>
-          {client.totalBookings} booking{client.totalBookings !== 1 ? 's' : ''} · {formatEUR(client.totalSpentCents)}
+          {tPlural('clients.bookingCount', client.totalBookings)} ·{' '}
+          {format.eur(client.totalSpentCents)}
         </span>
       </div>
       {client.upcomingBookings > 0 ? (
@@ -149,7 +157,7 @@ function ClientListItem({
           }}
         >
           <span style={{ ...s.badgeDot, background: c.primary }} />
-          {client.upcomingBookings} upcoming
+          {t('clients.upcomingBadge', { count: client.upcomingBookings })}
         </span>
       ) : null}
     </button>
@@ -161,12 +169,22 @@ function ClientDetail({
   s,
   c,
   onNewBooking,
-}: Readonly<{ client: Client | null; s: Styles; c: ColorTokens; onNewBooking: () => void }>) {
+  onSaveNotes,
+}: Readonly<{
+  client: Client | null;
+  s: Styles;
+  c: ColorTokens;
+  onNewBooking: () => void;
+  onSaveNotes: (clientId: string, notes: string) => Promise<void>;
+}>) {
+  const { t, format } = useTranslation();
   if (!client) {
     return (
       <div style={s.emptyState}>
-        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>No client selected</div>
-        <div>Pick a client from the list to see details.</div>
+        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>
+          {t('clientDetail.noneSelectedTitle')}
+        </div>
+        <div>{t('clientDetail.noneSelectedBody')}</div>
       </div>
     );
   }
@@ -197,12 +215,12 @@ function ClientDetail({
                   }}
                 >
                   <span style={{ ...s.badgeDot, background: c.primary }} />
-                  {client.upcomingBookings} upcoming
+                  {t('clients.upcomingBadge', { count: client.upcomingBookings })}
                 </span>
               ) : null}
             </div>
             <span style={s.detailSubtitle}>
-              Joined {joinedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              {t('clientDetail.joined', { date: format.monthYear(joinedDate) })}
             </span>
           </div>
         </div>
@@ -212,24 +230,24 @@ function ClientDetail({
             target="_blank"
             rel="noopener noreferrer"
             aria-disabled={!waHref}
-            title={waHref ? 'Open WhatsApp chat' : 'No phone number on file'}
+            title={waHref ? t('contact.whatsappTitle') : t('contact.noPhone')}
             style={{
               ...s.secondaryButton,
               textDecoration: 'none',
               ...(waHref ? {} : { opacity: 0.5, pointerEvents: 'none' }),
             }}
           >
-            {ICONS.whatsapp} WhatsApp
+            {ICONS.whatsapp} {t('contact.whatsapp')}
           </a>
           <a
             href={`mailto:${client.email}`}
-            title={`Email ${client.email}`}
+            title={t('contact.emailTitle', { email: client.email })}
             style={{ ...s.secondaryButton, textDecoration: 'none' }}
           >
-            {ICONS.email} Email
+            {ICONS.email} {t('contact.email')}
           </a>
           <button type="button" style={s.invertedPrimaryButton} onClick={onNewBooking}>
-            {ICONS.plus} New booking
+            {ICONS.plus} {t('bookings.newBooking')}
           </button>
         </div>
       </div>
@@ -237,43 +255,43 @@ function ClientDetail({
       <div style={s.detailBody}>
         <div style={s.statsGrid}>
           <div style={s.statBox}>
-            <span style={s.statBoxLabel}>Total spent</span>
-            <span style={s.statBoxValue}>{formatEUR(client.totalSpentCents)}</span>
+            <span style={s.statBoxLabel}>{t('clientDetail.stat.totalSpent')}</span>
+            <span style={s.statBoxValue}>{format.eur(client.totalSpentCents)}</span>
           </div>
           <div style={s.statBox}>
-            <span style={s.statBoxLabel}>Bookings</span>
+            <span style={s.statBoxLabel}>{t('clientDetail.stat.bookings')}</span>
             <span style={s.statBoxValue}>{client.totalBookings}</span>
           </div>
           <div style={s.statBox}>
-            <span style={s.statBoxLabel}>Upcoming</span>
+            <span style={s.statBoxLabel}>{t('clientDetail.stat.upcoming')}</span>
             <span style={s.statBoxValue}>{client.upcomingBookings}</span>
           </div>
           <div style={s.statBox}>
-            <span style={s.statBoxLabel}>Last session</span>
+            <span style={s.statBoxLabel}>{t('clientDetail.stat.lastSession')}</span>
             <span style={s.statBoxValue}>
               {lastBookingDate
-                ? lastBookingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                ? format.monthDay(lastBookingDate)
                 : '—'}
             </span>
           </div>
         </div>
 
         <div style={s.section}>
-          <span style={s.sectionTitle}>Contact information</span>
+          <span style={s.sectionTitle}>{t('clientDetail.contactInfo')}</span>
           <div style={s.sectionCard}>
             <div style={s.infoGrid}>
               <div style={s.infoRow}>
-                <span style={s.infoLabel}>Email</span>
+                <span style={s.infoLabel}>{t('clientDetail.email')}</span>
                 <span style={s.infoValue}>{client.email}</span>
               </div>
               <div style={s.infoRow}>
-                <span style={s.infoLabel}>Phone</span>
+                <span style={s.infoLabel}>{t('clientDetail.phone')}</span>
                 <span style={s.infoValue}>{client.phone || '—'}</span>
               </div>
               <div style={s.infoRow}>
-                <span style={s.infoLabel}>Joined</span>
+                <span style={s.infoLabel}>{t('clientDetail.joinedLabel')}</span>
                 <span style={s.infoValue}>
-                  {joinedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {format.monthDayYear(joinedDate)}
                 </span>
               </div>
             </div>
@@ -281,14 +299,105 @@ function ClientDetail({
         </div>
 
         <div style={s.section}>
-          <span style={s.sectionTitle}>Client notes</span>
-          <div style={s.notesReadonly}>
-            {client.notes?.trim()
-              ? client.notes
-              : 'No notes added for this client yet.'}
-          </div>
-          <span style={s.notesHint}>Editing client notes is coming soon.</span>
+          <span style={s.sectionTitle}>{t('clientDetail.notes')}</span>
+          <NotesEditor
+            key={client.id}
+            initialNotes={client.notes ?? ''}
+            s={s}
+            c={c}
+            onSave={(notes) => onSaveNotes(client.id, notes)}
+          />
         </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Inline notes editor. Keyed on the client id by the parent so switching
+ * clients resets the draft rather than leaking one client's unsaved text onto
+ * another.
+ */
+function NotesEditor({
+  initialNotes,
+  s,
+  c,
+  onSave,
+}: Readonly<{
+  initialNotes: string;
+  s: Styles;
+  c: ColorTokens;
+  onSave: (notes: string) => Promise<void>;
+}>) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initialNotes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setError(false);
+    try {
+      await onSave(value.trim());
+      setEditing(false);
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <>
+        <div style={s.notesReadonly}>
+          {initialNotes.trim() ? initialNotes : t('clientDetail.noNotes')}
+        </div>
+        <button
+          type="button"
+          style={{ ...s.secondaryButton, marginTop: 10, alignSelf: 'flex-start' }}
+          onClick={() => { setValue(initialNotes); setEditing(true); }}
+        >
+          {t('clientDetail.notesEdit')}
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={t('clientDetail.notesPlaceholder')}
+        rows={5}
+        autoFocus
+        style={{
+          width: '100%',
+          resize: 'vertical',
+          padding: '12px 14px',
+          borderRadius: 12,
+          border: `1px solid ${c.border}`,
+          background: c.surface,
+          color: c.text,
+          fontSize: '0.9rem',
+          fontFamily: 'inherit',
+          lineHeight: 1.5,
+        }}
+      />
+      {error && (
+        <span style={{ color: c.dangerText, fontSize: '0.82rem', marginTop: 6 }}>
+          {t('clientDetail.notesError')}
+        </span>
+      )}
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button type="button" style={s.invertedPrimaryButton} onClick={save} disabled={saving}>
+          {saving ? t('clientDetail.notesSaving') : t('clientDetail.notesSave')}
+        </button>
+        <button type="button" style={s.secondaryButton} onClick={() => setEditing(false)} disabled={saving}>
+          {t('clientDetail.notesCancel')}
+        </button>
       </div>
     </>
   );
@@ -314,6 +423,7 @@ export default function ClientsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
+  const { t, format } = useTranslation();
   const themeKey: ClientsTheme = theme === 'dark' ? 'dark' : 'light';
   const s = useMemo(() => getClientsStyles(themeKey), [themeKey]);
   const c = useMemo(() => getClientsColors(themeKey), [themeKey]);
@@ -324,11 +434,13 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A flag, not a message: the text is resolved at render so it follows a
+  // language switch, and `loadClients` stays independent of `t`.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const loadClients = useCallback(() => {
     setLoading(true);
-    setError(null);
+    setLoadFailed(false);
     api
       .get<Client[]>('/api/clients')
       .then((res) => {
@@ -337,13 +449,18 @@ export default function ClientsPage() {
         const selected = searchParams.get('selected');
         setSelectedClientId(selected ?? list[0]?.id ?? null);
       })
-      .catch(() => setError('We couldn’t load your clients. Please check your connection and try again.'))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [searchParams]);
 
   useEffect(() => {
     loadClients();
   }, [loadClients]);
+
+  const saveClientNotes = useCallback(async (clientId: string, notes: string) => {
+    const { data } = await api.patch<Client>(`/api/clients/${clientId}/notes`, { notes });
+    setClients((prev) => prev.map((cl) => (cl.id === clientId ? data : cl)));
+  }, []);
 
   const filteredClients = useMemo(() => {
     let list = clients;
@@ -378,10 +495,8 @@ export default function ClientsPage() {
       <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
       <div style={s.pageHeader}>
         <div>
-          <h1 style={s.pageTitle}>Clients</h1>
-          <p style={s.pageSubtitle}>
-            Manage client relationships, track sessions, and build lasting connections.
-          </p>
+          <h1 style={s.pageTitle}>{t('clients.title')}</h1>
+          <p style={s.pageSubtitle}>{t('clients.subtitle')}</p>
         </div>
         <div style={s.headerActions}>
           <button
@@ -389,34 +504,34 @@ export default function ClientsPage() {
             style={s.invertedPrimaryButton}
             onClick={() => router.push('/bookings')}
           >
-            {ICONS.plus} New booking
+            {ICONS.plus} {t('bookings.newBooking')}
           </button>
         </div>
       </div>
 
       <div style={s.summaryRow}>
         <StatCard
-          label="Total clients"
+          label={t('clients.stat.total')}
           value={stats.total}
-          hint={`${formatEUR(stats.totalRevenueCents)} lifetime revenue`}
+          hint={t('clients.stat.totalHint', { amount: format.eur(stats.totalRevenueCents) })}
           icon={ICONS.users}
           iconBg={c.primaryBg}
           iconColor={c.primaryStrong}
           s={s}
         />
         <StatCard
-          label="Active bookings"
+          label={t('bookings.stat.active')}
           value={stats.active}
-          hint="Clients with upcoming sessions"
+          hint={t('clients.stat.activeHint')}
           icon={ICONS.calendar}
           iconBg={c.primaryBg}
           iconColor={c.primaryStrong}
           s={s}
         />
         <StatCard
-          label="Average spend"
-          value={formatEUR(stats.avgSpendCents)}
-          hint="Per client lifetime"
+          label={t('clients.stat.avgSpend')}
+          value={format.eur(stats.avgSpendCents)}
+          hint={t('clients.stat.avgSpendHint')}
           icon={ICONS.euro}
           iconBg={c.primaryBg}
           iconColor={c.primaryStrong}
@@ -424,13 +539,13 @@ export default function ClientsPage() {
         />
       </div>
 
-      {error ? (
+      {loadFailed ? (
         <div style={{ ...s.listPanel, maxHeight: 'none' }}>
           <div style={s.errorPanel}>
-            <div style={s.errorPanelTitle}>Couldn&apos;t load clients</div>
-            <div style={s.errorPanelText}>{error}</div>
+            <div style={s.errorPanelTitle}>{t('clients.errorTitle')}</div>
+            <div style={s.errorPanelText}>{t('clients.errorLoad')}</div>
             <button type="button" style={s.retryButton} onClick={loadClients}>
-              Try again
+              {t('common.tryAgain')}
             </button>
           </div>
         </div>
@@ -438,15 +553,15 @@ export default function ClientsPage() {
         <div style={s.container}>
           <div style={s.listPanel}>
             <div style={s.listHeader}>
-              <span style={s.listTitle}>All clients</span>
-              <span style={s.listSubtitle}>Sorted by recent activity · spend & bookings at a glance</span>
+              <span style={s.listTitle}>{t('clients.listTitle')}</span>
+              <span style={s.listSubtitle}>{t('clients.listSubtitle')}</span>
               <div style={s.searchWrapper}>
                 <span style={s.searchIcon}>{ICONS.search}</span>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search name or email…"
+                  placeholder={t('clients.search.placeholder')}
                   style={s.searchBox}
                 />
               </div>
@@ -465,7 +580,7 @@ export default function ClientsPage() {
                       ...(isActive ? s.filterTabActive : {}),
                     }}
                   >
-                    {status}
+                    {t(FILTER_LABEL_KEY[status])}
                   </button>
                 );
               })}
@@ -476,20 +591,20 @@ export default function ClientsPage() {
                 <ClientListSkeleton s={s} />
               ) : clients.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>No clients yet</div>
-                  <div>Clients appear here automatically once you create their first booking.</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>{t('clients.empty.noneTitle')}</div>
+                  <div>{t('clients.empty.noneBody')}</div>
                   <button
                     type="button"
                     style={{ ...s.primaryButton, marginTop: '4px' }}
                     onClick={() => router.push('/bookings')}
                   >
-                    {ICONS.plus} New booking
+                    {ICONS.plus} {t('bookings.newBooking')}
                   </button>
                 </div>
               ) : filteredClients.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>No clients match</div>
-                  <div>Try a different filter or search term.</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>{t('clients.empty.noMatchTitle')}</div>
+                  <div>{t('common.tryOtherFilter')}</div>
                 </div>
               ) : (
                 filteredClients.map((client) => (
@@ -510,13 +625,14 @@ export default function ClientsPage() {
 
           <div style={s.detailPanel}>
             {loading ? (
-              <div style={s.emptyState}>Loading client details…</div>
+              <div style={s.emptyState}>{t('clients.loadingDetails')}</div>
             ) : (
               <ClientDetail
                 client={selectedClient}
                 s={s}
                 c={c}
                 onNewBooking={() => router.push('/bookings')}
+                onSaveNotes={saveClientNotes}
               />
             )}
           </div>

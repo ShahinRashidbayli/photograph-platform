@@ -1,4 +1,5 @@
 import { LeadActivity } from '@/types/api';
+import { useTranslation } from '@/lib/i18n';
 import type { ColorTokens } from './leadTypes';
 
 /**
@@ -19,17 +20,18 @@ export function ActivityTimeline({
   loading: boolean;
   c: ColorTokens;
 }>) {
+  const { t, format } = useTranslation();
   if (loading) {
     return (
       <div style={{ fontSize: '0.82rem', color: c.textMuted, marginTop: '8px' }}>
-        Loading activity…
+        {t('leadActivity.loading')}
       </div>
     );
   }
   if (activity.length === 0) {
     return (
       <div style={{ fontSize: '0.82rem', color: c.textMuted, marginTop: '8px' }}>
-        No activity recorded yet.
+        {t('leadActivity.empty')}
       </div>
     );
   }
@@ -37,26 +39,16 @@ export function ActivityTimeline({
   const label = (action: string): { title: string; detail?: string } => {
     switch (action) {
       case 'LEAD_CREATED':
-        return { title: 'Enquiry received', detail: 'Came in through your public booking page.' };
+        return { title: t('leadActivity.created'), detail: t('leadActivity.createdDetail') };
       case 'LEAD_CONVERTED':
-        return { title: 'Converted to a booking', detail: 'Lead moved to BOOKED.' };
+        return { title: t('leadActivity.converted'), detail: t('leadActivity.convertedDetail') };
       case 'LEAD_REJECTED':
-        return { title: 'Lead rejected' };
+        return { title: t('leadActivity.rejected') };
       default:
         return { title: action.replace(/_/g, ' ').toLowerCase() };
     }
   };
 
-  const fmtTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: '10px' }}>
@@ -121,7 +113,7 @@ export function ActivityTimeline({
                 {meta.title}
               </div>
               <div style={{ fontSize: '0.75rem', color: c.textMuted, marginTop: '2px' }}>
-                {fmtTime(entry.createdAt)}
+                {format.dateTime(entry.createdAt)}
                 {meta.detail ? ` · ${meta.detail}` : ''}
                 {entry.oldValue && entry.newValue
                   ? ` · ${entry.oldValue} → ${entry.newValue}`

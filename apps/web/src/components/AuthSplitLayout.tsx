@@ -2,6 +2,7 @@
 
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LanguageToggle } from '@/components/LanguageToggle';
 import { fonts, getColors } from '@/lib/design-tokens';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
@@ -48,7 +49,12 @@ export function AuthSplitLayout({
     document.documentElement.style.backgroundColor = c.bg;
   }, [c.bg]);
 
-  const themeToggle = <ThemeToggle variant="pill" />;
+  const themeToggle = (
+    <>
+      <LanguageToggle variant="pill" />
+      <ThemeToggle variant="pill" />
+    </>
+  );
 
   return (
     <div
@@ -132,16 +138,34 @@ export function AuthSplitLayout({
           </p>
         </div>
 
-        {/* Footer */}
+        {/* Footer — legal links keep Impressum/Datenschutz within two clicks of
+            every page, as required for a German commercial site. */}
         <div
           style={{
             position: 'relative',
             zIndex: 1,
             fontSize: '0.82rem',
             color: 'rgba(255,255,255,0.62)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '6px 14px',
           }}
         >
-          © {new Date().getFullYear()} Fotolio
+          <span>© {new Date().getFullYear()} Fotolio</span>
+          {[
+            { href: '/impressum', label: 'Impressum' },
+            { href: '/datenschutz', label: 'Datenschutz' },
+            { href: '/agb', label: 'AGB' },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              style={{ color: 'rgba(255,255,255,0.72)', textDecoration: 'none' }}
+            >
+              {l.label}
+            </Link>
+          ))}
         </div>
       </aside>
 

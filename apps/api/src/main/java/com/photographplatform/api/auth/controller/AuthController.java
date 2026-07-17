@@ -3,15 +3,18 @@ package com.photographplatform.api.auth.controller;
 import com.photographplatform.api.auth.dto.AuthResponse;
 import com.photographplatform.api.auth.dto.AvatarPresignResponse;
 import com.photographplatform.api.auth.dto.AuthResult;
+import com.photographplatform.api.auth.dto.ForgotPasswordRequest;
 import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
+import com.photographplatform.api.auth.dto.ResetPasswordRequest;
 import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.dto.VerifyEmailRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.AuthService;
 import com.photographplatform.api.auth.service.EmailVerificationService;
+import com.photographplatform.api.auth.service.PasswordResetService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.ClientIp;
@@ -41,17 +44,20 @@ public class AuthController {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordResetService passwordResetService;
     private final AuthCookieWriter cookies;
     private final Optional<R2StorageService> r2StorageService;
 
     public AuthController(
         AuthService authService,
         EmailVerificationService emailVerificationService,
+        PasswordResetService passwordResetService,
         AuthCookieWriter cookies,
         Optional<R2StorageService> r2StorageService
     ) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
+        this.passwordResetService = passwordResetService;
         this.cookies = cookies;
         this.r2StorageService = r2StorageService;
     }
@@ -127,6 +133,42 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
         emailVerificationService.verify(request.token());
+    }
+
+    /**
+     * Step 1 of password recovery: email a reset link.
+     *
+     * <p>Always 204, whether or not the address is on file. Reporting "no such
+     * user" would turn this unauthenticated endpoint into an account-existence
+     * oracle for anyone who can type an email address — and rate limiting alone
+     * wouldn't fix that, it would only slow it down.
+     */
+    @PostMapping("/password/forgot")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void forgotPassword(
+        @Valid @RequestBody ForgotPasswordRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        passwordResetService.requestReset(request.email(), ClientIp.from(httpRequest));
+    }
+
+    /**
+     * Step 2: consume the token and set the new password. Every failure mode
+     * (unknown / expired / already-used token) returns the same 401, so the
+     * endpoint can't be used to probe token status.
+     *
+     * <p>Deliberately does NOT sign the user in. After a reset they land on the
+     * login page and enter the new password — which proves the reset did what
+     * they meant it to, and keeps a single place where a session is minted.
+     */
+    @PostMapping("/password/reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resetPassword(
+        @Valid @RequestBody ResetPasswordRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        passwordResetService.reset(
+            request.token(), request.password(), ClientIp.from(httpRequest));
     }
 
     @PostMapping("/resend-verification")

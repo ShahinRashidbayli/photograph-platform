@@ -1,11 +1,16 @@
 import type { AppColors } from '@/lib/design-tokens';
+import type { TranslationKey } from '@/lib/i18n';
 
 /**
  * Single source of truth for booking status presentation.
  *
  * Each status maps to:
- *   label — short user-facing text shown in badges/lists
- *   tone  — semantic colour bucket from design-tokens (success/warning/etc.)
+ *   labelKey — dictionary key for the text shown in badges/lists
+ *   tone     — semantic colour bucket from design-tokens (success/warning/etc.)
+ *
+ * Labels live in the i18n dictionaries rather than here so every surface that
+ * renders a status follows the active language; this module stays the single
+ * source of truth for which key and tone each status maps to.
  *
  * Keep this in sync with the backend `BookingStatus` enum
  * (apps/api/.../booking/domain/BookingStatus.java).
@@ -22,25 +27,39 @@ export type BookingStatusKey =
 export type StatusTone = 'neutral' | 'warning' | 'success' | 'info' | 'danger';
 
 export interface BookingStatusMeta {
-  label: string;
-  /** Verbose label used in detail panels where space allows (falls back to `label`). */
-  detailLabel?: string;
+  /** Short user-facing label shown in badges/lists. */
+  labelKey: TranslationKey;
+  /** Verbose label used in detail panels where space allows (falls back to `labelKey`). */
+  detailLabelKey?: TranslationKey;
+  /**
+   * Client-facing label. The `labelKey`/`detailLabelKey` above are the
+   * photographer's pipeline vocabulary ("New", "Deposit pending"); a client
+   * reading their own booking thinks in different terms ("Requested",
+   * "Awaiting your deposit"). Falls back to `labelKey` when unset.
+   */
+  customerLabelKey?: TranslationKey;
   tone: StatusTone;
 }
 
 export const BOOKING_STATUS: Record<BookingStatusKey, BookingStatusMeta> = {
-  ENQUIRY: { label: 'New', tone: 'neutral' },
-  DEPOSIT_PAID: { label: 'Deposit', detailLabel: 'Deposit pending', tone: 'warning' },
-  CONFIRMED: { label: 'Confirmed', tone: 'success' },
-  FULLY_PAID: { label: 'Paid', tone: 'success' },
-  COMPLETED: { label: 'Completed', tone: 'info' },
-  CANCELLED: { label: 'Cancelled', tone: 'danger' },
+  ENQUIRY: { labelKey: 'bookingStatus.ENQUIRY', customerLabelKey: 'bookingStatusCustomer.ENQUIRY', tone: 'neutral' },
+  DEPOSIT_PAID: { labelKey: 'bookingStatus.DEPOSIT_PAID', detailLabelKey: 'bookingStatusDetail.DEPOSIT_PAID', customerLabelKey: 'bookingStatusCustomer.DEPOSIT_PAID', tone: 'warning' },
+  CONFIRMED: { labelKey: 'bookingStatus.CONFIRMED', customerLabelKey: 'bookingStatusCustomer.CONFIRMED', tone: 'success' },
+  FULLY_PAID: { labelKey: 'bookingStatus.FULLY_PAID', customerLabelKey: 'bookingStatusCustomer.FULLY_PAID', tone: 'success' },
+  COMPLETED: { labelKey: 'bookingStatus.COMPLETED', customerLabelKey: 'bookingStatusCustomer.COMPLETED', tone: 'info' },
+  CANCELLED: { labelKey: 'bookingStatus.CANCELLED', customerLabelKey: 'bookingStatusCustomer.CANCELLED', tone: 'danger' },
 };
 
-const FALLBACK: BookingStatusMeta = { label: 'Unknown', tone: 'neutral' };
+const FALLBACK: BookingStatusMeta = { labelKey: 'bookingStatus.UNKNOWN', tone: 'neutral' };
 
 export const getBookingStatusMeta = (status: string): BookingStatusMeta =>
   BOOKING_STATUS[status as BookingStatusKey] ?? FALLBACK;
+
+/** Client-facing status label key (falls back to the photographer label). */
+export const getCustomerBookingStatusLabelKey = (status: string): TranslationKey => {
+  const meta = getBookingStatusMeta(status);
+  return meta.customerLabelKey ?? meta.labelKey;
+};
 
 /**
  * Legal forward transitions for each status. Mirrors the server-side state
@@ -57,14 +76,14 @@ export const BOOKING_TRANSITIONS: Record<BookingStatusKey, BookingStatusKey[]> =
   CANCELLED: [],
 };
 
-/** Imperative button label for transitioning a booking *into* a status. */
-export const STATUS_ACTION_LABEL: Record<BookingStatusKey, string> = {
-  ENQUIRY: 'Reopen enquiry',
-  CONFIRMED: 'Confirm booking',
-  DEPOSIT_PAID: 'Mark deposit paid',
-  FULLY_PAID: 'Mark fully paid',
-  COMPLETED: 'Mark completed',
-  CANCELLED: 'Cancel booking',
+/** Imperative button label key for transitioning a booking *into* a status. */
+export const STATUS_ACTION_LABEL_KEY: Record<BookingStatusKey, TranslationKey> = {
+  ENQUIRY: 'statusAction.ENQUIRY',
+  CONFIRMED: 'statusAction.CONFIRMED',
+  DEPOSIT_PAID: 'statusAction.DEPOSIT_PAID',
+  FULLY_PAID: 'statusAction.FULLY_PAID',
+  COMPLETED: 'statusAction.COMPLETED',
+  CANCELLED: 'statusAction.CANCELLED',
 };
 
 export const getAllowedTransitions = (status: string): BookingStatusKey[] =>

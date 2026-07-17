@@ -67,6 +67,15 @@ public class SecurityConfig {
                     "/api/auth/logout",
                     "/api/auth/verify-email",
                     "/api/auth/resend-verification",
+                    // Password recovery runs entirely pre-session: a browser
+                    // arriving at /forgot-password has never spoken to the API,
+                    // so it holds no XSRF-TOKEN cookie to echo back. And there
+                    // is nothing for CSRF to abuse — forging "email a reset link
+                    // to an address the attacker names" is something the attacker
+                    // can already do directly, and forging the reset itself needs
+                    // the token from the victim's inbox.
+                    "/api/auth/password/forgot",
+                    "/api/auth/password/reset",
                     "/api/auth/customer/magic-link/request",
                     "/api/auth/customer/magic-link/verify",
                     "/api/public/**",
@@ -96,8 +105,20 @@ public class SecurityConfig {
                     "/api/galleries/**",
                     "/api/packages/**",
                     "/api/photographerBookings",
-                    "/api/bookings/**"
+                    "/api/bookings/**",
+                    // The inquiry inbox lists other customers' names, emails,
+                    // budgets and messages — same PII exposure as the lead inbox,
+                    // same gate.
+                    "/api/inquiries/**"
                 ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
+                // The customer's own surface. Gated to CUSTOMER rather than left
+                // to anyRequest() so the role boundary is symmetric: a
+                // photographer has no business filing an inquiry against their
+                // own tenant, and an explicit gate means a future endpoint added
+                // under /api/customer/** can't silently inherit a wider audience
+                // than intended. (Note this is /api/customer/**, distinct from
+                // the permitAll /api/auth/customer/** magic-link routes above.)
+                .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

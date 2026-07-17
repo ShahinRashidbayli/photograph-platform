@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Lead } from '@/types/api';
 import { extractApiError } from '@/lib/helpers';
+import { useTranslation } from '@/lib/i18n';
 import type { ColorTokens } from './leadTypes';
 
 /**
@@ -22,6 +23,7 @@ export function EditNoteModal({
   onClose: () => void;
   onSaved: (_lead: Lead) => void;
 }>) {
+  const { t } = useTranslation();
   const isEdit = !!lead.internalNotes;
   const [notes, setNotes] = useState(lead.internalNotes ?? '');
   const [submitting, setSubmitting] = useState(false);
@@ -45,9 +47,7 @@ export function EditNoteModal({
       });
       onSaved(res.data);
     } catch (err) {
-      setSubmitError(
-        extractApiError(err, 'Could not save the note. Please try again.'),
-      );
+      setSubmitError(extractApiError(err, t('editNote.errSubmit')));
     } finally {
       setSubmitting(false);
     }
@@ -104,20 +104,29 @@ export function EditNoteModal({
         if (e.target === e.currentTarget && !submitting) onClose();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label={`${isEdit ? 'Edit' : 'Add'} note for ${lead.name}`} style={card}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={
+          isEdit
+            ? t('editNote.ariaEdit', { name: lead.name })
+            : t('editNote.ariaAdd', { name: lead.name })
+        }
+        style={card}
+      >
         <div style={{ padding: '20px 24px 12px', borderBottom: `1px solid ${c.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
           <div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
-              {isEdit ? 'Edit internal note' : 'Add internal note'}
+              {isEdit ? t('editNote.titleEdit') : t('editNote.titleAdd')}
             </div>
             <div style={{ fontSize: '0.85rem', color: c.textMuted, marginTop: '4px' }}>
-              Only visible to you — clients never see internal notes.
+              {t('editNote.subtitle')}
             </div>
           </div>
           <button
             type="button"
             onClick={() => !submitting && onClose()}
-            aria-label="Close"
+            aria-label={t('common.close')}
             style={{
               background: 'transparent',
               border: 'none',
@@ -150,7 +159,7 @@ export function EditNoteModal({
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Anything you want to remember about this lead?"
+            placeholder={t('editNote.placeholder')}
             maxLength={4000}
             autoFocus
             style={{
@@ -174,10 +183,10 @@ export function EditNoteModal({
 
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${c.divider}`, display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
           <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="button" style={primaryBtn} onClick={handleSave} disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save note'}
+            {submitting ? t('common.saving') : t('editNote.submit')}
           </button>
         </div>
       </div>

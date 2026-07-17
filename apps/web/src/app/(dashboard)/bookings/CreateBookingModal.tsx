@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { extractApiError, eurosToCents } from '@/lib/helpers';
+import { useTranslation } from '@/lib/i18n';
 import { Booking, Package } from '@/types/api';
 import { getBookingsColors } from './bookings.styles';
 
@@ -36,6 +37,7 @@ export function CreateBookingModal({
   onCreated,
   initialDate,
 }: CreateModalProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ ...EMPTY_FORM, eventDate: initialDate ?? '' });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -112,17 +114,17 @@ export function CreateBookingModal({
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
-    if (!form.clientName.trim()) errors.clientName = 'Client name is required.';
+    if (!form.clientName.trim()) errors.clientName = t('createBooking.errName');
     if (!form.clientEmail.trim()) {
-      errors.clientEmail = 'Client email is required.';
+      errors.clientEmail = t('createBooking.errEmail');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())) {
-      errors.clientEmail = 'Enter a valid email address.';
+      errors.clientEmail = t('createBooking.errEmailInvalid');
     }
-    if (!form.eventDate) errors.eventDate = 'Event date is required.';
+    if (!form.eventDate) errors.eventDate = t('createBooking.errDate');
     const total = eurosToCents(form.totalAmount);
     const deposit = eurosToCents(form.depositAmount);
     if (form.depositAmount.trim() && deposit > total) {
-      errors.depositAmount = 'Deposit cannot exceed the total.';
+      errors.depositAmount = t('createBooking.errDeposit');
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -159,9 +161,7 @@ export function CreateBookingModal({
       const res = await api.post<Booking>('/api/bookings', payload);
       onCreated(res.data);
     } catch (err) {
-      setSubmitError(
-        extractApiError(err, 'Could not create the booking. Please try again.'),
-      );
+      setSubmitError(extractApiError(err, t('createBooking.errSubmit')));
     } finally {
       setSubmitting(false);
     }
@@ -183,20 +183,18 @@ export function CreateBookingModal({
         style={styles.modalCard}
         role="dialog"
         aria-modal="true"
-        aria-label="Create a new booking"
+        aria-label={t('createBooking.aria')}
       >
         <div style={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
-            <div style={styles.modalTitle}>New booking</div>
-            <div style={styles.modalSubtitle}>
-              The booking starts as an enquiry — you can advance it afterwards.
-            </div>
+            <div style={styles.modalTitle}>{t('createBooking.title')}</div>
+            <div style={styles.modalSubtitle}>{t('createBooking.subtitle')}</div>
           </div>
           <button
             type="button"
             style={styles.modalClose}
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             ×
           </button>
@@ -211,7 +209,7 @@ export function CreateBookingModal({
 
           <div style={styles.formField}>
             <label style={styles.formLabel} htmlFor="bk-clientName">
-              Client name *
+              {t('createBooking.clientName')}
             </label>
             <input
               id="bk-clientName"
@@ -228,7 +226,7 @@ export function CreateBookingModal({
 
           <div style={styles.formField}>
             <label style={styles.formLabel} htmlFor="bk-clientEmail">
-              Client email *
+              {t('createBooking.clientEmail')}
             </label>
             <input
               id="bk-clientEmail"
@@ -246,7 +244,7 @@ export function CreateBookingModal({
           <div className="bk-form-row" style={styles.formRow}>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-eventDate">
-                Event date *
+                {t('createBooking.eventDate')}
               </label>
               <input
                 id="bk-eventDate"
@@ -261,7 +259,7 @@ export function CreateBookingModal({
             </div>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-eventTime">
-                Event time
+                {t('createBooking.eventTime')}
               </label>
               <input
                 id="bk-eventTime"
@@ -276,21 +274,21 @@ export function CreateBookingModal({
           <div className="bk-form-row" style={styles.formRow}>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-eventType">
-                Event type
+                {t('createBooking.eventType')}
               </label>
               <input
                 id="bk-eventType"
                 type="text"
                 value={form.eventType}
                 onChange={(e) => update('eventType', e.target.value)}
-                placeholder="Wedding, Portrait…"
+                placeholder={t('createBooking.eventTypePlaceholder')}
                 style={styles.formInput}
                 maxLength={50}
               />
             </div>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-location">
-                Location
+                {t('createBooking.location')}
               </label>
               <input
                 id="bk-location"
@@ -306,7 +304,7 @@ export function CreateBookingModal({
           {packages.length > 0 && (
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-package">
-                Package
+                {t('createBooking.package')}
               </label>
               <select
                 id="bk-package"
@@ -314,7 +312,7 @@ export function CreateBookingModal({
                 onChange={(e) => handlePackageChange(e.target.value)}
                 style={styles.formInput}
               >
-                <option value="">No package — custom price</option>
+                <option value="">{t('createBooking.noPackage')}</option>
                 {packages.map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>
                     {pkg.name} — €{(pkg.priceCents / 100).toFixed(0)}
@@ -322,7 +320,7 @@ export function CreateBookingModal({
                 ))}
               </select>
               <span style={{ fontSize: '0.78rem', color: colors.textMuted, marginTop: '4px' }}>
-                Picking a package fills the total below. Override the total to use a custom price.
+                {t('createBooking.packageHelp')}
               </span>
             </div>
           )}
@@ -330,7 +328,7 @@ export function CreateBookingModal({
           <div className="bk-form-row" style={styles.formRow}>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-total">
-                Total amount (€)
+                {t('createBooking.total')}
               </label>
               <input
                 id="bk-total"
@@ -344,7 +342,7 @@ export function CreateBookingModal({
             </div>
             <div style={styles.formField}>
               <label style={styles.formLabel} htmlFor="bk-deposit">
-                Deposit (€)
+                {t('createBooking.deposit')}
               </label>
               <input
                 id="bk-deposit"
@@ -363,14 +361,14 @@ export function CreateBookingModal({
 
           <div style={styles.formField}>
             <label style={styles.formLabel} htmlFor="bk-notes">
-              Internal notes
+              {t('createBooking.notes')}
             </label>
             <textarea
               id="bk-notes"
               value={form.internalNotes}
               onChange={(e) => update('internalNotes', e.target.value)}
               style={styles.formTextarea}
-              placeholder="Only visible to you."
+              placeholder={t('createBooking.notesPlaceholder')}
             />
           </div>
         </div>
@@ -382,7 +380,7 @@ export function CreateBookingModal({
             onClick={onClose}
             disabled={submitting}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -393,7 +391,7 @@ export function CreateBookingModal({
             onClick={handleSubmit}
             disabled={submitting}
           >
-            {submitting ? 'Creating…' : 'Create booking'}
+            {submitting ? t('createBooking.submitting') : t('createBooking.submit')}
           </button>
         </div>
       </div>

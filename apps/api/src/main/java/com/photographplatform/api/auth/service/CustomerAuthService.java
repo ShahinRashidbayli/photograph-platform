@@ -77,7 +77,6 @@ public class CustomerAuthService {
     private final EmailService emailService;
     private final StringRedisTemplate redis;
     private final AuditService auditService;
-    private final String fromEmail;
     private final String webBaseUrl;
     private final long refreshTokenExpiryMs;
 
@@ -90,7 +89,6 @@ public class CustomerAuthService {
         EmailService emailService,
         StringRedisTemplate redis,
         AuditService auditService,
-        @Value("${resend.from-email:noreply@fotoplatform.local}") String fromEmail,
         @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl,
         @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs
     ) {
@@ -102,7 +100,6 @@ public class CustomerAuthService {
         this.emailService = emailService;
         this.redis = redis;
         this.auditService = auditService;
-        this.fromEmail = fromEmail;
         this.webBaseUrl = webBaseUrl;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
     }
@@ -275,7 +272,7 @@ public class CustomerAuthService {
             """.formatted(escapeHtml(greetingName), link, link);
         try {
             emailService.send(new EmailMessage(
-                user.getEmail(), fromEmail, "Your sign-in link", html));
+                user.getEmail(), "Your sign-in link", html));
         } catch (RuntimeException ex) {
             LOG.warn("Failed to send magic-link email to {}", user.getEmail(), ex);
         }

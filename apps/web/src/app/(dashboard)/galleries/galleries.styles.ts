@@ -22,7 +22,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     pageHeader: {
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: '20px',
       flexWrap: 'wrap',
     },

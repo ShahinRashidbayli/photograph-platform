@@ -6,34 +6,57 @@ import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
 import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
 
-type Step = 'role' | 'ph-form' | 'ph-success' | 'cu-info';
-type Role = 'photographer' | 'client' | null;
+// Registration is photographer-only: creating a studio spins up a tenant and
+// schema. Clients never "register" — the magic-link flow creates their account
+// just-in-time — so there is no role chooser here; a client who lands on this
+// page is nudged to the passwordless sign-in via the footer link below.
+type Step = 'ph-form' | 'ph-success';
+
+// Plans the pricing page can hand over via ?plan=… . Anything else (a typo, a
+// stale link, someone poking at the URL) falls back to the default rather than
+// showing a plan that does not exist — the value reaches the API, so it is
+// validated here as well as server-side.
+const PLAN_IDS = ['starter', 'pro', 'studio'] as const;
+type PlanId = (typeof PLAN_IDS)[number];
+
+const PLAN_LABEL: Record<PlanId, string> = {
+  starter: 'Starter',
+  pro: 'Pro',
+  studio: 'Studio',
+};
+
+function readPlan(raw: string | null): PlanId | null {
+  const v = raw?.toLowerCase();
+  return PLAN_IDS.includes(v as PlanId) ? (v as PlanId) : null;
+}
 
 const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface PasswordStrength {
-  label: string;
+  // Language-neutral level; the visible label is translated at render time.
+  level: '' | 'weak' | 'medium' | 'strong';
   score: number;
   color: string;
 }
 
 function getPasswordStrength(pw: string): PasswordStrength {
-  if (!pw) return { label: '', score: 0, color: '#E5E7EB' };
+  if (!pw) return { level: '', score: 0, color: '#E5E7EB' };
   let score = 0;
   if (pw.length >= 8) score++;
   if (pw.length >= 12) score++;
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score <= 1) return { label: 'Weak', score, color: '#EF4444' };
-  if (score <= 3) return { label: 'Medium', score, color: '#F59E0B' };
-  return { label: 'Strong', score, color: '#10B981' };
+  if (score <= 1) return { level: 'weak', score, color: '#EF4444' };
+  if (score <= 3) return { level: 'medium', score, color: '#F59E0B' };
+  return { level: 'strong', score, color: '#10B981' };
 }
 
 function slugifySubdomain(raw: string): string {
@@ -47,13 +70,15 @@ function slugifySubdomain(raw: string): string {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const plan = readPlan(searchParams.get('plan'));
   const setUser = useAuthStore((st) => st.setUser);
   const theme = useThemeStore((st) => st.theme);
   const c = getColors(theme);
   const s = getAuthStyles(theme);
+  const { t } = useTranslation();
 
-  const [step, setStep] = useState<Step>('role');
-  const [role, setRole] = useState<Role>(null);
+  const [step, setStep] = useState<Step>('ph-form');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -74,19 +99,19 @@ export default function RegisterPage() {
     const subdomain = form.subdomain.trim();
 
     if (!fullName || !email || !form.password || !subdomain) {
-      return 'All fields are required';
+      return t('register.errorAllRequired');
     }
     if (!EMAIL_REGEX.test(email)) {
-      return 'Please enter a valid email address';
+      return t('register.errorEmail');
     }
     if (form.password.length < 10) {
-      return 'Password must be at least 10 characters';
+      return t('register.errorPasswordLength');
     }
     if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
-      return 'Password must contain at least one letter and one digit';
+      return t('register.errorPasswordComposition');
     }
     if (!SUBDOMAIN_REGEX.test(subdomain)) {
-      return 'Subdomain must be 3–63 chars, start and end with a letter or digit, hyphens allowed in between';
+      return t('register.errorSubdomain');
     }
     return null;
   };
@@ -107,6 +132,9 @@ export default function RegisterPage() {
         password: form.password,
         subdomain: form.subdomain.trim(),
         role: 'PHOTOGRAPHER',
+        // Null when they came from the nav/footer rather than a pricing card;
+        // the backend then applies its STARTER default.
+        plan: plan ? plan.toUpperCase() : null,
       });
       setUser(user);
       setStep('ph-success');
@@ -114,171 +142,39 @@ export default function RegisterPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Registration failed';
+        t('register.errorGeneric');
       setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRoleContinue = () => {
-    setError('');
-    if (role === 'photographer') setStep('ph-form');
-    else if (role === 'client') setStep('cu-info');
-  };
-
-  const handleBack = () => {
-    setError('');
-    setRole(null);
-    setStep('role');
-  };
-
   const passwordStrength = getPasswordStrength(form.password);
-
-  const backButtonStyle = {
-    color: c.primaryText,
-    textDecoration: 'none',
-    fontWeight: 600,
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    cursor: 'pointer',
-    fontSize: '0.9rem',
-  } as const;
-
-  const roleCard = (selected: boolean, tone: 'primary' | 'success') => {
-    const accent = tone === 'primary' ? c.primary : c.success;
-    return {
-      position: 'relative' as const,
-      padding: '22px 20px',
-      border: `1.5px solid ${selected ? accent : c.border}`,
-      borderRadius: 16,
-      background: selected ? (tone === 'primary' ? c.primaryBg : c.successBg) : c.surface,
-      cursor: 'pointer',
-      transition: 'border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease',
-      textAlign: 'left' as const,
-      boxShadow: selected ? `0 0 0 4px ${accent}1F` : c.elevatedShadow,
-      transform: selected ? 'translateY(-1px)' : 'none',
-      outline: 'none',
-      display: 'block',
-      width: '100%',
-    };
-  };
-
-  const iconChip = (tone: 'primary' | 'success') => ({
-    width: 48,
-    height: 48,
-    borderRadius: 13,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    background: tone === 'primary' ? c.primaryBg : c.successBg,
-    color: tone === 'primary' ? c.primaryText : c.successText,
-    border: `1px solid ${tone === 'primary' ? c.primaryBorder : c.successBorder}`,
-  });
-
-  const selectedBadge = (tone: 'primary' | 'success') => ({
-    position: 'absolute' as const,
-    top: 14,
-    right: 14,
-    color: tone === 'primary' ? c.primary : c.success,
-    display: 'flex',
-  });
 
   return (
     <AuthSplitLayout
       contentMaxWidth={460}
-      crossLink={{ href: '/login', label: 'Sign in' }}
-      visualTitle="Grow your photography business"
-      visualSubtitle="A 14-day free trial. No credit card. Your own booking site in minutes."
+      crossLink={{ href: '/login', label: t('register.crossLink') }}
+      visualTitle={t('register.visualTitle')}
+      visualSubtitle={t('register.visualSubtitle')}
     >
-      {step === 'role' && (
-        <>
-          <div style={s.header}>
-            <h2 style={s.title}>Join Fotolio</h2>
-            <p style={s.subtitle}>Choose your role to set up the right experience.</p>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-              gap: 16,
-              marginBottom: 28,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setRole('photographer')}
-              style={roleCard(role === 'photographer', 'primary')}
-            >
-              {role === 'photographer' && (
-                <span style={selectedBadge('primary')}>
-                  <Icon name="check-circle" size={20} />
-                </span>
-              )}
-              <div style={iconChip('primary')}>
-                <Icon name="briefcase" size={24} />
-              </div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 8px 0', color: c.text }}>
-                Photographer
-              </h3>
-              <p style={{ fontSize: '0.86rem', color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
-                Manage my bookings, leads, contracts and gallery delivery
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setRole('client')}
-              style={roleCard(role === 'client', 'success')}
-            >
-              {role === 'client' && (
-                <span style={selectedBadge('success')}>
-                  <Icon name="check-circle" size={20} />
-                </span>
-              )}
-              <div style={iconChip('success')}>
-                <Icon name="user" size={24} />
-              </div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 8px 0', color: c.text }}>
-                Client
-              </h3>
-              <p style={{ fontSize: '0.86rem', color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
-                Track my booking, view my photos and message my photographer
-              </p>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleRoleContinue}
-            disabled={!role}
-            style={{
-              ...s.button,
-              ...s.buttonPrimary,
-              ...(role ? {} : s.buttonDisabled),
-              marginBottom: 20,
-            }}
-          >
-            {role ? `Continue as ${role.charAt(0).toUpperCase()}${role.slice(1)}` : 'Continue'}
-          </button>
-
-          <p style={s.centerText}>
-            Already have an account?{' '}
-            <Link href="/login" style={s.link}>
-              Sign in
-            </Link>
-          </p>
-        </>
-      )}
-
       {step === 'ph-form' && (
         <>
           <div style={s.header}>
-            <h2 style={s.title}>Create your studio</h2>
-            <p style={s.subtitle}>14-day free trial · No credit card required</p>
+            <h2 style={s.title}>{t('register.title')}</h2>
+            {/* Confirm the plan they clicked. Without this the pricing CTA is a
+                dead end: they pick Studio and land on a page that never mentions
+                it again. */}
+            {plan ? (
+              <p style={s.subtitle}>
+                {t('register.planNote', { plan: PLAN_LABEL[plan] })}{' '}
+                <Link href="/#pricing" style={s.link}>
+                  {t('register.planChange')}
+                </Link>
+              </p>
+            ) : (
+              <p style={s.subtitle}>{t('register.subtitle')}</p>
+            )}
           </div>
 
           {error && <div style={s.alertError}>{error}</div>}
@@ -290,7 +186,7 @@ export default function RegisterPage() {
             }}
           >
             <div style={s.formGroup}>
-              <label style={s.label}>Full name</label>
+              <label style={s.label}>{t('register.fullNameLabel')}</label>
               <input
                 type="text"
                 style={s.input}
@@ -302,7 +198,7 @@ export default function RegisterPage() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>Email address</label>
+              <label style={s.label}>{t('register.emailLabel')}</label>
               <input
                 type="email"
                 style={s.input}
@@ -314,7 +210,7 @@ export default function RegisterPage() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>Your subdomain</label>
+              <label style={s.label}>{t('register.subdomainLabel')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input
                   type="text"
@@ -338,13 +234,11 @@ export default function RegisterPage() {
                   .fotolio.de
                 </div>
               </div>
-              <div style={s.helperText}>
-                3–63 characters · lowercase letters, digits and hyphens
-              </div>
+              <div style={s.helperText}>{t('register.subdomainHelper')}</div>
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>Password</label>
+              <label style={s.label}>{t('register.passwordLabel')}</label>
               <input
                 type="password"
                 style={s.input}
@@ -380,13 +274,15 @@ export default function RegisterPage() {
                       marginTop: 4,
                     }}
                   >
-                    {passwordStrength.label}
+                    {passwordStrength.level === 'weak'
+                      ? t('register.pwWeak')
+                      : passwordStrength.level === 'medium'
+                        ? t('register.pwMedium')
+                        : t('register.pwStrong')}
                   </div>
                 </div>
               ) : (
-                <div style={s.helperText}>
-                  Min. 10 characters, with at least one letter and one digit
-                </div>
+                <div style={s.helperText}>{t('register.passwordHelper')}</div>
               )}
             </div>
 
@@ -395,15 +291,22 @@ export default function RegisterPage() {
               style={{ ...s.button, ...s.buttonPrimary, ...(loading ? s.buttonDisabled : {}) }}
               disabled={loading}
             >
-              {loading ? 'Creating studio…' : 'Create studio'}
+              {loading ? t('register.submitLoading') : t('register.submit')}
             </button>
           </form>
 
-          <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <button type="button" onClick={handleBack} style={backButtonStyle}>
-              ← Back
-            </button>
-          </div>
+          <p style={{ ...s.centerText, marginTop: 20 }}>
+            {t('register.alreadyAccount')}{' '}
+            <Link href="/login" style={s.link}>
+              {t('register.signIn')}
+            </Link>
+          </p>
+          <p style={{ ...s.centerText, marginTop: 8 }}>
+            {t('register.bookingQuestion')}{' '}
+            <Link href="/customer/auth/login" style={s.link}>
+              {t('register.clientSignIn')}
+            </Link>
+          </p>
         </>
       )}
 
@@ -425,66 +328,13 @@ export default function RegisterPage() {
           >
             <Icon name="check" size={30} strokeWidth={2.25} />
           </div>
-          <h2 style={s.title}>Welcome to Fotolio!</h2>
+          <h2 style={s.title}>{t('register.successTitle')}</h2>
           <p style={{ ...s.subtitle, marginTop: 8 }}>
-            Your studio is live at {form.subdomain}.fotolio.de. Redirecting to your dashboard…
+            {t('register.successBody', { subdomain: form.subdomain })}
           </p>
         </div>
       )}
 
-      {step === 'cu-info' && (
-        <>
-          <div style={{ ...s.header, textAlign: 'center' }}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: c.primaryBg,
-                color: c.primaryText,
-                border: `1px solid ${c.primaryBorder}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-              }}
-            >
-              <Icon name="mail" size={28} />
-            </div>
-            <h2 style={s.title}>Continue as a client</h2>
-            <p style={s.subtitle}>
-              No separate sign-up needed. Enter your email and your photographer&apos;s subdomain
-              and we&apos;ll send you a one-time sign-in link — your account is set up
-              automatically the first time.
-            </p>
-          </div>
-
-          <div style={{ ...s.alertInfo, marginBottom: 20 }}>
-            Already got a magic link from your photographer? Just click it in your email — no
-            password needed.
-          </div>
-
-          <Link
-            href="/customer/auth/login"
-            style={{
-              ...s.button,
-              ...s.buttonPrimary,
-              display: 'block',
-              textAlign: 'center',
-              textDecoration: 'none',
-              boxSizing: 'border-box',
-            }}
-          >
-            Go to client sign in
-          </Link>
-
-          <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <button type="button" onClick={handleBack} style={backButtonStyle}>
-              ← Back
-            </button>
-          </div>
-        </>
-      )}
     </AuthSplitLayout>
   );
 }

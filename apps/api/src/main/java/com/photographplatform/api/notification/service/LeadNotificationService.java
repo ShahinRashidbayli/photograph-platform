@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import org.slf4j.Logger;
@@ -20,9 +21,6 @@ public class LeadNotificationService {
 
     private static final Logger LOG = LoggerFactory.getLogger(LeadNotificationService.class);
 
-    @Value("${resend.from-email:noreply@fotoplatform.de}")
-    private String fromEmail;
-
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
 
@@ -38,7 +36,6 @@ public class LeadNotificationService {
         try {
             EmailMessage message = new EmailMessage(
                 event.getPhotographerEmail(),
-                fromEmail,
                 buildSubject(event.getScore(), event.getClientName()),
                 buildBody(event)
             );
@@ -62,6 +59,13 @@ public class LeadNotificationService {
 
     private String buildBody(LeadCreatedEvent event) {
         String scoreBadge = renderBadge(event.getScore());
+
+        // Name and email arrive from the *unauthenticated* public lead form, so
+        // they are attacker-controlled: interpolating them raw would let a
+        // submitter inject markup (or a spoofed link) into the mail the
+        // photographer opens. Escape before they reach the template.
+        String clientName = HtmlEscape.escape(event.getClientName());
+        String clientEmail = HtmlEscape.escape(event.getClientEmail());
 
         String bodyStyle = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
             + "color:#0F172A;background:#F9FAFB;margin:0;padding:32px 16px;";
@@ -104,8 +108,8 @@ public class LeadNotificationService {
                 bodyStyle,
                 cardStyle,
                 scoreBadge,
-                tdLabel, tdValue, event.getClientName(),
-                tdLabel, event.getClientEmail(), event.getClientEmail(),
+                tdLabel, tdValue, clientName,
+                tdLabel, clientEmail, clientEmail,
                 webBaseUrl, btnStyle,
                 event.getLeadId()
             );

@@ -7,8 +7,10 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventInput, EventClickArg } from '@fullcalendar/core';
 import type { DateClickArg } from '@fullcalendar/interaction';
+import deLocale from '@fullcalendar/core/locales/de';
 
 import { Booking } from '@/types/api';
+import { useTranslation } from '@/lib/i18n';
 import { getBookingsColors } from './bookings.styles';
 
 type Colors = ReturnType<typeof getBookingsColors>;
@@ -40,10 +42,11 @@ function colorForStatus(status: string): { bg: string; border: string; text: str
 }
 
 /**
- * Construct a FullCalendar event from a booking. Mirrors the backend's
- * {@code CalendarEventResponse} shape, but built client-side from the same
- * list the table view uses — saves a second round-trip and keeps both views
- * in sync when status changes happen via the detail panel.
+ * Construct a FullCalendar event from a booking, built client-side from the
+ * same list the table view uses — this saves a second round-trip and keeps
+ * both views in sync when status changes happen via the detail panel. (This is
+ * a deliberate choice over a server-side calendar feed: the list is already
+ * loaded for the table, so reusing it avoids a redundant request.)
  *
  * <p>An event with {@code event_time} renders as a timed pill; without one it
  * renders as an all-day block. The "End at start" trick is intentional —
@@ -90,6 +93,7 @@ export function BookingsCalendarView({
   colors: Colors;
   isDark: boolean;
 }>) {
+  const { t, lang } = useTranslation();
   const events = useMemo(() => bookings.map(bookingToEvent), [bookings]);
 
   // FullCalendar styles itself via a handful of CSS custom properties; remap
@@ -115,7 +119,7 @@ export function BookingsCalendarView({
 
   return (
     <section
-      aria-label="Bookings calendar"
+      aria-label={t('calendar.aria')}
       style={{
         ...themeVars,
         background: colors.surface,
@@ -229,11 +233,15 @@ export function BookingsCalendarView({
           // FullCalendar's list view, which doesn't match the rest of the UI.
           right: 'dayGridMonth,timeGridWeek,timeGridDay',
         }}
+        // FullCalendar renders its own chrome (weekday headers, the month
+        // title); handing it the matching locale translates those, while
+        // buttonText keeps our own wording for the toolbar buttons.
+        locale={lang === 'de' ? deLocale : undefined}
         buttonText={{
-          today: 'Today',
-          month: 'Month',
-          week: 'Week',
-          day: 'Day',
+          today: t('calendar.today'),
+          month: t('calendar.month'),
+          week: t('calendar.week'),
+          day: t('calendar.day'),
         }}
         events={events}
         // Highlight the currently-selected booking so the right-hand detail

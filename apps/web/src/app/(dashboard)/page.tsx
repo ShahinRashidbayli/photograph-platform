@@ -7,6 +7,7 @@ import Link from 'next/link';
 import React from 'react';
 import api from '@/lib/api';
 import { Booking, Lead } from '@/types/api';
+import { formatMonthAbbrUpper } from '@/lib/helpers';
 
 const themeColors = {
   light: {
@@ -70,7 +71,7 @@ function MetricCard({ label, value, trend, sub, colors }: any) {
 function BookingCard({ booking, colors }: any) {
   const statusStyle = statusStyles[booking.status] || statusStyles.ENQUIRY;
   const dateObj = new Date(booking.eventDate);
-  const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+  const month = formatMonthAbbrUpper(dateObj);
   const day = dateObj.getDate();
   const totalAmount = Math.round((booking.totalAmountCents || 0) / 100);
 

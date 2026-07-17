@@ -7,7 +7,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.annotation.Async;
@@ -17,9 +16,6 @@ import org.springframework.stereotype.Service;
 public class AutoReplyService {
 
     private static final Logger LOG = LoggerFactory.getLogger(AutoReplyService.class);
-
-    @Value("${resend.from-email:noreply@fotoplatform.de}")
-    private String fromEmail;
 
     private final EmailService emailService;
 
@@ -48,7 +44,6 @@ public class AutoReplyService {
 
             emailService.send(new EmailMessage(
                 event.getClientEmail(),
-                fromEmail,
                 "Vielen Dank für Ihre Anfrage - " + photographer,
                 htmlBody
             ));

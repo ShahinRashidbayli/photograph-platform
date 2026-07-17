@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { TranslationKey } from '@/lib/i18n';
 import { getLeadsColors } from './leads.styles';
 
 // Lead lifecycle + scoring vocabulary shared across the leads route. Kept in
@@ -19,37 +20,53 @@ export type LeadPipelineFilter = 'Active' | 'Booked' | 'Rejected' | 'All';
 export type ColorTokens = ReturnType<typeof getLeadsColors>;
 export type Styles = Record<string, React.CSSProperties>;
 
-export const STATUS_LABEL: Record<LeadStatus, string> = {
-  NEW: 'New',
-  REPLIED: 'Replied',
-  BOOKED: 'Booked',
-  REJECTED: 'Rejected',
+// Display vocabulary lives in the i18n dictionaries; these maps say which key
+// each backend enum value resolves to, so every leads surface renders the
+// active language from one definition.
+export const STATUS_LABEL_KEY: Record<LeadStatus, TranslationKey> = {
+  NEW: 'leadStatus.NEW',
+  REPLIED: 'leadStatus.REPLIED',
+  BOOKED: 'leadStatus.BOOKED',
+  REJECTED: 'leadStatus.REJECTED',
 };
 
-export const EVENT_LABELS: Record<string, string> = {
-  WEDDING: 'Wedding',
-  ENGAGEMENT: 'Engagement',
-  PORTRAIT: 'Portrait',
-  FAMILY: 'Family',
-  NEWBORN: 'Newborn',
-  CORPORATE: 'Corporate',
+export const EVENT_LABEL_KEYS: Record<string, TranslationKey> = {
+  WEDDING: 'leadEvent.WEDDING',
+  ENGAGEMENT: 'leadEvent.ENGAGEMENT',
+  PORTRAIT: 'leadEvent.PORTRAIT',
+  FAMILY: 'leadEvent.FAMILY',
+  NEWBORN: 'leadEvent.NEWBORN',
+  CORPORATE: 'leadEvent.CORPORATE',
 };
 
-export const BUDGET_LABELS: Record<string, string> = {
-  UNDER_200: 'under €200',
-  '200_500': '€200–499',
-  '500_1000': '€500+',
-  OVER_1000: '€1,000+',
+export const BUDGET_LABEL_KEYS: Record<string, TranslationKey> = {
+  UNDER_200: 'leadBudget.UNDER_200',
+  '200_500': 'leadBudget.200_500',
+  '500_1000': 'leadBudget.500_1000',
+  OVER_1000: 'leadBudget.OVER_1000',
 };
 
-export const SCORE_LABEL: Record<LeadScore, string> = {
-  HIGH: 'High priority',
-  MED: 'Medium priority',
-  LOW: 'Low priority',
+export const SCORE_LABEL_KEY: Record<LeadScore, TranslationKey> = {
+  HIGH: 'leadScoreLabel.HIGH',
+  MED: 'leadScoreLabel.MED',
+  LOW: 'leadScoreLabel.LOW',
 };
 
-export const SCORE_SHORT: Record<LeadScore, string> = {
-  HIGH: 'High',
-  MED: 'Med',
-  LOW: 'Low',
+export const SCORE_SHORT_KEY: Record<LeadScore, TranslationKey> = {
+  HIGH: 'leadScoreShort.HIGH',
+  MED: 'leadScoreShort.MED',
+  LOW: 'leadScoreShort.LOW',
 };
+
+/**
+ * Resolve a mapped label key, falling back to the raw backend value when the
+ * map has no entry — mirrors the previous `LABELS[x] ?? x` behaviour, so a new
+ * enum value from the server renders as itself instead of a blank cell.
+ */
+export function translateOr(
+  t: (_key: TranslationKey) => string,
+  key: TranslationKey | undefined,
+  fallback: string,
+): string {
+  return key ? t(key) : fallback;
+}

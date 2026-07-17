@@ -1,3 +1,4 @@
+import type { TranslationKey } from '@/lib/i18n';
 import type { ColorTokens, LeadScore } from './leadTypes';
 
 export function daysUntilEvent(iso: string): number {
@@ -41,15 +42,23 @@ export function statusBadgeVisual(status: string, c: ColorTokens) {
   }
 }
 
-export function getUrgencyVisual(daysUntil: number, c: ColorTokens) {
+/**
+ * Urgency chip palette + label key. Returns a key rather than text because this
+ * module is hook-free and shared by the list and detail panels — the caller
+ * resolves it through `t()` with the day count.
+ */
+export function getUrgencyVisual(
+  daysUntil: number,
+  c: ColorTokens,
+): { bg: string; color: string; dot: string; labelKey: TranslationKey } {
   if (daysUntil <= 0) {
-    return { bg: c.neutralBg, color: c.neutralText, dot: c.neutral, label: 'Past' };
+    return { bg: c.neutralBg, color: c.neutralText, dot: c.neutral, labelKey: 'leadUrgency.past' };
   }
   if (daysUntil < 30) {
-    return { bg: c.dangerBg, color: c.dangerText, dot: c.danger, label: `${daysUntil}d away` };
+    return { bg: c.dangerBg, color: c.dangerText, dot: c.danger, labelKey: 'leadUrgency.daysAway' };
   }
   if (daysUntil < 60) {
-    return { bg: c.warningBg, color: c.warningText, dot: c.warning, label: `${daysUntil}d away` };
+    return { bg: c.warningBg, color: c.warningText, dot: c.warning, labelKey: 'leadUrgency.daysAway' };
   }
-  return { bg: c.primaryBg, color: c.primaryStrong, dot: c.primary, label: `${daysUntil}d away` };
+  return { bg: c.primaryBg, color: c.primaryStrong, dot: c.primary, labelKey: 'leadUrgency.daysAway' };
 }

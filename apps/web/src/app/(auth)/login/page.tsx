@@ -5,6 +5,7 @@ import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { getColors } from '@/lib/design-tokens';
 import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ export default function LoginPage() {
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
   const s = getAuthStyles(theme);
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,7 +48,7 @@ export default function LoginPage() {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
-      setError('Email and password are required');
+      setError(t('login.errorRequired'));
       return;
     }
 
@@ -64,11 +66,11 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        setError('Invalid email or password');
+        setError(t('login.errorInvalid'));
       } else {
         const msg =
           (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          'Login failed';
+          t('login.errorGeneric');
         setError(msg);
       }
     } finally {
@@ -85,21 +87,21 @@ export default function LoginPage() {
     // Clients sign in via the "Client sign in" cross-link — they normally
     // arrive on their photographer's own subdomain, so the platform login
     // keeps that path low-emphasis rather than duplicating it here.
-    <AuthSplitLayout crossLink={{ href: '/customer/auth/login', label: 'Client sign in' }}>
+    <AuthSplitLayout crossLink={{ href: '/customer/auth/login', label: t('login.crossLink') }}>
       <div style={s.header}>
-        <h2 style={s.title}>Welcome back</h2>
-        <p style={s.subtitle}>Sign in to your Fotolio studio.</p>
+        <h2 style={s.title}>{t('login.title')}</h2>
+        <p style={s.subtitle}>{t('login.subtitle')}</p>
       </div>
 
       {error && <div style={s.alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label}>Email address</label>
+          <label style={s.label}>{t('login.emailLabel')}</label>
           <input
             type="email"
             style={inputStyle('email')}
-            placeholder="you@example.com"
+            placeholder={t('auth.emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onFocus={() => setFocused('email')}
@@ -109,7 +111,7 @@ export default function LoginPage() {
         </div>
 
         <div style={s.formGroup}>
-          <label style={s.label}>Password</label>
+          <label style={s.label}>{t('login.passwordLabel')}</label>
           <div style={{ position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
@@ -138,7 +140,7 @@ export default function LoginPage() {
                 color: colors.textSubtle,
                 padding: 6,
               }}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
             >
               <EyeIcon off={showPassword} />
             </button>
@@ -147,7 +149,7 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
           <Link href="/forgot-password" style={{ ...s.link, fontSize: '0.85rem' }}>
-            Forgot password?
+            {t('login.forgot')}
           </Link>
         </div>
 
@@ -166,7 +168,7 @@ export default function LoginPage() {
             if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimary);
           }}
         >
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? t('login.submitLoading') : t('login.submit')}
         </button>
       </form>
 
@@ -175,9 +177,9 @@ export default function LoginPage() {
       </div>
 
       <p style={s.centerText}>
-        Don&apos;t have an account?{' '}
+        {t('login.noAccount')}{' '}
         <Link href="/register" style={s.link}>
-          Create one
+          {t('login.createOne')}
         </Link>
       </p>
     </AuthSplitLayout>

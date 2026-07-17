@@ -5,12 +5,40 @@ import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
 import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { getAuthStyles } from '../../../(auth)/auth.styles';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+
+// Apex domains under which each photographer gets a subdomain. When the client
+// arrives on anna-foto.fotolio.de the subdomain is authoritative and there is no
+// reason to make them type (or guess) it — we lock the field. Reserved hosts
+// (the marketing apex, the app shell) are not photographer tenants.
+const BASE_DOMAINS = ['fotolio.de'];
+const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
+
+/**
+ * Derives the photographer subdomain from the current host, e.g.
+ * `anna-foto.fotolio.de` → `anna-foto`. Returns null on localhost, the apex,
+ * reserved hosts, or anything that isn't a single-label tenant subdomain, so
+ * the caller falls back to the manual field.
+ */
+function deriveSubdomainFromHost(): string | null {
+  if (typeof window === 'undefined') return null;
+  const host = window.location.hostname.toLowerCase();
+  for (const base of BASE_DOMAINS) {
+    if (host.endsWith(`.${base}`)) {
+      const sub = host.slice(0, host.length - base.length - 1);
+      if (sub && !sub.includes('.') && !RESERVED_SUBDOMAINS.has(sub)) {
+        return sub;
+      }
+    }
+  }
+  return null;
+}
 
 type FocusField = 'email' | 'subdomain' | 'fullName' | null;
 
@@ -21,14 +49,29 @@ function CustomerLoginInner() {
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
   const s = getAuthStyles(theme);
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [subdomain, setSubdomain] = useState(initialSubdomain);
+  const [subdomainLocked, setSubdomainLocked] = useState(false);
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [focused, setFocused] = useState<FocusField>(null);
+
+  // Host-derived subdomain wins over the ?subdomain hint and is authoritative,
+  // so we lock the field. Done in an effect (not useState init) because the
+  // hostname is only known client-side — reading it during render would break
+  // SSR/hydration. The query-param prefill stays editable for the localhost /
+  // shared-domain fallback where the host carries no tenant.
+  useEffect(() => {
+    const fromHost = deriveSubdomainFromHost();
+    if (fromHost) {
+      setSubdomain(fromHost);
+      setSubdomainLocked(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,15 +79,15 @@ function CustomerLoginInner() {
     const trimmedSubdomain = subdomain.trim().toLowerCase();
 
     if (!trimmedEmail || !trimmedSubdomain) {
-      setError('Email and photographer subdomain are required');
+      setError(t('customerLogin.errorRequired'));
       return;
     }
     if (!EMAIL_REGEX.test(trimmedEmail)) {
-      setError('Please enter a valid email address');
+      setError(t('customerLogin.errorEmail'));
       return;
     }
     if (!SUBDOMAIN_REGEX.test(trimmedSubdomain)) {
-      setError('Please enter a valid photographer subdomain (e.g. anna-foto)');
+      setError(t('customerLogin.errorSubdomain'));
       return;
     }
 
@@ -60,7 +103,7 @@ function CustomerLoginInner() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Could not send magic link. Please try again.';
+        t('customerLogin.errorSend');
       setError(msg);
     } finally {
       setLoading(false);
@@ -74,30 +117,27 @@ function CustomerLoginInner() {
 
   return (
     <AuthSplitLayout
-      crossLink={{ href: '/login', label: 'Photographer sign in' }}
+      crossLink={{ href: '/login', label: t('customerLogin.photographerSignIn') }}
       visualImage="/brand/auth-visual-client.jpg"
-      visualTitle="Your photos, your moments"
-      visualSubtitle="Sign in to track your booking, view your gallery and message your photographer."
+      visualTitle={t('customerLogin.visualTitle')}
+      visualSubtitle={t('customerLogin.visualSubtitle')}
     >
       {!submitted ? (
         <>
           <div style={s.header}>
-            <h2 style={s.title}>Sign in as a client</h2>
-            <p style={s.subtitle}>
-              Enter your email and your photographer&apos;s subdomain — we&apos;ll send you a
-              one-time link to sign in. No password needed.
-            </p>
+            <h2 style={s.title}>{t('customerLogin.title')}</h2>
+            <p style={s.subtitle}>{t('customerLogin.subtitle')}</p>
           </div>
 
           {error && <div style={s.alertError}>{error}</div>}
 
           <form onSubmit={handleSubmit}>
             <div style={s.formGroup}>
-              <label style={s.label}>Email address</label>
+              <label style={s.label}>{t('customerLogin.emailLabel')}</label>
               <input
                 type="email"
                 style={inputStyle('email')}
-                placeholder="you@example.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setFocused('email')}
@@ -107,11 +147,16 @@ function CustomerLoginInner() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>Photographer subdomain</label>
+              <label style={s.label}>{t('customerLogin.subdomainLabel')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
                 <input
                   type="text"
-                  style={inputStyle('subdomain')}
+                  style={{
+                    ...inputStyle('subdomain'),
+                    ...(subdomainLocked
+                      ? { background: colors.surfaceHover, color: colors.textMuted, cursor: 'default' }
+                      : {}),
+                  }}
                   placeholder="anna-foto"
                   value={subdomain}
                   onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
@@ -119,6 +164,8 @@ function CustomerLoginInner() {
                   onBlur={() => setFocused(null)}
                   autoComplete="off"
                   spellCheck={false}
+                  readOnly={subdomainLocked}
+                  aria-readonly={subdomainLocked}
                 />
                 <div
                   style={{
@@ -133,11 +180,15 @@ function CustomerLoginInner() {
                   .fotolio.de
                 </div>
               </div>
-              <div style={s.helperText}>The subdomain your photographer shared with you.</div>
+              <div style={s.helperText}>
+                {subdomainLocked
+                  ? t('customerLogin.subdomainHelperLocked')
+                  : t('customerLogin.subdomainHelper')}
+              </div>
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>Full name (optional)</label>
+              <label style={s.label}>{t('customerLogin.fullNameLabel')}</label>
               <input
                 type="text"
                 style={inputStyle('fullName')}
@@ -148,7 +199,7 @@ function CustomerLoginInner() {
                 onBlur={() => setFocused(null)}
                 autoComplete="name"
               />
-              <div style={s.helperText}>Only used the first time you sign in.</div>
+              <div style={s.helperText}>{t('customerLogin.fullNameHelper')}</div>
             </div>
 
             <button
@@ -166,14 +217,11 @@ function CustomerLoginInner() {
                 if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimary);
               }}
             >
-              {loading ? 'Sending link…' : 'Send me a magic link →'}
+              {loading ? t('customerLogin.submitLoading') : t('customerLogin.submit')}
             </button>
           </form>
 
-          <p style={{ ...s.centerText, marginTop: 18 }}>
-            First time here? No sign-up needed — entering your details sets up your account
-            automatically.
-          </p>
+          <p style={{ ...s.centerText, marginTop: 18 }}>{t('customerLogin.footer')}</p>
         </>
       ) : (
         <div style={s.header}>
@@ -193,14 +241,9 @@ function CustomerLoginInner() {
           >
             <Icon name="mail" size={28} />
           </div>
-          <h2 style={s.title}>Check your inbox</h2>
-          <p style={s.subtitle}>
-            If <strong>{email}</strong> is registered with that photographer, we just sent you a
-            sign-in link. It&apos;s valid for 15 minutes.
-          </p>
-          <div style={{ ...s.alertInfo, marginTop: 24 }}>
-            Didn&apos;t get it? Check your spam folder, or request a new one in a few minutes.
-          </div>
+          <h2 style={s.title}>{t('customerLogin.sentTitle')}</h2>
+          <p style={s.subtitle}>{t('customerLogin.sentBody', { email })}</p>
+          <div style={{ ...s.alertInfo, marginTop: 24 }}>{t('customerLogin.sentHint')}</div>
         </div>
       )}
     </AuthSplitLayout>

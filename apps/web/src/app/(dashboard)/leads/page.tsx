@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useTranslation } from '@/lib/i18n';
 import { Lead } from '@/types/api';
 import {
   getLeadsColors,
@@ -19,19 +20,50 @@ import { LeadListSkeleton } from './LeadListSkeleton';
 import { AddLeadModal } from './AddLeadModal';
 import { ConvertLeadModal } from './ConvertLeadModal';
 import { EditNoteModal } from './EditNoteModal';
+import { InquiryRow } from './InquiryRow';
+import { InquiryDetail } from './InquiryDetail';
+import { type Inquiry, inquiryPipeline } from './inquiryTypes';
+
+type SourceFilter = 'all' | 'form' | 'customer';
+type Selection = { kind: 'lead' | 'inquiry'; id: string };
+
+/**
+ * Renders a translated sentence with one segment in bold. The template carries
+ * a placeholder (e.g. "Converted {name} to a booking.") which we split on, so
+ * each language keeps its own word order — German puts the name first.
+ */
+function bold(template: string, placeholder: string, value: string) {
+  const [before, after] = template.split(placeholder);
+  return (
+    <>
+      {before}
+      <strong>{value}</strong>
+      {after}
+    </>
+  );
+}
 
 export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
+  const { t, tPlural } = useTranslation();
   const themeKey: LeadsTheme = theme === 'dark' ? 'dark' : 'light';
   const s = useMemo(() => getLeadsStyles(themeKey), [themeKey]);
   const c = useMemo(() => getLeadsColors(themeKey), [themeKey]);
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  // Customer inquiries share this inbox: same "someone wants to book me" job as
+  // a lead, just from an authenticated customer rather than the anonymous form.
+  // Kept as a separate list (different shape/actions) and merged only at render.
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [inquiryBusyId, setInquiryBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  // A flag, not a message: the text is resolved at render so it follows a
+  // language switch, and `loadLeads` stays independent of `t`.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [selected, setSelected] = useState<Selection | null>(null);
   const [filterScore, setFilterScore] = useState<LeadScoreFilter>('All');
   // Default to Active so the inbox shows only enquiries the photographer can
   // still act on (NEW + REPLIED). Converted and rejected leads are one click
@@ -60,14 +92,23 @@ export default function LeadsPage() {
 
   const loadLeads = useCallback(() => {
     setLoading(true);
-    setError(null);
-    api
-      .get<Lead[]>('/api/leads')
-      .then((res) => {
-        setLeads(Array.isArray(res.data) ? res.data : []);
-      })
-      .catch(() => {
-        setError('We couldn’t load your leads. Please check your connection and try again.');
+    setLoadFailed(false);
+    // Both sources load together; the inbox needs them merged. Inquiries are
+    // best-effort — a failure there shouldn't blank the whole leads inbox, so
+    // only a leads failure trips the error panel.
+    Promise.allSettled([
+      api.get<Lead[]>('/api/leads'),
+      api.get<Inquiry[]>('/api/inquiries?size=100'),
+    ])
+      .then(([leadsRes, inqRes]) => {
+        if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value.data)) {
+          setLeads(leadsRes.value.data);
+        } else {
+          setLoadFailed(true);
+        }
+        setInquiries(
+          inqRes.status === 'fulfilled' && Array.isArray(inqRes.value.data) ? inqRes.value.data : [],
+        );
       })
       .finally(() => setLoading(false));
   }, []);
@@ -76,35 +117,56 @@ export default function LeadsPage() {
     loadLeads();
   }, [loadLeads]);
 
+  // Deep-link (?selected=<leadId>) still targets a lead — existing links from
+  // the dashboard point at lead ids.
   useEffect(() => {
-    const selected = searchParams.get('selected');
-    if (selected) {
-      setSelectedLeadId(selected);
-    } else if (!selectedLeadId && leads.length > 0) {
-      setSelectedLeadId(leads[0]?.id || null);
-    }
-  }, [searchParams, selectedLeadId, leads]);
+    const sel = searchParams.get('selected');
+    if (sel) setSelected({ kind: 'lead', id: sel });
+  }, [searchParams]);
 
   // Counts for the pipeline tabs. Computed off the unfiltered list so the
   // numbers reflect the photographer's total pipeline, not the currently
   // visible subset — otherwise switching tabs would shuffle the counts and
   // hide useful information.
+  const showLeads = sourceFilter !== 'customer';
+  const showInquiries = sourceFilter !== 'form';
+
+  // Pipeline counts span whichever sources are visible, so the tab numbers
+  // match the merged inbox rather than leads alone.
   const pipelineCounts = useMemo<Record<LeadPipelineFilter, number>>(() => {
     let active = 0;
     let booked = 0;
     let rejected = 0;
-    for (const l of leads) {
-      if (l.status === 'BOOKED') booked++;
-      else if (l.status === 'REJECTED') rejected++;
-      else active++; // NEW + REPLIED + any future "in-flight" status
+    if (showLeads) {
+      for (const l of leads) {
+        if (l.status === 'BOOKED') booked++;
+        else if (l.status === 'REJECTED') rejected++;
+        else active++;
+      }
     }
-    return { Active: active, Booked: booked, Rejected: rejected, All: leads.length };
-  }, [leads]);
+    if (showInquiries) {
+      for (const i of inquiries) {
+        const bucket = inquiryPipeline(i.status);
+        if (bucket === 'Booked') booked++;
+        else if (bucket === 'Rejected') rejected++;
+        else active++;
+      }
+    }
+    return { Active: active, Booked: booked, Rejected: rejected, All: active + booked + rejected };
+  }, [leads, inquiries, showLeads, showInquiries]);
+
+  const scoreMatches = useCallback(
+    (score: 'HIGH' | 'MED' | 'LOW') =>
+      filterScore === 'All'
+      || (filterScore === 'High' && score === 'HIGH')
+      || (filterScore === 'Medium' && score === 'MED')
+      || (filterScore === 'Low' && score === 'LOW'),
+    [filterScore],
+  );
 
   const filteredLeads = useMemo(() => {
+    if (!showLeads) return [] as Lead[];
     let list = leads;
-
-    // Pipeline filter first (primary axis). "All" passes through.
     if (filterPipeline === 'Active') {
       list = list.filter((l) => l.status !== 'BOOKED' && l.status !== 'REJECTED');
     } else if (filterPipeline === 'Booked') {
@@ -112,12 +174,7 @@ export default function LeadsPage() {
     } else if (filterPipeline === 'Rejected') {
       list = list.filter((l) => l.status === 'REJECTED');
     }
-
-    // Score filter (secondary axis within the current pipeline view).
-    if (filterScore === 'High') list = list.filter((l) => l.score === 'HIGH');
-    else if (filterScore === 'Medium') list = list.filter((l) => l.score === 'MED');
-    else if (filterScore === 'Low') list = list.filter((l) => l.score === 'LOW');
-
+    list = list.filter((l) => scoreMatches(l.score));
     const q = searchTerm.trim().toLowerCase();
     if (q) {
       list = list.filter((l) => {
@@ -126,20 +183,76 @@ export default function LeadsPage() {
       });
     }
     return list;
-  }, [leads, filterPipeline, filterScore, searchTerm]);
+  }, [leads, showLeads, filterPipeline, scoreMatches, searchTerm]);
+
+  const filteredInquiries = useMemo(() => {
+    if (!showInquiries) return [] as Inquiry[];
+    let list = inquiries;
+    if (filterPipeline !== 'All') {
+      list = list.filter((i) => inquiryPipeline(i.status) === filterPipeline);
+    }
+    list = list.filter((i) => scoreMatches(i.score));
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((i) => {
+        const haystack = `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`.toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return list;
+  }, [inquiries, showInquiries, filterPipeline, scoreMatches, searchTerm]);
+
+  // Effective selection with fallback to the first visible row — customer
+  // inquiries render first, so they win the default. Keeps the detail panel in
+  // sync when a filter hides the previously-selected item.
+  const effectiveSelected = useMemo<Selection | null>(() => {
+    const visible: Selection[] = [
+      ...filteredInquiries.map((i) => ({ kind: 'inquiry' as const, id: i.id })),
+      ...filteredLeads.map((l) => ({ kind: 'lead' as const, id: l.id })),
+    ];
+    if (selected && visible.some((v) => v.kind === selected.kind && v.id === selected.id)) {
+      return selected;
+    }
+    return visible[0] ?? null;
+  }, [selected, filteredLeads, filteredInquiries]);
 
   const selectedLead = useMemo(
-    () => filteredLeads.find((l) => l.id === selectedLeadId) || filteredLeads[0] || null,
-    [filteredLeads, selectedLeadId],
+    () => (effectiveSelected?.kind === 'lead' ? leads.find((l) => l.id === effectiveSelected.id) ?? null : null),
+    [effectiveSelected, leads],
+  );
+  const selectedInquiry = useMemo(
+    () => (effectiveSelected?.kind === 'inquiry' ? inquiries.find((i) => i.id === effectiveSelected.id) ?? null : null),
+    [effectiveSelected, inquiries],
   );
 
+  const triageInquiry = useCallback(
+    async (status: 'ACCEPTED' | 'REJECTED') => {
+      if (!selectedInquiry) return;
+      setInquiryBusyId(selectedInquiry.id);
+      try {
+        const { data } = await api.patch<Inquiry>(
+          `/api/inquiries/${selectedInquiry.id}/status`,
+          { status },
+        );
+        setInquiries((prev) => prev.map((i) => (i.id === data.id ? data : i)));
+      } catch {
+        // Stays silent on this surface — the user can re-click. Matches the
+        // lead status handlers' error posture.
+      } finally {
+        setInquiryBusyId(null);
+      }
+    },
+    [selectedInquiry],
+  );
+
+  // "Awaiting reply" counts unanswered items across both sources: NEW leads and
+  // PENDING inquiries are the two "hasn't been triaged yet" states.
   const stats = useMemo(() => {
-    const total = leads.length;
-    const high = leads.filter((l) => l.score === 'HIGH').length;
-    const needsReply = leads.filter((l) => l.status === 'NEW').length;
-    const conversionRate = total > 0 ? Math.round((high / total) * 100) : 0;
-    return { total, high, needsReply, conversionRate };
-  }, [leads]);
+    const needsReply =
+      leads.filter((l) => l.status === 'NEW').length
+      + inquiries.filter((i) => i.status === 'PENDING').length;
+    return { needsReply };
+  }, [leads, inquiries]);
 
   // Auto-dismiss the success banner after 6 seconds. Cleanup on unmount /
   // re-entry so we don't fire setState into a banner the user already closed.
@@ -171,9 +284,7 @@ export default function LeadsPage() {
             fontWeight: 600,
           }}
         >
-          <span>
-            Converted <strong>{convertSuccess.leadName}</strong> to a booking.
-          </span>
+          <span>{bold(t('leads.converted'), '{name}', convertSuccess.leadName)}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button
               type="button"
@@ -187,11 +298,11 @@ export default function LeadsPage() {
                 textDecoration: 'underline',
               }}
             >
-              View in Bookings →
+              {t('leads.viewInBookings')} →
             </button>
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t('common.close')}
               onClick={() => setConvertSuccess(null)}
               style={{
                 background: 'transparent',
@@ -231,7 +342,7 @@ export default function LeadsPage() {
             // Reload + select the newly-created lead so the photographer
             // sees it in the detail panel without hunting through the list.
             loadLeads();
-            setSelectedLeadId(created.id);
+            setSelected({ kind: 'lead', id: created.id });
           }}
         />
       )}
@@ -254,13 +365,11 @@ export default function LeadsPage() {
       <ConfirmDialog
         open={!!rejectingLead}
         theme={themeKey === 'dark' ? 'dark' : 'light'}
-        title="Reject this lead?"
+        title={t('leads.reject.title')}
         message={
-          rejectingLead
-            ? `${rejectingLead.name}'s enquiry will be moved to Rejected. They won't be notified automatically. You can still see it in the Rejected tab.`
-            : ''
+          rejectingLead ? t('leads.reject.message', { name: rejectingLead.name }) : ''
         }
-        confirmLabel="Reject lead"
+        confirmLabel={t('leads.reject.confirm')}
         tone="danger"
         busy={rejectBusy}
         onCancel={() => !rejectBusy && setRejectingLead(null)}
@@ -295,10 +404,8 @@ export default function LeadsPage() {
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <h1 style={s.pageTitle}>Leads</h1>
-          <p style={s.pageSubtitle}>
-            Qualify enquiries, track priorities, and convert prospects into bookings.
-          </p>
+          <h1 style={s.pageTitle}>{t('leads.title')}</h1>
+          <p style={s.pageSubtitle}>{t('leads.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* Export uses a plain anchor to /api/leads/export.csv — the
@@ -320,9 +427,9 @@ export default function LeadsPage() {
               alignItems: 'center',
               gap: '6px',
             }}
-            aria-label="Export all leads as CSV"
+            aria-label={t('leads.exportAria')}
           >
-            Export CSV
+            {t('leads.exportCsv')}
           </a>
           <button
             type="button"
@@ -338,7 +445,7 @@ export default function LeadsPage() {
               cursor: 'pointer',
             }}
           >
-            + New lead
+            + {t('leads.newLead')}
           </button>
         </div>
       </div>
@@ -370,12 +477,11 @@ export default function LeadsPage() {
           }}
         >
           <span>
-            <strong>
-              {stats.needsReply === 1
-                ? '1 enquiry'
-                : `${stats.needsReply} enquiries`}
-            </strong>{' '}
-            awaiting your reply.
+            {bold(
+              t('leads.awaitingReply'),
+              '{enquiries}',
+              tPlural('leads.enquiryCount', stats.needsReply),
+            )}
           </span>
           {/* Surface the action: jump them straight to the Active tab with
               search cleared so they can deal with it. */}
@@ -395,19 +501,19 @@ export default function LeadsPage() {
                 textDecoration: 'underline',
               }}
             >
-              Review →
+              {t('leads.review')} →
             </button>
           )}
         </div>
       )}
 
-      {error ? (
+      {loadFailed ? (
         <div style={{ ...s.listPanel, maxHeight: 'none' }}>
           <div style={s.errorPanel}>
-            <div style={s.errorPanelTitle}>Couldn&apos;t load leads</div>
-            <div style={s.errorPanelText}>{error}</div>
+            <div style={s.errorPanelTitle}>{t('leads.errorTitle')}</div>
+            <div style={s.errorPanelText}>{t('leads.errorLoad')}</div>
             <button type="button" style={s.retryButton} onClick={loadLeads}>
-              Try again
+              {t('common.tryAgain')}
             </button>
           </div>
         </div>
@@ -419,6 +525,40 @@ export default function LeadsPage() {
                 fixed chrome). Pipeline is the primary axis (segmented
                 control); score and search are inline next to it. Net effect:
                 ~90px of vertical recovered, single visual unit. */}
+            {/* Source axis: leads (anonymous form) vs customer inquiries. Only
+                shown when both sources actually have entries — a photographer
+                with no inquiries yet shouldn't see an empty toggle. */}
+            {inquiries.length > 0 && (
+              <div style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 10, border: `1px solid ${c.border}`, background: c.surface, marginBottom: 10 }}>
+                {(['all', 'form', 'customer'] as const).map((sf) => {
+                  const active = sourceFilter === sf;
+                  return (
+                    <button
+                      key={sf}
+                      type="button"
+                      onClick={() => setSourceFilter(sf)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        background: active ? c.primaryBg : 'transparent',
+                        color: active ? c.primaryText : c.textMuted,
+                      }}
+                    >
+                      {sf === 'all'
+                        ? t('leads.source.all')
+                        : sf === 'form'
+                          ? t('leads.source.form')
+                          : t('leads.source.customer')}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <FilterBar
               c={c}
               filterPipeline={filterPipeline}
@@ -433,14 +573,14 @@ export default function LeadsPage() {
             <div style={s.listScroll}>
               {loading ? (
                 <LeadListSkeleton s={s} />
-              ) : leads.length === 0 ? (
+              ) : leads.length === 0 && inquiries.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>No leads yet</div>
-                  <div>New enquiries from your public booking page will appear here automatically.</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noneTitle')}</div>
+                  <div>{t('leads.empty.noneBody')}</div>
                 </div>
-              ) : filteredLeads.length === 0 ? (
+              ) : filteredLeads.length === 0 && filteredInquiries.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>No leads match</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noMatchTitle')}</div>
                   {/* If the Active view is empty but there ARE resolved leads
                       sitting in Booked/Rejected, surface that explicitly —
                       otherwise the photographer wonders "where did my leads
@@ -448,36 +588,60 @@ export default function LeadsPage() {
                   {filterPipeline === 'Active' &&
                   pipelineCounts.Booked + pipelineCounts.Rejected > 0 ? (
                     <div>
-                      All your leads are in <strong>Booked</strong> ({pipelineCounts.Booked})
                       {pipelineCounts.Rejected > 0
-                        ? <> or <strong>Rejected</strong> ({pipelineCounts.Rejected})</>
-                        : null}
-                      . Switch tabs to see them.
+                        ? t('leads.empty.allResolvedBoth', {
+                            booked: String(pipelineCounts.Booked),
+                            rejected: String(pipelineCounts.Rejected),
+                          })
+                        : t('leads.empty.allResolvedBooked', {
+                            booked: String(pipelineCounts.Booked),
+                          })}
                     </div>
                   ) : (
-                    <div>Try a different filter or search term.</div>
+                    <div>{t('common.tryOtherFilter')}</div>
                   )}
                 </div>
               ) : (
-                filteredLeads.map((lead) => (
-                  <LeadListItem
-                    key={lead.id}
-                    lead={lead}
-                    isActive={selectedLead?.id === lead.id}
-                    isHovered={hoveredId === lead.id}
-                    onSelect={() => setSelectedLeadId(lead.id)}
-                    onHover={(hov) => setHoveredId(hov ? lead.id : null)}
-                    s={s}
-                    c={c}
-                  />
-                ))
+                <>
+                  {filteredInquiries.map((inq) => (
+                    <InquiryRow
+                      key={`inq-${inq.id}`}
+                      inquiry={inq}
+                      isActive={effectiveSelected?.kind === 'inquiry' && effectiveSelected.id === inq.id}
+                      isHovered={hoveredId === inq.id}
+                      onSelect={() => setSelected({ kind: 'inquiry', id: inq.id })}
+                      onHover={(hov) => setHoveredId(hov ? inq.id : null)}
+                      s={s}
+                      c={c}
+                    />
+                  ))}
+                  {filteredLeads.map((lead) => (
+                    <LeadListItem
+                      key={lead.id}
+                      lead={lead}
+                      isActive={effectiveSelected?.kind === 'lead' && effectiveSelected.id === lead.id}
+                      isHovered={hoveredId === lead.id}
+                      onSelect={() => setSelected({ kind: 'lead', id: lead.id })}
+                      onHover={(hov) => setHoveredId(hov ? lead.id : null)}
+                      s={s}
+                      c={c}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </div>
 
           <div style={s.detailPanel}>
             {loading ? (
-              <div style={s.emptyState}>Loading lead details…</div>
+              <div style={s.emptyState}>{t('leads.loadingDetails')}</div>
+            ) : selectedInquiry ? (
+              <InquiryDetail
+                inquiry={selectedInquiry}
+                c={c}
+                busy={inquiryBusyId === selectedInquiry.id}
+                onTriage={triageInquiry}
+              />
             ) : (
               <LeadDetail
                 lead={selectedLead}

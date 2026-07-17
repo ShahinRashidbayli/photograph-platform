@@ -120,7 +120,13 @@ public class AuthService {
 
         Tenant tenant;
         try {
-            tenant = tenantRepository.save(new Tenant(normalizedSubdomain, normalizedEmail));
+            Tenant fresh = new Tenant(normalizedSubdomain, normalizedEmail);
+            // Honour the plan chosen on the pricing page; the entity already
+            // defaults to STARTER when the signup came from elsewhere.
+            if (req.plan() != null && !req.plan().isBlank()) {
+                fresh.setPlan(req.plan());
+            }
+            tenant = tenantRepository.save(fresh);
         } catch (DataIntegrityViolationException ex) {
             // Race: two registrations sharing the same subdomain or email.
             throw new ConflictException("Subdomain or email already taken");

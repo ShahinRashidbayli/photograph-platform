@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static com.photographplatform.api.common.CsrfTestSupport.xsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -100,7 +100,7 @@ class InquirySecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validBody())
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isCreated());
     }
 
@@ -125,7 +125,7 @@ class InquirySecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(botBody)
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isAccepted());
 
         verify(inquiryService, never()).create(any(), nullable(String.class));
@@ -142,7 +142,7 @@ class InquirySecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(badBody)
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isUnprocessableEntity());
 
         verify(inquiryService, never()).create(any(), nullable(String.class));
@@ -158,7 +158,7 @@ class InquirySecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(pastBody)
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isUnprocessableEntity());
     }
 
@@ -178,7 +178,7 @@ class InquirySecurityRuleTest {
                 .header("Authorization", "Bearer " + photographerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validBody())
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isForbidden());
     }
 
@@ -200,7 +200,7 @@ class InquirySecurityRuleTest {
         mvc.perform(post("/api/customer/inquiry-requests")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validBody())
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().is4xxClientError());
     }
 }

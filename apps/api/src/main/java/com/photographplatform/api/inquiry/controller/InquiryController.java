@@ -1,5 +1,6 @@
 package com.photographplatform.api.inquiry.controller;
 
+import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.dto.UpdateInquiryStatusRequest;
 import com.photographplatform.api.inquiry.service.InquiryRequestService;
@@ -57,6 +58,6 @@ public class InquiryController {
         HttpServletRequest httpRequest
     ) {
         return ResponseEntity.ok(
-            inquiryService.updateStatus(id, request.status(), httpRequest.getRemoteAddr()));
+            inquiryService.updateStatus(id, request.status(), ClientIp.from(httpRequest)));
     }
 }

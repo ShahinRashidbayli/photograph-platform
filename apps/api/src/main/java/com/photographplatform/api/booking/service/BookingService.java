@@ -50,6 +50,22 @@ public class BookingService {
     }
 
     /**
+     * Photographer-facing list of every booking in the tenant, optionally
+     * filtered by status. Moved from BookingController to keep repository
+     * access inside the service layer.
+     */
+    @Transactional(readOnly = true)
+    public List<BookingResponse> listForPhotographer(String status, int page, int size) {
+        var pageable = PageRequest.of(page, size, Sort.by("eventDate").ascending());
+        if (status != null && !status.isEmpty()) {
+            return bookingRepository.findByStatus(status, pageable)
+                .stream().map(this::toResponse).toList();
+        }
+        return bookingRepository.findByOrderByEventDateAsc(pageable)
+            .stream().map(this::toResponse).toList();
+    }
+
+    /**
      * Create a booking on behalf of the authenticated photographer. The booking
      * is always created in {@code ENQUIRY}; advancing it goes through
      * {@link #changeStatus} so the lifecycle state machine is the single place

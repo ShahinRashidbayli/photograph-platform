@@ -10,6 +10,8 @@ import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.lead.repository.LeadRepository;
+import com.photographplatform.api.lead.service.LeadCsvExporter;
+import com.photographplatform.api.lead.service.LeadScoringService;
 import com.photographplatform.api.lead.service.LeadService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -75,8 +77,12 @@ class LeadConversionServiceTest {
         com.photographplatform.api.audit.repository.AuditLogRepository auditLogRepository =
             mock(com.photographplatform.api.audit.repository.AuditLogRepository.class);
 
+        // LeadScoringService and LeadCsvExporter are pure, dependency-free
+        // logic — use real instances rather than mocks so scoring on the
+        // converted lead behaves exactly as in production.
         leadService = new LeadService(leadRepository, eventPublisher, auditService,
-            bookingService, userRepository, auditLogRepository);
+            bookingService, userRepository, auditLogRepository,
+            new LeadScoringService(), new LeadCsvExporter());
 
         // Authenticate as the photographer for currentUserId() — the audit row
         // must record *who* converted the lead.

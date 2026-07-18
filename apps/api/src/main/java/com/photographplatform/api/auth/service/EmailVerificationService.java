@@ -9,14 +9,10 @@ import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.service.EmailService;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +40,6 @@ public class EmailVerificationService {
     private static final Logger LOG = LoggerFactory.getLogger(EmailVerificationService.class);
 
     private static final Duration TOKEN_TTL = Duration.ofHours(24);
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
     private static final int RESEND_MAX_PER_USER_PER_HOUR = 3;
     private static final int RESEND_MAX_PER_IP_PER_HOUR = 10;
     private static final Duration RESEND_WINDOW = Duration.ofHours(1);
@@ -81,10 +75,10 @@ public class EmailVerificationService {
         if (user.isEmailVerified()) {
             return;
         }
-        String rawToken = generateToken();
+        String rawToken = TokenUtils.generateSecureToken();
         tokenRepository.save(new EmailVerificationToken(
             user.getId(),
-            sha256(rawToken),
+            TokenUtils.sha256(rawToken),
             OffsetDateTime.now().plus(TOKEN_TTL)
         ));
         sendVerificationEmail(user, rawToken);
@@ -100,7 +94,7 @@ public class EmailVerificationService {
         if (rawToken == null || rawToken.isBlank()) {
             throw new UnauthorizedException("Invalid or expired verification link");
         }
-        EmailVerificationToken token = tokenRepository.findByTokenHash(sha256(rawToken))
+        EmailVerificationToken token = tokenRepository.findByTokenHash(TokenUtils.sha256(rawToken))
             .orElseThrow(() -> new UnauthorizedException("Invalid or expired verification link"));
 
         if (token.isUsed() || token.isExpired()) {
@@ -191,7 +185,7 @@ public class EmailVerificationService {
                 you can safely ignore this email.
               </p>
             </div>
-            """.formatted(escapeHtml(user.getFullName()), link, link);
+            """.formatted(HtmlEscape.escape(user.getFullName()), link, link);
         try {
             emailService.send(new EmailMessage(
                 user.getEmail(), "Confirm your Fotolio email", html));
@@ -201,31 +195,4 @@ public class EmailVerificationService {
         }
     }
 
-    private static String generateToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String sha256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static String escapeHtml(String input) {
-        if (input == null) {
-            return "";
-        }
-        return input
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&#39;");
-    }
 }

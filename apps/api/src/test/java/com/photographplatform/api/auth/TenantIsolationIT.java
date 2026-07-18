@@ -40,9 +40,11 @@ class TenantIsolationIT extends IntegrationTestBase {
     void jwtScopedToItsOwnTenant() {
         // Register two tenants
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a", "PHOTOGRAPHER"), AuthResponse.class);
+            new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a", "PHOTOGRAPHER", "STARTER"),
+            AuthResponse.class);
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Bob", "bob@b.com", TEST_PASSWORD, "tenant-b", "PHOTOGRAPHER"), AuthResponse.class);
+            new RegisterRequest("Bob", "bob@b.com", TEST_PASSWORD, "tenant-b", "PHOTOGRAPHER", "STARTER"),
+            AuthResponse.class);
 
         // Login as each
         ResponseEntity<AuthResponse> loginA = rest.postForEntity("/api/auth/login",

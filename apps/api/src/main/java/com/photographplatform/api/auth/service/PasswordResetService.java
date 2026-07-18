@@ -9,16 +9,11 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.service.EmailService;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,8 +59,6 @@ public class PasswordResetService {
     private static final Logger LOG = LoggerFactory.getLogger(PasswordResetService.class);
 
     private static final Duration TOKEN_TTL = Duration.ofHours(1);
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
     private static final int MAX_PER_EMAIL_PER_HOUR = 3;
     private static final int MAX_PER_IP_PER_HOUR = 10;
     private static final Duration RATE_WINDOW = Duration.ofHours(1);
@@ -135,10 +128,10 @@ public class PasswordResetService {
 
         tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
 
-        String rawToken = generateToken();
+        String rawToken = TokenUtils.generateSecureToken();
         tokenRepository.save(new PasswordResetToken(
             user.getId(),
-            sha256(rawToken),
+            TokenUtils.sha256(rawToken),
             OffsetDateTime.now().plus(TOKEN_TTL)
         ));
         sendResetEmail(user, rawToken);
@@ -159,7 +152,7 @@ public class PasswordResetService {
             throw new UnauthorizedException("Invalid or expired reset link");
         }
 
-        PasswordResetToken token = tokenRepository.findByTokenHash(sha256(rawToken))
+        PasswordResetToken token = tokenRepository.findByTokenHash(TokenUtils.sha256(rawToken))
             .orElseThrow(() -> new UnauthorizedException("Invalid or expired reset link"));
 
         if (token.isUsed() || token.isExpired()) {
@@ -254,19 +247,4 @@ public class PasswordResetService {
         }
     }
 
-    private static String generateToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String sha256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 }

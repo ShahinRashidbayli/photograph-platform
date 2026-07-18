@@ -1,18 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
-import api from '@/lib/api';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useTranslation } from '@/lib/i18n';
-import { Lead } from '@/types/api';
 import {
   getLeadsColors,
   getLeadsStyles,
   type LeadsTheme,
 } from './leads.styles';
-import type { LeadPipelineFilter, LeadScoreFilter } from './leadTypes';
 import { FilterBar } from './FilterBar';
 import { LeadListItem } from './LeadListItem';
 import { LeadDetail } from './LeadDetail';
@@ -22,9 +19,10 @@ import { ConvertLeadModal } from './ConvertLeadModal';
 import { EditNoteModal } from './EditNoteModal';
 import { InquiryRow } from './InquiryRow';
 import { InquiryDetail } from './InquiryDetail';
-import { type Inquiry, inquiryPipeline } from './inquiryTypes';
+import { useLeadsInbox } from './useLeadsInbox';
+import { useLeadFilters } from './useLeadFilters';
+import { useLeadActions } from './useLeadActions';
 
-type SourceFilter = 'all' | 'form' | 'customer';
 type Selection = { kind: 'lead' | 'inquiry'; id: string };
 
 /**
@@ -52,70 +50,25 @@ export default function LeadsPage() {
   const s = useMemo(() => getLeadsStyles(themeKey), [themeKey]);
   const c = useMemo(() => getLeadsColors(themeKey), [themeKey]);
 
-  const [leads, setLeads] = useState<Lead[]>([]);
-  // Customer inquiries share this inbox: same "someone wants to book me" job as
-  // a lead, just from an authenticated customer rather than the anonymous form.
-  // Kept as a separate list (different shape/actions) and merged only at render.
-  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [inquiryBusyId, setInquiryBusyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  // A flag, not a message: the text is resolved at render so it follows a
-  // language switch, and `loadLeads` stays independent of `t`.
-  const [loadFailed, setLoadFailed] = useState(false);
+  // Data, filtering and mutations each live in a focused hook; the component
+  // below is render + selection only.
+  const { leads, setLeads, inquiries, setInquiries, loading, loadFailed, reload } = useLeadsInbox();
+  const {
+    sourceFilter,
+    setSourceFilter,
+    filterScore,
+    setFilterScore,
+    filterPipeline,
+    setFilterPipeline,
+    searchTerm,
+    setSearchTerm,
+    pipelineCounts,
+    filteredLeads,
+    filteredInquiries,
+  } = useLeadFilters(leads, inquiries);
+
   const [selected, setSelected] = useState<Selection | null>(null);
-  const [filterScore, setFilterScore] = useState<LeadScoreFilter>('All');
-  // Default to Active so the inbox shows only enquiries the photographer can
-  // still act on (NEW + REPLIED). Converted and rejected leads are one click
-  // away via the pipeline tabs, but they don't clutter the daily working view.
-  const [filterPipeline, setFilterPipeline] = useState<LeadPipelineFilter>('Active');
-  const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // Conversion modal state — keeping the whole Lead (not just the id) means
-  // the modal keeps rendering its previous content for the brief moment
-  // between submit success and reload, instead of flashing empty.
-  const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
-  // Banner shown after a successful conversion. Auto-dismisses after 6s but
-  // also offers a manual close + a deep-link into bookings.
-  const [convertSuccess, setConvertSuccess] = useState<
-    { bookingId: string; leadName: string } | null
-  >(null);
-  // Add-lead modal for off-platform enquiries (phone, WhatsApp, walk-in).
-  const [addOpen, setAddOpen] = useState(false);
-  // Reject confirmation: holding the whole Lead keeps the prompt text stable
-  // while the request is in flight, even if the active selection moves.
-  const [rejectingLead, setRejectingLead] = useState<Lead | null>(null);
-  const [rejectBusy, setRejectBusy] = useState(false);
-  // Add/edit-note modal — same holding-the-lead pattern as reject so the
-  // prompt body stays correct while the PATCH is in flight.
-  const [notingLead, setNotingLead] = useState<Lead | null>(null);
-
-  const loadLeads = useCallback(() => {
-    setLoading(true);
-    setLoadFailed(false);
-    // Both sources load together; the inbox needs them merged. Inquiries are
-    // best-effort — a failure there shouldn't blank the whole leads inbox, so
-    // only a leads failure trips the error panel.
-    Promise.allSettled([
-      api.get<Lead[]>('/api/leads'),
-      api.get<Inquiry[]>('/api/inquiries?size=100'),
-    ])
-      .then(([leadsRes, inqRes]) => {
-        if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value.data)) {
-          setLeads(leadsRes.value.data);
-        } else {
-          setLoadFailed(true);
-        }
-        setInquiries(
-          inqRes.status === 'fulfilled' && Array.isArray(inqRes.value.data) ? inqRes.value.data : [],
-        );
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadLeads();
-  }, [loadLeads]);
 
   // Deep-link (?selected=<leadId>) still targets a lead — existing links from
   // the dashboard point at lead ids.
@@ -123,84 +76,6 @@ export default function LeadsPage() {
     const sel = searchParams.get('selected');
     if (sel) setSelected({ kind: 'lead', id: sel });
   }, [searchParams]);
-
-  // Counts for the pipeline tabs. Computed off the unfiltered list so the
-  // numbers reflect the photographer's total pipeline, not the currently
-  // visible subset — otherwise switching tabs would shuffle the counts and
-  // hide useful information.
-  const showLeads = sourceFilter !== 'customer';
-  const showInquiries = sourceFilter !== 'form';
-
-  // Pipeline counts span whichever sources are visible, so the tab numbers
-  // match the merged inbox rather than leads alone.
-  const pipelineCounts = useMemo<Record<LeadPipelineFilter, number>>(() => {
-    let active = 0;
-    let booked = 0;
-    let rejected = 0;
-    if (showLeads) {
-      for (const l of leads) {
-        if (l.status === 'BOOKED') booked++;
-        else if (l.status === 'REJECTED') rejected++;
-        else active++;
-      }
-    }
-    if (showInquiries) {
-      for (const i of inquiries) {
-        const bucket = inquiryPipeline(i.status);
-        if (bucket === 'Booked') booked++;
-        else if (bucket === 'Rejected') rejected++;
-        else active++;
-      }
-    }
-    return { Active: active, Booked: booked, Rejected: rejected, All: active + booked + rejected };
-  }, [leads, inquiries, showLeads, showInquiries]);
-
-  const scoreMatches = useCallback(
-    (score: 'HIGH' | 'MED' | 'LOW') =>
-      filterScore === 'All'
-      || (filterScore === 'High' && score === 'HIGH')
-      || (filterScore === 'Medium' && score === 'MED')
-      || (filterScore === 'Low' && score === 'LOW'),
-    [filterScore],
-  );
-
-  const filteredLeads = useMemo(() => {
-    if (!showLeads) return [] as Lead[];
-    let list = leads;
-    if (filterPipeline === 'Active') {
-      list = list.filter((l) => l.status !== 'BOOKED' && l.status !== 'REJECTED');
-    } else if (filterPipeline === 'Booked') {
-      list = list.filter((l) => l.status === 'BOOKED');
-    } else if (filterPipeline === 'Rejected') {
-      list = list.filter((l) => l.status === 'REJECTED');
-    }
-    list = list.filter((l) => scoreMatches(l.score));
-    const q = searchTerm.trim().toLowerCase();
-    if (q) {
-      list = list.filter((l) => {
-        const haystack = `${l.name} ${l.email ?? ''} ${l.eventType ?? ''} ${l.message ?? ''}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [leads, showLeads, filterPipeline, scoreMatches, searchTerm]);
-
-  const filteredInquiries = useMemo(() => {
-    if (!showInquiries) return [] as Inquiry[];
-    let list = inquiries;
-    if (filterPipeline !== 'All') {
-      list = list.filter((i) => inquiryPipeline(i.status) === filterPipeline);
-    }
-    list = list.filter((i) => scoreMatches(i.score));
-    const q = searchTerm.trim().toLowerCase();
-    if (q) {
-      list = list.filter((i) => {
-        const haystack = `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [inquiries, showInquiries, filterPipeline, scoreMatches, searchTerm]);
 
   // Effective selection with fallback to the first visible row — customer
   // inquiries render first, so they win the default. Keeps the detail panel in
@@ -225,25 +100,31 @@ export default function LeadsPage() {
     [effectiveSelected, inquiries],
   );
 
-  const triageInquiry = useCallback(
-    async (status: 'ACCEPTED' | 'REJECTED') => {
-      if (!selectedInquiry) return;
-      setInquiryBusyId(selectedInquiry.id);
-      try {
-        const { data } = await api.patch<Inquiry>(
-          `/api/inquiries/${selectedInquiry.id}/status`,
-          { status },
-        );
-        setInquiries((prev) => prev.map((i) => (i.id === data.id ? data : i)));
-      } catch {
-        // Stays silent on this surface — the user can re-click. Matches the
-        // lead status handlers' error posture.
-      } finally {
-        setInquiryBusyId(null);
-      }
-    },
-    [selectedInquiry],
-  );
+  const {
+    convertingLead,
+    startConvert,
+    cancelConvert,
+    applyConverted,
+    convertSuccess,
+    dismissConvertSuccess,
+    addOpen,
+    openAdd,
+    closeAdd,
+    notingLead,
+    startNote,
+    cancelNote,
+    applyNoteSaved,
+    rejectingLead,
+    startReject,
+    cancelReject,
+    rejectBusy,
+    confirmReject,
+    inquiryBusyId,
+    triageInquiry,
+    markSelectedReplied,
+    actionError,
+    dismissActionError,
+  } = useLeadActions({ reload, setLeads, setInquiries, selectedLead, selectedInquiry });
 
   // "Awaiting reply" counts unanswered items across both sources: NEW leads and
   // PENDING inquiries are the two "hasn't been triaged yet" states.
@@ -254,17 +135,46 @@ export default function LeadsPage() {
     return { needsReply };
   }, [leads, inquiries]);
 
-  // Auto-dismiss the success banner after 6 seconds. Cleanup on unmount /
-  // re-entry so we don't fire setState into a banner the user already closed.
-  useEffect(() => {
-    if (!convertSuccess) return;
-    const t = setTimeout(() => setConvertSuccess(null), 6000);
-    return () => clearTimeout(t);
-  }, [convertSuccess]);
-
   return (
     <div style={s.pageWrapper}>
       <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
+
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            borderRadius: '12px',
+            background: c.dangerBg,
+            color: c.dangerText,
+            border: `1px solid ${c.dangerBorder}`,
+            fontSize: '0.9rem',
+            fontWeight: 600,
+          }}
+        >
+          <span>{actionError}</span>
+          <button
+            type="button"
+            aria-label={t('common.close')}
+            onClick={dismissActionError}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              fontSize: '1.1rem',
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {convertSuccess && (
         <div
@@ -303,7 +213,7 @@ export default function LeadsPage() {
             <button
               type="button"
               aria-label={t('common.close')}
-              onClick={() => setConvertSuccess(null)}
+              onClick={dismissConvertSuccess}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -323,25 +233,20 @@ export default function LeadsPage() {
         <ConvertLeadModal
           lead={convertingLead}
           c={c}
-          onClose={() => setConvertingLead(null)}
-          onConverted={(booking) => {
-            const lead = convertingLead;
-            setConvertingLead(null);
-            setConvertSuccess({ bookingId: booking.id, leadName: lead.name });
-            loadLeads();
-          }}
+          onClose={cancelConvert}
+          onConverted={applyConverted}
         />
       )}
 
       {addOpen && (
         <AddLeadModal
           c={c}
-          onClose={() => setAddOpen(false)}
+          onClose={closeAdd}
           onCreated={(created) => {
-            setAddOpen(false);
+            closeAdd();
             // Reload + select the newly-created lead so the photographer
             // sees it in the detail panel without hunting through the list.
-            loadLeads();
+            reload();
             setSelected({ kind: 'lead', id: created.id });
           }}
         />
@@ -351,14 +256,8 @@ export default function LeadsPage() {
         <EditNoteModal
           lead={notingLead}
           c={c}
-          onClose={() => setNotingLead(null)}
-          onSaved={(updated) => {
-            // Patch the lead in place so the detail panel reflects the new
-            // note immediately (without a full list reload — which would
-            // briefly flash a loading state for no good reason).
-            setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
-            setNotingLead(null);
-          }}
+          onClose={cancelNote}
+          onSaved={applyNoteSaved}
         />
       )}
 
@@ -372,25 +271,8 @@ export default function LeadsPage() {
         confirmLabel={t('leads.reject.confirm')}
         tone="danger"
         busy={rejectBusy}
-        onCancel={() => !rejectBusy && setRejectingLead(null)}
-        onConfirm={async () => {
-          if (!rejectingLead) return;
-          setRejectBusy(true);
-          try {
-            await api.patch<Lead>(
-              `/api/leads/${rejectingLead.id}/status`,
-              { status: 'REJECTED' },
-            );
-            setRejectingLead(null);
-            loadLeads();
-          } catch {
-            // Errors surface in dev console; the dialog stays open so the
-            // user can retry. A proper toast/error surface for this would
-            // be a follow-up polish.
-          } finally {
-            setRejectBusy(false);
-          }
-        }}
+        onCancel={() => !rejectBusy && cancelReject()}
+        onConfirm={confirmReject}
       />
 
       <div
@@ -433,7 +315,7 @@ export default function LeadsPage() {
           </a>
           <button
             type="button"
-            onClick={() => setAddOpen(true)}
+            onClick={openAdd}
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -512,7 +394,7 @@ export default function LeadsPage() {
           <div style={s.errorPanel}>
             <div style={s.errorPanelTitle}>{t('leads.errorTitle')}</div>
             <div style={s.errorPanelText}>{t('leads.errorLoad')}</div>
-            <button type="button" style={s.retryButton} onClick={loadLeads}>
+            <button type="button" style={s.retryButton} onClick={reload}>
               {t('common.tryAgain')}
             </button>
           </div>
@@ -647,26 +529,11 @@ export default function LeadsPage() {
                 lead={selectedLead}
                 s={s}
                 c={c}
-                onConvert={() => selectedLead && setConvertingLead(selectedLead)}
+                onConvert={() => selectedLead && startConvert(selectedLead)}
                 onViewBooking={() => router.push('/bookings')}
-                onReject={() => selectedLead && setRejectingLead(selectedLead)}
-                onAddNote={() => selectedLead && setNotingLead(selectedLead)}
-                onMarkReplied={async () => {
-                  if (!selectedLead) return;
-                  try {
-                    const res = await api.patch<Lead>(
-                      `/api/leads/${selectedLead.id}/status`,
-                      { status: 'REPLIED' },
-                    );
-                    // Patch the lead in place — full reload would briefly
-                    // flash a loading state for a single-field flip.
-                    setLeads((prev) => prev.map((l) => (l.id === res.data.id ? res.data : l)));
-                  } catch {
-                    // Failure stays silent on this surface — the user can
-                    // re-click. A real toast/error surface would be polish
-                    // worth doing later but isn't blocking the feature.
-                  }
-                }}
+                onReject={() => selectedLead && startReject(selectedLead)}
+                onAddNote={() => selectedLead && startNote(selectedLead)}
+                onMarkReplied={markSelectedReplied}
               />
             )}
           </div>

@@ -19,14 +19,9 @@ import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.tenant.service.TenantSchemaInitializer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -53,7 +48,6 @@ public class AuthService {
     private static final int REGISTER_MAX_PER_IP_PER_HOUR = 5;
     private static final Duration REGISTER_WINDOW = Duration.ofHours(1);
 
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
@@ -109,7 +103,9 @@ public class AuthService {
         String normalizedSubdomain = req.subdomain().trim().toLowerCase();
 
         if (ReservedSubdomains.isReserved(normalizedSubdomain)) {
-            throw new ConflictException("This subdomain is reserved. Please choose another.");
+            // A reserved name can never be granted — that's invalid input (400),
+            // not a conflict with an existing tenant (409, below).
+            throw new IllegalArgumentException("This subdomain is reserved. Please choose another.");
         }
         if (tenantRepository.existsBySubdomain(normalizedSubdomain)) {
             throw new ConflictException("Subdomain already taken");
@@ -223,7 +219,7 @@ public class AuthService {
         if (req == null || req.refreshToken() == null || req.refreshToken().isBlank()) {
             throw new UnauthorizedException("No refresh token provided");
         }
-        String tokenHash = sha256(req.refreshToken());
+        String tokenHash = TokenUtils.sha256(req.refreshToken());
         RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
             .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
@@ -299,7 +295,9 @@ public class AuthService {
                             + "number, and may contain hyphens in between.");
                 }
                 if (ReservedSubdomains.isReserved(subdomain)) {
-                    throw new ConflictException("This subdomain is reserved. Please choose another.");
+                    // Reserved name = invalid input (400), consistent with the
+                    // malformed-subdomain check above and register().
+                    throw new IllegalArgumentException("This subdomain is reserved. Please choose another.");
                 }
                 if (tenantRepository.existsBySubdomain(subdomain)) {
                     throw new ConflictException("That subdomain is already taken.");
@@ -330,8 +328,8 @@ public class AuthService {
 
     private AuthResult buildAuthResult(User user, Tenant tenant) {
         String accessToken = jwtService.generateToken(user.getId(), tenant.getId(), user.getRole());
-        String rawRefresh = generateSecureToken();
-        String refreshHash = sha256(rawRefresh);
+        String rawRefresh = TokenUtils.generateSecureToken();
+        String refreshHash = TokenUtils.sha256(rawRefresh);
 
         refreshTokenRepository.save(new RefreshToken(
             user.getId(),
@@ -391,19 +389,5 @@ public class AuthService {
         }
     }
 
-    private static String generateSecureToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
 
-    private static String sha256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 }

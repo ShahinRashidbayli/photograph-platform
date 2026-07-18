@@ -16,14 +16,10 @@ import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +59,6 @@ public class CustomerAuthService {
     private static final Logger LOG = LoggerFactory.getLogger(CustomerAuthService.class);
 
     private static final Duration TOKEN_TTL = Duration.ofMinutes(15);
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
     private static final int REQUEST_MAX_PER_EMAIL_PER_HOUR = 5;
     private static final int REQUEST_MAX_PER_IP_PER_HOUR = 20;
     private static final Duration REQUEST_WINDOW = Duration.ofHours(1);
@@ -149,10 +143,10 @@ public class CustomerAuthService {
         // Invalidate any older unused tokens before issuing a fresh one.
         tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
 
-        String rawToken = generateToken();
+        String rawToken = TokenUtils.generateSecureToken();
         tokenRepository.save(new MagicLinkToken(
             user.getId(),
-            sha256(rawToken),
+            TokenUtils.sha256(rawToken),
             OffsetDateTime.now().plus(TOKEN_TTL)
         ));
         sendMagicLinkEmail(user, rawToken);
@@ -172,7 +166,7 @@ public class CustomerAuthService {
             throw new UnauthorizedException("Invalid or expired login link");
         }
 
-        MagicLinkToken token = tokenRepository.findByTokenHash(sha256(rawToken))
+        MagicLinkToken token = tokenRepository.findByTokenHash(TokenUtils.sha256(rawToken))
             .orElseThrow(() -> new UnauthorizedException("Invalid or expired login link"));
 
         if (token.isUsed() || token.isExpired()) {
@@ -224,11 +218,11 @@ public class CustomerAuthService {
 
     private AuthResult buildAuthResult(User user, Tenant tenant) {
         String accessToken = jwtService.generateToken(user.getId(), tenant.getId(), user.getRole());
-        String rawRefresh = generateToken();
+        String rawRefresh = TokenUtils.generateSecureToken();
         refreshTokenRepository.save(new RefreshToken(
             user.getId(),
             tenant.getId(),
-            sha256(rawRefresh),
+            TokenUtils.sha256(rawRefresh),
             OffsetDateTime.now().plus(Duration.ofMillis(refreshTokenExpiryMs))
         ));
         AuthResponse response = new AuthResponse(
@@ -269,7 +263,7 @@ public class CustomerAuthService {
                 If you didn't request it, you can safely ignore this email.
               </p>
             </div>
-            """.formatted(escapeHtml(greetingName), link, link);
+            """.formatted(HtmlEscape.escape(greetingName), link, link);
         try {
             emailService.send(new EmailMessage(
                 user.getEmail(), "Your sign-in link", html));
@@ -298,31 +292,4 @@ public class CustomerAuthService {
         }
     }
 
-    private static String generateToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String sha256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static String escapeHtml(String input) {
-        if (input == null) {
-            return "";
-        }
-        return input
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&#39;");
-    }
 }

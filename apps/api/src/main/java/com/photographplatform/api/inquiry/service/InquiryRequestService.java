@@ -19,7 +19,11 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -140,7 +144,25 @@ public class InquiryRequestService {
         Page<InquiryRequest> result = status == null || status.isBlank()
             ? inquiryRepository.findAll(pageable)
             : inquiryRepository.findByStatus(status, pageable);
-        return result.stream().map(this::toResponseResolvingCustomer).toList();
+
+        // Batch-load the customers for this page in one query rather than a
+        // findById per inquiry (the old N+1). A missing user row still degrades
+        // to an inquiry without contact details rather than blanking the inbox.
+        List<InquiryRequest> inquiries = result.getContent();
+        Set<UUID> customerIds = inquiries.stream()
+            .map(InquiryRequest::getCustomerId)
+            .collect(Collectors.toSet());
+        Map<UUID, User> customersById = userRepository.findAllById(customerIds).stream()
+            .collect(Collectors.toMap(User::getId, Function.identity()));
+
+        return inquiries.stream().map(inquiry -> {
+            User customer = customersById.get(inquiry.getCustomerId());
+            if (customer == null) {
+                LOG.warn("Inquiry {} references missing customer {}",
+                    inquiry.getId(), inquiry.getCustomerId());
+            }
+            return toResponse(inquiry, customer);
+        }).toList();
     }
 
     /**

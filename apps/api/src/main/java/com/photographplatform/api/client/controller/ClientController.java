@@ -7,6 +7,7 @@ import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.client.repository.ClientRepository.ClientStatsView;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.common.security.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -68,7 +69,7 @@ public class ClientController {
 
         auditService.log("CLIENT_NOTES_UPDATED", "CLIENT", id,
             SecurityUtils.requireCurrentTenantId(), SecurityUtils.requireCurrentUserId(),
-            http.getRemoteAddr());
+            ClientIp.from(http));
 
         return clientRepository.findAllWithStats().stream()
             .filter(v -> id.equals(v.getId()))

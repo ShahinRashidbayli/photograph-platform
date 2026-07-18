@@ -23,7 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static com.photographplatform.api.common.CsrfTestSupport.xsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -82,7 +82,7 @@ class BookingSecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"clientName\":\"A\",\"clientEmail\":\"a@b.com\",\"eventDate\":\"2026-09-01\"}")
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isForbidden());
     }
 
@@ -92,7 +92,7 @@ class BookingSecurityRuleTest {
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"CONFIRMED\"}")
-                .with(csrf()))
+                .with(xsrf()))
             .andExpect(status().isForbidden());
     }
 

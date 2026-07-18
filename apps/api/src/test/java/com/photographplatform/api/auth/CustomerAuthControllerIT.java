@@ -170,7 +170,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
 
     private void registerPhotographer(String email, String subdomain) {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER"),
+            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER"),
             AuthResponse.class);
         // Photographer registration also triggers a verification email — flush so
         // extractMagicLinkToken() picks up only the magic-link mail.

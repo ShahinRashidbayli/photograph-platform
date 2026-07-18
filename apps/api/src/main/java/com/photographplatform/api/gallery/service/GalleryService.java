@@ -54,6 +54,13 @@ public class GalleryService {
         this.auditService = auditService;
     }
 
+    @Transactional(readOnly = true)
+    public List<GalleryResponse> listAll() {
+        return galleryRepository.findAllWithStats().stream()
+            .map(GalleryService::toResponse)
+            .toList();
+    }
+
     // ── owner: manage ──────────────────────────────────────────────────────
 
     @Transactional

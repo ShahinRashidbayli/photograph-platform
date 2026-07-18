@@ -1,5 +1,6 @@
 package com.photographplatform.api.pricing.controller;
 
+import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.pricing.dto.PackageRequest;
 import com.photographplatform.api.pricing.dto.PackageResponse;
 import com.photographplatform.api.pricing.service.PackageService;
@@ -52,7 +53,7 @@ public class PackageController {
         @Valid @RequestBody PackageRequest request,
         HttpServletRequest httpRequest
     ) {
-        PackageResponse created = packageService.create(request, httpRequest.getRemoteAddr());
+        PackageResponse created = packageService.create(request, ClientIp.from(httpRequest));
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -62,12 +63,12 @@ public class PackageController {
         @Valid @RequestBody PackageRequest request,
         HttpServletRequest httpRequest
     ) {
-        return ResponseEntity.ok(packageService.update(id, request, httpRequest.getRemoteAddr()));
+        return ResponseEntity.ok(packageService.update(id, request, ClientIp.from(httpRequest)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id, HttpServletRequest httpRequest) {
-        packageService.delete(id, httpRequest.getRemoteAddr());
+        packageService.delete(id, ClientIp.from(httpRequest));
         return ResponseEntity.noContent().build();
     }
 }

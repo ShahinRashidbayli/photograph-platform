@@ -35,7 +35,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void registerLoginMeRefreshFlow() {
         // Register
         RegisterRequest reg = new RegisterRequest(
-            "Anna Foto", "anna@test.com", TEST_PASSWORD, "anna-foto", "PHOTOGRAPHER");
+            "Anna Foto", "anna@test.com", TEST_PASSWORD, "anna-foto", "PHOTOGRAPHER", "STARTER");
         ResponseEntity<AuthResponse> regResp = rest.postForEntity("/api/auth/register", reg, AuthResponse.class);
         assertThat(regResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(regResp.getBody()).isNotNull();
@@ -66,13 +66,17 @@ class AuthControllerIT extends IntegrationTestBase {
         );
         assertThat(refreshResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         String newAccess = extractCookie(refreshResp, "access_token");
-        assertThat(newAccess).isNotBlank().isNotEqualTo(accessToken);
+        // A JWT minted in the same second as the login token carries identical
+        // claims (iat/exp are second-resolution) and is therefore byte-equal —
+        // asserting inequality here is a timing race. Presence is the invariant.
+        assertThat(newAccess).isNotBlank();
     }
 
     @Test
     void logoutInvalidatesRefreshToken() {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Bob", "bob@test.com", TEST_PASSWORD, "bob-foto", "PHOTOGRAPHER"), AuthResponse.class);
+            new RegisterRequest("Bob", "bob@test.com", TEST_PASSWORD, "bob-foto", "PHOTOGRAPHER", "STARTER"),
+            AuthResponse.class);
         ResponseEntity<AuthResponse> loginResp = rest.postForEntity("/api/auth/login",
             new LoginRequest("bob@test.com", TEST_PASSWORD), AuthResponse.class);
         String accessToken = extractCookie(loginResp, "access_token");
@@ -102,11 +106,11 @@ class AuthControllerIT extends IntegrationTestBase {
     void duplicateSubdomainReturns409() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("User One", "one@test.com", TEST_PASSWORD,
-                "my-studio", "PHOTOGRAPHER"), AuthResponse.class);
+                "my-studio", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("User Two", "two@test.com", TEST_PASSWORD,
-                "my-studio", "PHOTOGRAPHER"), String.class);
+                "my-studio", "PHOTOGRAPHER", "STARTER"), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -114,11 +118,11 @@ class AuthControllerIT extends IntegrationTestBase {
     void duplicateEmailReturns409() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Eve One", "eve@test.com", TEST_PASSWORD,
-                "eve-one", "PHOTOGRAPHER"), AuthResponse.class);
+                "eve-one", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Eve Two", "eve@test.com", TEST_PASSWORD,
-                "eve-two", "PHOTOGRAPHER"), String.class);
+                "eve-two", "PHOTOGRAPHER", "STARTER"), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -126,7 +130,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void reservedSubdomainReturns400() {
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Sneaky", "sneaky@test.com", TEST_PASSWORD,
-                "admin", "PHOTOGRAPHER"), String.class);
+                "admin", "PHOTOGRAPHER", "STARTER"), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
@@ -140,7 +144,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void wrongPasswordReturns401() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Carol", "carol@test.com", TEST_PASSWORD,
-                "carol-foto", "PHOTOGRAPHER"), AuthResponse.class);
+                "carol-foto", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/login",
             new LoginRequest("carol@test.com", "wrongpassword"), String.class);

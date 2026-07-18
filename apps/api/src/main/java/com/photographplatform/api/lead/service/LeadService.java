@@ -20,8 +20,6 @@ import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.lead.repository.LeadRepository;
 import com.photographplatform.api.tenant.domain.Tenant;
 import java.util.List;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -41,16 +39,21 @@ public class LeadService {
     private final BookingService bookingService;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final LeadScoringService leadScoringService;
+    private final LeadCsvExporter leadCsvExporter;
 
     public LeadService(LeadRepository leadRepository, ApplicationEventPublisher eventPublisher,
                        AuditService auditService, BookingService bookingService,
-                       UserRepository userRepository, AuditLogRepository auditLogRepository) {
+                       UserRepository userRepository, AuditLogRepository auditLogRepository,
+                       LeadScoringService leadScoringService, LeadCsvExporter leadCsvExporter) {
         this.leadRepository = leadRepository;
         this.eventPublisher = eventPublisher;
         this.auditService = auditService;
         this.bookingService = bookingService;
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
+        this.leadScoringService = leadScoringService;
+        this.leadCsvExporter = leadCsvExporter;
     }
 
     /**
@@ -299,56 +302,12 @@ public class LeadService {
     /**
      * Stream every lead in this tenant as CSV. Tenant scoping is handled by
      * the routing data source (search_path is set per request from the JWT).
-     *
-     * <p>Writes directly to the response OutputStream so the file size is
-     * bounded by network throughput, not by JVM heap — even a tenant with
-     * tens of thousands of leads stays well-behaved. Header row first, then
-     * one row per lead.
-     *
-     * <p>CSV escaping per RFC 4180: any field containing a quote, comma, or
-     * newline is wrapped in double-quotes; inner quotes are doubled.
+     * Owns the read transaction and lead fetch; {@link LeadCsvExporter} owns
+     * the row layout and RFC 4180 escaping.
      */
     @Transactional(readOnly = true)
     public void exportCsv(java.io.OutputStream out) throws java.io.IOException {
-        java.io.OutputStreamWriter w = new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8);
-        w.write("id,name,email,phone,event_date,event_type,budget_range,score,status,created_at\n");
-        for (Lead lead : leadRepository.findAll(Sort.by("createdAt").descending())) {
-            w.write(csvEscape(lead.getId() == null ? "" : lead.getId().toString()));
-            w.write(',');
-            w.write(csvEscape(lead.getName()));
-            w.write(',');
-            w.write(csvEscape(lead.getEmail()));
-            w.write(',');
-            w.write(csvEscape(lead.getPhone()));
-            w.write(',');
-            w.write(csvEscape(lead.getEventDate() == null ? "" : lead.getEventDate().toString()));
-            w.write(',');
-            w.write(csvEscape(lead.getEventType()));
-            w.write(',');
-            w.write(csvEscape(lead.getBudgetRange()));
-            w.write(',');
-            w.write(csvEscape(lead.getScore()));
-            w.write(',');
-            w.write(csvEscape(lead.getStatus()));
-            w.write(',');
-            w.write(csvEscape(lead.getCreatedAt() == null ? "" : lead.getCreatedAt().toString()));
-            w.write('\n');
-        }
-        w.flush();
-    }
-
-    private static String csvEscape(String value) {
-        if (value == null) {
-            return "";
-        }
-        boolean needsQuote = value.indexOf(',') >= 0
-            || value.indexOf('"') >= 0
-            || value.indexOf('\n') >= 0
-            || value.indexOf('\r') >= 0;
-        if (!needsQuote) {
-            return value;
-        }
-        return "\"" + value.replace("\"", "\"\"") + "\"";
+        leadCsvExporter.write(out, leadRepository.findAll(Sort.by("createdAt").descending()));
     }
 
     /**
@@ -492,77 +451,13 @@ public class LeadService {
             .toList();
     }
 
-    /**
-     * Component scoring on a 0–100 scale, used to render the breakdown bars
-     * in the lead detail panel. Kept as a private helper so the same logic
-     * powers both the rollup ({@link #calculateScore}) and the breakdown
-     * surfaced in {@link LeadResponse}.
-     *
-     * <p>Scales chosen to match the spec's qualitative bands:
-     * <ul>
-     *   <li><b>Budget</b>: 30 / 60 / 90 / 100 for under-€200 / €200–500 /
-     *       €500–1000 / over-€1000. Steep climb at €500 mirrors the rollup's
-     *       "high budget" cutoff.</li>
-     *   <li><b>Type</b>: 100 wedding/engagement, 70 portrait/family/newborn,
-     *       60 corporate, 50 anything else. Premium event types are the
-     *       single biggest revenue lever.</li>
-     *   <li><b>Time</b>: 100 (&gt;60d), 70 (30–60d), 40 (&lt;30d), 10 (past).
-     *       Lead time matters because rushed bookings are riskier to plan and
-     *       price.</li>
-     * </ul>
-     */
-    private record ScoreBreakdown(int budget, int type, int time) {}
-
-    private static ScoreBreakdown scoreBreakdown(String budgetRange, String eventType, LocalDate eventDate) {
-        int budget = switch (budgetRange == null ? "" : budgetRange) {
-            case "OVER_1000" -> 100;
-            case "500_1000" -> 90;
-            case "200_500" -> 60;
-            case "UNDER_200" -> 30;
-            default -> 50;
-        };
-        int type = switch (eventType == null ? "" : eventType) {
-            case "WEDDING", "ENGAGEMENT" -> 100;
-            case "PORTRAIT", "FAMILY", "NEWBORN" -> 70;
-            case "CORPORATE" -> 60;
-            default -> 50;
-        };
-        int time;
-        if (eventDate == null) {
-            time = 50; // no date supplied — assume neutral
-        } else {
-            long days = ChronoUnit.DAYS.between(LocalDate.now(), eventDate);
-            if (days < 0) {
-                time = 10;
-            } else if (days < 30) {
-                time = 40;
-            } else if (days <= 60) {
-                time = 70;
-            } else {
-                time = 100;
-            }
-        }
-        return new ScoreBreakdown(budget, type, time);
-    }
-
     private String calculateScore(CreateLeadRequest req) {
-        ScoreBreakdown b = scoreBreakdown(req.budgetRange(), req.eventType(), req.eventDate());
-        // Rollup mirrors the original thresholds: HIGH = all three components
-        // strong; MED = budget mid-tier OR date at least 30 days out; else LOW.
-        // Keeping the rollup independent of an arithmetic mean ensures the
-        // existing HIGH/MED/LOW behaviour doesn't drift as we tune component
-        // scoring.
-        if (b.budget() >= 90 && b.type() == 100 && b.time() == 100) {
-            return "HIGH";
-        }
-        if (b.budget() == 60 || b.time() >= 70) {
-            return "MED";
-        }
-        return "LOW";
+        return leadScoringService.rollup(req.budgetRange(), req.eventType(), req.eventDate());
     }
 
     private LeadResponse toResponse(Lead lead) {
-        ScoreBreakdown b = scoreBreakdown(lead.getBudgetRange(), lead.getEventType(), lead.getEventDate());
+        LeadScoringService.ScoreBreakdown b =
+            leadScoringService.breakdown(lead.getBudgetRange(), lead.getEventType(), lead.getEventDate());
         return new LeadResponse(
             lead.getId(),
             lead.getName(),

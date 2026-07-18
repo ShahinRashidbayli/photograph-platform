@@ -2,15 +2,22 @@ package com.photographplatform.api.common.config;
 
 import com.photographplatform.api.common.security.JwtAuthFilter;
 import com.photographplatform.api.common.security.TenantContextFilter;
+import com.photographplatform.api.common.util.TokenUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,10 +25,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfFilter;
-import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -47,41 +50,20 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // Double-submit cookie CSRF: a non-httpOnly XSRF-TOKEN cookie is set;
-        // the FE echoes its value in the X-XSRF-TOKEN header on state-changing
-        // requests. Login / register / refresh are exempt because the user has
-        // no session yet — there is nothing for an attacker to abuse via CSRF.
-        CookieCsrfTokenRepository csrfRepo = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
-        csrfHandler.setCsrfRequestAttributeName("_csrf");
-
+        // CSRF: a stateless double-submit cookie check, enforced by the custom
+        // StatelessCsrfFilter (added below) rather than Spring Security's own
+        // CsrfFilter. Spring couples CSRF-token rotation to authentication
+        // (SessionManagementFilter -> CsrfAuthenticationStrategy); in this
+        // stateless JWT API every request re-authenticates, so that rotation
+        // fires on every authenticated request and races under the dashboard's
+        // parallel page-load calls — intermittently deleting/rotating the
+        // XSRF-TOKEN cookie out from under the client and 403-ing valid requests
+        // (the "click accept twice before it works" bug). The custom filter
+        // mints exactly one token, never rotates or clears it, and simply
+        // verifies X-XSRF-TOKEN == the XSRF-TOKEN cookie on mutating requests.
         return http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf
-                .csrfTokenRepository(csrfRepo)
-                .csrfTokenRequestHandler(csrfHandler)
-                .ignoringRequestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/register",
-                    "/api/auth/refresh",
-                    "/api/auth/logout",
-                    "/api/auth/verify-email",
-                    "/api/auth/resend-verification",
-                    // Password recovery runs entirely pre-session: a browser
-                    // arriving at /forgot-password has never spoken to the API,
-                    // so it holds no XSRF-TOKEN cookie to echo back. And there
-                    // is nothing for CSRF to abuse — forging "email a reset link
-                    // to an address the attacker names" is something the attacker
-                    // can already do directly, and forging the reset itself needs
-                    // the token from the victim's inbox.
-                    "/api/auth/password/forgot",
-                    "/api/auth/password/reset",
-                    "/api/auth/customer/magic-link/request",
-                    "/api/auth/customer/magic-link/verify",
-                    "/api/public/**",
-                    "/actuator/health"
-                )
-            )
+            .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/public/**", "/actuator/health", "/error").permitAll()
@@ -127,33 +109,102 @@ public class SecurityConfig {
             // correlation. Defense-in-depth against malformed JWTs and against
             // any code path that forgets to populate TenantContext.
             .addFilterAfter(tenantContextFilter, JwtAuthFilter.class)
-            // Force the deferred CSRF token to resolve on every request so the
-            // XSRF-TOKEN cookie is written to the response. Without this the
-            // cookie is only minted after something accesses the token — meaning
-            // a fresh session's first state-changing call lacks the
-            // X-XSRF-TOKEN header and 403s, succeeding only on the retry once
-            // the rejection itself has primed the cookie.
-            .addFilterAfter(new CsrfCookieEagerFilter(), CsrfFilter.class)
+            // Stateless double-submit CSRF: mints the XSRF-TOKEN cookie when
+            // absent and verifies it against the X-XSRF-TOKEN header on mutating
+            // requests. Auth-independent, so its position in the chain does not
+            // matter — placed first so a rejected request never touches app code.
+            .addFilterBefore(new StatelessCsrfFilter(), UsernamePasswordAuthenticationFilter.class)
             .build();
     }
 
     /**
-     * Eagerly materialises the deferred {@link CsrfToken} so
-     * {@link CookieCsrfTokenRepository} writes the XSRF-TOKEN cookie on the
-     * response. With Spring Security 6's lazy CSRF the cookie would otherwise
-     * be missing until something on the server side reads the token.
+     * Stateless double-submit CSRF, replacing Spring Security's session-coupled
+     * {@code CsrfFilter}. The contract with the frontend is unchanged: a
+     * non-httpOnly {@code XSRF-TOKEN} cookie whose value the client echoes in the
+     * {@code X-XSRF-TOKEN} header on every state-changing request.
+     *
+     * <p>Why hand-rolled: Spring rotates the CSRF token on authentication (via
+     * {@code SessionManagementFilter} → {@code CsrfAuthenticationStrategy}). This
+     * API authenticates from the JWT on <em>every</em> request, so that rotation
+     * fired constantly and, under the dashboard's parallel page-load fetches,
+     * raced — deleting or rotating the cookie out from under the client so the
+     * next mutating call 403'd. This filter instead treats the token as a stable
+     * value: mint it once when absent, then never rotate or clear it. Being pure
+     * double-submit it needs no server-side state, so concurrent requests cannot
+     * desynchronise it.
      */
-    private static final class CsrfCookieEagerFilter extends OncePerRequestFilter {
+    private static final class StatelessCsrfFilter extends OncePerRequestFilter {
+
+        private static final String COOKIE_NAME = "XSRF-TOKEN";
+        private static final String HEADER_NAME = "X-XSRF-TOKEN";
+        private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
+
+        // Paths that legitimately change state before the browser holds an
+        // XSRF-TOKEN cookie — the auth handshakes and public intake. Mirrors the
+        // former Spring {@code ignoringRequestMatchers} list exactly. Everything
+        // else that mutates must present a matching header. Kept as exact matches
+        // (not an /api/auth/** prefix) so authenticated mutations like a profile
+        // update stay protected.
+        private static final Set<String> EXEMPT_PATHS = Set.of(
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/verify-email",
+            "/api/auth/resend-verification",
+            "/api/auth/password/forgot",
+            "/api/auth/password/reset",
+            "/api/auth/customer/magic-link/request",
+            "/api/auth/customer/magic-link/verify",
+            "/actuator/health"
+        );
+
         @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                         FilterChain filterChain) throws ServletException, IOException {
-            CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
-            if (token != null) {
-                // Touching getToken() triggers the deferred supplier and causes
-                // CookieCsrfTokenRepository to write the cookie.
-                token.getToken();
+            String cookieToken = readCookieToken(request);
+            if (cookieToken == null || cookieToken.isBlank()) {
+                // Mint once so the client always has a value to echo. Left alone
+                // on every subsequent request — never rotated or cleared.
+                cookieToken = TokenUtils.generateSecureToken();
+                ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, cookieToken)
+                    .path("/")
+                    .httpOnly(false)
+                    .sameSite("Lax")
+                    .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+            }
+
+            if (!SAFE_METHODS.contains(request.getMethod()) && !isExempt(request)) {
+                String header = request.getHeader(HEADER_NAME);
+                if (header == null || !constantTimeEquals(header, cookieToken)) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid CSRF token");
+                    return;
+                }
             }
             filterChain.doFilter(request, response);
+        }
+
+        private static boolean isExempt(HttpServletRequest request) {
+            String path = request.getRequestURI();
+            return EXEMPT_PATHS.contains(path) || path.startsWith("/api/public/");
+        }
+
+        private static String readCookieToken(HttpServletRequest request) {
+            if (request.getCookies() == null) {
+                return null;
+            }
+            for (Cookie cookie : request.getCookies()) {
+                if (COOKIE_NAME.equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+            return null;
+        }
+
+        private static boolean constantTimeEquals(String a, String b) {
+            return MessageDigest.isEqual(
+                a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
         }
     }
 

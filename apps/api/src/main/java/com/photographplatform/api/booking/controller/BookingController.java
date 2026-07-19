@@ -3,6 +3,7 @@ package com.photographplatform.api.booking.controller;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
+import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingStatusRequest;
 import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.security.ClientIp;
@@ -77,6 +78,22 @@ public class BookingController {
         HttpServletRequest httpRequest
     ) {
         BookingResponse updated = bookingService.changeStatus(id, request.status(), ClientIp.from(httpRequest));
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Edit a booking's details (contact, date, pricing, notes). Photographer-only
+     * via {@code SecurityConfig}. This is what lets a photographer price a booking
+     * created from an accepted inquiry, which starts with no amounts.
+     */
+    @RequiresVerifiedEmail
+    @PatchMapping("/api/bookings/{id}")
+    public ResponseEntity<BookingResponse> updateBooking(
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateBookingRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        BookingResponse updated = bookingService.updateBooking(id, request, ClientIp.from(httpRequest));
         return ResponseEntity.ok(updated);
     }
 }

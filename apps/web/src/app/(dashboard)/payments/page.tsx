@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { formatEUR, formatDayMonth, formatMonthDayYear } from '@/lib/helpers';
 import { useBookings } from '@/hooks/useBookings';
+import { amountPaidCents } from '@/lib/booking-status';
 import type { Booking } from '@/types/api';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
@@ -26,24 +27,29 @@ interface PayItem {
   total: number;
   paid: number;
   remaining: number;
+  /** Quoted deposit (what's owed as a deposit), independent of whether it's paid. */
+  depositAmount: number;
   state: PayState;
 }
 
 function derivePayment(b: Booking): PayItem {
   const total = b.totalAmountCents ?? 0;
-  const deposit = b.depositAmountCents ?? 0;
-  const isPaidStage = b.status === 'FULLY_PAID' || b.status === 'COMPLETED';
 
   // An enquiry has no accepted quote yet, so it is not billable — show the draft
   // total but count neither paid nor remaining against it.
+  const depositAmount = b.depositAmountCents ?? 0;
+
   if (b.status === 'ENQUIRY') {
-    return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid: 0, remaining: 0, state: 'quote' };
+    return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid: 0, remaining: 0, depositAmount, state: 'quote' };
   }
 
-  const paid = isPaidStage ? total : deposit;
-  const remaining = isPaidStage ? 0 : Math.max(total - deposit, 0);
+  // Paid is derived from the lifecycle status (see amountPaidCents), so a
+  // booking that's only been accepted — CONFIRMED, deposit not yet paid —
+  // correctly shows 0 collected and the full balance due.
+  const paid = amountPaidCents(b);
+  const remaining = Math.max(total - paid, 0);
   const state: PayState = remaining === 0 && total > 0 ? 'paid' : paid > 0 ? 'partial' : 'due';
-  return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid, remaining, state };
+  return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid, remaining, depositAmount, state };
 }
 
 function daysUntil(iso: string): number {
@@ -279,7 +285,7 @@ function PaymentSchedule({ item, colors: c }: { item: PayItem | undefined; color
 
       {item ? (
         <>
-          <ScheduleRow label="Deposit" amount={item.paid} sub={item.paid > 0 ? 'Paid' : 'Pending'} due={false} colors={c} />
+          <ScheduleRow label="Deposit" amount={item.depositAmount} sub={item.paid > 0 ? 'Paid' : 'Pending'} due={false} colors={c} />
           <ScheduleRow
             label="Remaining"
             amount={item.remaining}

@@ -8,6 +8,7 @@ import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.TokenUtils;
@@ -163,29 +164,19 @@ public class EmailVerificationService {
     private void sendVerificationEmail(User user, String rawToken) {
         String link = webBaseUrl.replaceAll("/+$", "")
             + "/verify-email?token=" + rawToken;
-        String html = """
-            <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; \
-            max-width: 520px; margin: 0 auto; padding: 32px;">
-              <h2 style="color:#0F172A; margin:0 0 16px 0;">Confirm your email</h2>
-              <p style="color:#334155; font-size:15px; line-height:1.6;">
-                Hi %s, please confirm this email address belongs to you so we can \
-                deliver booking notifications, lead alerts and password resets.
-              </p>
-              <p style="margin:24px 0;">
-                <a href="%s" style="display:inline-block; padding:12px 22px; \
-                background:#0F172A; color:#FFFFFF; text-decoration:none; \
-                border-radius:8px; font-weight:600;">Confirm email</a>
-              </p>
-              <p style="color:#64748B; font-size:13px; line-height:1.6;">
-                Or paste this link into your browser:<br/>
-                <span style="word-break:break-all;">%s</span>
-              </p>
-              <p style="color:#94A3B8; font-size:12px; margin-top:32px;">
-                This link expires in 24 hours. If you didn't create an account, \
-                you can safely ignore this email.
-              </p>
-            </div>
-            """.formatted(HtmlEscape.escape(user.getFullName()), link, link);
+        String name = user.getFullName() != null && !user.getFullName().isBlank()
+            ? user.getFullName() : "there";
+        String html = EmailTemplate.document(
+            "Confirm your email to activate your Fotolio account.",
+            EmailTemplate.heading("Confirm your email")
+                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(name)
+                    + ", please confirm this email address belongs to you so we can deliver booking "
+                    + "notifications, lead alerts and password resets.")
+                + EmailTemplate.button("Confirm email", link)
+                + EmailTemplate.note("Or paste this link into your browser:<br>"
+                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
+                + EmailTemplate.note("This link expires in 24 hours. If you didn't create an account, "
+                    + "you can safely ignore this email."));
         try {
             emailService.send(new EmailMessage(
                 user.getEmail(), "Confirm your Fotolio email", html));

@@ -7,26 +7,26 @@
 export const bookings = {
   // ── Shared domain vocabulary ──────────────────────────────────────────────
   'bookingStatus.ENQUIRY': 'New',
-  'bookingStatus.DEPOSIT_PAID': 'Deposit',
-  'bookingStatus.CONFIRMED': 'Confirmed',
+  'bookingStatus.DEPOSIT_PAID': 'Deposit paid',
+  'bookingStatus.CONFIRMED': 'Awaiting deposit',
   'bookingStatus.FULLY_PAID': 'Paid',
   'bookingStatus.COMPLETED': 'Completed',
   'bookingStatus.CANCELLED': 'Cancelled',
   'bookingStatus.UNKNOWN': 'Unknown',
 
   // Verbose status labels used in detail panels where space allows.
-  'bookingStatusDetail.DEPOSIT_PAID': 'Deposit pending',
+  'bookingStatusDetail.DEPOSIT_PAID': 'Deposit paid',
   // The client's own vocabulary for the same states — a client reading their
   // booking thinks "Awaiting your deposit", not the photographer's "Deposit".
   'bookingStatusCustomer.ENQUIRY': 'Requested',
-  'bookingStatusCustomer.DEPOSIT_PAID': 'Awaiting your deposit',
-  'bookingStatusCustomer.CONFIRMED': 'Confirmed',
+  'bookingStatusCustomer.DEPOSIT_PAID': 'Deposit paid',
+  'bookingStatusCustomer.CONFIRMED': 'Deposit due',
   'bookingStatusCustomer.FULLY_PAID': 'Paid in full',
   'bookingStatusCustomer.COMPLETED': 'Photos delivered',
   'bookingStatusCustomer.CANCELLED': 'Cancelled',
   // Imperative labels for the buttons that move a booking into a status.
   'statusAction.ENQUIRY': 'Reopen enquiry',
-  'statusAction.CONFIRMED': 'Confirm booking',
+  'statusAction.CONFIRMED': 'Accept & request deposit',
   'statusAction.DEPOSIT_PAID': 'Mark deposit paid',
   'statusAction.FULLY_PAID': 'Mark fully paid',
   'statusAction.COMPLETED': 'Mark completed',
@@ -92,6 +92,7 @@ export const bookings = {
   'bookings.balanceDue': '{amount} balance · due {date}',
 
   'bookings.detail.closed': 'This booking is closed.',
+  'bookings.detail.edit': 'Edit',
   'bookings.detail.clientInfo': 'Client info',
   'bookings.detail.name': 'Name',
   'bookings.detail.email': 'Email',
@@ -123,7 +124,7 @@ export const bookings = {
   'customerBooking.progress': 'Progress',
   'customerBooking.step.requestSent': 'Request sent',
   'customerBooking.step.deposit': 'Deposit',
-  'customerBooking.step.depositReceived': 'Deposit received · {amount}',
+  'customerBooking.step.depositReceived': 'Deposit sent · {amount}',
   'customerBooking.step.confirmed': 'Confirmed',
   'customerBooking.step.pending': 'Pending',
   'customerBooking.step.remaining': 'Remaining payment',
@@ -158,6 +159,11 @@ export const bookings = {
   'createBooking.notesPlaceholder': 'Only visible to you.',
   'createBooking.submit': 'Create booking',
   'createBooking.submitting': 'Creating…',
+  'editBooking.aria': 'Edit booking details',
+  'editBooking.title': 'Edit booking',
+  'editBooking.subtitle': 'Update the details, pricing or notes. The status is unchanged.',
+  'editBooking.submit': 'Save changes',
+  'editBooking.submitting': 'Saving…',
   'createBooking.errName': 'Client name is required.',
   'createBooking.errEmail': 'Client email is required.',
   'createBooking.errEmailInvalid': 'Enter a valid email address.',

@@ -58,6 +58,8 @@ function CustomerLoginInner() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
   const [focused, setFocused] = useState<FocusField>(null);
 
   // Host-derived subdomain wins over the ?subdomain hint and is authoritative,
@@ -107,6 +109,24 @@ function CustomerLoginInner() {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendBusy(true);
+    setResendDone(false);
+    try {
+      await api.post('/api/auth/customer/magic-link/request', {
+        email: email.trim().toLowerCase(),
+        subdomain: subdomain.trim().toLowerCase(),
+        fullName: fullName.trim() || null,
+      });
+      setResendDone(true);
+    } catch {
+      // silent — same 204-always contract as the initial request
+      setResendDone(true);
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -244,6 +264,28 @@ function CustomerLoginInner() {
           <h2 style={s.title}>{t('customerLogin.sentTitle')}</h2>
           <p style={s.subtitle}>{t('customerLogin.sentBody', { email })}</p>
           <div style={{ ...s.alertInfo, marginTop: 24 }}>{t('customerLogin.sentHint')}</div>
+          <button
+            type="button"
+            style={{
+              ...s.button,
+              ...s.buttonPrimary,
+              marginTop: 16,
+              ...(resendBusy ? s.buttonDisabled : {}),
+            }}
+            disabled={resendBusy}
+            onClick={handleResend}
+            onMouseEnter={(e) => {
+              if (!resendBusy) Object.assign(e.currentTarget.style, s.buttonPrimaryHover);
+            }}
+            onMouseLeave={(e) => {
+              if (!resendBusy) Object.assign(e.currentTarget.style, s.buttonPrimary);
+            }}
+          >
+            {resendBusy ? t('customerLogin.resendLoading') : t('customerLogin.resend')}
+          </button>
+          {resendDone && (
+            <div style={{ ...s.alertInfo, marginTop: 12 }}>{t('customerLogin.resendDone')}</div>
+          )}
         </div>
       )}
     </AuthSplitLayout>

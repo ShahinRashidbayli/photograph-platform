@@ -13,6 +13,7 @@ import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -242,28 +243,16 @@ public class CustomerAuthService {
             + "/customer/auth/verify?token=" + rawToken;
         String greetingName = user.getFullName() != null && !user.getFullName().isBlank()
             ? user.getFullName() : "there";
-        String html = """
-            <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; \
-            max-width: 520px; margin: 0 auto; padding: 32px;">
-              <h2 style="color:#0F172A; margin:0 0 16px 0;">Sign in to your booking</h2>
-              <p style="color:#334155; font-size:15px; line-height:1.6;">
-                Hi %s, click the button below to sign in. No password needed.
-              </p>
-              <p style="margin:24px 0;">
-                <a href="%s" style="display:inline-block; padding:12px 22px; \
-                background:#0F172A; color:#FFFFFF; text-decoration:none; \
-                border-radius:8px; font-weight:600;">Sign in</a>
-              </p>
-              <p style="color:#64748B; font-size:13px; line-height:1.6;">
-                Or paste this link into your browser:<br/>
-                <span style="word-break:break-all;">%s</span>
-              </p>
-              <p style="color:#94A3B8; font-size:12px; margin-top:32px;">
-                This link expires in 15 minutes and can only be used once. \
-                If you didn't request it, you can safely ignore this email.
-              </p>
-            </div>
-            """.formatted(HtmlEscape.escape(greetingName), link, link);
+        String html = EmailTemplate.document(
+            "Your Fotolio sign-in link — expires in 15 minutes.",
+            EmailTemplate.heading("Sign in to your booking")
+                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(greetingName)
+                    + ", tap the button below to sign in. No password needed.")
+                + EmailTemplate.button("Sign in", link)
+                + EmailTemplate.note("Or paste this link into your browser:<br>"
+                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
+                + EmailTemplate.note("This link expires in 15 minutes and can only be used once. "
+                    + "If you didn't request it, you can safely ignore this email."));
         try {
             emailService.send(new EmailMessage(
                 user.getEmail(), "Your sign-in link", html));

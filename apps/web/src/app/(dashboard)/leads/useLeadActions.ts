@@ -144,6 +144,15 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
           { status },
         );
         setInquiries((prev) => prev.map((i) => (i.id === data.id ? data : i)));
+        // Accepting creates a booking on the server (status -> BOOKING_CREATED),
+        // so surface it exactly like a lead conversion — the "view in bookings"
+        // banner — rather than letting the row just quietly move buckets.
+        if (status === 'ACCEPTED') {
+          setConvertSuccess({
+            bookingId: '',
+            leadName: data.customerName ?? selectedInquiry.customerName ?? '',
+          });
+        }
       } catch {
         setActionError('Could not update the request. Please try again.');
       } finally {

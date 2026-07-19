@@ -34,7 +34,10 @@ export const auth: Record<keyof EnAuth, string> = {
   'customerLogin.sentBody':
     'Wenn {email} bei diesem Fotografen registriert ist, haben wir Ihnen gerade einen Anmeldelink gesendet. Er ist 15 Minuten gültig.',
   'customerLogin.sentHint':
-    'Nichts erhalten? Sehen Sie in Ihrem Spam-Ordner nach oder fordern Sie in ein paar Minuten einen neuen an.',
+    'Nichts erhalten? Sehen Sie in Ihrem Spam-Ordner nach oder fordern Sie unten einen neuen an.',
+  'customerLogin.resend': 'Link erneut senden',
+  'customerLogin.resendLoading': 'Wird gesendet…',
+  'customerLogin.resendDone': 'Gesendet! Prüfen Sie Ihr Postfach erneut.',
 
   // ── Photographer login ────────────────────────────────────────────────────
   'login.crossLink': 'Als Kunde anmelden',

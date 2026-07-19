@@ -41,6 +41,7 @@ export const leads = {
   'leads.source.form': 'Form',
   'leads.source.customer': 'Customers',
   'leads.source.badge.customer': 'Customer',
+  'leads.source.badge.form': 'Form',
   'leads.exportCsv': 'Export CSV',
   'leads.exportAria': 'Export all leads as CSV',
   'leads.newLead': 'New lead',

@@ -163,6 +163,9 @@ export function LeadListItem({
             made the row top-heavy. Date is factual context; days-until is
             actionable (urgency colour cuts through). */}
         <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+          {/* Source badge, symmetric with the "Customer" chip on inquiry rows,
+              so every row in the merged inbox states where it came from. */}
+          <span style={chip}>{t('leads.source.badge.form')}</span>
           <span style={chip}>{eventDateShort}</span>
           <span
             style={{

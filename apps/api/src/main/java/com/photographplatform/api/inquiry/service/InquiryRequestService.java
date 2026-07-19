@@ -3,16 +3,21 @@ package com.photographplatform.api.inquiry.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.inquiry.dto.CreateInquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
+import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.Duration;
@@ -68,19 +73,25 @@ public class InquiryRequestService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final StringRedisTemplate redis;
+    private final BookingService bookingService;
+    private final EmailService emailService;
 
     public InquiryRequestService(InquiryRequestRepository inquiryRepository,
                                  UserRepository userRepository,
                                  TenantRepository tenantRepository,
                                  AuditService auditService,
                                  ApplicationEventPublisher eventPublisher,
-                                 StringRedisTemplate redis) {
+                                 StringRedisTemplate redis,
+                                 BookingService bookingService,
+                                 EmailService emailService) {
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
         this.redis = redis;
+        this.bookingService = bookingService;
+        this.emailService = emailService;
     }
 
     /**
@@ -166,12 +177,14 @@ public class InquiryRequestService {
     }
 
     /**
-     * Photographer triage of a fresh inquiry. Only {@code ACCEPTED} and
-     * {@code REJECTED} are reachable here, and only from {@code PENDING} — an
-     * already-triaged inquiry is terminal, and {@code BOOKING_CREATED} belongs
-     * to the convert-to-booking flow rather than this manual toggle. The
-     * repository is tenant-scoped by search_path, so the id can only ever
-     * resolve to an inquiry in the caller's own schema.
+     * Photographer triage of a fresh inquiry, reachable only from {@code
+     * PENDING}. Accepting converts the inquiry into a booking in one step
+     * (roadmap §4.5.7): a booking is created in {@code ENQUIRY} from the
+     * inquiry's basics — the photographer fills pricing on the booking
+     * afterwards — and the inquiry moves to the terminal {@code
+     * BOOKING_CREATED}. Rejecting moves it to {@code REJECTED}. Either way the
+     * customer gets an email. The repository is tenant-scoped by search_path,
+     * so the id can only ever resolve within the caller's own schema.
      */
     @Transactional
     public InquiryRequestResponse updateStatus(UUID id, String targetStatus, String ipAddress) {
@@ -188,16 +201,29 @@ public class InquiryRequestService {
 
         if (!"PENDING".equals(inquiry.getStatus())) {
             throw new ConflictException(
-                "This inquiry has already been " + inquiry.getStatus().toLowerCase() + ".");
+                "This inquiry has already been " + inquiry.getStatus().toLowerCase().replace('_', ' ') + ".");
         }
 
-        inquiry.setStatus(target);
+        // The inquiry carries only a customer_id; the booking (and the email)
+        // need the actual contact details, so resolve the customer once here.
+        User customer = userRepository.findById(inquiry.getCustomerId())
+            .orElseThrow(() -> new NotFoundException("Customer not found for inquiry: " + id));
+
+        boolean accepted = target.equals("ACCEPTED");
+        if (accepted) {
+            bookingService.createFromInquiry(inquiry, customer, ipAddress);
+            inquiry.setStatus("BOOKING_CREATED");
+        } else {
+            inquiry.setStatus("REJECTED");
+        }
         InquiryRequest saved = inquiryRepository.save(inquiry);
 
         auditService.log("INQUIRY_" + target, "INQUIRY_REQUEST", saved.getId(),
             tenantId, actorId, ipAddress);
 
-        return toResponseResolvingCustomer(saved);
+        notifyCustomerOfDecision(customer, accepted);
+
+        return toResponse(saved, customer);
     }
 
     /** The signed-in customer's own inquiries — scoped to their user id. */
@@ -281,18 +307,28 @@ public class InquiryRequestService {
     }
 
     /**
-     * Photographer-side listing resolves each inquiry's customer for the name /
-     * email columns. A missing user row (deleted account) must not blank out the
-     * whole inbox, so it degrades to the inquiry without contact details rather
-     * than throwing.
+     * Email the customer the outcome of their inquiry. Best-effort by
+     * construction: {@link EmailService#send} swallows and logs delivery
+     * failures, so a mail problem can never roll back the booking that
+     * acceptance just created.
      */
-    private InquiryRequestResponse toResponseResolvingCustomer(InquiryRequest inquiry) {
-        User customer = userRepository.findById(inquiry.getCustomerId()).orElse(null);
-        if (customer == null) {
-            LOG.warn("Inquiry {} references missing customer {}",
-                inquiry.getId(), inquiry.getCustomerId());
-        }
-        return toResponse(inquiry, customer);
+    private void notifyCustomerOfDecision(User customer, boolean accepted) {
+        String subject = accepted
+            ? "Your booking request was accepted"
+            : "Update on your booking request";
+        String message = accepted
+            ? "Great news — your photographer accepted your request and started a booking. "
+                + "They'll be in touch shortly to confirm the details."
+            : "Thank you for reaching out. Unfortunately your photographer isn't able to take "
+                + "this booking. We wish you the very best finding the right fit.";
+        String html = EmailTemplate.document(
+            accepted
+                ? "Good news — your photographer accepted your request."
+                : "An update on your booking request.",
+            EmailTemplate.heading(subject)
+                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(displayName(customer)) + ",")
+                + EmailTemplate.paragraph(message));
+        emailService.send(new EmailMessage(customer.getEmail(), subject, html));
     }
 
     private InquiryRequestResponse toResponse(InquiryRequest inquiry, User customer) {

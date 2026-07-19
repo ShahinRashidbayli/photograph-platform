@@ -8,11 +8,14 @@ import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
+import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.pricing.domain.Package;
@@ -157,6 +160,38 @@ public class BookingService {
     }
 
     /**
+     * Create a booking from an accepted customer inquiry. Contact details come
+     * from the customer's own account, the event basics from the inquiry; the
+     * photographer fills the operational fields (time, pricing) on the booking
+     * afterwards. Always created in {@code ENQUIRY}, and linked back to the
+     * inquiry via {@code inquiryId} so the funnel joins end to end.
+     */
+    @Transactional
+    public BookingResponse createFromInquiry(InquiryRequest inquiry, User customer, String ipAddress) {
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+        UUID tenantId = SecurityUtils.currentTenantId();
+
+        String name = (customer.getFullName() == null || customer.getFullName().isBlank())
+            ? customer.getEmail()
+            : customer.getFullName();
+        Booking booking = new Booking(
+            name.trim(),
+            customer.getEmail().trim().toLowerCase(),
+            inquiry.getProposedDate()
+        );
+        booking.setInquiryId(inquiry.getId());
+        booking.setEventType(trimToNull(inquiry.getEventType()));
+        booking.setLocation(trimToNull(inquiry.getLocation()));
+        booking.setStatus(BookingStatus.ENQUIRY.name());
+
+        Booking saved = bookingRepository.save(booking);
+
+        auditService.log("BOOKING_CREATED", "BOOKING", saved.getId(), tenantId, actorId, ipAddress);
+
+        return toResponse(saved);
+    }
+
+    /**
      * List the bookings owned by the currently authenticated customer.
      *
      * <p>The caller's identity is resolved from the JWT (not a request
@@ -208,6 +243,53 @@ public class BookingService {
             ipAddress,
             current.name(),
             next.name()
+        );
+
+        return toResponse(saved);
+    }
+
+    /**
+     * Edit a booking's operational and pricing details. This is what lets a
+     * photographer put a price on a booking created from an accepted inquiry
+     * (which starts at {@code 0/0}), and correct any field on a manual booking.
+     *
+     * <p>Status is intentionally out of scope — it moves only through
+     * {@link #changeStatus}. Pricing follows the same {@link #resolvePrice}
+     * rule as creation: an explicit total wins, otherwise the linked package
+     * price, otherwise 0. A deposit greater than the resolved total is rejected
+     * (409) rather than silently stored as a negative balance.
+     */
+    @Transactional
+    public BookingResponse updateBooking(UUID bookingId, UpdateBookingRequest request, String ipAddress) {
+        Booking booking = bookingRepository.findById(bookingId)
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+
+        int total = resolvePrice(request.packageId(), request.totalAmountCents());
+        int deposit = request.depositAmountCents() != null ? request.depositAmountCents() : 0;
+        if (deposit > total) {
+            throw new ConflictException("Deposit cannot exceed the total amount");
+        }
+
+        booking.setClientName(request.clientName().trim());
+        booking.setClientEmail(request.clientEmail().trim().toLowerCase());
+        booking.setEventDate(request.eventDate());
+        booking.setEventTime(request.eventTime());
+        booking.setEventType(trimToNull(request.eventType()));
+        booking.setLocation(trimToNull(request.location()));
+        booking.setPackageId(request.packageId());
+        booking.setTotalAmountCents(total);
+        booking.setDepositAmountCents(deposit);
+        booking.setInternalNotes(trimToNull(request.internalNotes()));
+
+        Booking saved = bookingRepository.save(booking);
+
+        auditService.log(
+            "BOOKING_UPDATED",
+            "BOOKING",
+            saved.getId(),
+            SecurityUtils.currentTenantId(),
+            SecurityUtils.requireCurrentUserId(),
+            ipAddress
         );
 
         return toResponse(saved);

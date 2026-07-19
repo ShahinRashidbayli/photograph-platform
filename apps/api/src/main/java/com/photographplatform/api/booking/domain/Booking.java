@@ -27,6 +27,9 @@ public class Booking {
     @Column(name = "lead_id")
     private UUID leadId;
 
+    @Column(name = "inquiry_id")
+    private UUID inquiryId;
+
     @Column(name = "client_name", nullable = false, length = 200)
     private String clientName;
 
@@ -95,6 +98,14 @@ public class Booking {
 
     public void setLeadId(UUID leadId) {
         this.leadId = leadId;
+    }
+
+    public UUID getInquiryId() {
+        return inquiryId;
+    }
+
+    public void setInquiryId(UUID inquiryId) {
+        this.inquiryId = inquiryId;
     }
 
     public String getClientName() {

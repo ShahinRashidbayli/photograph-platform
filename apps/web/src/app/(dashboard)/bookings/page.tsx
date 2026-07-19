@@ -16,6 +16,7 @@ import {
   toneToVisual,
   getAllowedTransitions,
   STATUS_ACTION_LABEL_KEY,
+  amountPaidCents,
   type BookingStatusKey,
 } from '@/lib/booking-status';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
@@ -137,6 +138,9 @@ export default function BookingsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
+  // The booking currently being edited (photographer). Reuses the create modal
+  // in edit mode; null when no edit is open.
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   // Client-side "Request a session" modal (photographer uses showCreate instead).
   const [showRequest, setShowRequest] = useState(false);
   // Date pre-filled into the create modal when it's opened from a calendar day.
@@ -176,13 +180,13 @@ export default function BookingsPage() {
       (b) => b.status !== 'CANCELLED' && b.status !== 'COMPLETED',
     );
     const revenue = active.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
-    const collected = active.reduce(
-      (sum, b) => sum + (b.depositAmountCents || 0),
-      0,
-    );
+    // "Collected" and "outstanding" must key off what's actually been paid
+    // (derived from status), not the quoted deposit amount — otherwise a
+    // booking that's only been accepted shows its deposit as already banked.
+    const collected = active.reduce((sum, b) => sum + amountPaidCents(b), 0);
     const pending = active.reduce(
       (sum, b) =>
-        sum + Math.max((b.totalAmountCents || 0) - (b.depositAmountCents || 0), 0),
+        sum + Math.max((b.totalAmountCents || 0) - amountPaidCents(b), 0),
       0,
     );
     const confirmed = active.filter((b) => b.status === 'CONFIRMED').length;
@@ -294,6 +298,16 @@ export default function BookingsPage() {
     setSelectedId(created.id);
     setShowCreate(false);
     setCreateDate(null);
+  }
+
+  function handleEdited(updated: Booking) {
+    // Replace the edited booking in the cache in place. The event date may have
+    // changed, so re-sort by removing and re-inserting rather than a straight map.
+    queryClient.setQueryData<Booking[]>(bookingsQueryKey(isPhotographer), (old = []) =>
+      insertSortedByDate(old.filter((b) => b.id !== updated.id), updated),
+    );
+    setSelectedId(updated.id);
+    setEditingBooking(null);
   }
 
   if (loading && bookings.length === 0) {
@@ -757,6 +771,7 @@ export default function BookingsPage() {
                 actionBusy={actionBusy}
                 actionError={actionError}
                 onTransition={handleTransition}
+                onEdit={() => setEditingBooking(selected)}
               />
             ) : (
               <CustomerBookingDetail
@@ -786,6 +801,16 @@ export default function BookingsPage() {
             setCreateDate(null);
           }}
           onCreated={handleCreated}
+        />
+      )}
+
+      {editingBooking && (
+        <CreateBookingModal
+          styles={styles}
+          colors={colors}
+          booking={editingBooking}
+          onClose={() => setEditingBooking(null)}
+          onCreated={handleEdited}
         />
       )}
 
@@ -941,7 +966,7 @@ function BookingListItem({
   // The photographer's list is client-first (whose booking is it); the client's
   // own list is session-first (what/where), since every row is theirs.
   const remaining = Math.max(
-    booking.totalAmountCents - (booking.depositAmountCents || 0),
+    booking.totalAmountCents - amountPaidCents(booking),
     0,
   );
   const title = isPhotographer
@@ -1023,6 +1048,7 @@ type DetailProps = {
   actionBusy: boolean;
   actionError: string | null;
   onTransition: (_target: BookingStatusKey) => void;
+  onEdit: () => void;
 };
 
 function BookingDetail({
@@ -1033,15 +1059,19 @@ function BookingDetail({
   actionBusy,
   actionError,
   onTransition,
+  onEdit,
 }: DetailProps) {
   const { t, format } = useTranslation();
   const date = new Date(booking.eventDate);
   const dateLabel = format.monthDay(date);
   const status = getStatusVisual(booking.status, colors, 'detail');
   const total = booking.totalAmountCents;
-  const deposit = booking.depositAmountCents || 0;
-  const remaining = Math.max(total - deposit, 0);
-  const percent = total > 0 ? Math.min(100, Math.round((deposit / total) * 100)) : 0;
+  // Paid = what's actually been collected (from status), not the quoted
+  // deposit. Before the deposit is marked paid this is 0, so the progress bar
+  // no longer shows a configured deposit as money in the bank.
+  const paid = amountPaidCents(booking);
+  const remaining = Math.max(total - paid, 0);
+  const percent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   const notes = booking.internalNotes?.trim() || t('bookings.detail.noNotes');
   const palette = pickAvatarColor(booking.id, colors.isDark);
 
@@ -1098,8 +1128,26 @@ function BookingDetail({
             </div>
           </div>
         </div>
-        {isPhotographer && (transitions.length > 0 || isTerminal) && (
+        {isPhotographer && (
           <div style={styles.detailActions}>
+            <button
+              type="button"
+              onClick={onEdit}
+              style={{
+                ...styles.secondaryButton,
+                alignSelf: 'flex-end',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                fontSize: '0.8rem',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              {t('bookings.detail.edit')}
+            </button>
             {advanceTargets.length > 0 && (
               <div style={styles.detailAdvanceRow}>
                 {advanceTargets.map((target, index) => (
@@ -1230,7 +1278,7 @@ function BookingDetail({
                 />
               </div>
               <div style={styles.progressMeta}>
-                <span>{t('bookings.detail.amountPaid', { amount: format.eur(deposit) })}</span>
+                <span>{t('bookings.detail.amountPaid', { amount: format.eur(paid) })}</span>
                 <span>{t('bookings.detail.amountRemaining', { amount: format.eur(remaining) })}</span>
               </div>
             </div>

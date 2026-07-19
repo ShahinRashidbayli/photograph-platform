@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Booking } from '@/types/api';
-import { getBookingStatusMeta, getCustomerBookingStatusLabelKey, toneToVisual } from '@/lib/booking-status';
+import { amountPaidCents, getBookingStatusMeta, getCustomerBookingStatusLabelKey, toneToVisual } from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
@@ -36,12 +36,16 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
   const statusVisual = toneToVisual(meta.tone, colors);
 
   const total = booking.totalAmountCents;
-  const deposit = booking.depositAmountCents || 0;
-  const remaining = Math.max(total - deposit, 0);
+  // `depositAmount` is the *quoted* deposit (what's owed); `paid` is what's
+  // actually been collected, derived from the lifecycle status. Progress must
+  // key off `paid`/status — not the quoted amount — so the client never sees a
+  // deposit marked "done" before they've actually paid it.
+  const depositAmount = booking.depositAmountCents || 0;
+  const paid = amountPaidCents(booking);
+  const remaining = Math.max(total - paid, 0);
 
   const isPaidStage = ['FULLY_PAID', 'COMPLETED'].includes(booking.status);
-  const depositDone =
-    deposit > 0 || ['DEPOSIT_PAID', 'FULLY_PAID', 'COMPLETED'].includes(booking.status);
+  const depositDone = ['DEPOSIT_PAID', 'FULLY_PAID', 'COMPLETED'].includes(booking.status);
   const showPaymentAlert =
     booking.status !== 'CANCELLED' && !isPaidStage && remaining > 0;
 
@@ -55,10 +59,9 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
       done: true,
     },
     {
-      label:
-        deposit > 0
-          ? t('customerBooking.step.depositReceived', { amount: format.eur(deposit) })
-          : t('customerBooking.step.deposit'),
+      label: depositDone
+        ? t('customerBooking.step.depositReceived', { amount: format.eur(depositAmount) })
+        : t('customerBooking.step.deposit'),
       meta: depositDone
         ? t('customerBooking.step.confirmed')
         : t('customerBooking.step.pending'),

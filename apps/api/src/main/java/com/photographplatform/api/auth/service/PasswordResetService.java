@@ -11,6 +11,7 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -206,29 +207,17 @@ public class PasswordResetService {
         String link = webBaseUrl.replaceAll("/+$", "") + "/reset-password?token=" + rawToken;
         String greeting = user.getFullName() == null || user.getFullName().isBlank()
             ? "there" : user.getFullName();
-        String html = """
-            <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; \
-            max-width: 520px; margin: 0 auto; padding: 32px;">
-              <h2 style="color:#0F172A; margin:0 0 16px 0;">Reset your password</h2>
-              <p style="color:#334155; font-size:15px; line-height:1.6;">
-                Hi %s, click the button below to choose a new password.
-              </p>
-              <p style="margin:24px 0;">
-                <a href="%s" style="display:inline-block; padding:12px 22px; \
-                background:#0F172A; color:#FFFFFF; text-decoration:none; \
-                border-radius:8px; font-weight:600;">Choose a new password</a>
-              </p>
-              <p style="color:#64748B; font-size:13px; line-height:1.6;">
-                Or paste this link into your browser:<br/>
-                <span style="word-break:break-all;">%s</span>
-              </p>
-              <p style="color:#94A3B8; font-size:12px; margin-top:32px;">
-                This link expires in 1 hour and can only be used once. If you didn't \
-                request a password reset, you can safely ignore this email — your \
-                password stays unchanged.
-              </p>
-            </div>
-            """.formatted(HtmlEscape.escape(greeting), link, link);
+        String html = EmailTemplate.document(
+            "Reset your Fotolio password — link expires in 1 hour.",
+            EmailTemplate.heading("Reset your password")
+                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(greeting)
+                    + ", tap the button below to choose a new password.")
+                + EmailTemplate.button("Choose a new password", link)
+                + EmailTemplate.note("Or paste this link into your browser:<br>"
+                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
+                + EmailTemplate.note("This link expires in 1 hour and can only be used once. If you didn't "
+                    + "request a password reset, you can safely ignore this email — your password "
+                    + "stays unchanged."));
         try {
             emailService.send(new EmailMessage(user.getEmail(), "Reset your Fotolio password", html));
         } catch (RuntimeException ex) {

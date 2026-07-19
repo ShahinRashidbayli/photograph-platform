@@ -50,6 +50,40 @@ export const BOOKING_STATUS: Record<BookingStatusKey, BookingStatusMeta> = {
   CANCELLED: { labelKey: 'bookingStatus.CANCELLED', customerLabelKey: 'bookingStatusCustomer.CANCELLED', tone: 'danger' },
 };
 
+/**
+ * How much money has actually been collected on a booking.
+ *
+ * A booking has no "amount paid" column: `totalAmountCents` and
+ * `depositAmountCents` are the *quoted* figures (what's owed and what the
+ * deposit portion is), not what has been received. The only real record of
+ * payment is the lifecycle status, so the collected amount is derived from it:
+ *
+ *   FULLY_PAID / COMPLETED → the full total
+ *   DEPOSIT_PAID           → the deposit
+ *   everything else        → nothing (ENQUIRY & CONFIRMED are pre-payment;
+ *                            CANCELLED has nothing collected)
+ *
+ * Using this everywhere is what stops a configured deposit amount from being
+ * shown as "paid"/"received" before the client has actually paid.
+ */
+export const amountPaidCents = (booking: {
+  status: string;
+  totalAmountCents: number;
+  depositAmountCents?: number | null;
+}): number => {
+  const total = booking.totalAmountCents || 0;
+  const deposit = booking.depositAmountCents || 0;
+  switch (booking.status) {
+    case 'FULLY_PAID':
+    case 'COMPLETED':
+      return total;
+    case 'DEPOSIT_PAID':
+      return deposit;
+    default:
+      return 0;
+  }
+};
+
 const FALLBACK: BookingStatusMeta = { labelKey: 'bookingStatus.UNKNOWN', tone: 'neutral' };
 
 export const getBookingStatusMeta = (status: string): BookingStatusMeta =>

@@ -32,7 +32,10 @@ export const auth = {
   'customerLogin.sentBody':
     'If {email} is registered with that photographer, we just sent you a sign-in link. It’s valid for 15 minutes.',
   'customerLogin.sentHint':
-    "Didn't get it? Check your spam folder, or request a new one in a few minutes.",
+    "Didn't get it? Check your spam folder, or request a new one below.",
+  'customerLogin.resend': 'Resend link',
+  'customerLogin.resendLoading': 'Resending…',
+  'customerLogin.resendDone': 'Sent! Check your inbox again.',
 
   // ── Photographer login ────────────────────────────────────────────────────
   'login.crossLink': 'Client sign in',

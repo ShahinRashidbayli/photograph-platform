@@ -9,8 +9,6 @@ import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(schema = "public", name = "audit_log")
@@ -35,12 +33,10 @@ public class AuditLog {
     @Column(name = "entity_id")
     private UUID entityId;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "old_value", columnDefinition = "jsonb")
+    @Column(name = "old_value")
     private String oldValue;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "new_value", columnDefinition = "jsonb")
+    @Column(name = "new_value")
     private String newValue;
 
     @Column(name = "ip_address", length = 45)

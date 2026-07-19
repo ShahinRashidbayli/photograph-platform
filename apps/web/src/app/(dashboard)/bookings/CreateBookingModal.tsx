@@ -15,6 +15,10 @@ type CreateModalProps = {
   // Pre-fills the event date — set when the modal is opened by clicking a
   // calendar day, so the photographer doesn't re-enter a date they just picked.
   initialDate?: string;
+  // When set, the modal edits this existing booking (PATCH) instead of creating
+  // a new one (POST). This is the path that lets a photographer price a booking
+  // created from an accepted inquiry, which starts with no amounts.
+  booking?: Booking;
 };
 
 const EMPTY_FORM = {
@@ -30,23 +34,48 @@ const EMPTY_FORM = {
   internalNotes: '',
 };
 
+const centsToInput = (cents?: number | null): string =>
+  cents && cents > 0 ? String(cents / 100) : '';
+
+function formForBooking(booking: Booking): typeof EMPTY_FORM {
+  return {
+    clientName: booking.clientName ?? '',
+    clientEmail: booking.clientEmail ?? '',
+    eventDate: booking.eventDate ?? '',
+    // <input type="time"> wants HH:MM; the API may send HH:MM:SS.
+    eventTime: (booking.eventTime ?? '').slice(0, 5),
+    eventType: booking.eventType ?? '',
+    location: booking.location ?? '',
+    packageId: booking.packageId ?? '',
+    totalAmount: centsToInput(booking.totalAmountCents),
+    depositAmount: centsToInput(booking.depositAmountCents),
+    internalNotes: booking.internalNotes ?? '',
+  };
+}
+
 export function CreateBookingModal({
   styles,
   colors,
   onClose,
   onCreated,
   initialDate,
+  booking,
 }: CreateModalProps) {
   const { t } = useTranslation();
-  const [form, setForm] = useState({ ...EMPTY_FORM, eventDate: initialDate ?? '' });
+  const isEdit = !!booking;
+  const [form, setForm] = useState(
+    booking ? formForBooking(booking) : { ...EMPTY_FORM, eventDate: initialDate ?? '' },
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [packages, setPackages] = useState<Package[]>([]);
   // Tracks whether the photographer has manually typed a total. Picking a
   // package auto-fills the total *only when they haven't overridden it*, so a
-  // custom quote isn't silently overwritten when they re-pick a package.
-  const [totalOverridden, setTotalOverridden] = useState(false);
+  // custom quote isn't silently overwritten when they re-pick a package. In edit
+  // mode we start "overridden" so the existing total is never clobbered by a
+  // package that happens to already be linked.
+  const [totalOverridden, setTotalOverridden] = useState(isEdit);
 
   // Close on Escape — standard dialog affordance.
   useEffect(() => {
@@ -158,7 +187,9 @@ export function CreateBookingModal({
         depositAmountCents: eurosToCents(form.depositAmount),
         internalNotes: form.internalNotes.trim() || null,
       };
-      const res = await api.post<Booking>('/api/bookings', payload);
+      const res = isEdit
+        ? await api.patch<Booking>(`/api/bookings/${booking!.id}`, payload)
+        : await api.post<Booking>('/api/bookings', payload);
       onCreated(res.data);
     } catch (err) {
       setSubmitError(extractApiError(err, t('createBooking.errSubmit')));
@@ -183,12 +214,12 @@ export function CreateBookingModal({
         style={styles.modalCard}
         role="dialog"
         aria-modal="true"
-        aria-label={t('createBooking.aria')}
+        aria-label={isEdit ? t('editBooking.aria') : t('createBooking.aria')}
       >
         <div style={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
-            <div style={styles.modalTitle}>{t('createBooking.title')}</div>
-            <div style={styles.modalSubtitle}>{t('createBooking.subtitle')}</div>
+            <div style={styles.modalTitle}>{isEdit ? t('editBooking.title') : t('createBooking.title')}</div>
+            <div style={styles.modalSubtitle}>{isEdit ? t('editBooking.subtitle') : t('createBooking.subtitle')}</div>
           </div>
           <button
             type="button"
@@ -391,7 +422,9 @@ export function CreateBookingModal({
             onClick={handleSubmit}
             disabled={submitting}
           >
-            {submitting ? t('createBooking.submitting') : t('createBooking.submit')}
+            {submitting
+              ? t(isEdit ? 'editBooking.submitting' : 'createBooking.submitting')
+              : t(isEdit ? 'editBooking.submit' : 'createBooking.submit')}
           </button>
         </div>
       </div>

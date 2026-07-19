@@ -220,14 +220,14 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
 
     const isOnPhotographerPage = photographerOnlyPages.some(page => pathname === page || pathname.startsWith(page + '/'));
 
-    // Customers cannot access photographer-only pages (redirect to /bookings)
-    if (!isPhotographer && isOnPhotographerPage) {
-      setAccessDenied(true);
-      router.replace('/bookings');
-    } else {
-      setAccessDenied(false);
-    }
-  }, [pathname, user?.role, isPhotographer, router]);
+    // Customers cannot access photographer-only pages. Previously this silently
+    // redirected to /bookings — but a photographer who opens a lead/inquiry
+    // email link while a client session is active (both roles share one host
+    // and cookie) landed on the *customer* dashboard with no explanation, which
+    // read as a bug. Instead show an explicit interstitial (rendered below) that
+    // names the signed-in account and offers to switch to the photographer login.
+    setAccessDenied(!isPhotographer && isOnPhotographerPage);
+  }, [pathname, user?.role, isPhotographer]);
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : '';
@@ -253,26 +253,45 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     }
   }
 
-  const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
-  const [unrepliedLeads, setUnrepliedLeads] = useState<number | null>(null);
+  // Access-denied interstitial action: drop the client session and send the
+  // user to the photographer login, so a photographer who followed an email
+  // link while signed in as a client can get to the right account in one click.
+  async function handleSwitchToPhotographer() {
+    setLoggingOut(true);
+    try {
+      await api.post('/api/auth/logout');
+    } catch {
+      // best-effort — clear local state regardless
+    } finally {
+      router.replace('/login');
+      clearUser();
+    }
+  }
 
-  // Sidebar badge: count of leads in NEW status (un-replied). Polled every
-  // 60s — cheap and "good enough" for an inbox indicator without a websocket.
-  // Failures are silent: an outage shouldn't make the badge flicker.
+  const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
+  const [attentionCount, setAttentionCount] = useState<number | null>(null);
+
+  // Attention badge (bell + sidebar Leads): everything new that landed in the
+  // leads inbox and still needs the photographer — un-replied form leads
+  // (status NEW) plus un-triaged customer inquiries (status PENDING). Both
+  // surface on /leads, so a single count drives both indicators. Polled every
+  // 60s — cheap and "good enough" without a websocket; failures are silent so
+  // an outage doesn't make the badge flicker.
   useEffect(() => {
     if (!isPhotographer) return;
     let cancelled = false;
     const fetchCount = () => {
-      api
-        .get<Array<{ status: string }>>('/api/leads')
-        .then((res) => {
-          if (cancelled) return;
-          const list = Array.isArray(res.data) ? res.data : [];
-          setUnrepliedLeads(list.filter((l) => l.status === 'NEW').length);
-        })
-        .catch(() => {
-          // Don't clobber a previously-known count on a transient error.
-        });
+      Promise.all([
+        api.get<Array<{ status: string }>>('/api/leads').then((r) => r.data).catch(() => null),
+        api.get<Array<{ status: string }>>('/api/inquiries?size=100').then((r) => r.data).catch(() => null),
+      ]).then(([leads, inquiries]) => {
+        if (cancelled) return;
+        // If both calls failed, leave the previous count untouched.
+        if (leads === null && inquiries === null) return;
+        const newLeads = (Array.isArray(leads) ? leads : []).filter((l) => l.status === 'NEW').length;
+        const pendingInquiries = (Array.isArray(inquiries) ? inquiries : []).filter((i) => i.status === 'PENDING').length;
+        setAttentionCount(newLeads + pendingInquiries);
+      });
     };
     fetchCount();
     const id = window.setInterval(fetchCount, 60_000);
@@ -320,7 +339,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   // Map a badgeKey on a NavLeaf to its concrete count. Easy to extend with
   // future badges (unread messages, expiring galleries, …) by adding cases.
   const badgeFor = (key?: 'unrepliedLeads'): number | null => {
-    if (key === 'unrepliedLeads') return unrepliedLeads;
+    if (key === 'unrepliedLeads') return attentionCount;
     return null;
   };
 
@@ -356,7 +375,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         }
       `}</style>
 
-      <Header user={user} theme={theme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} unrepliedLeads={unrepliedLeads} />
+      <Header user={user} theme={theme} handleLogout={handleLogout} colors={colors} isOpen={isOpen} setIsOpen={setIsOpen} attentionCount={attentionCount} />
 
       <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
         <aside style={{ width: 220, flexShrink: 0, padding: '16px 12px', background: colors.sidebarBg, borderRight: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'sticky', top: 60, overflowY: 'auto', overscrollBehavior: 'contain', transition: 'background 0.3s ease, border-color 0.3s ease' }} role="navigation" aria-label={t('nav.aria.main')}>
@@ -454,8 +473,60 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
           <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', padding: '0' }} className="responsive-container">
             {user && !user.emailVerified ? <VerifyEmailBanner email={user.email} /> : null}
             {accessDenied ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 70px)', color: colors.subText }}>
-                {t('chrome.redirecting')}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 70px)', padding: '24px' }}>
+                <div
+                  style={{
+                    maxWidth: 420,
+                    width: '100%',
+                    textAlign: 'center',
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: 16,
+                    padding: '32px 28px',
+                  }}
+                >
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: colors.text, marginBottom: 8 }}>
+                    {t('chrome.accessDenied.title')}
+                  </div>
+                  <div style={{ fontSize: '0.9rem', color: colors.subText, lineHeight: 1.5, marginBottom: 22 }}>
+                    {t('chrome.accessDenied.body', { email: user?.email ?? '' })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSwitchToPhotographer}
+                    style={{
+                      width: '100%',
+                      padding: '11px 16px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: colors.primary,
+                      color: '#fff',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {t('chrome.accessDenied.switch')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.replace('/bookings')}
+                    style={{
+                      width: '100%',
+                      padding: '11px 16px',
+                      borderRadius: 10,
+                      border: `1px solid ${colors.border}`,
+                      background: 'transparent',
+                      color: colors.text,
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t('chrome.accessDenied.myBookings')}
+                  </button>
+                </div>
               </div>
             ) : (
               children
@@ -479,19 +550,19 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   );
 }
 
-function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unrepliedLeads }: {
+function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, attentionCount }: {
   user: AuthUser | null;
   theme: 'light' | 'dark';
   handleLogout: () => void;
   colors: { headerBg: string; border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  // Same value the sidebar Leads badge consumes — when > 0 the bell shows a
-  // red dot. Clicking the bell navigates to /leads since that's where the
-  // attention is actually needed today. A real notifications stack
-  // (announcements, payment events, gallery views) lives in v2.0+; until
+  // Same value the sidebar Leads badge consumes — un-replied leads + pending
+  // inquiries. When > 0 the bell shows a numbered red badge. Clicking it
+  // navigates to /leads, where those items are acted on. A real notifications
+  // stack (announcements, payment events, gallery views) lives in v2.0+; until
   // then this gives the bell semantic weight without inventing fake content.
-  unrepliedLeads: number | null;
+  attentionCount: number | null;
 }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -499,8 +570,8 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
   const avatarRef = useRef<HTMLButtonElement>(null);
   const isPhotographer = useIsPhotographer();
   const { t, tPlural } = useTranslation();
-  const hasAlerts = (unrepliedLeads ?? 0) > 0;
-  const count = unrepliedLeads ?? 0;
+  const hasAlerts = (attentionCount ?? 0) > 0;
+  const count = attentionCount ?? 0;
   const bellLabel = hasAlerts
     ? tPlural('chrome.notifications.alert', count)
     : t('chrome.notifications.none');
@@ -551,11 +622,12 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} role="navigation" aria-label={t('chrome.aria.account')}>
-        {/* Notifications bell. Today's only "notification" is unreplied leads
-            (mirrors the sidebar Leads badge); clicking the bell navigates to
-            the page where the user can actually act. When a real
+        {/* Notifications bell — photographer-only, since its only "notification"
+            today is the leads inbox (new leads + pending inquiries) and it
+            navigates to /leads, a page customers can't open. When a real
             notifications stack lands this becomes a popover; the entry point
             stays the same so users don't re-learn it. */}
+        {isPhotographer && (
         <button
           onClick={() => router.push('/leads')}
           aria-label={bellLabel}
@@ -585,18 +657,27 @@ function Header({ user, theme, handleLogout, colors, isOpen, setIsOpen, unreplie
               aria-hidden
               style={{
                 position: 'absolute',
-                top: 6,
-                right: 7,
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
+                top: -1,
+                right: -1,
+                minWidth: 16,
+                height: 16,
+                padding: '0 4px',
+                borderRadius: 999,
                 background: '#DC2626',
+                color: '#fff',
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                lineHeight: '16px',
+                textAlign: 'center',
                 border: `2px solid ${colors.headerBg}`,
                 boxSizing: 'content-box',
               }}
-            />
+            >
+              {count > 99 ? '99+' : count}
+            </span>
           )}
         </button>
+        )}
 
         <LanguageToggle variant="bare" />
 

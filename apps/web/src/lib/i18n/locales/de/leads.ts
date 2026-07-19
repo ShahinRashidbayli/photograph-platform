@@ -41,6 +41,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.source.form': 'Formular',
   'leads.source.customer': 'Kunden',
   'leads.source.badge.customer': 'Kunde',
+  'leads.source.badge.form': 'Formular',
   'leads.exportCsv': 'CSV exportieren',
   'leads.exportAria': 'Alle Leads als CSV exportieren',
   'leads.newLead': 'Neuer Lead',

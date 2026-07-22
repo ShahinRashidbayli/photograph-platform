@@ -51,6 +51,13 @@ export const getLandingStyles = (theme: Theme) => {
       background: isDark ? 'rgba(10,10,12,0.76)' : 'rgba(247,248,251,0.78)',
       backdropFilter: 'blur(16px) saturate(1.4)',
       WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+      transition: 'box-shadow 0.25s ease, background 0.25s ease',
+    },
+    // Applied once the page scrolls past the hero: a stronger backdrop + soft
+    // shadow lift the bar off the content so it reads as a floating layer.
+    navbarScrolled: {
+      background: isDark ? 'rgba(10,10,12,0.9)' : 'rgba(247,248,251,0.92)',
+      boxShadow: isDark ? '0 10px 30px -18px rgba(0,0,0,0.8)' : '0 10px 30px -18px rgba(2,6,23,0.26)',
     },
     navInner: {
       maxWidth: 1180,
@@ -113,6 +120,10 @@ export const getLandingStyles = (theme: Theme) => {
       maskImage: 'radial-gradient(circle at 28% 36%, #000, transparent 76%)',
       WebkitMaskImage: 'radial-gradient(circle at 28% 36%, #000, transparent 76%)',
     },
+    // Container for the drifting aurora blobs (positioning + blobs live in
+    // globals.css `.landing-aurora`). Only the opacity differs by theme —
+    // richer in the dark hero, restrained on the light background.
+    heroAurora: { opacity: isDark ? 0.85 : 0.5 },
     heroInner: { position: 'relative', zIndex: 2 },
     pill: {
       display: 'inline-flex',
@@ -145,7 +156,19 @@ export const getLandingStyles = (theme: Theme) => {
       letterSpacing: '-0.02em',
       margin: '0 0 22px 0',
     },
-    heroAccent: { fontStyle: 'italic', color: c.primaryText },
+    // Gradient text — brand indigo→violet→indigo, swept horizontally by the
+    // `.landing-accent-shimmer` class. `backgroundSize > 100%` gives the sweep
+    // room to travel; the text is painted transparent so the gradient shows
+    // through the glyphs.
+    heroAccent: {
+      fontStyle: 'italic',
+      backgroundImage: 'linear-gradient(90deg, #6366f1, #a855f7 42%, #6366f1 82%)',
+      backgroundSize: '220% auto',
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+      WebkitTextFillColor: 'transparent',
+    },
     lede: { fontSize: '1.14rem', lineHeight: 1.62, color: c.textMuted, maxWidth: 490, margin: '0 0 32px 0' },
     heroCta: { display: 'flex', gap: 13, flexWrap: 'wrap', marginBottom: 22 },
     heroMicro: { display: 'flex', gap: 18, flexWrap: 'wrap', fontFamily: fonts.mono, fontSize: '0.76rem', color: c.textSubtle },
@@ -264,7 +287,16 @@ export const getLandingStyles = (theme: Theme) => {
     toastSpan: { fontFamily: fonts.mono, fontSize: '0.7rem', color: c.textMuted },
 
     // ─── Capability strip ──────────────────────────────────────
-    strip: { borderTop: `1px solid ${c.border}`, borderBottom: `1px solid ${c.border}`, background: c.surfaceAlt, overflow: 'hidden' },
+    // Horizontal mask fades the marquee in/out at both edges so items don't
+    // hard-cut against the strip borders — the standard modern marquee finish.
+    strip: {
+      borderTop: `1px solid ${c.border}`,
+      borderBottom: `1px solid ${c.border}`,
+      background: c.surfaceAlt,
+      overflow: 'hidden',
+      maskImage: 'linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent)',
+      WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent)',
+    },
     stripItem: {
       fontFamily: fonts.mono,
       fontSize: '0.8rem',
@@ -279,8 +311,10 @@ export const getLandingStyles = (theme: Theme) => {
     stripDiamond: { color: c.primaryText, fontSize: '0.55rem' },
 
     // ─── Section chrome ────────────────────────────────────────
-    section: { maxWidth: 1180, margin: '0 auto', padding: '100px 32px' },
-    head: { maxWidth: 640, marginBottom: 50 },
+    // 80px (was 100) — every section boundary stacked two 100px paddings into a
+    // 200px void between blocks; 80 keeps the sections breathing without the
+    // dead space that made the page feel empty on scroll.
+    section: { maxWidth: 1180, margin: '0 auto', padding: '80px 32px' },
     headCenter: { maxWidth: 640, margin: '0 auto 50px', textAlign: 'center' },
     eyebrow: { display: 'inline-flex', alignItems: 'center', gap: 10, fontFamily: fonts.mono, fontSize: '0.72rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: c.primaryText, fontWeight: 600 },
     eyebrowLine: { width: 20, height: 1, background: c.primaryBorder, display: 'inline-block' },
@@ -525,7 +559,7 @@ export const getLandingStyles = (theme: Theme) => {
       background: `radial-gradient(circle, ${c.primaryBg}, transparent 68%)`,
       pointerEvents: 'none',
     },
-    step: { position: 'relative', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 15, padding: '22px 20px', transition: 'border-color 0.2s, transform 0.2s' },
+    step: { position: 'relative', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 18, padding: '22px 20px', transition: 'border-color 0.2s, transform 0.2s' },
     stepNo: { fontFamily: fonts.mono, fontWeight: 600, fontSize: '0.72rem', color: c.primaryText, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 },
     stepNoLine: { flex: 1, height: 1, background: c.border, display: 'inline-block' },
     stepIcon: { width: 38, height: 38, borderRadius: 10, background: c.primaryBg, border: `1px solid ${c.primaryBorder}`, color: c.primaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
@@ -534,26 +568,55 @@ export const getLandingStyles = (theme: Theme) => {
     warr: { position: 'absolute', right: -11, top: '50%', transform: 'translateY(-50%)', zIndex: 3, color: c.primaryText, opacity: 0.6 },
 
     // ─── Audience split ────────────────────────────────────────
-    panel: { background: c.surface, border: `1px solid ${c.border}`, borderRadius: 22, padding: 36 },
+    // Two premium cards: a corner spotlight glow for depth, a header divided
+    // from the feature list, accent-tinted checks and a pill CTA — indigo for
+    // photographers, sky for clients — so the pair reads as one designed set
+    // rather than two flat lists. Hover lift lives in `.landing-panel`.
+    panel: {
+      position: 'relative',
+      overflow: 'hidden',
+      background: c.surface,
+      border: `1px solid ${c.border}`,
+      borderRadius: 18,
+      padding: '30px 32px',
+    },
     panelFeature: {
+      position: 'relative',
+      overflow: 'hidden',
       background: isDark
         ? `linear-gradient(165deg, ${c.surface} 42%, rgba(99,102,241,0.10))`
         : `linear-gradient(165deg, ${c.surface} 42%, ${c.primaryBg})`,
       border: `1px solid ${c.primaryBorder}`,
-      borderRadius: 22,
-      padding: 36,
+      borderRadius: 18,
+      padding: '30px 32px',
     },
-    ptop: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 },
-    pic: { width: 48, height: 48, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 },
+    // Soft corner spotlight — the depth cue that lifts the card off the page.
+    panelGlow: {
+      position: 'absolute',
+      top: -90,
+      right: -70,
+      width: 260,
+      height: 260,
+      borderRadius: '50%',
+      filter: 'blur(18px)',
+      pointerEvents: 'none',
+    },
+    panelGlowPrimary: { background: `radial-gradient(circle, ${c.primary}, transparent 68%)`, opacity: isDark ? 0.24 : 0.16 },
+    panelGlowClient: { background: 'radial-gradient(circle, #38BDF8, transparent 68%)', opacity: isDark ? 0.24 : 0.16 },
+    ptop: { position: 'relative', display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${c.border}` },
+    pic: { width: 48, height: 48, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 },
     picFeature: { background: `linear-gradient(135deg, ${c.primary}, ${c.primaryStrong})`, boxShadow: `0 10px 24px -10px ${c.primary}` },
     picClient: { background: 'linear-gradient(135deg, #38BDF8, #0369A1)', boxShadow: '0 10px 24px -10px #0EA5E9' },
     ptopH: { fontFamily: fonts.serif, fontSize: '1.4rem', fontWeight: 500, color: c.text, margin: 0 },
     ptag: { fontSize: '0.85rem', color: c.textMuted },
-    flist: { listStyle: 'none', padding: 0, margin: '4px 0 26px', display: 'flex', flexDirection: 'column', gap: 13 },
+    flist: { position: 'relative', listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 14 },
     flistItem: { display: 'flex', alignItems: 'center', gap: 11, fontSize: '0.95rem', color: c.text },
-    chk: { width: 22, height: 22, borderRadius: 7, background: c.successBg, color: c.success, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    lnk: { fontWeight: 600, fontSize: '0.94rem', color: c.primaryText, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', cursor: 'pointer' },
-    lnkClient: { fontWeight: 600, fontSize: '0.94rem', color: c.infoText, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', cursor: 'pointer' },
+    // Feature-list check — unified brand indigo across both audience cards and
+    // pricing, so "what's included" reads the same everywhere. Green stays for
+    // status/confirmation (paid, signed, booked), not feature bullets.
+    chkPrimary: { width: 22, height: 22, borderRadius: 7, background: c.primaryBg, color: c.primaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    lnk: { position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: radius.pill, fontWeight: 600, fontSize: '0.9rem', color: c.primaryText, background: c.primaryBg, border: `1px solid ${c.primaryBorder}`, textDecoration: 'none', cursor: 'pointer' },
+    lnkClient: { position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: radius.pill, fontWeight: 600, fontSize: '0.9rem', color: c.infoText, background: c.infoBg, border: `1px solid ${c.infoBorder}`, textDecoration: 'none', cursor: 'pointer' },
 
     // ─── Pricing ───────────────────────────────────────────────
     priceSwitch: { display: 'inline-flex', alignItems: 'center', gap: 4, background: c.surface, border: `1px solid ${c.border}`, borderRadius: radius.pill, padding: 5, marginTop: 22 },
@@ -561,7 +624,7 @@ export const getLandingStyles = (theme: Theme) => {
     priceSwitchBtnOn: { background: c.primary, color: '#fff' },
     priceSave: { fontFamily: fonts.mono, fontSize: '0.66rem', color: c.success, fontWeight: 700, marginLeft: 4 },
     pricesWrap: { marginTop: 50 },
-    priceCard: { background: c.surface, border: `1px solid ${c.border}`, borderRadius: 22, padding: '32px 28px', position: 'relative', transition: 'transform 0.2s ease' },
+    priceCard: { background: c.surface, border: `1px solid ${c.border}`, borderRadius: 18, padding: '32px 28px', position: 'relative', transition: 'transform 0.2s ease' },
     priceCardHot: { border: `1.5px solid ${c.primary}`, boxShadow: c.elevatedShadow },
     priceBadge: {
       position: 'absolute',
@@ -586,8 +649,11 @@ export const getLandingStyles = (theme: Theme) => {
     amountCur: { fontSize: '1.3rem', color: c.textMuted, alignSelf: 'flex-start', marginTop: 8 },
     amountVal: { fontSize: '3.1rem', fontWeight: 500, color: c.text, lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
     amountPer: { fontFamily: fonts.mono, fontSize: '0.9rem', color: c.textSubtle },
-    billed: { fontFamily: fonts.mono, fontSize: '0.74rem', color: c.textSubtle, marginBottom: 24 },
-    priceFeatures: { listStyle: 'none', padding: 0, margin: '24px 0 0', display: 'flex', flexDirection: 'column', gap: 12 },
+    billed: { fontFamily: fonts.mono, fontSize: '0.74rem', color: c.textSubtle, marginBottom: 20 },
+    // Hairline above the feature list splits the card into "pick this plan"
+    // (tier + price + CTA) and "what's included", so the CTA no longer floats
+    // in loose whitespace above the list.
+    priceFeatures: { listStyle: 'none', padding: '20px 0 0', margin: '20px 0 0', borderTop: `1px solid ${c.border}`, display: 'flex', flexDirection: 'column', gap: 12 },
     priceItem: { display: 'flex', alignItems: 'center', gap: 11, fontSize: '0.9rem', color: c.text },
     priceChk: { width: 20, height: 20, borderRadius: 6, background: c.primaryBg, color: c.primaryText, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     // Footnote marker sits tight to the label; the note itself is centred under
@@ -603,7 +669,10 @@ export const getLandingStyles = (theme: Theme) => {
     },
 
     // ─── Closing CTA ───────────────────────────────────────────
-    ctaWrap: { maxWidth: 1180, margin: '0 auto', padding: '100px 32px' },
+    // Asymmetric padding: the section keeps its breathing room up top but sits
+    // closer to the footer below, so the CTA card and the footer read as one
+    // closing unit instead of floating in a void.
+    ctaWrap: { maxWidth: 1180, margin: '0 auto', padding: '68px 32px 88px' },
     ctaBox: {
       position: 'relative',
       overflow: 'hidden',
@@ -645,8 +714,21 @@ export const getLandingStyles = (theme: Theme) => {
     },
 
     // ─── Footer ────────────────────────────────────────────────
-    footer: { background: c.surfaceAlt, borderTop: `1px solid ${c.border}`, padding: '62px 0 40px' },
-    footerInner: { maxWidth: 1180, margin: '0 auto', padding: '0 32px' },
+    footer: { position: 'relative', background: c.surfaceAlt, borderTop: `1px solid ${c.border}`, padding: '54px 0 34px', overflow: 'hidden' },
+    // Brand-tinted gradient hairline centred on the content column — turns the
+    // plain 1px top border into a deliberate, on-brand divider.
+    footTopAccent: {
+      position: 'absolute',
+      top: 0,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: 'min(1180px, 92%)',
+      height: 2,
+      background: `linear-gradient(90deg, transparent, ${c.primary}, transparent)`,
+      opacity: 0.55,
+      pointerEvents: 'none',
+    },
+    footerInner: { position: 'relative', maxWidth: 1180, margin: '0 auto', padding: '0 32px' },
     footGrid: { display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 1fr', gap: 40, marginBottom: 46 },
     footBrand: {},
     footBrandP: { fontSize: '0.88rem', color: c.textMuted, maxWidth: 270, lineHeight: 1.6, margin: '14px 0 0' },

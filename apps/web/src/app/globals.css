@@ -97,6 +97,8 @@ body {
 }
 /* Solid indigo CTA with a soft glow + inner highlight — matches the design. */
 .landing-btn-primary {
+  position: relative;
+  overflow: hidden;
   color: #ffffff;
   background: #6366f1;
   box-shadow: 0 10px 28px -10px #6366f1, inset 0 1px 0 rgba(255, 255, 255, 0.22);
@@ -105,11 +107,56 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 16px 36px -10px #6366f1, inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
+/* Diagonal light sweep that runs once across the CTA on hover. The strip sits
+ * off-canvas to the left until hover animates it across and back out of view. */
+.landing-btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+.landing-btn-primary:hover::after {
+  animation: landing-shine 0.85s ease;
+}
+@keyframes landing-shine {
+  from {
+    left: -75%;
+  }
+  to {
+    left: 135%;
+  }
+}
 .landing-card-hover {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
+/* Unified card lift — bento, workflow and pricing cards share the audience
+ * cards' hover feel (lift + soft shadow) so every surface reacts consistently. */
 .landing-card-hover:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
+  box-shadow: 0 22px 48px -26px rgba(2, 6, 23, 0.38);
+}
+
+/* Keyboard focus rings — the landing page is almost entirely inline-styled, so
+ * a single scoped rule gives every link, button and toggle a consistent, brand
+ * focus ring. `:focus-visible` keeps it keyboard-only (no ring on mouse click).
+ * Modern browsers clip the outline to the element's border-radius. */
+.landing-root a:focus-visible,
+.landing-root button:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+}
+/* Audience cards — a firmer lift + soft shadow so they feel tactile on hover. */
+.landing-panel {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+.landing-panel:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 54px -26px rgba(2, 6, 23, 0.4);
 }
 
 /* Film-grain overlay — photographic texture for the landing page only.
@@ -174,7 +221,7 @@ body {
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
+  gap: 16px;
 }
 @media (max-width: 900px) {
   .landing-flow {
@@ -194,7 +241,7 @@ body {
 .landing-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 @media (max-width: 760px) {
   .landing-split {
@@ -208,7 +255,7 @@ body {
 .landing-prices {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  gap: 16px;
   /* Stretch so all three cards share the tallest card's height. Starter
    * carries one more feature row than Pro/Studio, so sizing to content left
    * it visibly longer than its neighbours. */
@@ -267,6 +314,111 @@ body {
   transform: none;
 }
 
+/* Staggered reveal — direct children of an .in container fade in one after
+ * another. Driven by a keyframe animation (not a transition) on purpose: the
+ * cards inside carry a hover-lift on the `transition` property, and a reveal
+ * transition on the same element would overwrite that shorthand and make the
+ * hover snap. An animation touches only `opacity`, leaving `transition` — and
+ * therefore the smooth hover — untouched. */
+.landing-reveal-stagger > * {
+  opacity: 0;
+}
+.landing-reveal-stagger.in > * {
+  animation: landing-fade-in 0.55s ease both;
+}
+.landing-reveal-stagger.in > *:nth-child(1) {
+  animation-delay: 0.04s;
+}
+.landing-reveal-stagger.in > *:nth-child(2) {
+  animation-delay: 0.11s;
+}
+.landing-reveal-stagger.in > *:nth-child(3) {
+  animation-delay: 0.18s;
+}
+.landing-reveal-stagger.in > *:nth-child(4) {
+  animation-delay: 0.25s;
+}
+.landing-reveal-stagger.in > *:nth-child(5) {
+  animation-delay: 0.32s;
+}
+.landing-reveal-stagger.in > *:nth-child(6) {
+  animation-delay: 0.39s;
+}
+.landing-reveal-stagger.in > *:nth-child(7) {
+  animation-delay: 0.46s;
+}
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Aurora — two soft brand-coloured blobs drifting behind the hero, giving the
+ * static grid + glow a slow sense of motion. Colours are brand-constant across
+ * themes; the container's opacity (set inline) is what differs light vs dark.
+ * Blobs live in pseudo-elements so the markup stays a single empty <span>. */
+.landing-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.landing-aurora::before,
+.landing-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.landing-aurora::before {
+  width: 520px;
+  height: 520px;
+  top: -170px;
+  right: -70px;
+  background: radial-gradient(circle, rgba(124, 102, 245, 0.55), transparent 70%);
+  animation: landing-aurora-a 18s ease-in-out infinite alternate;
+}
+.landing-aurora::after {
+  width: 440px;
+  height: 440px;
+  top: -40px;
+  right: 190px;
+  background: radial-gradient(circle, rgba(76, 141, 224, 0.45), transparent 70%);
+  animation: landing-aurora-b 23s ease-in-out infinite alternate;
+}
+@keyframes landing-aurora-a {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-60px, 46px) scale(1.16);
+  }
+}
+@keyframes landing-aurora-b {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(80px, 34px) scale(1.1);
+  }
+}
+
+/* Animated gradient text — the hero accent word. The gradient itself is set
+ * inline (so it uses brand colours); this class only sweeps its position. */
+.landing-accent-shimmer {
+  animation: landing-shimmer 6s linear infinite;
+}
+@keyframes landing-shimmer {
+  to {
+    background-position: 220% center;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-marquee {
     animation: none;
@@ -281,5 +433,25 @@ body {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+  .landing-reveal-stagger > * {
+    opacity: 1;
+    animation: none;
+  }
+  .landing-aurora::before,
+  .landing-aurora::after {
+    animation: none;
+  }
+  .landing-accent-shimmer {
+    animation: none;
+  }
+  .landing-btn-primary:hover::after {
+    animation: none;
+  }
+  .landing-panel {
+    transition: none;
+  }
+  .landing-panel:hover {
+    transform: none;
   }
 }

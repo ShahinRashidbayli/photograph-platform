@@ -79,7 +79,6 @@ export const bookings: Record<keyof EnBookings, string> = {
 
   'bookings.search.title': 'Buchungen suchen',
   'bookings.search.placeholder': 'Buchungen suchen…',
-  'bookings.search.filterButton': 'Filtern & Suchen',
 
   'bookings.empty.photographer':
     'Noch keine Buchungen. Erstellen Sie Ihre erste Buchung, um loszulegen.',
@@ -107,6 +106,9 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.detail.depositPaid': 'Anzahlung bezahlt',
   'bookings.detail.amountPaid': '{amount} bezahlt',
   'bookings.detail.amountRemaining': '{amount} offen',
+  'bookings.detail.stepDeposit': 'Anzahlung',
+  'bookings.detail.stepFull': 'Vollständig bezahlt',
+  'bookings.detail.paymentManualNote': 'Vorerst manuell erfasst – automatisch, sobald Online-Zahlungen live sind.',
   'bookings.detail.notes': 'Notizen',
   'bookings.detail.noNotes': 'Noch keine Notizen hinterlegt.',
 

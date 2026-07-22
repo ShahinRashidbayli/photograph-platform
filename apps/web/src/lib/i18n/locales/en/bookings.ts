@@ -79,7 +79,6 @@ export const bookings = {
 
   'bookings.search.title': 'Search bookings',
   'bookings.search.placeholder': 'Search bookings...',
-  'bookings.search.filterButton': 'Filter & Search',
 
   'bookings.empty.photographer': 'No bookings yet. Create your first booking to get started.',
   'bookings.empty.client': 'You have no bookings yet. Request a session to get started.',
@@ -104,6 +103,9 @@ export const bookings = {
   'bookings.detail.depositPaid': 'Deposit paid',
   'bookings.detail.amountPaid': '{amount} paid',
   'bookings.detail.amountRemaining': '{amount} remaining',
+  'bookings.detail.stepDeposit': 'Deposit',
+  'bookings.detail.stepFull': 'Paid in full',
+  'bookings.detail.paymentManualNote': 'Recorded manually for now — this becomes automatic once online payments go live.',
   'bookings.detail.notes': 'Notes',
   'bookings.detail.noNotes': 'No notes added yet.',
 

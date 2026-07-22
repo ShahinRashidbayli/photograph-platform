@@ -478,6 +478,11 @@ export default function BookingsPage() {
                 progress: Math.max(stats.active - stats.confirmed, 0),
               })}
               trendColor={colors.textMuted}
+              icon={
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /><path d="m9 16 2 2 4-4" />
+                </svg>
+              }
             />
             <StatCard
               styles={styles}
@@ -486,6 +491,11 @@ export default function BookingsPage() {
               value={format.eur(stats.revenue)}
               trend={t('bookings.stat.revenueTrend', { amount: format.eur(stats.collected) })}
               trendColor={colors.successText}
+              icon={
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v6M18 9v6" />
+                </svg>
+              }
             />
             <StatCard
               styles={styles}
@@ -498,6 +508,11 @@ export default function BookingsPage() {
                   : tPlural('bookings.stat.openBalance', stats.openBalance)
               }
               trendColor={stats.openBalance === 0 ? colors.successText : colors.warningText}
+              icon={
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                </svg>
+              }
             />
           </>
         ) : (
@@ -594,28 +609,6 @@ export default function BookingsPage() {
         ) : (
         <section className="bk-list-panel" style={styles.listPanel}>
           <div style={styles.listHeader}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-              <div>
-                <div style={styles.listTitle}>{t('bookings.search.title')}</div>
-              </div>
-              <button
-                type="button"
-                style={{
-                  ...styles.secondaryButton,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 12px',
-                  fontSize: '0.8rem',
-                  flexShrink: 0,
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
-                </svg>
-                {t('bookings.search.filterButton')}
-              </button>
-            </div>
             <div style={{ position: 'relative' }}>
               <span
                 style={{
@@ -674,7 +667,7 @@ export default function BookingsPage() {
                   }}
                   onMouseLeave={(e) => {
                     if (!active)
-                      e.currentTarget.style.background = colors.surface;
+                      e.currentTarget.style.background = 'transparent';
                   }}
                 >
                   {t(f.labelKey)}
@@ -868,7 +861,17 @@ function StatCard({ styles, colors, label, value, trend, trendColor, icon, progr
   const filled = showRing ? circ * (1 - Math.min(progress, 100) / 100) : 0;
 
   return (
-    <div style={styles.statCard}>
+    <div
+      style={styles.statCard}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = colors.elevatedShadow;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = colors.overlayShadow;
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
         <div style={{ minWidth: 0 }}>
           <span style={styles.statLabel}>{label}</span>
@@ -1089,6 +1092,16 @@ function BookingDetail({
   // anyway — this just keeps the UI honest).
   const transitions = isPhotographer ? getAllowedTransitions(booking.status) : [];
   const advanceTargets = transitions.filter((t) => t !== 'CANCELLED');
+  // Deposit / fully-paid are *money* events, not lifecycle decisions. They live
+  // in the Payment section as an interim manual control (see below) rather than
+  // the toolbar — and once Stripe is wired they become webhook-driven and drop
+  // out of the UI as buttons entirely. The toolbar keeps only true management
+  // actions: accept the enquiry, mark the shoot completed, cancel.
+  const isPaymentTransition = (s: BookingStatusKey) => s === 'DEPOSIT_PAID' || s === 'FULLY_PAID';
+  const lifecycleTargets = advanceTargets.filter((t) => !isPaymentTransition(t));
+  const paymentTargets = advanceTargets.filter(isPaymentTransition);
+  const depositDone = ['DEPOSIT_PAID', 'FULLY_PAID', 'COMPLETED'].includes(booking.status);
+  const fullDone = ['FULLY_PAID', 'COMPLETED'].includes(booking.status);
   const canCancel = transitions.includes('CANCELLED');
   const isTerminal = isPhotographer && transitions.length === 0;
 
@@ -1135,7 +1148,6 @@ function BookingDetail({
               onClick={onEdit}
               style={{
                 ...styles.secondaryButton,
-                alignSelf: 'flex-end',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -1148,9 +1160,9 @@ function BookingDetail({
               </svg>
               {t('bookings.detail.edit')}
             </button>
-            {advanceTargets.length > 0 && (
+            {lifecycleTargets.length > 0 && (
               <div style={styles.detailAdvanceRow}>
-                {advanceTargets.map((target, index) => (
+                {lifecycleTargets.map((target, index) => (
                   <button
                     key={target}
                     type="button"
@@ -1158,7 +1170,7 @@ function BookingDetail({
                     onClick={() => onTransition(target)}
                     style={{
                       ...(index === 0 ? styles.primaryButton : styles.secondaryButton),
-                      flex: '1 1 140px',
+                      flex: '0 0 auto',
                       ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
                     }}
                   >
@@ -1255,33 +1267,107 @@ function BookingDetail({
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={styles.progressMeta}>
-                <span style={styles.paymentLabel}>{t('bookings.detail.depositPaid')}</span>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    color: progressTextColor,
-                  }}
-                >
-                  {percent}%
+            {/* A cancelled booking owes nothing — a "0% deposit paid, €X
+                remaining" bar reads as an open balance, so show only the total
+                + Cancelled status above and drop the progress meter entirely. */}
+            {booking.status !== 'CANCELLED' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={styles.progressMeta}>
+                  <span style={styles.paymentLabel}>{t('bookings.detail.depositPaid')}</span>
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: progressTextColor,
+                    }}
+                  >
+                    {percent}%
+                  </span>
+                </div>
+                <div style={styles.progressTrack}>
+                  <div
+                    style={{
+                      ...styles.progressFill,
+                      width: `${Math.max(percent, percent === 0 ? 0 : 4)}%`,
+                      background: progressColor,
+                    }}
+                  />
+                </div>
+                <div style={styles.progressMeta}>
+                  <span>{t('bookings.detail.amountPaid', { amount: format.eur(paid) })}</span>
+                  <span>{t('bookings.detail.amountRemaining', { amount: format.eur(remaining) })}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Payment milestones — the two money steps, shown read-only so the
+                progression (deposit → paid in full) is explicit at a glance. */}
+            {booking.status !== 'CANCELLED' && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                {[
+                  { done: depositDone, label: t('bookings.detail.stepDeposit') },
+                  { done: fullDone, label: t('bookings.detail.stepFull') },
+                ].map((step) => (
+                  <span
+                    key={step.label}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '5px 10px',
+                      borderRadius: '999px',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      background: step.done ? colors.successBg : colors.neutralBg,
+                      color: step.done ? colors.successText : colors.textMuted,
+                    }}
+                  >
+                    <span aria-hidden style={{ fontSize: '0.7rem' }}>{step.done ? '✓' : '○'}</span>
+                    {step.label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Interim manual payment recording. These are money events that
+                will be driven automatically by Stripe once online payments go
+                live; until then the photographer records an offline payment
+                (bank transfer / cash) here. Kept out of the lifecycle toolbar
+                and clearly labelled as manual so the intent is unambiguous. */}
+            {isPhotographer && booking.status !== 'CANCELLED' && paymentTargets.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  marginTop: '2px',
+                  paddingTop: '12px',
+                  borderTop: `1px solid ${colors.border}`,
+                }}
+              >
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {paymentTargets.map((target) => (
+                    <button
+                      key={target}
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() => onTransition(target)}
+                      style={{
+                        ...styles.secondaryButton,
+                        padding: '7px 12px',
+                        fontSize: '0.8rem',
+                        ...(actionBusy ? { opacity: 0.6, cursor: 'wait' } : {}),
+                      }}
+                    >
+                      {t(STATUS_ACTION_LABEL_KEY[target])}
+                    </button>
+                  ))}
+                </div>
+                <span style={{ fontSize: '0.72rem', color: colors.textMuted, lineHeight: 1.4 }}>
+                  {t('bookings.detail.paymentManualNote')}
                 </span>
               </div>
-              <div style={styles.progressTrack}>
-                <div
-                  style={{
-                    ...styles.progressFill,
-                    width: `${Math.max(percent, percent === 0 ? 0 : 4)}%`,
-                    background: progressColor,
-                  }}
-                />
-              </div>
-              <div style={styles.progressMeta}>
-                <span>{t('bookings.detail.amountPaid', { amount: format.eur(paid) })}</span>
-                <span>{t('bookings.detail.amountRemaining', { amount: format.eur(remaining) })}</span>
-              </div>
-            </div>
+            )}
           </div>
         </section>
 

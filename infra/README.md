@@ -24,7 +24,7 @@ docker compose up -d
 Then start the API with the `prod` profile pointing at the local container:
 
 ```bash
-export DB_URL=jdbc:postgresql://localhost:5433/photograph_platform
+export DB_URL=jdbc:postgresql://localhost:5433/centralidp
 export DB_USERNAME=<db-user>
 export DB_PASSWORD=<db-password>
 cd apps/api && mvn spring-boot:run

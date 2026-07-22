@@ -70,6 +70,7 @@ export const getBookingsStyles = (
       display: 'flex',
       flexDirection: 'column',
       gap: '8px',
+      transition: 'transform 0.18s ease, box-shadow 0.18s ease',
     },
     statTopRow: {
       display: 'flex',
@@ -161,21 +162,24 @@ export const getBookingsStyles = (
 
     filterTabs: {
       display: 'flex',
+      flexWrap: 'wrap',
       gap: '8px',
       padding: '12px 16px',
       borderBottom: `1px solid ${c.border}`,
-      overflowX: 'auto',
     },
+    // Light chips: inactive are borderless muted text on a transparent ground,
+    // the active one is a filled primary pill. Reads clean even when the row
+    // wraps to two lines (the transparent border keeps size stable on hover).
     filterTab: {
-      padding: '7px 14px',
+      padding: '6px 12px',
       borderRadius: radius.pill,
       fontSize: '0.8rem',
       fontWeight: 600,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
-      border: `1px solid ${c.border}`,
-      background: c.surface,
+      border: '1px solid transparent',
+      background: 'transparent',
       color: c.textMuted,
     },
     filterTabActive: {
@@ -350,13 +354,15 @@ export const getBookingsStyles = (
       color: c.textMuted,
       lineHeight: 1.4,
     },
+    // A compact action toolbar: Edit, the constructive advance action(s) and
+    // Cancel sit on one wrapping row, each sized to its label — so a lone
+    // "Mark completed" reads as a button, not a full-width banner.
     detailActions: {
       display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: '8px',
     },
-    // Constructive advance actions share a row and grow to fill it; in the
-    // narrow rail they wrap to full-width stacked buttons instead of cramming.
     detailAdvanceRow: {
       display: 'flex',
       gap: '8px',
@@ -365,7 +371,6 @@ export const getBookingsStyles = (
     // Destructive action is de-emphasised: a low-weight ghost button, kept
     // apart from the primary actions so "Cancel" never competes for the eye.
     detailCancelButton: {
-      alignSelf: 'flex-start',
       padding: '6px 10px',
       borderRadius: radius.control,
       fontSize: '0.82rem',

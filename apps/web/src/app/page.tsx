@@ -192,9 +192,21 @@ export default function LandingPage() {
 
   const [yearly, setYearly] = useState(false);
 
+  // Nav gains a shadow + stronger backdrop once the page scrolls past the hero,
+  // so the sticky bar reads as a floating layer rather than a flat strip.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // Scroll-reveal — reveal below-the-fold blocks as they enter the viewport.
   useEffect(() => {
-    const els = Array.from(document.querySelectorAll<HTMLElement>('.landing-reveal'));
+    const els = Array.from(
+      document.querySelectorAll<HTMLElement>('.landing-reveal, .landing-reveal-stagger'),
+    );
     if (typeof IntersectionObserver === 'undefined') {
       els.forEach((el) => el.classList.add('in'));
       return;
@@ -218,11 +230,11 @@ export default function LandingPage() {
     tone === 'conf' ? s.statusConf : tone === 'paid' ? s.statusPaid : s.statusPend;
 
   return (
-    <div style={s.page}>
+    <div className="landing-root" style={s.page}>
       <div className="landing-grain" style={{ opacity: c.isDark ? 0.06 : 0.035 }} aria-hidden="true" />
 
       {/* ── Nav ─────────────────────────────────────────────────── */}
-      <nav style={s.navbar}>
+      <nav style={{ ...s.navbar, ...(scrolled ? s.navbarScrolled : {}) }}>
         <div style={s.navInner}>
           <Link href="/" style={s.navLogo} aria-label={t('landing.aria.home')}>
             <FotolioLogo theme={theme} variant="brand" showText={true} />
@@ -250,6 +262,7 @@ export default function LandingPage() {
 
       {/* ── Hero ────────────────────────────────────────────────── */}
       <header style={s.hero} id="top">
+        <span className="landing-aurora" style={s.heroAurora} aria-hidden="true" />
         <span style={s.heroGlow} aria-hidden="true" />
         <span style={s.heroBg} aria-hidden="true" />
         <div className="landing-hero-grid" style={s.heroInner}>
@@ -265,7 +278,7 @@ export default function LandingPage() {
 
             <h1 style={s.heroTitle}>
               {t('landing.hero.title1')}<br />
-              {t('landing.hero.title2pre')}<span style={s.heroAccent}>{t('landing.hero.title2accent')}</span>.
+              {t('landing.hero.title2pre')}<span className="landing-accent-shimmer" style={s.heroAccent}>{t('landing.hero.title2accent')}</span>.
             </h1>
 
             <p style={s.lede}>{t('landing.hero.lede')}</p>
@@ -286,7 +299,7 @@ export default function LandingPage() {
             </div>
 
             <div style={s.heroMicro}>
-              {[t('landing.hero.microNoCard'), 'DSGVO-konform', t('landing.hero.microCancel')].map(
+              {[t('landing.hero.microNoCard'), t('landing.hero.microCancel')].map(
                 (item) => (
                   <span key={item} style={s.heroMicroItem}>
                     <span style={{ color: c.success, display: 'flex' }}>
@@ -359,16 +372,17 @@ export default function LandingPage() {
 
       {/* ── Features (bento) ────────────────────────────────────── */}
       <section id="features" style={s.section}>
-        <div className="landing-reveal" style={s.head}>
+        <div className="landing-reveal" style={s.headCenter}>
           <span style={s.eyebrow}>
             <span style={s.eyebrowLine} />
             {t('landing.features.eyebrow')}
+            <span style={s.eyebrowLine} />
           </span>
           <h2 style={s.sectionTitle}>{t('landing.features.title')}</h2>
           <p style={s.sectionSub}>{t('landing.features.sub')}</p>
         </div>
 
-        <div className="landing-bento landing-reveal">
+        <div className="landing-bento landing-reveal-stagger">
           {/* Hero tile — galleries */}
           <div className="tile-big landing-card-hover" style={s.tileBig}>
             <div style={s.bigBody}>
@@ -556,7 +570,7 @@ export default function LandingPage() {
             <p style={s.sectionSub}>{t('landing.workflow.sub')}</p>
           </div>
 
-          <div className="landing-flow landing-reveal">
+          <div className="landing-flow landing-reveal-stagger">
             {PIPELINE.map((step, i) => (
               <div key={step.titleKey} className="landing-card-hover" style={s.step}>
                 <div style={s.stepNo}>
@@ -593,8 +607,9 @@ export default function LandingPage() {
           <h2 style={s.sectionTitle}>{t('landing.audience.title')}</h2>
         </div>
 
-        <div className="landing-split landing-reveal">
-          <div style={s.panelFeature}>
+        <div className="landing-split landing-reveal-stagger">
+          <div className="landing-panel" style={s.panelFeature}>
+            <span style={{ ...s.panelGlow, ...s.panelGlowPrimary }} aria-hidden="true" />
             <div style={s.ptop}>
               <span style={{ ...s.pic, ...s.picFeature }}>
                 <Icon name="camera" size={23} />
@@ -607,7 +622,7 @@ export default function LandingPage() {
             <ul style={s.flist}>
               {PHOTOGRAPHER_FEATURES.map((feat) => (
                 <li key={feat.labelKey} style={s.flistItem}>
-                  <span style={s.chk}>
+                  <span style={s.chkPrimary}>
                     <Icon name="check" size={13} strokeWidth={2.8} />
                   </span>
                   {t(feat.labelKey)}
@@ -621,10 +636,11 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <div style={s.panel}>
+          <div className="landing-panel" style={s.panel}>
+            <span style={{ ...s.panelGlow, ...s.panelGlowClient }} aria-hidden="true" />
             <div style={s.ptop}>
               <span style={{ ...s.pic, ...s.picClient }}>
-                <Icon name="heart" size={23} />
+                <Icon name="user" size={23} />
               </span>
               <div>
                 <h3 style={s.ptopH}>{t('landing.audience.clientsTitle')}</h3>
@@ -634,7 +650,7 @@ export default function LandingPage() {
             <ul style={s.flist}>
               {CLIENT_FEATURES.map((feat) => (
                 <li key={feat.labelKey} style={s.flistItem}>
-                  <span style={s.chk}>
+                  <span style={s.chkPrimary}>
                     <Icon name="check" size={13} strokeWidth={2.8} />
                   </span>
                   {t(feat.labelKey)}
@@ -651,7 +667,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ─────────────────────────────────────────────── */}
-      <section id="pricing" style={s.section}>
+      {/* Trimmed bottom padding (vs the shared 100px) so the cards + footnote
+          sit closer to the closing CTA instead of leaving a large void. */}
+      <section id="pricing" style={{ ...s.section, paddingBottom: 44 }}>
         <div className="landing-reveal" style={s.headCenter}>
           <span style={s.eyebrow}>
             <span style={s.eyebrowLine} />
@@ -684,11 +702,11 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="landing-prices landing-reveal" style={s.pricesWrap}>
+        <div className="landing-prices landing-reveal-stagger" style={s.pricesWrap}>
           {PRICING.map((plan) => (
             <div
               key={plan.tier}
-              className={plan.highlighted ? 'landing-price-pro' : undefined}
+              className={plan.highlighted ? 'landing-price-pro landing-card-hover' : 'landing-card-hover'}
               style={{ ...s.priceCard, ...(plan.highlighted ? s.priceCardHot : {}) }}
             >
               {plan.highlighted && <div style={s.priceBadge}>{t('landing.pricing.mostPopular')}</div>}
@@ -765,6 +783,7 @@ export default function LandingPage() {
 
       {/* ── Footer ──────────────────────────────────────────────── */}
       <footer style={s.footer}>
+        <span style={s.footTopAccent} aria-hidden="true" />
         <div style={s.footerInner}>
           <div style={s.footGrid}>
             <div style={s.footBrand}>

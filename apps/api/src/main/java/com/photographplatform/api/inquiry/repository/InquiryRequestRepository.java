@@ -7,19 +7,20 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
- * Tenant-scoped: {@code inquiry_requests} lives in the tenant schema, so the
- * routing data source (search_path set per request from the JWT's tenant_id)
- * already confines every query below to the caller's photographer. No explicit
- * tenant column or filter is needed — or possible.
+ * Tenant-scoped: {@code inquiry_requests} carries a {@code tenant_id} column
+ * enforced by Postgres Row-Level Security (see {@code V11__tenant_rls.sql}),
+ * so every query below is already confined to the caller's photographer at
+ * the database layer. No explicit tenant filter is needed in the query
+ * methods here.
  */
 public interface InquiryRequestRepository extends JpaRepository<InquiryRequest, UUID> {
 
     Page<InquiryRequest> findByStatus(String status, Pageable pageable);
 
     /**
-     * The customer's own inquiries. Scoped by customer id on top of the tenant
-     * search_path, so one customer can never read another's request even though
-     * they share the photographer's schema.
+     * The customer's own inquiries. Scoped by customer id on top of the RLS
+     * tenant isolation, so one customer can never read another's request even
+     * though they share the same photographer.
      */
     Page<InquiryRequest> findByCustomerId(UUID customerId, Pageable pageable);
 }

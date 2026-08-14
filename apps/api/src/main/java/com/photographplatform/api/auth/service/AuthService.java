@@ -18,7 +18,6 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
-import com.photographplatform.api.tenant.service.TenantSchemaInitializer;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -52,7 +51,6 @@ public class AuthService {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final TenantSchemaInitializer schemaInitializer;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final StringRedisTemplate redis;
@@ -71,7 +69,6 @@ public class AuthService {
         TenantRepository tenantRepository,
         UserRepository userRepository,
         RefreshTokenRepository refreshTokenRepository,
-        TenantSchemaInitializer schemaInitializer,
         JwtService jwtService,
         PasswordEncoder passwordEncoder,
         StringRedisTemplate redis,
@@ -82,7 +79,6 @@ public class AuthService {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
-        this.schemaInitializer = schemaInitializer;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.redis = redis;
@@ -127,41 +123,28 @@ public class AuthService {
             // Race: two registrations sharing the same subdomain or email.
             throw new ConflictException("Subdomain or email already taken");
         }
-        String tenantId = tenant.getId().toString();
 
-        try {
-            schemaInitializer.initializeSchema(tenantId);
-        } catch (RuntimeException ex) {
-            // DDL never reached committed state — nothing to compensate.
-            LOG.error("Schema init failed for tenant {}", tenantId, ex);
-            throw ex;
-        }
+        // Tenant isolation is RLS-enforced against the shared schema (see
+        // V11__tenant_rls.sql) — creating a tenant is now a plain row insert,
+        // no schema DDL and no compensating rollback to worry about.
+        User user = new User(
+            tenant.getId(),
+            normalizedEmail,
+            passwordEncoder.encode(req.password()),
+            req.fullName().trim()
+        );
+        user.setRole(req.role());
+        userRepository.save(user);
 
-        try {
-            User user = new User(
-                tenant.getId(),
-                normalizedEmail,
-                passwordEncoder.encode(req.password()),
-                req.fullName().trim()
-            );
-            user.setRole(req.role());
-            userRepository.save(user);
+        // Best-effort: issue + send verification email. Persistence failures
+        // here would roll back the registration (token row is in the same tx),
+        // but mail-delivery failures are swallowed inside the service.
+        emailVerificationService.issueAndSend(user);
 
-            // Best-effort: issue + send verification email. Persistence failures
-            // here would roll back the registration (token row is in the same tx),
-            // but mail-delivery failures are swallowed inside the service.
-            emailVerificationService.issueAndSend(user);
+        tryAudit("USER_REGISTERED", "USER", user.getId(),
+            tenant.getId(), user.getId(), ipAddress);
 
-            tryAudit("USER_REGISTERED", "USER", user.getId(),
-                tenant.getId(), user.getId(), ipAddress);
-
-            return buildAuthResult(user, tenant);
-        } catch (RuntimeException ex) {
-            // Schema is already committed (Flyway uses its own connection); JPA will roll
-            // back tenant + user inserts, so we explicitly drop the orphan schema.
-            schemaInitializer.dropSchema(tenantId);
-            throw ex;
-        }
+        return buildAuthResult(user, tenant);
     }
 
     // ── Login ─────────────────────────────────────────────────────────────────

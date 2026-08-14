@@ -39,6 +39,7 @@ public class PackageService {
     @Transactional
     public PackageResponse create(PackageRequest request, String ipAddress) {
         Package pkg = new Package(request.name().trim(), request.priceCents());
+        pkg.setTenantId(SecurityUtils.requireCurrentTenantId());
         applyOptionalFields(pkg, request);
         Package saved = packageRepository.save(pkg);
 

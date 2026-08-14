@@ -14,8 +14,9 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
      * One projection row per client + count of currently-upcoming bookings
      * (event in the future and status not COMPLETED/CANCELLED).
      *
-     * The native query relies on the per-request tenant search_path so
-     * `clients` and `bookings` resolve to the calling tenant's schema.
+     * The native query relies on RLS (see {@code V11__tenant_rls.sql}) so
+     * `clients` and `bookings` resolve to only the calling tenant's rows —
+     * RLS applies to native queries the same as JPQL/derived ones.
      */
     @Query(value = """
         SELECT c.id              AS id,

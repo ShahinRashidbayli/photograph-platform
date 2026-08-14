@@ -20,6 +20,9 @@ public class InquiryRequest {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
+
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
 
@@ -73,6 +76,14 @@ public class InquiryRequest {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(UUID tenantId) {
+        this.tenantId = tenantId;
     }
 
     public UUID getCustomerId() {

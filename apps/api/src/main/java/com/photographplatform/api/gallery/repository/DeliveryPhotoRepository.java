@@ -6,8 +6,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
- * Tenant-scoped by the routing data source's search_path, so every query is
- * confined to the caller's schema — no explicit tenant column is needed.
+ * Tenant-scoped by Postgres Row-Level Security (see
+ * {@code V11__tenant_rls.sql}), so every query is confined to the caller's
+ * tenant — no explicit tenant filter is needed in the query methods here.
  */
 public interface DeliveryPhotoRepository extends JpaRepository<DeliveryPhoto, UUID> {
 

@@ -2,6 +2,7 @@ package com.photographplatform.api.portfolio.service;
 
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.portfolio.domain.Photo;
 import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
@@ -35,7 +36,9 @@ public class PhotoService {
         String extension = extractExtension(req.filename());
         String r2Key = tenantId + "/photos/" + UUID.randomUUID() + extension;
 
-        Photo photo = photoRepository.save(new Photo(r2Key, categoryId));
+        Photo photo = new Photo(r2Key, categoryId);
+        photo.setTenantId(SecurityUtils.requireCurrentTenantId());
+        photo = photoRepository.save(photo);
 
         String uploadUrl = r2StorageService
             .orElseThrow(() -> new IllegalStateException("R2 storage not configured"))

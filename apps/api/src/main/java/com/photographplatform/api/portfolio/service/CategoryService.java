@@ -1,6 +1,7 @@
 package com.photographplatform.api.portfolio.service;
 
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.portfolio.domain.Category;
 import com.photographplatform.api.portfolio.dto.CategoryRequest;
 import com.photographplatform.api.portfolio.dto.CategoryResponse;
@@ -30,6 +31,7 @@ public class CategoryService {
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
         Category category = new Category(request.name());
+        category.setTenantId(SecurityUtils.requireCurrentTenantId());
         Category saved = categoryRepository.save(category);
         return toResponse(saved);
     }

@@ -68,12 +68,14 @@ public class GalleryService {
         if (!bookingRepository.existsById(req.bookingId())) {
             throw new NotFoundException("Booking not found: " + req.bookingId());
         }
-        Gallery gallery = galleryRepository.save(new Gallery(
+        Gallery gallery = new Gallery(
             req.bookingId(),
             req.expiresAt(),
             req.downloadEnabled() == null ? true : req.downloadEnabled(),
             req.watermarkEnabled() == null ? false : req.watermarkEnabled()
-        ));
+        );
+        gallery.setTenantId(SecurityUtils.requireCurrentTenantId());
+        gallery = galleryRepository.save(gallery);
         audit("GALLERY_CREATED", gallery.getId(), ipAddress);
         return toResponse(requireStats(gallery.getId()));
     }
@@ -128,8 +130,9 @@ public class GalleryService {
         String extension = extractExtension(req.filename());
         String r2Key = tenantId + "/galleries/" + galleryId + "/" + UUID.randomUUID() + extension;
 
-        DeliveryPhoto photo = deliveryPhotoRepository.save(
-            new DeliveryPhoto(galleryId, r2Key, req.filename()));
+        DeliveryPhoto photo = new DeliveryPhoto(galleryId, r2Key, req.filename());
+        photo.setTenantId(SecurityUtils.requireCurrentTenantId());
+        photo = deliveryPhotoRepository.save(photo);
 
         String uploadUrl = storage
             .orElseThrow(() -> new IllegalStateException("R2 storage not configured"))
@@ -157,9 +160,9 @@ public class GalleryService {
 
     /**
      * The token-addressed client view. The caller (controller) has already
-     * resolved the tenant from the subdomain and set the search_path, so the
-     * token lookup runs inside the right schema. An expired gallery is treated
-     * as not-found so the boundary never distinguishes "expired" from "never
+     * resolved the tenant from the subdomain and bound it to TenantContext, so
+     * the token lookup is RLS-scoped to that tenant. An expired gallery is
+     * treated as not-found so the boundary never distinguishes "expired" from "never
      * existed" to an anonymous visitor.
      */
     @Transactional

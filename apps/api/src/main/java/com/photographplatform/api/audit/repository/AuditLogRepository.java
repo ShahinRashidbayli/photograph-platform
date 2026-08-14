@@ -17,10 +17,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
     /**
      * Tenant-scoped variant for surfacing an entity's activity to its owner.
-     * Audit_log is in the public schema (not the tenant search_path), so
-     * entity_id alone is not enough to guarantee isolation — entity ids are
-     * UUIDs and effectively unguessable, but defence-in-depth still requires
-     * the tenant filter.
+     * {@code audit_log} has no RLS policy (unlike the tables in
+     * {@code V11__tenant_rls.sql}), so entity_id alone is not enough to
+     * guarantee isolation — entity ids are UUIDs and effectively unguessable,
+     * but defence-in-depth still requires the explicit tenant filter here.
      */
     List<AuditLog> findByTenantIdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(
         UUID tenantId, String entityType, UUID entityId

@@ -48,8 +48,8 @@ public class ClientController {
      * Update a client's private notes. This is the one mutable field on a
      * client: the rest (totals, last-booking date) are derived from bookings,
      * so there is no create/delete surface — a client exists because they have
-     * a booking. The clients table is tenant-scoped by search_path, so the id
-     * can only resolve within the caller's own schema.
+     * a booking. The clients table is tenant-scoped by RLS, so the id can only
+     * resolve within the caller's own tenant.
      */
     @PatchMapping("/clients/{id}/notes")
     @Transactional

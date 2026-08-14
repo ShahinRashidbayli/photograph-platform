@@ -20,9 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *   <li>Fail-closed: if the request is authenticated but no tenant is in
  *       context, reject with 401. Without this guard a malformed JWT (no
  *       {@code tenant_id} claim) or a misconfigured controller could let a
- *       request reach the database with a {@code null} {@link TenantContext},
- *       which would either inherit the previous request's pooled
- *       {@code search_path} or fall back to {@code public}.</li>
+ *       request reach the database with a {@code null} {@link TenantContext} —
+ *       RLS already fails that closed (the {@code app.tenant_id} GUC resolves
+ *       to NULL, matching no rows), but this rejects earlier with a clearer
+ *       signal than a silently empty result.</li>
  *   <li>Pushes {@code tenant_id} into MDC so log lines from this request are
  *       attributable to one tenant during incident investigation.</li>
  * </ul>

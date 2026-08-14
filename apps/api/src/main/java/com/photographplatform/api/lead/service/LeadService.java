@@ -281,6 +281,7 @@ public class LeadService {
             req.name(), req.email(), req.phone(), req.eventDate(), req.eventType(),
             req.budgetRange(), req.message(), ipAddress
         );
+        lead.setTenantId(tenantId);
         lead.setScore(score);
         Lead saved = leadRepository.save(lead);
 
@@ -300,8 +301,9 @@ public class LeadService {
     }
 
     /**
-     * Stream every lead in this tenant as CSV. Tenant scoping is handled by
-     * the routing data source (search_path is set per request from the JWT).
+     * Stream every lead in this tenant as CSV. Tenant scoping is enforced by
+     * RLS (see {@code V11__tenant_rls.sql}), driven by the tenant bound to
+     * this request's {@link com.photographplatform.api.common.config.TenantContext}.
      * Owns the read transaction and lead fetch; {@link LeadCsvExporter} owns
      * the row layout and RFC 4180 escaping.
      */
@@ -315,10 +317,10 @@ public class LeadService {
      * section. Reads from {@code audit_log} filtered to this lead, ordered
      * newest first.
      *
-     * <p>Filtered by tenant id as well as entity id: audit_log lives in the
-     * public schema (not the tenant search_path), so entity_id alone is not
-     * enough to guarantee isolation. UUIDs are unguessable in practice but
-     * defence-in-depth still requires the tenant filter.
+     * <p>Filtered by tenant id as well as entity id: {@code audit_log} has no
+     * RLS policy, so entity_id alone is not enough to guarantee isolation.
+     * UUIDs are unguessable in practice but defence-in-depth still requires
+     * the explicit tenant filter.
      *
      * <p>404s if the lead isn't visible in this tenant — surfacing activity
      * for a lead that doesn't exist in scope would leak the existence of an
@@ -411,6 +413,7 @@ public class LeadService {
             req.message(),
             ipAddress
         );
+        lead.setTenantId(tenant.getId());
         lead.setScore(score);
 
         Lead saved = leadRepository.save(lead);

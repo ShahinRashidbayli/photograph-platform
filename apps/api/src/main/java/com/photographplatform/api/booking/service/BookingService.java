@@ -80,8 +80,8 @@ public class BookingService {
         UUID tenantId = SecurityUtils.currentTenantId();
 
         // If the caller linked the booking to a directory client, make sure it
-        // exists in *this* tenant (the per-request search_path scopes the
-        // lookup) — fail with 404 rather than persisting a dangling reference.
+        // exists in *this* tenant (RLS scopes the lookup) — fail with 404
+        // rather than persisting a dangling reference.
         if (request.clientId() != null && !clientRepository.existsById(request.clientId())) {
             throw new NotFoundException("Client not found: " + request.clientId());
         }
@@ -91,6 +91,7 @@ public class BookingService {
             request.clientEmail().trim().toLowerCase(),
             request.eventDate()
         );
+        booking.setTenantId(tenantId);
         booking.setClientId(request.clientId());
         booking.setEventTime(request.eventTime());
         booking.setEventType(trimToNull(request.eventType()));
@@ -135,6 +136,7 @@ public class BookingService {
             lead.getEmail().trim().toLowerCase(),
             lead.getEventDate()
         );
+        booking.setTenantId(tenantId);
         booking.setLeadId(lead.getId());
         booking.setEventType(trimToNull(lead.getEventType()));
         booking.setEventTime(overrides.eventTime());
@@ -179,6 +181,7 @@ public class BookingService {
             customer.getEmail().trim().toLowerCase(),
             inquiry.getProposedDate()
         );
+        booking.setTenantId(tenantId);
         booking.setInquiryId(inquiry.getId());
         booking.setEventType(trimToNull(inquiry.getEventType()));
         booking.setLocation(trimToNull(inquiry.getLocation()));

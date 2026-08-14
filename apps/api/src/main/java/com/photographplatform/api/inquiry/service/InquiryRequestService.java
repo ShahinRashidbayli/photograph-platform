@@ -116,7 +116,7 @@ public class InquiryRequestService {
 
         String score = calculateScore(req.budgetRange(), req.eventType(), req.proposedDate());
 
-        InquiryRequest saved = inquiryRepository.save(new InquiryRequest(
+        InquiryRequest inquiry = new InquiryRequest(
             customerId,
             req.eventType(),
             req.budgetRange(),
@@ -125,7 +125,9 @@ public class InquiryRequestService {
             blankToNull(req.message()),
             score,
             "BIO_LINK"
-        ));
+        );
+        inquiry.setTenantId(tenantId);
+        InquiryRequest saved = inquiryRepository.save(inquiry);
 
         auditService.log("INQUIRY_CREATED", "INQUIRY_REQUEST", saved.getId(),
             tenantId, customerId, ipAddress);
@@ -183,8 +185,8 @@ public class InquiryRequestService {
      * inquiry's basics — the photographer fills pricing on the booking
      * afterwards — and the inquiry moves to the terminal {@code
      * BOOKING_CREATED}. Rejecting moves it to {@code REJECTED}. Either way the
-     * customer gets an email. The repository is tenant-scoped by search_path,
-     * so the id can only ever resolve within the caller's own schema.
+     * customer gets an email. The repository is tenant-scoped by RLS, so the
+     * id can only ever resolve within the caller's own tenant.
      */
     @Transactional
     public InquiryRequestResponse updateStatus(UUID id, String targetStatus, String ipAddress) {

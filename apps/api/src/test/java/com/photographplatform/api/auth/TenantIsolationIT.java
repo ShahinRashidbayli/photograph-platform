@@ -33,8 +33,8 @@ class TenantIsolationIT extends IntegrationTestBase {
     /**
      * Verifies that a JWT is scoped to the user it was issued for — /me always
      * returns the caller's own data regardless of other tenants in the system.
-     * Full schema-level isolation (Tenant A cannot read Tenant B's photos, bookings
-     * etc.) will be covered in Sprint 2 integration tests once those endpoints exist.
+     * Table-level isolation (Tenant A cannot read Tenant B's photos, bookings
+     * etc.) is covered by {@link RlsCrossTenantIsolationIT}.
      */
     @Test
     void jwtScopedToItsOwnTenant() {

@@ -173,6 +173,25 @@
                       "Java N is not supported".
                     -->
                     <argLine>-DDOCKER_API_VERSION=1.47 -Dnet.bytebuddy.experimental=true</argLine>
+                    <!--
+                      Surefire's built-in defaults (Test*/*Test/*Tests/*TestCase)
+                      do NOT include *IT.java — that pattern is Failsafe's
+                      convention, and this project has no Failsafe plugin bound.
+                      Every Testcontainers-backed integration test in this repo
+                      (TenantIsolationIT, RlsCrossTenantIsolationIT, ...) is
+                      named *IT and was silently never executed by `mvn test`
+                      or CI. Restoring the defaults explicitly and adding *IT
+                      is the minimal fix — removing the file entirely would be
+                      more "correct" Maven convention, but would also rename
+                      every existing IT class for no behavioural gain.
+                    -->
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
                 </configuration>
             </plugin>
 

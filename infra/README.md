@@ -25,10 +25,32 @@ Then start the API with the `prod` profile pointing at the local container:
 
 ```bash
 export DB_URL=jdbc:postgresql://localhost:5433/centralidp
-export DB_USERNAME=<db-user>
-export DB_PASSWORD=<db-password>
+export DB_USERNAME=fotolio_app
+export DB_PASSWORD=fotolio_app_dev_password
 cd apps/api && mvn spring-boot:run
 ```
+
+### The `fotolio_app` role (tenant isolation)
+
+The app runs every query as `fotolio_app`, a role with no table ownership and
+no `BYPASSRLS` — Postgres Row-Level Security (`V11__tenant_rls.sql`) is what
+actually keeps one tenant's data from being visible to another's queries, and
+RLS only applies to a role like this. Never point `DB_USERNAME` at the
+owning/migration role.
+
+- **Local Docker Compose**: `fotolio_app` is created automatically by
+  `infra/postgres-init/01-create-app-role.sql` the first time the `postgres`
+  container initializes its data volume. If you already have an existing
+  local volume from before this role existed, either recreate the volume
+  (`docker compose down -v && docker compose up -d`) or run the same SQL file
+  manually against the running container.
+- **Supabase**: after the first `mvn flyway:migrate` run against a fresh
+  project (which creates the role via `V11__tenant_rls.sql`, with no
+  password), set its password once via the Supabase SQL editor:
+  ```sql
+  ALTER ROLE fotolio_app PASSWORD '<a-strong-generated-password>';
+  ```
+  then put that value in `DB_PASSWORD`.
 
 ## Environment variables
 

@@ -1,10 +1,24 @@
 import React from 'react';
-import { getColors, radius, type Theme } from '@/lib/design-tokens';
+import {
+  fontSize,
+  getColors,
+  leading,
+  radius,
+  space,
+  type Theme,
+} from '@/lib/design-tokens';
 
 export type BookingsTheme = Theme;
 
 export const getBookingsColors = getColors;
 
+/**
+ * Every value here comes off a token ramp — `fontSize`, `space`, `radius`,
+ * `leading` — rather than a hand-picked rem. This file used to carry 19
+ * distinct font sizes (0.66rem, 0.7rem, 0.72rem, 0.74rem, 0.78rem…) which is
+ * what made the page read as "slightly off" without the eye being able to name
+ * why. A raw px/rem value below should be treated as a bug, not a shortcut.
+ */
 export const getBookingsStyles = (
   theme: BookingsTheme,
 ): Record<string, React.CSSProperties> => {
@@ -14,10 +28,10 @@ export const getBookingsStyles = (
     pageWrapper: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '20px',
+      gap: space.xl,
       flex: 1,
       minHeight: '100vh',
-      padding: '28px 28px 40px',
+      padding: `${space.xxl} ${space.xxl} ${space.xxxl}`,
       width: '100%',
       maxWidth: '1400px',
       margin: '0 auto',
@@ -31,88 +45,90 @@ export const getBookingsStyles = (
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      gap: '20px',
+      gap: space.xl,
       flexWrap: 'wrap',
     },
     pageTitle: {
-      fontSize: '1.875rem',
+      fontSize: fontSize.display,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.025em',
-      lineHeight: 1.15,
-      marginBottom: '6px',
+      lineHeight: leading.tight,
+      marginBottom: space.xs,
     },
     pageSubtitle: {
-      fontSize: '0.9rem',
+      fontSize: fontSize.md,
       color: c.textMuted,
-      lineHeight: 1.5,
+      lineHeight: leading.normal,
     },
     headerActions: {
       display: 'flex',
-      gap: '10px',
+      gap: space.sm,
       flexWrap: 'wrap',
       justifyContent: 'flex-end',
     },
 
-    summaryRow: {
+    // Metrics are a slim strip, not a row of tall cards: the same three numbers
+    // in ~60px instead of ~110px, so the list + detail panes (the actual work
+    // area) start higher up the page. Segments are divided by hairlines rather
+    // than being separate bordered cards.
+    statStrip: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-      gap: '16px',
       width: '100%',
-    },
-    statCard: {
-      position: 'relative',
-      padding: '14px 16px',
-      backgroundColor: c.surface,
-      borderRadius: '14px',
+      background: c.surface,
       border: `1px solid ${c.border}`,
-      boxShadow: c.overlayShadow,
+      borderRadius: radius.card,
+      overflow: 'hidden',
+    },
+    statStripItem: {
+      padding: `${space.md} ${space.lg}`,
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
-      transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+      gap: space.xxs,
+      minWidth: 0,
     },
-    statTopRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      gap: '10px',
-    },
-    statLabel: {
-      fontSize: '0.7rem',
+    // The eyebrow stays small and quiet on purpose: it names the number, it
+    // isn't the thing being read. Bumping it to 700 made it compete with the
+    // value it labels, which is what flattened the strip.
+    statStripLabel: {
+      fontSize: fontSize.xs,
       color: c.textMuted,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
-      fontWeight: 700,
+      fontWeight: 600,
     },
-    statIcon: {
-      width: '30px',
-      height: '30px',
-      borderRadius: '8px',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
+    statStripValueRow: {
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: space.sm,
+      minWidth: 0,
     },
-    statValue: {
-      fontSize: '1.6rem',
-      fontWeight: 700,
+    // xl, not lg: the number is the only thing in this strip meant to be read
+    // at a glance, so it needs a clear step above the card titles below it.
+    statStripValue: {
+      fontSize: fontSize.xl,
+      fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.02em',
-      lineHeight: 1.1,
+      lineHeight: leading.tight,
+      whiteSpace: 'nowrap',
     },
-    statTrend: {
-      fontSize: '0.76rem',
-      fontWeight: 600,
+    statStripTrend: {
+      fontSize: fontSize.sm,
+      fontWeight: 500,
       color: c.textMuted,
-      lineHeight: 1.3,
-      letterSpacing: '0.005em',
+      lineHeight: leading.snug,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      minWidth: 0,
     },
 
     container: {
       display: 'grid',
       gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
-      gap: '16px',
+      gap: space.lg,
       flex: 1,
       width: '100%',
     },
@@ -121,37 +137,28 @@ export const getBookingsStyles = (
       display: 'flex',
       flexDirection: 'column',
       background: c.surface,
-      borderRadius: '14px',
+      borderRadius: radius.card,
       border: `1px solid ${c.border}`,
       overflow: 'hidden',
       boxShadow: c.overlayShadow,
-      maxHeight: 'calc(100vh - 240px)',
+      maxHeight: 'calc(100vh - 200px)',
     },
+    // Search and the status filter share one row: the filter used to be a
+    // second wrapping row of count chips under the search box, which cost a
+    // whole bordered band of the panel before the first booking appeared.
     listHeader: {
-      padding: '18px 18px 14px',
+      padding: `${space.md} ${space.lg}`,
       borderBottom: `1px solid ${c.border}`,
       display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    },
-    listTitle: {
-      fontSize: '1rem',
-      fontWeight: 700,
-      color: c.text,
-      letterSpacing: '-0.01em',
-    },
-    listSubtitle: {
-      fontSize: '0.8rem',
-      color: c.textMuted,
-      lineHeight: 1.5,
+      alignItems: 'center',
+      gap: space.sm,
     },
     searchBox: {
       width: '100%',
-      marginTop: '4px',
-      padding: '10px 12px',
+      padding: `${space.sm} ${space.md}`,
       border: `1px solid ${c.border}`,
-      borderRadius: '10px',
-      fontSize: '0.875rem',
+      borderRadius: radius.control,
+      fontSize: fontSize.md,
       fontFamily:
         "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
@@ -159,21 +166,27 @@ export const getBookingsStyles = (
       outline: 'none',
       transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
     },
-
-    filterTabs: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '8px',
-      padding: '12px 16px',
-      borderBottom: `1px solid ${c.border}`,
+    filterSelect: {
+      padding: `${space.sm} ${space.sm}`,
+      border: `1px solid ${c.border}`,
+      borderRadius: radius.control,
+      fontSize: fontSize.base,
+      fontWeight: 600,
+      fontFamily:
+        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      color: c.text,
+      backgroundColor: c.surfaceAlt,
+      cursor: 'pointer',
+      outline: 'none',
+      flexShrink: 0,
+      maxWidth: '46%',
     },
-    // Light chips: inactive are borderless muted text on a transparent ground,
-    // the active one is a filled primary pill. Reads clean even when the row
-    // wraps to two lines (the transparent border keeps size stable on hover).
-    filterTab: {
-      padding: '6px 12px',
+    // Selectable chip (budget ranges in the request-session modal). Inactive is
+    // muted text on a transparent ground; active is a filled primary pill.
+    chip: {
+      padding: `${space.xs} ${space.md}`,
       borderRadius: radius.pill,
-      fontSize: '0.8rem',
+      fontSize: fontSize.base,
       fontWeight: 600,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
@@ -182,7 +195,7 @@ export const getBookingsStyles = (
       background: 'transparent',
       color: c.textMuted,
     },
-    filterTabActive: {
+    chipActive: {
       background: c.primary,
       color: '#FFFFFF',
       border: `1px solid ${c.primary}`,
@@ -191,27 +204,24 @@ export const getBookingsStyles = (
     listScroll: {
       flex: 1,
       overflowY: 'auto',
-      padding: '10px',
+      padding: space.sm,
     },
     listItem: {
       width: '100%',
-      padding: '12px',
-      marginBottom: '6px',
-      borderRadius: '12px',
-      border: `1px solid transparent`,
+      padding: space.md,
+      marginBottom: space.xs,
+      borderRadius: radius.control,
+      border: '1px solid transparent',
       cursor: 'pointer',
       transition: 'background 0.16s ease, border-color 0.16s ease',
       background: 'transparent',
       display: 'grid',
       gridTemplateColumns: '52px minmax(0, 1fr)',
-      gap: '12px',
+      gap: space.md,
       alignItems: 'center',
       textAlign: 'left',
       color: c.text,
       fontFamily: 'inherit',
-    },
-    listItemHover: {
-      background: c.surfaceHover,
     },
     listItemActive: {
       background: c.surfaceActive,
@@ -220,7 +230,7 @@ export const getBookingsStyles = (
     listItemDate: {
       width: '52px',
       height: '52px',
-      borderRadius: '12px',
+      borderRadius: radius.control,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -230,52 +240,52 @@ export const getBookingsStyles = (
       border: `1px solid ${c.primaryBorder}`,
     },
     listItemDateMonth: {
-      fontSize: '10px',
+      fontSize: fontSize.xs,
       fontWeight: 700,
       color: c.primaryStrong,
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
-      lineHeight: 1.1,
+      lineHeight: leading.tight,
     },
     listItemDateDay: {
-      fontSize: '18px',
+      fontSize: fontSize.lg,
       fontWeight: 800,
       color: c.primaryStrong,
-      lineHeight: 1.05,
-      marginTop: '2px',
+      lineHeight: leading.tight,
+      marginTop: space.xxs,
     },
     listItemContent: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '6px',
+      gap: space.xs,
       minWidth: 0,
     },
     listItemTopRow: {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: '10px',
+      gap: space.sm,
       minWidth: 0,
     },
     listItemBottomRow: {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: '10px',
+      gap: space.sm,
       minWidth: 0,
     },
     listItemName: {
-      fontSize: '0.9rem',
+      fontSize: fontSize.md,
       fontWeight: 700,
       color: c.text,
-      lineHeight: 1.3,
+      lineHeight: leading.snug,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       minWidth: 0,
     },
     listItemAmount: {
-      fontSize: '0.95rem',
+      fontSize: fontSize.md,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.01em',
@@ -283,13 +293,27 @@ export const getBookingsStyles = (
       flexShrink: 0,
     },
     listItemMeta: {
-      fontSize: '0.78rem',
+      fontSize: fontSize.sm,
       color: c.textMuted,
-      lineHeight: 1.3,
+      lineHeight: leading.snug,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       minWidth: 0,
+    },
+    // Day-grouping header inside the list ("This week", "Later"). Sticky so the
+    // group a row belongs to stays visible while scrolling a long list.
+    listGroupHeader: {
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+      padding: `${space.sm} ${space.xs} ${space.xs}`,
+      background: c.surface,
+      fontSize: fontSize.xs,
+      fontWeight: 700,
+      color: c.textMuted,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
     },
 
     detailPanel: {
@@ -297,36 +321,44 @@ export const getBookingsStyles = (
       flexDirection: 'column',
       minWidth: 0,
       background: c.surface,
-      borderRadius: '14px',
+      borderRadius: radius.card,
       border: `1px solid ${c.border}`,
       overflow: 'hidden',
       boxShadow: c.overlayShadow,
-      maxHeight: 'calc(100vh - 240px)',
+      maxHeight: 'calc(100vh - 200px)',
     },
     // Header is a vertical stack — identity on top, a dedicated action bar
-    // below — so the status actions never get crammed next to the name in the
-    // narrow calendar-mode rail (which forced an ugly two-row wrap).
+    // below — so the status actions never get crammed next to the name in a
+    // narrow column (which forced an ugly two-row wrap).
     detailHeader: {
-      padding: '20px 24px',
+      padding: `${space.lg} ${space.xxl}`,
       borderBottom: `1px solid ${c.border}`,
       display: 'flex',
       flexDirection: 'column',
-      gap: '16px',
+      gap: space.md,
+    },
+    // Identity on the left, the overflow ("…") menu pinned right.
+    detailTopRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: space.md,
+      minWidth: 0,
     },
     detailHeaderLeft: {
       display: 'flex',
       alignItems: 'center',
-      gap: '14px',
+      gap: space.md,
       minWidth: 0,
     },
     detailAvatar: {
       width: '48px',
       height: '48px',
-      borderRadius: '12px',
+      borderRadius: radius.control,
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: '0.95rem',
+      fontSize: fontSize.md,
       fontWeight: 700,
       flexShrink: 0,
       letterSpacing: '0.02em',
@@ -334,176 +366,228 @@ export const getBookingsStyles = (
     detailHeaderText: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '6px',
+      gap: space.xs,
       minWidth: 0,
     },
     detailTitleRow: {
       display: 'flex',
       alignItems: 'center',
-      gap: '10px',
+      gap: space.sm,
       flexWrap: 'wrap',
     },
     detailTitle: {
-      fontSize: '1.2rem',
+      fontSize: fontSize.xl,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.015em',
+      lineHeight: leading.tight,
     },
     detailSubtitle: {
-      fontSize: '0.85rem',
+      fontSize: fontSize.base,
       color: c.textMuted,
-      lineHeight: 1.4,
+      lineHeight: leading.snug,
     },
-    // A compact action toolbar: Edit, the constructive advance action(s) and
-    // Cancel sit on one wrapping row, each sized to its label — so a lone
-    // "Mark completed" reads as a button, not a full-width banner.
+    // A compact action toolbar with one clear rank: a single filled primary
+    // action leads, everything else is a neutral secondary, and destructive
+    // moves (cancel) live in the overflow menu — four competing button styles
+    // side by side made every row of this panel read as a decision.
     detailActions: {
       display: 'flex',
       flexWrap: 'wrap',
       alignItems: 'center',
-      gap: '8px',
+      gap: space.sm,
     },
-    detailAdvanceRow: {
-      display: 'flex',
-      gap: '8px',
-      flexWrap: 'wrap',
-    },
-    // Destructive action is de-emphasised: a low-weight ghost button, kept
-    // apart from the primary actions so "Cancel" never competes for the eye.
-    detailCancelButton: {
-      padding: '6px 10px',
+    // Mobile-only: returns from the detail pane to the list pane.
+    backButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: space.xs,
+      padding: `${space.xs} ${space.sm}`,
+      marginLeft: `-${space.sm}`,
       borderRadius: radius.control,
-      fontSize: '0.82rem',
-      fontWeight: 600,
-      border: '1px solid transparent',
+      border: 'none',
       background: 'transparent',
-      color: c.dangerText,
+      color: c.textMuted,
+      fontSize: fontSize.base,
+      fontWeight: 600,
+      fontFamily: 'inherit',
       cursor: 'pointer',
-      transition: 'background 0.18s ease',
+    },
+
+    // ─── Overflow ("…") menu ───────────────────────────────────
+    menuWrapper: {
+      position: 'relative',
+      flexShrink: 0,
+    },
+    menuTrigger: {
+      width: '32px',
+      height: '32px',
+      borderRadius: radius.control,
+      border: `1px solid ${c.border}`,
+      background: c.surface,
+      color: c.textMuted,
+      cursor: 'pointer',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'background 0.18s ease, color 0.18s ease',
+    },
+    menuPanel: {
+      position: 'absolute',
+      top: 'calc(100% + 6px)',
+      right: 0,
+      minWidth: '200px',
+      padding: space.xs,
+      background: c.surface,
+      border: `1px solid ${c.border}`,
+      borderRadius: radius.control,
+      boxShadow: c.elevatedShadow,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: space.xxs,
+      zIndex: 40,
+    },
+    menuItem: {
+      width: '100%',
+      padding: `${space.sm} ${space.sm}`,
+      borderRadius: radius.control,
+      border: 'none',
+      background: 'transparent',
+      color: c.text,
+      fontSize: fontSize.base,
+      fontWeight: 600,
+      fontFamily: 'inherit',
+      textAlign: 'left',
+      whiteSpace: 'nowrap',
+      cursor: 'pointer',
+      transition: 'background 0.16s ease',
+    },
+    menuItemDanger: {
+      color: c.dangerText,
     },
 
     detailBody: {
       flex: 1,
       overflowY: 'auto',
-      padding: '24px',
+      padding: space.xxl,
       display: 'flex',
       flexDirection: 'column',
-      gap: '24px',
+      gap: space.xxl,
     },
 
     section: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px',
+      gap: space.md,
+    },
+    // Sections after the first are separated by a hairline and whitespace
+    // instead of each sitting in its own tinted, bordered box — a card inside
+    // a card inside a panel was three nested frames deep.
+    sectionDivided: {
+      paddingTop: space.xl,
+      borderTop: `1px solid ${c.divider}`,
     },
     sectionTitle: {
-      fontSize: '0.7rem',
+      fontSize: fontSize.xs,
       fontWeight: 700,
       color: c.textMuted,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
     },
 
-    sectionCard: {
-      padding: '16px 18px',
-      backgroundColor: c.surfaceAlt,
-      borderRadius: '14px',
-      border: `1px solid ${c.border}`,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '14px',
-    },
-
     infoGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '14px 24px',
+      gap: `${space.md} ${space.xxl}`,
     },
     infoRow: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
+      gap: space.xs,
       minWidth: 0,
     },
     infoLabel: {
-      fontSize: '0.7rem',
+      fontSize: fontSize.xs,
       fontWeight: 700,
       color: c.textMuted,
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
     },
     infoValue: {
-      fontSize: '0.9rem',
+      fontSize: fontSize.md,
       fontWeight: 600,
       color: c.text,
-      lineHeight: 1.4,
+      lineHeight: leading.snug,
       wordBreak: 'break-word',
     },
 
     paymentTopRow: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '20px',
-      alignItems: 'center',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: space.lg,
+      flexWrap: 'wrap',
     },
     paymentLabel: {
-      fontSize: '0.7rem',
+      fontSize: fontSize.xs,
       fontWeight: 700,
       color: c.textMuted,
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
-      marginBottom: '6px',
+      marginBottom: space.xs,
     },
     paymentValue: {
-      fontSize: '1.5rem',
+      fontSize: fontSize.xl,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.02em',
-      lineHeight: 1.1,
+      lineHeight: leading.tight,
     },
 
     progressTrack: {
       height: '8px',
       background: c.isDark ? 'rgba(148, 163, 184, 0.18)' : '#E5E7EB',
-      borderRadius: '999px',
+      borderRadius: radius.pill,
       overflow: 'hidden',
     },
     progressFill: {
       height: '100%',
-      borderRadius: '999px',
+      borderRadius: radius.pill,
       transition: 'width 0.3s ease, background 0.18s ease',
     },
     progressMeta: {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      fontSize: '0.78rem',
+      fontSize: fontSize.sm,
       color: c.textMuted,
       fontWeight: 600,
     },
 
-    notesBox: {
-      padding: '14px 16px',
-      backgroundColor: c.surfaceAlt,
-      border: `1px solid ${c.border}`,
-      borderRadius: '12px',
-      fontSize: '0.875rem',
+    notesText: {
+      fontSize: fontSize.md,
       color: c.text,
-      lineHeight: 1.55,
+      lineHeight: leading.normal,
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
     },
+    notesEmpty: {
+      fontSize: fontSize.md,
+      color: c.textMuted,
+      lineHeight: leading.normal,
+      fontStyle: 'italic',
+    },
 
     badge: {
-      padding: '4px 10px',
-      borderRadius: '999px',
-      fontSize: '0.7rem',
+      padding: `${space.xs} ${space.sm}`,
+      borderRadius: radius.pill,
+      fontSize: fontSize.xs,
       fontWeight: 700,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
       alignItems: 'center',
-      gap: '5px',
+      gap: space.xs,
       flexShrink: 0,
     },
     badgeDot: {
@@ -514,9 +598,9 @@ export const getBookingsStyles = (
     },
 
     secondaryButton: {
-      padding: '9px 16px',
+      padding: `${space.sm} ${space.lg}`,
       borderRadius: radius.control,
-      fontSize: '0.875rem',
+      fontSize: fontSize.md,
       fontWeight: 600,
       border: `1px solid ${c.border}`,
       background: c.surface,
@@ -524,11 +608,12 @@ export const getBookingsStyles = (
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
+      fontFamily: 'inherit',
     },
     primaryButton: {
-      padding: '9px 16px',
+      padding: `${space.sm} ${space.lg}`,
       borderRadius: radius.control,
-      fontSize: '0.875rem',
+      fontSize: fontSize.md,
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.primarySolid,
@@ -536,12 +621,13 @@ export const getBookingsStyles = (
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
+      fontFamily: 'inherit',
       boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
     },
     invertedPrimaryButton: {
-      padding: '9px 16px',
+      padding: `${space.sm} ${space.lg}`,
       borderRadius: radius.control,
-      fontSize: '0.875rem',
+      fontSize: fontSize.md,
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.isDark ? '#F1F5F9' : '#0F172A',
@@ -549,6 +635,7 @@ export const getBookingsStyles = (
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
+      fontFamily: 'inherit',
       boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(15, 23, 42, 0.18)',
     },
     emptyState: {
@@ -556,10 +643,19 @@ export const getBookingsStyles = (
       alignItems: 'center',
       justifyContent: 'center',
       flex: 1,
-      padding: '40px',
+      padding: space.xxxl,
       color: c.textMuted,
-      fontSize: '0.9rem',
+      fontSize: fontSize.md,
       textAlign: 'center',
+    },
+
+    // ─── Skeletons ─────────────────────────────────────────────
+    // Loading shows the shape of the answer rather than the word "Loading":
+    // the blocks below mirror the real list row and detail panel, so nothing
+    // jumps when the data lands.
+    skeletonBlock: {
+      background: c.isDark ? 'rgba(148, 163, 184, 0.14)' : '#EEF1F5',
+      borderRadius: radius.control,
     },
 
     // ─── Error / retry panel ───────────────────────────────────
@@ -568,32 +664,32 @@ export const getBookingsStyles = (
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '12px',
-      padding: '48px 28px',
+      gap: space.md,
+      padding: `${space.xxxl} ${space.xxl}`,
       background: c.surface,
       border: `1px solid ${c.dangerBorder}`,
-      borderRadius: '14px',
+      borderRadius: radius.card,
       textAlign: 'center',
     },
     errorPanelTitle: {
-      fontSize: '1rem',
+      fontSize: fontSize.lg,
       fontWeight: 700,
       color: c.text,
     },
     errorPanelText: {
-      fontSize: '0.875rem',
+      fontSize: fontSize.md,
       color: c.textMuted,
       maxWidth: '420px',
-      lineHeight: 1.5,
+      lineHeight: leading.normal,
     },
     actionError: {
-      fontSize: '0.8rem',
+      fontSize: fontSize.base,
       fontWeight: 600,
       color: c.dangerText,
       background: c.dangerBg,
       border: `1px solid ${c.dangerBorder}`,
-      borderRadius: '8px',
-      padding: '8px 12px',
+      borderRadius: radius.control,
+      padding: `${space.sm} ${space.md}`,
       width: '100%',
     },
 
@@ -607,14 +703,14 @@ export const getBookingsStyles = (
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'center',
-      padding: '40px 16px',
+      padding: `${space.xxxl} ${space.lg}`,
       overflowY: 'auto',
     },
     modalCard: {
       width: '100%',
       maxWidth: '560px',
       background: c.surface,
-      borderRadius: '14px',
+      borderRadius: radius.card,
       border: `1px solid ${c.border}`,
       boxShadow: c.elevatedShadow,
       display: 'flex',
@@ -625,59 +721,59 @@ export const getBookingsStyles = (
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
-      gap: '16px',
-      padding: '20px 24px',
+      gap: space.lg,
+      padding: `${space.xl} ${space.xxl}`,
       borderBottom: `1px solid ${c.border}`,
     },
     modalTitle: {
-      fontSize: '1.15rem',
+      fontSize: fontSize.xl,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.015em',
     },
     modalSubtitle: {
-      fontSize: '0.82rem',
+      fontSize: fontSize.base,
       color: c.textMuted,
-      marginTop: '2px',
+      marginTop: space.xxs,
     },
     modalClose: {
       width: '32px',
       height: '32px',
-      borderRadius: '10px',
+      borderRadius: radius.control,
       border: `1px solid ${c.border}`,
       background: c.surface,
       color: c.textMuted,
       cursor: 'pointer',
-      fontSize: '1.1rem',
+      fontSize: fontSize.lg,
       lineHeight: 1,
       flexShrink: 0,
     },
     modalBody: {
-      padding: '20px 24px',
+      padding: `${space.xl} ${space.xxl}`,
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
+      gap: space.md,
     },
     modalFooter: {
       display: 'flex',
       justifyContent: 'flex-end',
-      gap: '10px',
-      padding: '16px 24px',
+      gap: space.sm,
+      padding: `${space.lg} ${space.xxl}`,
       borderTop: `1px solid ${c.border}`,
     },
     formRow: {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '14px',
+      gap: space.md,
     },
     formField: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '5px',
+      gap: space.xs,
       minWidth: 0,
     },
     formLabel: {
-      fontSize: '0.72rem',
+      fontSize: fontSize.xs,
       fontWeight: 700,
       color: c.textMuted,
       textTransform: 'uppercase',
@@ -685,10 +781,10 @@ export const getBookingsStyles = (
     },
     formInput: {
       width: '100%',
-      padding: '9px 11px',
+      padding: `${space.sm} ${space.md}`,
       border: `1px solid ${c.border}`,
-      borderRadius: '10px',
-      fontSize: '0.875rem',
+      borderRadius: radius.control,
+      fontSize: fontSize.md,
       fontFamily:
         "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
@@ -697,10 +793,10 @@ export const getBookingsStyles = (
     },
     formTextarea: {
       width: '100%',
-      padding: '9px 11px',
+      padding: `${space.sm} ${space.md}`,
       border: `1px solid ${c.border}`,
-      borderRadius: '10px',
-      fontSize: '0.875rem',
+      borderRadius: radius.control,
+      fontSize: fontSize.md,
       fontFamily:
         "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
@@ -710,7 +806,7 @@ export const getBookingsStyles = (
       minHeight: '72px',
     },
     fieldError: {
-      fontSize: '0.72rem',
+      fontSize: fontSize.xs,
       fontWeight: 600,
       color: c.dangerText,
     },

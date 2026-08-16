@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
@@ -175,7 +175,7 @@ function ClientDetail({
   s: Styles;
   c: ColorTokens;
   onNewBooking: () => void;
-  onSaveNotes: (clientId: string, notes: string) => Promise<void>;
+  onSaveNotes: (_clientId: string, _notes: string) => Promise<void>;
 }>) {
   const { t, format } = useTranslation();
   if (!client) {
@@ -327,7 +327,7 @@ function NotesEditor({
   initialNotes: string;
   s: Styles;
   c: ColorTokens;
-  onSave: (notes: string) => Promise<void>;
+  onSave: (_notes: string) => Promise<void>;
 }>) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -419,7 +419,7 @@ function ClientListSkeleton({ s }: Readonly<{ s: Styles }>) {
   );
 }
 
-export default function ClientsPage() {
+function ClientsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
@@ -639,5 +639,17 @@ export default function ClientsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * `useSearchParams` needs a Suspense boundary in the app router — without one
+ * the whole route bails out of prerendering and the build fails.
+ */
+export default function ClientsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClientsView />
+    </Suspense>
   );
 }

@@ -68,7 +68,10 @@ export interface Booking {
   packageId?: string;
   totalAmountCents: number;
   depositAmountCents: number;
-  status: 'ENQUIRY' | 'CONFIRMED' | 'DEPOSIT_PAID' | 'FULLY_PAID' | 'COMPLETED' | 'CANCELLED';
+  status: 'ENQUIRY' | 'CONFIRMED' | 'POSTPONED' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
+  /** Derived server-side from real invoice/payment rows — never guessed client-side. */
+  paymentState?: 'NOT_INVOICED' | 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+  amountPaidCents?: number;
   internalNotes?: string;
   createdAt: string;
 }

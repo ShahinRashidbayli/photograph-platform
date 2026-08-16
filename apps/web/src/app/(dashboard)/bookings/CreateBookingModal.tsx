@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { extractApiError, eurosToCents } from '@/lib/helpers';
+import { extractApiError, eurosToCents, todayIso } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
+import { DateField } from '@/components/DateField';
 import { Booking, Package } from '@/types/api';
 import { getBookingsColors } from './bookings.styles';
 
@@ -149,7 +150,15 @@ export function CreateBookingModal({
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())) {
       errors.clientEmail = t('createBooking.errEmailInvalid');
     }
-    if (!form.eventDate) errors.eventDate = t('createBooking.errDate');
+    if (!form.eventDate) {
+      errors.eventDate = t('createBooking.errDate');
+    } else if (!isEdit && form.eventDate < todayIso()) {
+      // Creation only. An existing booking whose date has passed still has to
+      // be editable (pricing it, fixing the location, adding notes), so the
+      // rule never applies in edit mode — matching the backend, where
+      // @FutureOrPresent sits on CreateBookingRequest and not on the update.
+      errors.eventDate = t('createBooking.errDatePast');
+    }
     const total = eurosToCents(form.totalAmount);
     const deposit = eurosToCents(form.depositAmount);
     if (form.depositAmount.trim() && deposit > total) {
@@ -277,11 +286,14 @@ export function CreateBookingModal({
               <label style={styles.formLabel} htmlFor="bk-eventDate">
                 {t('createBooking.eventDate')}
               </label>
-              <input
+              <DateField
                 id="bk-eventDate"
-                type="date"
                 value={form.eventDate}
-                onChange={(e) => update('eventDate', e.target.value)}
+                onChange={(iso) => update('eventDate', iso)}
+                // Disables past days in the picker when creating. Left open in
+                // edit mode so an existing past booking stays editable.
+                min={isEdit ? undefined : todayIso()}
+                invalid={!!fieldErrors.eventDate}
                 style={fieldStyle('eventDate')}
               />
               {fieldErrors.eventDate && (

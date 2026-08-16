@@ -26,5 +26,7 @@ public record CustomerBookingResponse(
     Integer totalAmountCents,
     Integer depositAmountCents,
     String status,
+    String paymentState,
+    Integer amountPaidCents,
     OffsetDateTime createdAt
 ) {}

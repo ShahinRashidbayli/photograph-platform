@@ -20,22 +20,38 @@ class BookingStatusTest {
             .isInstanceOf(ConflictException.class);
         assertThatThrownBy(() -> BookingStatus.parse(null))
             .isInstanceOf(ConflictException.class);
+        // The old payment-conflated states no longer parse at all — payment
+        // progress is derived (BookingPaymentState), never a lifecycle value.
+        assertThatThrownBy(() -> BookingStatus.parse("DEPOSIT_PAID"))
+            .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void allowsForwardLifecycleTransitions() {
         BookingStatus.ENQUIRY.assertCanTransitionTo(BookingStatus.CONFIRMED);
-        BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.DEPOSIT_PAID);
-        BookingStatus.DEPOSIT_PAID.assertCanTransitionTo(BookingStatus.FULLY_PAID);
-        BookingStatus.FULLY_PAID.assertCanTransitionTo(BookingStatus.COMPLETED);
+        BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.COMPLETED);
     }
 
     @Test
-    void allowsCancellationFromAnyOpenState() {
+    void allowsPostponementAndReturnToConfirmed() {
+        BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.POSTPONED);
+        BookingStatus.POSTPONED.assertCanTransitionTo(BookingStatus.CONFIRMED);
+        BookingStatus.POSTPONED.assertCanTransitionTo(BookingStatus.CANCELLED);
+    }
+
+    @Test
+    void allowsDecliningOnlyFromEnquiry() {
+        BookingStatus.ENQUIRY.assertCanTransitionTo(BookingStatus.DECLINED);
+        assertThatThrownBy(() -> BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.DECLINED))
+            .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void allowsCancellationFromAnyNonTerminalState() {
         BookingStatus.ENQUIRY.assertCanTransitionTo(BookingStatus.CANCELLED);
         BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.CANCELLED);
-        BookingStatus.DEPOSIT_PAID.assertCanTransitionTo(BookingStatus.CANCELLED);
-        BookingStatus.FULLY_PAID.assertCanTransitionTo(BookingStatus.CANCELLED);
+        BookingStatus.POSTPONED.assertCanTransitionTo(BookingStatus.CANCELLED);
+        BookingStatus.COMPLETED.assertCanTransitionTo(BookingStatus.CANCELLED);
     }
 
     @Test
@@ -43,13 +59,13 @@ class BookingStatusTest {
         assertThatThrownBy(() -> BookingStatus.ENQUIRY.assertCanTransitionTo(BookingStatus.COMPLETED))
             .isInstanceOf(ConflictException.class)
             .hasMessageContaining("Illegal");
-        assertThatThrownBy(() -> BookingStatus.CONFIRMED.assertCanTransitionTo(BookingStatus.COMPLETED))
-            .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void rejectsReopeningTerminalStates() {
         assertThatThrownBy(() -> BookingStatus.COMPLETED.assertCanTransitionTo(BookingStatus.CONFIRMED))
+            .isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> BookingStatus.DECLINED.assertCanTransitionTo(BookingStatus.ENQUIRY))
             .isInstanceOf(ConflictException.class);
         assertThatThrownBy(() -> BookingStatus.CANCELLED.assertCanTransitionTo(BookingStatus.ENQUIRY))
             .isInstanceOf(ConflictException.class);

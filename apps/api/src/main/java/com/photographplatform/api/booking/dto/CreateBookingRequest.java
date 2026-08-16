@@ -1,6 +1,7 @@
 package com.photographplatform.api.booking.dto;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -28,7 +29,15 @@ public record CreateBookingRequest(
     @Size(max = 320, message = "Client email must be at most 320 characters")
     String clientEmail,
 
+    // A booking is always scheduled work, so a new one cannot start in the
+    // past. Mirrors the same rule on CreateInquiryRequest.proposedDate.
+    //
+    // Deliberately NOT applied to UpdateBookingRequest: a shoot that has
+    // already happened still needs editing — pricing it, correcting the
+    // location, adding notes after the fact — and blocking that would make
+    // every past booking permanently read-only.
     @NotNull(message = "Event date is required")
+    @FutureOrPresent(message = "Event date cannot be in the past")
     LocalDate eventDate,
 
     LocalTime eventTime,

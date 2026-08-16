@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -41,7 +41,7 @@ function bold(template: string, placeholder: string, value: string) {
   );
 }
 
-export default function LeadsPage() {
+function LeadsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useThemeStore();
@@ -540,5 +540,17 @@ export default function LeadsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * `useSearchParams` needs a Suspense boundary in the app router — without one
+ * the whole route bails out of prerendering and the build fails.
+ */
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LeadsView />
+    </Suspense>
   );
 }

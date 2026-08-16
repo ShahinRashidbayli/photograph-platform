@@ -9,7 +9,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
 
 // Registration is photographer-only: creating a studio spins up a tenant and
@@ -68,7 +68,7 @@ function slugifySubdomain(raw: string): string {
     .slice(0, 63);
 }
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const plan = readPlan(searchParams.get('plan'));
@@ -336,5 +336,17 @@ export default function RegisterPage() {
       )}
 
     </AuthSplitLayout>
+  );
+}
+
+/**
+ * `useSearchParams` needs a Suspense boundary in the app router — without one
+ * the whole route bails out of prerendering and the build fails.
+ */
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

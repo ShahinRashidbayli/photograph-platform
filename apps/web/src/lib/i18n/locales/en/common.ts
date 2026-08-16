@@ -11,6 +11,7 @@ export const common = {
   'auth.emailPlaceholder': 'you@example.com',
 
   'common.close': 'Close',
+  'dateField.open': 'Choose date',
   'common.cancel': 'Cancel',
   'common.soon': 'Soon',
   'common.comingSoon': 'Coming soon',

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Booking } from '@/types/api';
-import { amountPaidCents, getBookingStatusMeta, getCustomerBookingStatusLabelKey, toneToVisual } from '@/lib/booking-status';
+import { getBookingStatusMeta, getCustomerBookingStatusLabelKey, isBillableStatus, toneToVisual } from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
@@ -37,17 +37,17 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
 
   const total = booking.totalAmountCents;
   // `depositAmount` is the *quoted* deposit (what's owed); `paid` is what's
-  // actually been collected, derived from the lifecycle status. Progress must
-  // key off `paid`/status — not the quoted amount — so the client never sees a
-  // deposit marked "done" before they've actually paid it.
+  // actually been collected, derived server-side from real invoice/payment
+  // rows (never guessed from the lifecycle status) — so the client never
+  // sees a deposit marked "done" before they've actually paid it.
   const depositAmount = booking.depositAmountCents || 0;
-  const paid = amountPaidCents(booking);
+  const paid = booking.amountPaidCents ?? 0;
   const remaining = Math.max(total - paid, 0);
 
-  const isPaidStage = ['FULLY_PAID', 'COMPLETED'].includes(booking.status);
-  const depositDone = ['DEPOSIT_PAID', 'FULLY_PAID', 'COMPLETED'].includes(booking.status);
+  const isPaidStage = booking.paymentState === 'PAID';
+  const depositDone = paid > 0;
   const showPaymentAlert =
-    booking.status !== 'CANCELLED' && !isPaidStage && remaining > 0;
+    isBillableStatus(booking.status) && !isPaidStage && remaining > 0;
 
   const daysLeft = daysUntil(booking.eventDate);
   const dueDate = format.dayMonth(booking.eventDate);

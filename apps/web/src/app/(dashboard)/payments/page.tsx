@@ -6,7 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { formatEUR, formatDayMonth, formatMonthDayYear } from '@/lib/helpers';
 import { useBookings } from '@/hooks/useBookings';
-import { amountPaidCents } from '@/lib/booking-status';
+import { isBillableStatus } from '@/lib/booking-status';
 import type { Booking } from '@/types/api';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
@@ -43,10 +43,11 @@ function derivePayment(b: Booking): PayItem {
     return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid: 0, remaining: 0, depositAmount, state: 'quote' };
   }
 
-  // Paid is derived from the lifecycle status (see amountPaidCents), so a
-  // booking that's only been accepted — CONFIRMED, deposit not yet paid —
-  // correctly shows 0 collected and the full balance due.
-  const paid = amountPaidCents(b);
+  // Paid comes straight from the backend (derived server-side from real
+  // invoice/payment rows — see BookingPaymentStateResolver), so a booking
+  // that's only been accepted — CONFIRMED, nothing invoiced yet — correctly
+  // shows 0 collected and the full balance due.
+  const paid = b.amountPaidCents ?? 0;
   const remaining = Math.max(total - paid, 0);
   const state: PayState = remaining === 0 && total > 0 ? 'paid' : paid > 0 ? 'partial' : 'due';
   return { id: b.id, title: b.eventType || 'Session', eventDate: b.eventDate, total, paid, remaining, depositAmount, state };
@@ -65,7 +66,7 @@ export default function PaymentsPage() {
 
   const { items, totalPaid, totalRemaining, grandTotal, nextDue } = useMemo(() => {
     const list = (bookings ?? [])
-      .filter((b) => b.status !== 'CANCELLED')
+      .filter((b) => isBillableStatus(b.status))
       .map(derivePayment);
     const paid = list.reduce((s, i) => s + i.paid, 0);
     const remaining = list.reduce((s, i) => s + i.remaining, 0);

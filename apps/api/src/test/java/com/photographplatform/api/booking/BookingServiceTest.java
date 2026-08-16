@@ -3,9 +3,11 @@ package com.photographplatform.api.booking;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
+import com.photographplatform.api.booking.domain.BookingPaymentState;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
 import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.config.TenantContext;
@@ -59,9 +61,13 @@ class BookingServiceTest {
         packageRepository = mock(PackageRepository.class);
         auditService = mock(AuditService.class);
         UserRepository userRepository = mock(UserRepository.class);
+        BookingPaymentStateResolver paymentStateResolver = mock(BookingPaymentStateResolver.class);
+        when(paymentStateResolver.resolve(any())).thenReturn(
+            new BookingPaymentStateResolver.Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
 
         bookingService = new BookingService(
-            bookingRepository, clientRepository, userRepository, auditService, packageRepository);
+            bookingRepository, clientRepository, userRepository, auditService, packageRepository,
+            paymentStateResolver);
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));

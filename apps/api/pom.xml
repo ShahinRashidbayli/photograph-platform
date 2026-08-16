@@ -145,6 +145,23 @@
             <artifactId>thumbnailator</artifactId>
             <version>0.4.20</version>
         </dependency>
+
+        <!-- openhtmltopdf — renders the invoice/contract HTML templates (built
+             the same way EmailTemplate.java builds emails) to PDF/A-ready
+             output. Apache-2.0, pure Java, no native deps or income-based
+             licensing (unlike the .NET-side QuestPDF the spec names). -->
+        <dependency>
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.1.73</version>
+        </dependency>
+
+        <!-- Stripe — Card + SEPA Payment Intents, webhook signature verification. -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>33.3.0</version>
+        </dependency>
     </dependencies>
 
     <build>

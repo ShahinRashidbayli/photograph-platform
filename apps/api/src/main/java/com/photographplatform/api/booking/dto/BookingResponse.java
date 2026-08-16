@@ -17,6 +17,9 @@ public record BookingResponse(
     Integer totalAmountCents,
     Integer depositAmountCents,
     String status,
+    /** Derived from real Invoice/Payment rows — see BookingPaymentStateResolver. Never stored. */
+    String paymentState,
+    Integer amountPaidCents,
     String internalNotes,
     OffsetDateTime createdAt
 ) {}

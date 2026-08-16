@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Lead } from '@/types/api';
 import { useTranslation } from '@/lib/i18n';
+import { DateField } from '@/components/DateField';
 import type { ColorTokens } from './leadTypes';
 
 /**
@@ -280,11 +281,11 @@ export function AddLeadModal({
           <div style={row}>
             <div style={fieldGroup}>
               <label style={label} htmlFor="al-date">{t('addLead.eventDate')}</label>
-              <input
+              <DateField
                 id="al-date"
-                type="date"
                 value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
+                onChange={setEventDate}
+                invalid={!!fieldError.eventDate}
                 style={input(!!fieldError.eventDate)}
               />
               {fieldError.eventDate && (

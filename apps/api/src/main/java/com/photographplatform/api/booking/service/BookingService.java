@@ -5,6 +5,7 @@ import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
+import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
@@ -21,6 +22,7 @@ import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,19 +39,22 @@ public class BookingService {
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final PackageRepository packageRepository;
+    private final BookingPaymentStateResolver paymentStateResolver;
 
     public BookingService(
         BookingRepository bookingRepository,
         ClientRepository clientRepository,
         UserRepository userRepository,
         AuditService auditService,
-        PackageRepository packageRepository
+        PackageRepository packageRepository,
+        BookingPaymentStateResolver paymentStateResolver
     ) {
         this.bookingRepository = bookingRepository;
         this.clientRepository = clientRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
         this.packageRepository = packageRepository;
+        this.paymentStateResolver = paymentStateResolver;
     }
 
     /**
@@ -60,12 +65,13 @@ public class BookingService {
     @Transactional(readOnly = true)
     public List<BookingResponse> listForPhotographer(String status, int page, int size) {
         var pageable = PageRequest.of(page, size, Sort.by("eventDate").ascending());
-        if (status != null && !status.isEmpty()) {
-            return bookingRepository.findByStatus(status, pageable)
-                .stream().map(this::toResponse).toList();
-        }
-        return bookingRepository.findByOrderByEventDateAsc(pageable)
-            .stream().map(this::toResponse).toList();
+        List<Booking> bookings = (status != null && !status.isEmpty())
+            ? bookingRepository.findByStatus(status, pageable).getContent()
+            : bookingRepository.findByOrderByEventDateAsc(pageable).getContent();
+
+        Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
+            bookings.stream().map(Booking::getId).toList());
+        return bookings.stream().map(b -> toResponse(b, paymentStates.get(b.getId()))).toList();
     }
 
     /**
@@ -215,7 +221,10 @@ public class BookingService {
             ? bookingRepository.findByClientEmailIgnoreCaseAndStatus(email, rawStatus, pageable)
             : bookingRepository.findByClientEmailIgnoreCaseOrderByEventDateAsc(email, pageable);
 
-        return result.stream().map(BookingService::toCustomerResponse).toList();
+        List<Booking> bookings = result.getContent();
+        Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
+            bookings.stream().map(Booking::getId).toList());
+        return bookings.stream().map(b -> toCustomerResponse(b, paymentStates.get(b.getId()))).toList();
     }
 
     /**
@@ -332,6 +341,10 @@ public class BookingService {
     }
 
     private BookingResponse toResponse(Booking booking) {
+        return toResponse(booking, paymentStateResolver.resolve(booking.getId()));
+    }
+
+    private BookingResponse toResponse(Booking booking, Summary payment) {
         return new BookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -344,12 +357,14 @@ public class BookingService {
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
             booking.getStatus(),
+            payment.state().name(),
+            payment.paidCents(),
             booking.getInternalNotes(),
             booking.getCreatedAt()
         );
     }
 
-    private static CustomerBookingResponse toCustomerResponse(Booking booking) {
+    private CustomerBookingResponse toCustomerResponse(Booking booking, Summary payment) {
         return new CustomerBookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -362,6 +377,8 @@ public class BookingService {
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
             booking.getStatus(),
+            payment.state().name(),
+            payment.paidCents(),
             booking.getCreatedAt()
         );
     }

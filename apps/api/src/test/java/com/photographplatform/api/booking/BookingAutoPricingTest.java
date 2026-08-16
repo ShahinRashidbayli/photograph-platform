@@ -61,9 +61,15 @@ class BookingAutoPricingTest {
         userRepository = mock(UserRepository.class);
         auditService = mock(AuditService.class);
         packageRepository = mock(PackageRepository.class);
+        com.photographplatform.api.booking.service.BookingPaymentStateResolver paymentStateResolver =
+            mock(com.photographplatform.api.booking.service.BookingPaymentStateResolver.class);
+        when(paymentStateResolver.resolve(any())).thenReturn(
+            new com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary(
+                com.photographplatform.api.booking.domain.BookingPaymentState.NOT_INVOICED, 0, 0));
 
         bookingService = new BookingService(
-            bookingRepository, clientRepository, userRepository, auditService, packageRepository
+            bookingRepository, clientRepository, userRepository, auditService, packageRepository,
+            paymentStateResolver
         );
 
         SecurityContextHolder.getContext().setAuthentication(

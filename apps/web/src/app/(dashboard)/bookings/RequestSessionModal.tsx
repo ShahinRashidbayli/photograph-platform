@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { extractApiError } from '@/lib/helpers';
+import { extractApiError, todayIso } from '@/lib/helpers';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { DateField } from '@/components/DateField';
 import { getBookingsColors } from './bookings.styles';
 
 type RequestSessionModalProps = {
@@ -80,7 +81,14 @@ export function RequestSessionModal({
     const errors: Record<string, string> = {};
     if (!form.eventType) errors.eventType = t('requestSession.errType');
     if (!form.budgetRange) errors.budgetRange = t('requestSession.errBudget');
-    if (!form.proposedDate) errors.proposedDate = t('requestSession.errDate');
+    if (!form.proposedDate) {
+      errors.proposedDate = t('requestSession.errDate');
+    } else if (form.proposedDate < todayIso()) {
+      // The backend already refuses this (@FutureOrPresent on
+      // CreateInquiryRequest.proposedDate); saying so here saves the round-trip
+      // and points at the field instead of showing a form-level error.
+      errors.proposedDate = t('requestSession.errDatePast');
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -215,8 +223,8 @@ export function RequestSessionModal({
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {BUDGET_RANGES.map((b) => {
                     const active = form.budgetRange === b.value;
-                    // Reuse the bookings page's own chip styles so the colors
-                    // match the filter tabs exactly (solid primary when active).
+                    // Shared chip styling, so a selected budget reads exactly
+                    // like any other selected pill in the product.
                     return (
                       <button
                         key={b.value}
@@ -224,8 +232,8 @@ export function RequestSessionModal({
                         onClick={() => update('budgetRange', b.value)}
                         aria-pressed={active}
                         style={{
-                          ...styles.filterTab,
-                          ...(active ? styles.filterTabActive : {}),
+                          ...styles.chip,
+                          ...(active ? styles.chipActive : {}),
                         }}
                       >
                         {b.label}
@@ -243,11 +251,12 @@ export function RequestSessionModal({
                   <label style={styles.formLabel} htmlFor="rq-date">
                     {t('requestSession.preferredDate')}
                   </label>
-                  <input
+                  <DateField
                     id="rq-date"
-                    type="date"
                     value={form.proposedDate}
-                    onChange={(e) => update('proposedDate', e.target.value)}
+                    onChange={(iso) => update('proposedDate', iso)}
+                    min={todayIso()}
+                    invalid={!!fieldErrors.proposedDate}
                     style={inputStyle('proposedDate')}
                   />
                   {fieldErrors.proposedDate && (

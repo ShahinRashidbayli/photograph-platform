@@ -13,6 +13,7 @@ export const common: Record<keyof EnCommon, string> = {
   'auth.emailPlaceholder': 'name@beispiel.de',
 
   'common.close': 'Schließen',
+  'dateField.open': 'Datum wählen',
   'common.cancel': 'Abbrechen',
   'common.soon': 'Bald',
   'common.comingSoon': 'Kommt bald',

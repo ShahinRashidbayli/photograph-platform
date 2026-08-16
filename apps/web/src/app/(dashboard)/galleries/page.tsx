@@ -155,9 +155,9 @@ function GalleryDetail({
   styles: AppStyles;
   colors: AppColors;
   busy: boolean;
-  onPatch: (id: string, body: Record<string, unknown>) => void;
-  onDelete: (id: string) => void;
-  onUpload: (id: string, files: FileList) => void;
+  onPatch: (_id: string, _body: Record<string, unknown>) => void;
+  onDelete: (_id: string) => void;
+  onUpload: (_id: string, _files: FileList) => void;
 }>) {
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -341,7 +341,7 @@ function CreateGalleryModal({
   colors,
   onClose,
   onCreated,
-}: Readonly<{ colors: AppColors; onClose: () => void; onCreated: (g: Gallery) => void }>) {
+}: Readonly<{ colors: AppColors; onClose: () => void; onCreated: (_g: Gallery) => void }>) {
   const [bookings, setBookings] = useState<BookingOption[]>([]);
   const [bookingId, setBookingId] = useState('');
   const [loading, setLoading] = useState(true);

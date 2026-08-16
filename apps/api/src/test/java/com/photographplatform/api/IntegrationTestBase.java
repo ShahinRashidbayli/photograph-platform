@@ -91,8 +91,21 @@ public abstract class IntegrationTestBase {
      * scoped to one tenant could never see, let alone delete, another
      * tenant's data over a single connection. Tables are deleted leaf-to-root
      * to respect FKs without relying on {@code ON DELETE CASCADE} side effects.
+     *
+     * <p>The invoice tables are {@code TRUNCATE}d, not {@code DELETE}d: {@code
+     * trg_invoices_immutable}/{@code trg_invoice_line_items_immutable} (see
+     * V13) reject every {@code DELETE}, GoBD-style, and that block applies to
+     * every role including the superuser — triggers aren't an RLS feature, so
+     * FORCE ROW LEVEL SECURITY doesn't exempt this connection from them.
+     * {@code TRUNCATE} only fires statement-level {@code BEFORE/AFTER
+     * TRUNCATE} triggers, which these tables don't have, so it bypasses the
+     * row-level block entirely. Listing every table in one statement lets
+     * Postgres resolve the self-referential {@code storno_of_id} FK and the
+     * {@code invoice_line_items}/{@code payments -> invoices} FKs without
+     * needing {@code CASCADE} or a specific order.
      */
     private static final String CLEANUP_SQL = """
+        TRUNCATE payments, processed_stripe_events, invoice_line_items, invoices, invoice_counters;
         DELETE FROM delivery_photos;
         DELETE FROM galleries;
         DELETE FROM bookings;

@@ -6,31 +6,38 @@
  */
 export const bookings = {
   // ── Shared domain vocabulary ──────────────────────────────────────────────
+  // Lifecycle status — the shoot's operational pipeline only. Payment
+  // progress is a separate, derived concern (see paymentState.* below).
   'bookingStatus.ENQUIRY': 'New',
-  'bookingStatus.DEPOSIT_PAID': 'Deposit paid',
-  'bookingStatus.CONFIRMED': 'Awaiting deposit',
-  'bookingStatus.FULLY_PAID': 'Paid',
+  'bookingStatus.CONFIRMED': 'Confirmed',
+  'bookingStatus.POSTPONED': 'Postponed',
   'bookingStatus.COMPLETED': 'Completed',
+  'bookingStatus.DECLINED': 'Declined',
   'bookingStatus.CANCELLED': 'Cancelled',
   'bookingStatus.UNKNOWN': 'Unknown',
 
-  // Verbose status labels used in detail panels where space allows.
-  'bookingStatusDetail.DEPOSIT_PAID': 'Deposit paid',
-  // The client's own vocabulary for the same states — a client reading their
-  // booking thinks "Awaiting your deposit", not the photographer's "Deposit".
+  // The client's own vocabulary for the same states.
   'bookingStatusCustomer.ENQUIRY': 'Requested',
-  'bookingStatusCustomer.DEPOSIT_PAID': 'Deposit paid',
-  'bookingStatusCustomer.CONFIRMED': 'Deposit due',
-  'bookingStatusCustomer.FULLY_PAID': 'Paid in full',
+  'bookingStatusCustomer.CONFIRMED': 'Confirmed',
+  'bookingStatusCustomer.POSTPONED': 'Postponed',
   'bookingStatusCustomer.COMPLETED': 'Photos delivered',
+  'bookingStatusCustomer.DECLINED': 'Declined',
   'bookingStatusCustomer.CANCELLED': 'Cancelled',
   // Imperative labels for the buttons that move a booking into a status.
   'statusAction.ENQUIRY': 'Reopen enquiry',
-  'statusAction.CONFIRMED': 'Accept & request deposit',
-  'statusAction.DEPOSIT_PAID': 'Mark deposit paid',
-  'statusAction.FULLY_PAID': 'Mark fully paid',
+  'statusAction.CONFIRMED': 'Confirm booking',
+  'statusAction.POSTPONED': 'Mark postponed',
   'statusAction.COMPLETED': 'Mark completed',
+  'statusAction.DECLINED': 'Decline enquiry',
   'statusAction.CANCELLED': 'Cancel booking',
+
+  // Payment progress — derived server-side from real invoices/payments,
+  // shown alongside (never instead of) the lifecycle status above.
+  'paymentState.NOT_INVOICED': 'Not invoiced',
+  'paymentState.OPEN': 'Awaiting payment',
+  'paymentState.PARTIALLY_PAID': 'Partially paid',
+  'paymentState.PAID': 'Paid',
+  'paymentState.OVERDUE': 'Overdue',
 
   // ── Bookings page ─────────────────────────────────────────────────────────
   'bookings.title': 'Bookings',
@@ -47,8 +54,9 @@ export const bookings = {
   'bookings.errorUpdateStatus': 'Could not update the booking status.',
   'bookings.tryAgain': 'Try again',
 
+  'bookings.filter.aria': 'Filter by status',
   'bookings.filter.all': 'All',
-  'bookings.filter.deposit': 'Deposit',
+  'bookings.filter.awaitingPayment': 'Awaiting payment',
   'bookings.filter.confirmed': 'Confirmed',
   'bookings.filter.pending': 'Pending',
   'bookings.filter.completed': 'Completed',
@@ -60,7 +68,10 @@ export const bookings = {
   'bookings.requestSession': 'Request a session',
 
   'bookings.stat.active': 'Active bookings',
-  'bookings.stat.activeTrend': '{confirmed} confirmed · {progress} in progress',
+  // "{progress}" counts active bookings that are not CONFIRMED (enquiries and
+  // postponed shoots). It used to read "in progress", which named a status the
+  // product does not have — the legend, filters and badges knew nothing about it.
+  'bookings.stat.activeTrend': '{confirmed} confirmed · {progress} not yet confirmed',
   'bookings.stat.revenue': 'Booked revenue',
   'bookings.stat.revenueTrend': '{amount} collected so far',
   'bookings.stat.awaiting': 'Awaiting payment',
@@ -86,26 +97,30 @@ export const bookings = {
   'bookings.empty.selectPhotographer': 'Select a booking to view details, or create a new one.',
   'bookings.empty.selectClient': 'Select a booking to view details.',
 
+  'bookings.backToList': 'All bookings',
+  'bookings.group.thisWeek': 'Next 7 days',
+  'bookings.group.thisMonth': 'This month',
+  'bookings.group.later': 'Later',
+  'bookings.group.past': 'Past',
+  'bookings.toast.statusUpdated': 'Booking updated — {status}',
+  'bookings.toast.undo': 'Undo',
+
   'bookings.sessionFallback': 'Session',
   'bookings.awaitingDeposit': 'Awaiting deposit',
   'bookings.balanceDue': '{amount} balance · due {date}',
 
   'bookings.detail.closed': 'This booking is closed.',
   'bookings.detail.edit': 'Edit',
-  'bookings.detail.clientInfo': 'Client info',
-  'bookings.detail.name': 'Name',
+  'bookings.detail.moreActions': 'More actions',
+  'bookings.detail.details': 'Details',
+  'bookings.detail.date': 'Date',
   'bookings.detail.email': 'Email',
   'bookings.detail.eventType': 'Event type',
   'bookings.detail.location': 'Location',
   'bookings.detail.payment': 'Payment',
   'bookings.detail.total': 'Total',
-  'bookings.detail.status': 'Status',
-  'bookings.detail.depositPaid': 'Deposit paid',
   'bookings.detail.amountPaid': '{amount} paid',
   'bookings.detail.amountRemaining': '{amount} remaining',
-  'bookings.detail.stepDeposit': 'Deposit',
-  'bookings.detail.stepFull': 'Paid in full',
-  'bookings.detail.paymentManualNote': 'Recorded manually for now — this becomes automatic once online payments go live.',
   'bookings.detail.notes': 'Notes',
   'bookings.detail.noNotes': 'No notes added yet.',
 
@@ -170,6 +185,7 @@ export const bookings = {
   'createBooking.errEmail': 'Client email is required.',
   'createBooking.errEmailInvalid': 'Enter a valid email address.',
   'createBooking.errDate': 'Event date is required.',
+  'createBooking.errDatePast': 'A booking cannot be scheduled in the past.',
   'createBooking.errDeposit': 'Deposit cannot exceed the total.',
   'createBooking.errSubmit': 'Could not create the booking. Please try again.',
 
@@ -196,6 +212,7 @@ export const bookings = {
   'requestSession.errType': 'Please choose a session type.',
   'requestSession.errBudget': 'Please choose a budget range.',
   'requestSession.errDate': 'Please pick a preferred date.',
+  'requestSession.errDatePast': 'Please pick a date that is not in the past.',
   'requestSession.errSubmit': 'Could not send your request. Please try again.',
   'requestSession.type.HOCHZEIT': 'Wedding',
   'requestSession.type.PORTRAIT': 'Portrait',
@@ -209,6 +226,9 @@ export const bookings = {
   'calendar.month': 'Month',
   'calendar.week': 'Week',
   'calendar.day': 'Day',
+  'calendar.legend': 'Colour key',
+  'calendar.openDetails': 'Open details',
+  'calendar.moreEvents': '+{count} more',
 } as const;
 
 export type EnBookings = typeof bookings;

@@ -46,6 +46,33 @@ export const fontSize = {
 } as const;
 
 /**
+ * Spacing scale — a 4px base ramp. Every gap, padding and margin should land
+ * on a step: ad-hoc values (5px here, 7px there, 18px somewhere else) are what
+ * make an interface read as "slightly off" without the eye being able to name
+ * why. Use `space.x` rather than a raw number for anything structural.
+ */
+export const space = {
+  xxs: '2px',
+  xs: '4px',
+  sm: '8px',
+  md: '12px',
+  lg: '16px',
+  xl: '20px',
+  xxl: '24px',
+  xxxl: '32px',
+} as const;
+
+/**
+ * Line heights, paired with the type ramp: `tight` for headings and numbers,
+ * `snug` for compact meta rows, `normal` for prose that has to be read.
+ */
+export const leading = {
+  tight: 1.15,
+  snug: 1.35,
+  normal: 1.55,
+} as const;
+
+/**
  * Border-radius scale — interactive controls vs. surfaces vs. pills.
  *   control — buttons, inputs, small interactive chrome
  *   card    — cards, panels, modals

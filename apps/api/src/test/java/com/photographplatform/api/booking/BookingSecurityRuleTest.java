@@ -81,7 +81,8 @@ class BookingSecurityRuleTest {
         mvc.perform(post("/api/bookings")
                 .header("Authorization", "Bearer " + customerToken())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"clientName\":\"A\",\"clientEmail\":\"a@b.com\",\"eventDate\":\"2026-09-01\"}")
+                .content("{\"clientName\":\"A\",\"clientEmail\":\"a@b.com\",\"eventDate\":\"%s\"}"
+                    .formatted(java.time.LocalDate.now().plusDays(30)))
                 .with(xsrf()))
             .andExpect(status().isForbidden());
     }
@@ -118,5 +119,26 @@ class BookingSecurityRuleTest {
     void unauthenticatedIsDeniedFromPhotographerBookings() throws Exception {
         mvc.perform(get("/api/photographerBookings"))
             .andExpect(status().is4xxClientError());
+    }
+
+    /**
+     * A booking is scheduled work, so it cannot be created in the past —
+     * {@code @FutureOrPresent} on {@code CreateBookingRequest.eventDate}. Note
+     * this covers creation only: {@code UpdateBookingRequest} deliberately
+     * carries no such rule, because a shoot that already happened still needs
+     * to be priced and annotated afterwards.
+     */
+    @Test
+    void pastEventDateIsRejectedOnCreate() throws Exception {
+        String pastBody = """
+            {"clientName":"A","clientEmail":"a@b.com","eventDate":"%s"}
+            """.formatted(java.time.LocalDate.now().minusDays(1));
+
+        mvc.perform(post("/api/bookings")
+                .header("Authorization", "Bearer " + photographerToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(pastBody)
+                .with(xsrf()))
+            .andExpect(status().isUnprocessableEntity());
     }
 }

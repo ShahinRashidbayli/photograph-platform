@@ -6,7 +6,7 @@ import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Booking, Lead } from '@/types/api';
-import { getBookingStatusMeta, toneToVisual } from '@/lib/booking-status';
+import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
@@ -69,14 +69,17 @@ export default function DashboardPage() {
     now.setHours(0, 0, 0, 0);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonthBookings = bookings.filter(b => new Date(b.eventDate) >= monthStart);
-    const notCancelled = bookings.filter(b => b.status !== 'CANCELLED');
-    const revenue = notCancelled.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
-    const collected = notCancelled.reduce((sum, b) => sum + (b.depositAmountCents || 0), 0);
+    const billable = bookings.filter(b => isBillableStatus(b.status));
+    const revenue = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    // Collected must reflect what's actually been paid (derived server-side from
+    // real invoice/payment rows), not the quoted deposit — otherwise an accepted
+    // but unpaid booking shows its deposit as already banked.
+    const collected = billable.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
     const activeClients = new Set(
-      bookings.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED').map(b => b.clientEmail),
+      billable.filter(b => b.status !== 'COMPLETED').map(b => b.clientEmail),
     ).size;
-    const upcoming = bookings.filter(
-      b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && new Date(b.eventDate) >= now,
+    const upcoming = billable.filter(
+      b => b.status !== 'COMPLETED' && new Date(b.eventDate) >= now,
     ).length;
     const newLeads = leads.filter(l => l.status === 'NEW').length;
     return {
@@ -95,7 +98,7 @@ export default function DashboardPage() {
     now.setHours(0, 0, 0, 0);
     return bookings
       .filter((b) => {
-        if (b.status === 'CANCELLED' || b.status === 'COMPLETED') return false;
+        if (!isBillableStatus(b.status) || b.status === 'COMPLETED') return false;
         return new Date(b.eventDate) >= now;
       })
       .sort(

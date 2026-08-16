@@ -79,3 +79,11 @@ app:
     secret-key: ${R2_SECRET_KEY:placeholder}
     bucket: ${R2_BUCKET:fotograf-media-dev}
     presigned-expiry-minutes: ${R2_PRESIGNED_EXPIRY_MINUTES:60}
+  stripe:
+    # Blank (not a placeholder like r2.endpoint above) is deliberate here:
+    # StripeConfig's @ConditionalOnProperty requires a non-empty value, so the
+    # card/SEPA path stays cleanly absent (Optional.empty()) rather than
+    # constructing a StripeClient with a key that would 401 on first real call.
+    # Überweisung (manual bank transfer) needs no Stripe key at all.
+    secret-key: ${STRIPE_SECRET_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}

@@ -30,10 +30,10 @@ const themeColors = {
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   CONFIRMED: { bg: '#D1FAE5', text: '#065F46' },
-  DEPOSIT_PAID: { bg: '#FEF3C7', text: '#92400E' },
-  FULLY_PAID: { bg: '#DBEAFE', text: '#0284C7' },
+  POSTPONED: { bg: '#FEF3C7', text: '#92400E' },
   ENQUIRY: { bg: '#F3E8FF', text: '#7C3AED' },
   COMPLETED: { bg: '#E0E7FF', text: '#4338CA' },
+  DECLINED: { bg: '#FECACA', text: '#DC2626' },
   CANCELLED: { bg: '#FECACA', text: '#DC2626' },
 };
 
@@ -131,7 +131,7 @@ function BookingCard({ booking, colors }: any) {
           fontSize: '11px',
           fontWeight: 700,
         }}>
-          {booking.status === 'CONFIRMED' ? '✓ Confirmed' : booking.status === 'FULLY_PAID' ? '✓ Paid' : '⏳ Pending'}
+          {booking.paymentState === 'PAID' ? '✓ Paid' : booking.status === 'CONFIRMED' ? '✓ Confirmed' : '⏳ Pending'}
         </div>
       </div>
 
@@ -141,7 +141,7 @@ function BookingCard({ booking, colors }: any) {
           €{totalAmount.toLocaleString()}
         </div>
         <div style={{ fontSize: '11px', color: colors.subText, marginTop: '2px' }}>
-          {booking.status === 'FULLY_PAID' || booking.status === 'COMPLETED' ? 'Paid' : 'Pending'}
+          {booking.paymentState === 'PAID' ? 'Paid' : 'Pending'}
         </div>
       </div>
     </div>

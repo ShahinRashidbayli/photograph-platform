@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -93,6 +94,22 @@ public class SecurityConfig {
                     // same gate.
                     "/api/inquiries/**"
                 ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
+                // Recording a manual (bank-transfer) payment is the photographer
+                // taking their own word for money having arrived — never a
+                // customer action. Declared before the broader payments matcher
+                // below so this narrower, stricter rule wins.
+                .requestMatchers(HttpMethod.POST, "/api/invoices/*/payments/manual")
+                    .hasAnyRole("PHOTOGRAPHER", "ADMIN")
+                // A customer completes their own invoice's payment with Stripe.js
+                // (PaymentController#createIntent) and reads its paid/outstanding
+                // summary (PaymentController#summary) — both must be reachable by
+                // CUSTOMER, unlike the rest of the invoice surface below.
+                // PaymentService scopes each lookup to the caller's own booking
+                // for CUSTOMER callers (see SecurityUtils#currentUserHasRole).
+                .requestMatchers("/api/invoices/*/payments/**").hasAnyRole("PHOTOGRAPHER", "ADMIN", "CUSTOMER")
+                // Invoices carry the buyer's name/email and the tenant's own tax
+                // details — same financial-PII exposure as the client directory.
+                .requestMatchers("/api/invoices/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
                 // The customer's own surface. Gated to CUSTOMER rather than left
                 // to anyRequest() so the role boundary is symmetric: a
                 // photographer has no business filing an inquiry against their

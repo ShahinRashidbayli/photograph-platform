@@ -2,11 +2,15 @@ import type { AppColors } from '@/lib/design-tokens';
 import type { TranslationKey } from '@/lib/i18n';
 
 /**
- * Single source of truth for booking status presentation.
- *
- * Each status maps to:
- *   labelKey — dictionary key for the text shown in badges/lists
- *   tone     — semantic colour bucket from design-tokens (success/warning/etc.)
+ * Single source of truth for booking *lifecycle* presentation — the shoot's
+ * operational pipeline only. Payment progress is a separate, derived concern
+ * (see {@link BOOKING_PAYMENT_STATE} below): it's computed server-side from
+ * real invoice/payment rows and returned as `booking.paymentState` /
+ * `booking.amountPaidCents`, never guessed from the lifecycle status. The two
+ * used to be conflated (DEPOSIT_PAID/FULLY_PAID as lifecycle states) — that
+ * meant a booking's stage and its payment progress could never be inspected
+ * independently, and "confirmed but unpaid past due" or a postponed shoot
+ * had no representation at all.
  *
  * Labels live in the i18n dictionaries rather than here so every surface that
  * renders a status follows the active language; this module stays the single
@@ -18,11 +22,19 @@ import type { TranslationKey } from '@/lib/i18n';
 
 export type BookingStatusKey =
   | 'ENQUIRY'
-  | 'DEPOSIT_PAID'
   | 'CONFIRMED'
-  | 'FULLY_PAID'
+  | 'POSTPONED'
   | 'COMPLETED'
+  | 'DECLINED'
   | 'CANCELLED';
+
+/** Mirrors the backend `BookingPaymentState` enum — always derived, never set directly. */
+export type BookingPaymentStateKey =
+  | 'NOT_INVOICED'
+  | 'OPEN'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'OVERDUE';
 
 export type StatusTone = 'neutral' | 'warning' | 'success' | 'info' | 'danger';
 
@@ -33,9 +45,9 @@ export interface BookingStatusMeta {
   detailLabelKey?: TranslationKey;
   /**
    * Client-facing label. The `labelKey`/`detailLabelKey` above are the
-   * photographer's pipeline vocabulary ("New", "Deposit pending"); a client
-   * reading their own booking thinks in different terms ("Requested",
-   * "Awaiting your deposit"). Falls back to `labelKey` when unset.
+   * photographer's pipeline vocabulary; a client reading their own booking
+   * thinks in different terms ("Requested" vs. "New"). Falls back to
+   * `labelKey` when unset.
    */
   customerLabelKey?: TranslationKey;
   tone: StatusTone;
@@ -43,46 +55,28 @@ export interface BookingStatusMeta {
 
 export const BOOKING_STATUS: Record<BookingStatusKey, BookingStatusMeta> = {
   ENQUIRY: { labelKey: 'bookingStatus.ENQUIRY', customerLabelKey: 'bookingStatusCustomer.ENQUIRY', tone: 'neutral' },
-  DEPOSIT_PAID: { labelKey: 'bookingStatus.DEPOSIT_PAID', detailLabelKey: 'bookingStatusDetail.DEPOSIT_PAID', customerLabelKey: 'bookingStatusCustomer.DEPOSIT_PAID', tone: 'warning' },
   CONFIRMED: { labelKey: 'bookingStatus.CONFIRMED', customerLabelKey: 'bookingStatusCustomer.CONFIRMED', tone: 'success' },
-  FULLY_PAID: { labelKey: 'bookingStatus.FULLY_PAID', customerLabelKey: 'bookingStatusCustomer.FULLY_PAID', tone: 'success' },
+  POSTPONED: { labelKey: 'bookingStatus.POSTPONED', customerLabelKey: 'bookingStatusCustomer.POSTPONED', tone: 'warning' },
   COMPLETED: { labelKey: 'bookingStatus.COMPLETED', customerLabelKey: 'bookingStatusCustomer.COMPLETED', tone: 'info' },
+  DECLINED: { labelKey: 'bookingStatus.DECLINED', customerLabelKey: 'bookingStatusCustomer.DECLINED', tone: 'danger' },
   CANCELLED: { labelKey: 'bookingStatus.CANCELLED', customerLabelKey: 'bookingStatusCustomer.CANCELLED', tone: 'danger' },
 };
 
-/**
- * How much money has actually been collected on a booking.
- *
- * A booking has no "amount paid" column: `totalAmountCents` and
- * `depositAmountCents` are the *quoted* figures (what's owed and what the
- * deposit portion is), not what has been received. The only real record of
- * payment is the lifecycle status, so the collected amount is derived from it:
- *
- *   FULLY_PAID / COMPLETED → the full total
- *   DEPOSIT_PAID           → the deposit
- *   everything else        → nothing (ENQUIRY & CONFIRMED are pre-payment;
- *                            CANCELLED has nothing collected)
- *
- * Using this everywhere is what stops a configured deposit amount from being
- * shown as "paid"/"received" before the client has actually paid.
- */
-export const amountPaidCents = (booking: {
-  status: string;
-  totalAmountCents: number;
-  depositAmountCents?: number | null;
-}): number => {
-  const total = booking.totalAmountCents || 0;
-  const deposit = booking.depositAmountCents || 0;
-  switch (booking.status) {
-    case 'FULLY_PAID':
-    case 'COMPLETED':
-      return total;
-    case 'DEPOSIT_PAID':
-      return deposit;
-    default:
-      return 0;
-  }
+export interface PaymentStateMeta {
+  labelKey: TranslationKey;
+  tone: StatusTone;
+}
+
+export const BOOKING_PAYMENT_STATE: Record<BookingPaymentStateKey, PaymentStateMeta> = {
+  NOT_INVOICED: { labelKey: 'paymentState.NOT_INVOICED', tone: 'neutral' },
+  OPEN: { labelKey: 'paymentState.OPEN', tone: 'warning' },
+  PARTIALLY_PAID: { labelKey: 'paymentState.PARTIALLY_PAID', tone: 'warning' },
+  PAID: { labelKey: 'paymentState.PAID', tone: 'success' },
+  OVERDUE: { labelKey: 'paymentState.OVERDUE', tone: 'danger' },
 };
+
+export const getPaymentStateMeta = (state: string | null | undefined): PaymentStateMeta =>
+  BOOKING_PAYMENT_STATE[state as BookingPaymentStateKey] ?? BOOKING_PAYMENT_STATE.NOT_INVOICED;
 
 const FALLBACK: BookingStatusMeta = { labelKey: 'bookingStatus.UNKNOWN', tone: 'neutral' };
 
@@ -102,11 +96,11 @@ export const getCustomerBookingStatusLabelKey = (status: string): TranslationKey
  * buttons the UI offers, so it must be kept in sync with that enum.
  */
 export const BOOKING_TRANSITIONS: Record<BookingStatusKey, BookingStatusKey[]> = {
-  ENQUIRY: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['DEPOSIT_PAID', 'FULLY_PAID', 'CANCELLED'],
-  DEPOSIT_PAID: ['FULLY_PAID', 'CANCELLED'],
-  FULLY_PAID: ['COMPLETED', 'CANCELLED'],
-  COMPLETED: [],
+  ENQUIRY: ['CONFIRMED', 'DECLINED', 'CANCELLED'],
+  CONFIRMED: ['COMPLETED', 'POSTPONED', 'CANCELLED'],
+  POSTPONED: ['CONFIRMED', 'CANCELLED'],
+  COMPLETED: ['CANCELLED'],
+  DECLINED: [],
   CANCELLED: [],
 };
 
@@ -114,14 +108,25 @@ export const BOOKING_TRANSITIONS: Record<BookingStatusKey, BookingStatusKey[]> =
 export const STATUS_ACTION_LABEL_KEY: Record<BookingStatusKey, TranslationKey> = {
   ENQUIRY: 'statusAction.ENQUIRY',
   CONFIRMED: 'statusAction.CONFIRMED',
-  DEPOSIT_PAID: 'statusAction.DEPOSIT_PAID',
-  FULLY_PAID: 'statusAction.FULLY_PAID',
+  POSTPONED: 'statusAction.POSTPONED',
   COMPLETED: 'statusAction.COMPLETED',
+  DECLINED: 'statusAction.DECLINED',
   CANCELLED: 'statusAction.CANCELLED',
 };
 
 export const getAllowedTransitions = (status: string): BookingStatusKey[] =>
   BOOKING_TRANSITIONS[status as BookingStatusKey] ?? [];
+
+/**
+ * Terminal statuses that never carry a real payment obligation: a cancelled
+ * booking and a declined enquiry both owe nothing, so they must be excluded
+ * from any "billable"/"active" filter — payment schedules, outstanding
+ * balances, revenue/collected stats, and "next session" selection.
+ */
+const NON_BILLABLE_STATUSES: readonly BookingStatusKey[] = ['CANCELLED', 'DECLINED'];
+
+export const isBillableStatus = (status: string): boolean =>
+  !NON_BILLABLE_STATUSES.includes(status as BookingStatusKey);
 
 /** Resolve a tone to its 3 visual slots ({ bg, text, dot }) from the active palette. */
 export const toneToVisual = (tone: StatusTone, c: AppColors) => {

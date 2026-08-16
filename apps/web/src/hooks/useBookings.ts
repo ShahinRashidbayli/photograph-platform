@@ -8,6 +8,12 @@ import type { Booking } from '@/types/api';
 const PAGE_SIZE = 100;
 const MAX_PAGES = 25;
 
+// NOTE: every field here must match the API's real shape. `eventTime` is a
+// LocalTime ("15:00"), never a range — a range string made the calendar's
+// `${eventDate}T${eventTime}` unparseable, and FullCalendar drops events it
+// cannot parse *silently*, so the calendar rendered empty while the stat
+// strip counted the same bookings.
+//
 // Demo data is a *local preview* aid only. In production an empty list must
 // render the real empty state and a failed request the real error — never fake
 // bookings, which would hide outages and mislead the user.
@@ -25,12 +31,14 @@ const DUMMY_BOOKINGS: Booking[] = [
     clientName: 'Sophie & Luca Bauer',
     clientEmail: 'sophie.bauer@example.com',
     eventDate: daysFromNow(11),
-    eventTime: '15:00–17:00',
+    eventTime: '15:00',
     eventType: 'Family shoot',
     location: 'Nordpark, Düsseldorf',
     totalAmountCents: 115000,
     depositAmountCents: 45000,
     status: 'CONFIRMED',
+    paymentState: 'PARTIALLY_PAID',
+    amountPaidCents: 45000,
     createdAt: daysFromNow(-16),
   },
   {
@@ -38,12 +46,14 @@ const DUMMY_BOOKINGS: Booking[] = [
     clientName: 'Mia & Jonas Weber',
     clientEmail: 'mia.weber@example.com',
     eventDate: daysFromNow(28),
-    eventTime: '11:00–13:00',
+    eventTime: '11:00',
     eventType: 'Couple shoot',
     location: 'Cologne Old Town',
     totalAmountCents: 85000,
     depositAmountCents: 0,
     status: 'ENQUIRY',
+    paymentState: 'NOT_INVOICED',
+    amountPaidCents: 0,
     createdAt: daysFromNow(-2),
   },
   {
@@ -51,12 +61,14 @@ const DUMMY_BOOKINGS: Booking[] = [
     clientName: 'Thomas Müller',
     clientEmail: 'thomas.mueller@example.com',
     eventDate: daysFromNow(-31),
-    eventTime: '10:00–12:00',
+    eventTime: '10:00',
     eventType: 'Birthday shoot',
     location: 'Studio Berlin',
     totalAmountCents: 65000,
     depositAmountCents: 65000,
     status: 'COMPLETED',
+    paymentState: 'PAID',
+    amountPaidCents: 65000,
     internalNotes: '48 photos delivered via gallery link.',
     createdAt: daysFromNow(-62),
   },
@@ -65,12 +77,14 @@ const DUMMY_BOOKINGS: Booking[] = [
     clientName: 'Anna Schneider',
     clientEmail: 'anna.schneider@example.com',
     eventDate: daysFromNow(45),
-    eventTime: '14:00–16:00',
+    eventTime: '14:00',
     eventType: 'Portrait',
     location: 'Hamburg Harbour',
     totalAmountCents: 49000,
     depositAmountCents: 15000,
-    status: 'DEPOSIT_PAID',
+    status: 'CONFIRMED',
+    paymentState: 'PARTIALLY_PAID',
+    amountPaidCents: 15000,
     createdAt: daysFromNow(-7),
   },
 ];

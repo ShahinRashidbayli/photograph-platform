@@ -212,7 +212,7 @@ class LeadConversionServiceTest {
             "anna@example.de",
             LocalDate.now().plusDays(90),
             null, "WEDDING", null, null, 0, 0,
-            "ENQUIRY", null,
+            "ENQUIRY", "NOT_INVOICED", 0, null,
             OffsetDateTime.now()
         );
     }

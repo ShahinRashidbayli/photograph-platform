@@ -4,7 +4,6 @@ import api from '@/lib/api';
 import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
-import { ComingSoon } from '@/components/ComingSoon';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageToggle } from '@/components/LanguageToggle';
@@ -17,7 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 // daily-work pages first, content-management in the middle, analytics
 // (revenue, reports) at the bottom. Each group renders with an uppercase
 // section header for grouping signal without using horizontal dividers.
-type NavLeaf = { labelKey: TranslationKey; href: string; icon: React.ReactNode; badgeKey?: 'unrepliedLeads'; soon?: boolean };
+type NavLeaf = { labelKey: TranslationKey; href: string; icon: React.ReactNode; badgeKey?: 'unrepliedLeads' };
 type NavGroup = { titleKey?: TranslationKey; items: NavLeaf[] };
 
 const PHOTOGRAPHER_NAV: NavGroup[] = [
@@ -52,21 +51,10 @@ const PHOTOGRAPHER_NAV: NavGroup[] = [
       )},
     ],
   },
-  {
-    titleKey: 'nav.section.analytics',
-    items: [
-      // Reports + Revenue are stubbed pages today — they render a "coming
-      // soon" placeholder. The sidebar entries exist now to validate the
-      // information architecture; the real implementations land in later
-      // sprints (revenue analytics is Sprint 2.5 in the master plan).
-      { labelKey: 'nav.reports', href: '/reports', soon: true, icon: (
-        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4 10V7M7 10V5M10 10V8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-      )},
-      { labelKey: 'nav.revenue', href: '/revenue', soon: true, icon: (
-        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M10.5 4c0-1.1-1.57-2-3.5-2s-3.5.9-3.5 2 1.57 2 3.5 2 3.5.9 3.5 2-1.57 2-3.5 2-3.5-.9-3.5-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      )},
-    ],
-  },
+  // Analytics (Reports + Revenue) is deliberately absent: both are stubbed
+  // pages that render a "coming soon" placeholder, and a menu of entries that
+  // lead nowhere reads as an unfinished product. The routes still exist — they
+  // return to the sidebar as one entry each once they render real data.
 ];
 
 // Payments is linked and reads REAL data — it derives every amount from the
@@ -125,7 +113,6 @@ function SidebarLink({ item, active, theme, colors, badgeCount }: {
     >
       <span style={{ opacity: active ? 1 : 0.65, display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? colors.primary : colors.subText, transition: 'color 0.3s ease' }}>{item.icon}</span>
       <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
-      {item.soon && <ComingSoon size="sm" />}
       {showBadge && (
         <span
           aria-label={t('nav.aria.badgeUnread', { count: badgeCount })}

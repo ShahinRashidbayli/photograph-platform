@@ -46,6 +46,21 @@ export function eurosToCents(value: string): number {
   return Math.round(n * 100);
 }
 
+/**
+ * Today as `YYYY-MM-DD` in the **local** timezone — the format `<input
+ * type="date">` speaks, so it can be compared to a field value directly.
+ *
+ * Not `new Date().toISOString().slice(0, 10)`: that converts to UTC first, so
+ * anywhere east of Greenwich the early hours of the morning report yesterday,
+ * and "no bookings in the past" would reject today's date until 04:00.
+ */
+export function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function insertSortedByDate<T extends { eventDate: string }>(
   list: T[],
   item: T,

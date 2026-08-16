@@ -9,12 +9,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
-    List<AuditLog> findByTenantIdOrderByCreatedAtDesc(UUID tenantId);
-
-    List<AuditLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(
-        String entityType, UUID entityId
-    );
-
     /**
      * Tenant-scoped variant for surfacing an entity's activity to its owner.
      * {@code audit_log} has no RLS policy (unlike the tables in

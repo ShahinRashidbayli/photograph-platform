@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * One billed line on an {@link Invoice}. Immutable at the database layer
@@ -14,7 +15,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "invoice_line_items")
-public class InvoiceLineItem {
+public class InvoiceLineItem implements Persistable<UUID> {
 
     @Id
     private UUID id;
@@ -46,7 +47,17 @@ public class InvoiceLineItem {
     @Column(name = "sort_order", nullable = false, updatable = false)
     private Integer sortOrder;
 
+    /**
+     * See {@link Invoice#isNew} — same self-assigned-id / {@code merge()}
+     * problem, and it matters more here: an invoice's line items are saved
+     * with {@code saveAll()}, so the wasted SELECT was one per line, per
+     * invoice issued.
+     */
+    @jakarta.persistence.Transient
+    private boolean isNew = true;
+
     protected InvoiceLineItem() {
+        this.isNew = false;
     }
 
     public InvoiceLineItem(
@@ -72,8 +83,20 @@ public class InvoiceLineItem {
         this.sortOrder = sortOrder;
     }
 
+    @Override
     public UUID getId() {
         return id;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @jakarta.persistence.PostPersist
+    @jakarta.persistence.PostLoad
+    void markNotNew() {
+        this.isNew = false;
     }
 
     public UUID getTenantId() {

@@ -3,6 +3,7 @@ package com.photographplatform.api.common.config;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Locale;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
@@ -81,7 +82,7 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
             return cached;
         }
         String product = connection.getMetaData().getDatabaseProductName();
-        boolean detected = product != null && product.toLowerCase().contains("postgres");
+        boolean detected = product != null && product.toLowerCase(Locale.ROOT).contains("postgres");
         isPostgres = detected;
         return detected;
     }

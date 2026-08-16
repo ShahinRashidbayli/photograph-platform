@@ -1,18 +1,16 @@
 package com.photographplatform.api.lead;
 
 import com.photographplatform.api.audit.service.AuditService;
-import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.lead.domain.Lead;
+import com.photographplatform.api.lead.domain.LeadStatus;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.lead.repository.LeadRepository;
-import com.photographplatform.api.lead.service.LeadCsvExporter;
-import com.photographplatform.api.lead.service.LeadScoringService;
-import com.photographplatform.api.lead.service.LeadService;
+import com.photographplatform.api.lead.service.LeadConversionService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -21,7 +19,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -59,30 +56,22 @@ class LeadConversionServiceTest {
 
     private LeadRepository leadRepository;
     private BookingService bookingService;
-    private UserRepository userRepository;
     private AuditService auditService;
-    private LeadService leadService;
+    private LeadConversionService conversionService;
 
     @BeforeEach
     void setUp() {
         leadRepository = mock(LeadRepository.class);
         bookingService = mock(BookingService.class);
-        userRepository = mock(UserRepository.class);
         auditService = mock(AuditService.class);
-        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-        // AuditLogRepository was added in Phase 2 for the lead-activity
-        // endpoint. The conversion path doesn't read from it, but the
-        // constructor requires it — passing a no-op mock keeps these tests
-        // focused on conversion behaviour without coupling them to activity.
-        com.photographplatform.api.audit.repository.AuditLogRepository auditLogRepository =
-            mock(com.photographplatform.api.audit.repository.AuditLogRepository.class);
 
-        // LeadScoringService and LeadCsvExporter are pure, dependency-free
-        // logic — use real instances rather than mocks so scoring on the
-        // converted lead behaves exactly as in production.
-        leadService = new LeadService(leadRepository, eventPublisher, auditService,
-            bookingService, userRepository, auditLogRepository,
-            new LeadScoringService(), new LeadCsvExporter());
+        // Conversion now has exactly the three collaborators it actually uses.
+        // Previously this test had to hand LeadService five more — an event
+        // publisher, a user repository, an audit-log repository, a scorer and
+        // a CSV exporter — none of which the conversion path touches; that
+        // list of no-op mocks was the clearest signal the class was doing too
+        // much.
+        conversionService = new LeadConversionService(leadRepository, bookingService, auditService);
 
         // Authenticate as the photographer for currentUserId() — the audit row
         // must record *who* converted the lead.
@@ -102,7 +91,7 @@ class LeadConversionServiceTest {
 
     @Test
     void convertingNewLeadCreatesBookingFlipsStatusAndAudits() {
-        Lead lead = newLead("NEW");
+        Lead lead = newLead(LeadStatus.NEW);
         when(leadRepository.findById(lead.getId())).thenReturn(Optional.of(lead));
 
         BookingResponse stubBooking = stubBookingResponse();
@@ -111,10 +100,10 @@ class LeadConversionServiceTest {
 
         ConvertLeadRequest request = new ConvertLeadRequest(null, "Berlin", null, 80000, 20000, null);
 
-        BookingResponse result = leadService.convertLead(lead.getId(), request, IP);
+        BookingResponse result = conversionService.convertLead(lead.getId(), request, IP);
 
         assertThat(result).isSameAs(stubBooking);
-        assertThat(lead.getStatus()).isEqualTo("BOOKED");
+        assertThat(lead.getStatus()).isEqualTo(LeadStatus.BOOKED);
         verify(leadRepository).save(lead);
 
         // The conversion audit row must carry the prior status so a future
@@ -137,7 +126,7 @@ class LeadConversionServiceTest {
         when(leadRepository.findById(missing)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-            leadService.convertLead(missing, emptyOverrides(), IP)
+            conversionService.convertLead(missing, emptyOverrides(), IP)
         ).isInstanceOf(NotFoundException.class);
 
         // Crucially: no booking is created and no audit row is written.
@@ -148,11 +137,11 @@ class LeadConversionServiceTest {
 
     @Test
     void convertingAlreadyBookedLeadThrowsConflict() {
-        Lead lead = newLead("BOOKED");
+        Lead lead = newLead(LeadStatus.BOOKED);
         when(leadRepository.findById(lead.getId())).thenReturn(Optional.of(lead));
 
         assertThatThrownBy(() ->
-            leadService.convertLead(lead.getId(), emptyOverrides(), IP)
+            conversionService.convertLead(lead.getId(), emptyOverrides(), IP)
         ).isInstanceOf(ConflictException.class);
 
         // Idempotency contract: a second convert must not produce a duplicate
@@ -164,23 +153,23 @@ class LeadConversionServiceTest {
 
     @Test
     void bookingCreationFailureLeavesLeadStatusUnchanged() {
-        Lead lead = newLead("REPLIED");
+        Lead lead = newLead(LeadStatus.REPLIED);
         when(leadRepository.findById(lead.getId())).thenReturn(Optional.of(lead));
         when(bookingService.createFromLead(any(), any(), anyString()))
             .thenThrow(new RuntimeException("DB down"));
 
         assertThatThrownBy(() ->
-            leadService.convertLead(lead.getId(), emptyOverrides(), IP)
+            conversionService.convertLead(lead.getId(), emptyOverrides(), IP)
         ).isInstanceOf(RuntimeException.class);
 
         // The lead must not advertise "BOOKED" without a matching booking row.
         // @Transactional rollback handles persistence, but the in-memory entity
         // mutation must also not have happened before the failing call.
-        assertThat(lead.getStatus()).isEqualTo("REPLIED");
+        assertThat(lead.getStatus()).isEqualTo(LeadStatus.REPLIED);
         verify(leadRepository, never()).save(any());
     }
 
-    private static Lead newLead(String status) {
+    private static Lead newLead(LeadStatus status) {
         Lead lead = new Lead("Anna Schmidt", "anna@example.de", "+491701234567",
             LocalDate.now().plusDays(90), "WEDDING", "500_1000", "Need details", "1.2.3.4");
         lead.setStatus(status);

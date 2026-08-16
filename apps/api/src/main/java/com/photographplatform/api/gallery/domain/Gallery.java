@@ -118,7 +118,4 @@ public class Gallery {
         this.watermarkEnabled = watermarkEnabled;
     }
 
-    public void incrementViewCount() {
-        this.viewCount = (this.viewCount == null ? 0 : this.viewCount) + 1;
-    }
 }

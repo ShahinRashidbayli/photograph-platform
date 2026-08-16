@@ -175,9 +175,10 @@ public class GalleryService {
             throw new NotFoundException("Gallery not found");
         }
 
-        gallery.incrementViewCount();
-        galleryRepository.save(gallery);
+        galleryRepository.incrementViewCount(gallery.getId());
 
+        // Read after the increment so the count the visitor sees includes
+        // their own view, matching the previous behaviour.
         GalleryStatsView stats = requireStats(gallery.getId());
         List<DeliveryPhotoResponse> photos =
             deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId())

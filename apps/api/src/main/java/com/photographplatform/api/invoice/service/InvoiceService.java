@@ -19,12 +19,16 @@ import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -100,16 +104,14 @@ public class InvoiceService {
             .toList();
         InvoiceTaxCalculator.Totals totals = InvoiceTaxCalculator.calculate(inputs, tenant.getTaxMode());
 
-        int issueYear = OffsetDateTime.now(ZoneOffset.UTC).getYear();
-        int sequenceNumber = numberAllocator.nextSequenceNumber(tenantId, issueYear);
-        String invoiceNumber = issueYear + "-" + String.format(Locale.ROOT, "%04d", sequenceNumber);
+        Numbering numbering = allocateNumber(tenantId);
 
         Invoice invoice = new Invoice(
             tenantId,
             bookingId,
-            invoiceNumber,
-            issueYear,
-            sequenceNumber,
+            numbering.invoiceNumber(),
+            numbering.issueYear(),
+            numbering.sequenceNumber(),
             tenant.getTaxMode(),
             new Invoice.Issuer(
                 tenant.getBusinessName(), tenant.getAddressLine1(), tenant.getAddressLine2(),
@@ -130,11 +132,7 @@ public class InvoiceService {
 
         List<InvoiceLineItem> lineItems = buildLineItems(tenantId, invoice.getId(), totals);
 
-        String html = InvoicePdfTemplate.render(invoice, lineItems, null);
-        InvoicePdfRenderer.Rendered rendered = pdfRenderer.render(html);
-        String r2Key = pdfKey(tenantId, invoiceNumber);
-        requireStorage().uploadBytes(r2Key, "application/pdf", rendered.bytes());
-        invoice.attachPdf(r2Key, rendered.sha256Hex());
+        renderAndAttachPdf(tenantId, invoice, lineItems, null);
 
         invoiceRepository.save(invoice);
         lineItemRepository.saveAll(lineItems);
@@ -161,19 +159,28 @@ public class InvoiceService {
         if (original.getStatus() == InvoiceStatus.STORNIERT) {
             throw new ConflictException("Invoice " + original.getInvoiceNumber() + " is already storniert");
         }
+        // A Storno is itself an invoice with ISSUED status, so without this
+        // guard it could be storniert in turn — producing a third document
+        // whose line items are negated twice, i.e. a positive-amount "credit
+        // note" that silently re-bills the client and breaks the net-to-zero
+        // invariant BookingPaymentStateResolver depends on. Correcting a
+        // correction means issuing a fresh invoice, not stornoing the Storno.
+        if (original.getStornoOfId() != null) {
+            throw new ConflictException(
+                "Invoice " + original.getInvoiceNumber() + " is itself a Storno and cannot be storniert — "
+                    + "issue a new invoice instead");
+        }
 
         List<InvoiceLineItem> originalLines = lineItemRepository.findByInvoiceIdOrderBySortOrderAsc(invoiceId);
 
-        int issueYear = OffsetDateTime.now(ZoneOffset.UTC).getYear();
-        int sequenceNumber = numberAllocator.nextSequenceNumber(tenantId, issueYear);
-        String invoiceNumber = issueYear + "-" + String.format(Locale.ROOT, "%04d", sequenceNumber);
+        Numbering numbering = allocateNumber(tenantId);
 
         Invoice storno = new Invoice(
             tenantId,
             original.getBookingId(),
-            invoiceNumber,
-            issueYear,
-            sequenceNumber,
+            numbering.invoiceNumber(),
+            numbering.issueYear(),
+            numbering.sequenceNumber(),
             original.getTaxMode(),
             new Invoice.Issuer(
                 original.getIssuerBusinessName(), original.getIssuerAddressLine1(), original.getIssuerAddressLine2(),
@@ -200,11 +207,7 @@ public class InvoiceService {
             ))
             .toList();
 
-        String html = InvoicePdfTemplate.render(storno, stornoLines, original);
-        InvoicePdfRenderer.Rendered rendered = pdfRenderer.render(html);
-        String r2Key = pdfKey(tenantId, invoiceNumber);
-        requireStorage().uploadBytes(r2Key, "application/pdf", rendered.bytes());
-        storno.attachPdf(r2Key, rendered.sha256Hex());
+        renderAndAttachPdf(tenantId, storno, stornoLines, original);
 
         invoiceRepository.save(storno);
         lineItemRepository.saveAll(stornoLines);
@@ -227,7 +230,7 @@ public class InvoiceService {
     }
 
     @Transactional(readOnly = true)
-    public void exportDatevCsv(java.io.OutputStream out, int year) {
+    public void exportDatevCsv(OutputStream out, int year) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Tenant not found"));
@@ -237,13 +240,55 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public List<InvoiceResponse> listForBooking(UUID bookingId) {
-        return invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId).stream()
-            .map(inv -> toResponse(inv, lineItemRepository.findByInvoiceIdOrderBySortOrderAsc(inv.getId())))
+        List<Invoice> invoices = invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId);
+        if (invoices.isEmpty()) {
+            return List.of();
+        }
+        // One query for every invoice's lines, then group in memory — the
+        // previous per-invoice lookup inside the map() was an N+1 that grew
+        // with the booking's correction history.
+        Map<UUID, List<InvoiceLineItem>> linesByInvoice = lineItemRepository
+            .findByInvoiceIdInOrderByInvoiceIdAscSortOrderAsc(invoices.stream().map(Invoice::getId).toList())
+            .stream()
+            .collect(Collectors.groupingBy(InvoiceLineItem::getInvoiceId));
+
+        return invoices.stream()
+            .map(inv -> toResponse(inv, linesByInvoice.getOrDefault(inv.getId(), List.of())))
             .toList();
     }
 
+    /**
+     * The tenant's next gap-free invoice number, plus the parts it is built
+     * from — issuance and Storno both need all three, and deriving them in two
+     * places invited the year and the sequence drifting apart across a
+     * new-year boundary.
+     */
+    private record Numbering(int issueYear, int sequenceNumber, String invoiceNumber) {
+    }
+
+    private Numbering allocateNumber(UUID tenantId) {
+        int issueYear = OffsetDateTime.now(ZoneOffset.UTC).getYear();
+        int sequenceNumber = numberAllocator.nextSequenceNumber(tenantId, issueYear);
+        return new Numbering(
+            issueYear, sequenceNumber,
+            issueYear + "-" + String.format(Locale.ROOT, "%04d", sequenceNumber));
+    }
+
+    /**
+     * Renders the invoice to PDF, uploads it to R2 and records the key + hash
+     * on the (still unsaved) entity. Must run before the insert — see the
+     * class javadoc for why there is no post-insert window to attach it.
+     */
+    private void renderAndAttachPdf(UUID tenantId, Invoice invoice, List<InvoiceLineItem> lines, Invoice original) {
+        String html = InvoicePdfTemplate.render(invoice, lines, original);
+        InvoicePdfRenderer.Rendered rendered = pdfRenderer.render(html);
+        String r2Key = tenantId + "/invoices/" + invoice.getInvoiceNumber() + ".pdf";
+        requireStorage().uploadBytes(r2Key, "application/pdf", rendered.bytes());
+        invoice.attachPdf(r2Key, rendered.sha256Hex());
+    }
+
     private List<InvoiceLineItem> buildLineItems(UUID tenantId, UUID invoiceId, InvoiceTaxCalculator.Totals totals) {
-        List<InvoiceLineItem> lines = new java.util.ArrayList<>();
+        List<InvoiceLineItem> lines = new ArrayList<>();
         int sortOrder = 0;
         for (InvoiceTaxCalculator.LineResult r : totals.lines()) {
             lines.add(new InvoiceLineItem(
@@ -256,10 +301,6 @@ public class InvoiceService {
 
     private R2StorageService requireStorage() {
         return storage.orElseThrow(() -> new IllegalStateException("R2 storage not configured"));
-    }
-
-    private static String pdfKey(UUID tenantId, String invoiceNumber) {
-        return tenantId + "/invoices/" + invoiceNumber + ".pdf";
     }
 
     private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines) {

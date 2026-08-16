@@ -13,6 +13,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DeliveryPhotoRepository extends JpaRepository<DeliveryPhoto, UUID> {
 
     List<DeliveryPhoto> findByGalleryIdOrderBySortOrderAsc(UUID galleryId);
-
-    long countByGalleryId(UUID galleryId);
 }

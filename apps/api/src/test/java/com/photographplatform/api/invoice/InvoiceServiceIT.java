@@ -20,6 +20,8 @@ import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.domain.TaxMode;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -262,6 +264,59 @@ class InvoiceServiceIT extends IntegrationTestBase {
     }
 
     @Test
+    void aStornoCannotItselfBeStorniert() {
+        // Regression: a Storno is an ISSUED invoice like any other, so the
+        // "already storniert" check alone let it be storniert in turn. That
+        // negates the already-negated line items back to positive, producing a
+        // third document that silently re-bills the client and breaks the
+        // net-to-zero invariant BookingPaymentStateResolver relies on.
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+
+        InvoiceResponse original = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest("Paket", BigDecimal.ONE, 100_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        InvoiceResponse storno = asUser(fx, () -> invoiceService.storno(original.id(), "203.0.113.5"));
+
+        assertThatThrownBy(() -> asUser(fx, () -> invoiceService.storno(storno.id(), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("is itself a Storno");
+
+        // Exactly two documents exist for this booking, and they net to zero.
+        List<InvoiceResponse> all = asUser(fx, () -> invoiceService.listForBooking(fx.bookingId()));
+        assertThat(all).hasSize(2);
+        assertThat(all.stream().mapToInt(InvoiceResponse::totalCents).sum()).isZero();
+    }
+
+    @Test
+    void listForBookingReturnsEveryInvoiceWithItsOwnLineItems() {
+        // Guards the N+1 fix: line items are now fetched in one batched query
+        // and grouped in memory, so each invoice must still come back with its
+        // own lines in sort order — not another invoice's, and not none.
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+
+        InvoiceResponse original = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(
+                    new CreateInvoiceLineItemRequest("Fotoshooting", BigDecimal.ONE, 100_000, TaxCategory.STANDARD),
+                    new CreateInvoiceLineItemRequest("Anfahrt", BigDecimal.ONE, 5_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+        asUser(fx, () -> invoiceService.storno(original.id(), "203.0.113.5"));
+
+        List<InvoiceResponse> all = asUser(fx, () -> invoiceService.listForBooking(fx.bookingId()));
+
+        assertThat(all).hasSize(2);
+        assertThat(all).allSatisfy(inv -> assertThat(inv.lineItems()).hasSize(2));
+        assertThat(all).allSatisfy(inv ->
+            assertThat(inv.lineItems().get(0).description()).isEqualTo("Fotoshooting"));
+    }
+
+    @Test
     void invoicesAreIsolatedByTenantViaRls() {
         TestFixture a = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
         TestFixture b = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
@@ -279,6 +334,55 @@ class InvoiceServiceIT extends IntegrationTestBase {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    @Test
+    void issuingAnInvoiceInsertsWithoutSelectingTheRowsItIsAboutToCreate() {
+        // Invoice and InvoiceLineItem assign their own @Id (the PDF is
+        // rendered before the INSERT, so the id must exist first). Spring
+        // Data's save() reads a non-null id as "existing row" and routes to
+        // EntityManager#merge, which SELECTs the current state before
+        // inserting — a guaranteed-empty round-trip per row, since the id was
+        // minted microseconds earlier. Both entities now implement
+        // Persistable so persist() is used instead.
+        //
+        // Asserted via Hibernate's own counters rather than a plan/log scrape:
+        // entityLoadCount is exactly "how many rows did we hydrate from the
+        // database", and issuing an invoice should hydrate the booking and
+        // the tenant it reads — never the invoice or the lines it writes.
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        Statistics stats = entityManager.getEntityManagerFactory()
+            .unwrap(SessionFactory.class).getStatistics();
+        stats.setStatisticsEnabled(true);
+        stats.clear();
+
+        asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(
+                    new CreateInvoiceLineItemRequest("Paket", BigDecimal.ONE, 100_000, TaxCategory.STANDARD),
+                    new CreateInvoiceLineItemRequest("Anfahrt", BigDecimal.ONE, 5_000, TaxCategory.STANDARD),
+                    new CreateInvoiceLineItemRequest("Album", BigDecimal.ONE, 20_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        // Exactly two entities are hydrated from the database: the booking
+        // and the tenant, both of which this path genuinely reads. Before
+        // Persistable it was six — those two plus one empty merge SELECT for
+        // the invoice and one for each of the three line items, so the count
+        // grew with every line billed.
+        //
+        // Deliberately asserting on loads rather than inserts: AuditService is
+        // @Async, so its audit row lands on a pool thread and would make an
+        // insert count racy. It loads nothing, which leaves this number
+        // deterministic.
+        assertThat(stats.getEntityLoadCount()).isEqualTo(2);
+
+        // (Separately measured, not asserted here because the @Async audit
+        // insert makes an absolute statement count racy: enabling
+        // hibernate.jdbc.batch_size took this same call from 8 JDBC statements
+        // to 6 — the three line-item INSERTs collapse into one batch, and the
+        // saving grows with every line billed.)
     }
 
     // ── fixtures ──────────────────────────────────────────────────────────

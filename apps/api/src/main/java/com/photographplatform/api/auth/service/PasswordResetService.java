@@ -9,6 +9,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.email.EmailTemplate;
@@ -106,7 +107,7 @@ public class PasswordResetService {
         if (email == null || email.isBlank()) {
             return;
         }
-        String normalizedEmail = email.trim().toLowerCase();
+        String normalizedEmail = Normalize.email(email);
 
         // Rate-limit BEFORE touching the database, so an attacker cannot probe
         // at full speed even for addresses that don't exist.

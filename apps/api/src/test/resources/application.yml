@@ -6,11 +6,33 @@ spring:
     locations: classpath:db/migration
     schemas: public
 
+  # NOTE: this file does not overlay src/main/resources/application.yml — it
+  # *replaces* it. Both are `classpath:/application.yml`, and the test
+  # resources directory comes first on the test classpath, so Spring resolves
+  # that single name to this file and the production one is never read. Every
+  # setting the tests need therefore has to be restated here.
+  #
+  # That makes the two files silently drift: production tuning added below in
+  # application.yml is invisible to the suite. The settings that change
+  # *observable behaviour under test* are mirrored here so they are actually
+  # exercised. The lasting fix is to rename this file to application-test.yml
+  # and activate the `test` profile, so it overlays production config instead
+  # of replacing it — deliberately not done in this pass because production
+  # config also turns on the R2, Stripe and email beans, which several tests
+  # rely on being absent.
   jpa:
     hibernate:
       # 'none' (matching production) — Flyway (not Hibernate) owns the schema.
       ddl-auto: none
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        query:
+          in_clause_parameter_padding: true
 
   data:
     redis:

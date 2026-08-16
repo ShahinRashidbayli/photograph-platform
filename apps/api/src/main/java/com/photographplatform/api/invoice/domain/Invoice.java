@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * A German invoice. GoBD-immutable once inserted (see
@@ -23,7 +24,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "invoices")
-public class Invoice {
+public class Invoice implements Persistable<UUID> {
 
     @Id
     private UUID id;
@@ -127,7 +128,27 @@ public class Invoice {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    /**
+     * True from construction until the row has been persisted or loaded. Not
+     * a column — {@code @Transient} keeps it out of the mapping entirely.
+     *
+     * <p>Needed because this entity assigns its own {@code @Id} (see class
+     * javadoc). Spring Data's default {@code save()} treats a non-null id as
+     * "this is an existing row" and calls {@code EntityManager#merge}, which
+     * issues a SELECT to load the current state before the INSERT. For an id
+     * we just minted with {@code UUID.randomUUID()} that SELECT can only ever
+     * return nothing — it is a guaranteed-empty round-trip on the invoice
+     * issuance path, and the same again for every line item. Implementing
+     * {@link Persistable} lets {@code isNew()} answer authoritatively so
+     * {@code persist()} is used instead.
+     */
+    @jakarta.persistence.Transient
+    private boolean isNew = true;
+
     protected Invoice() {
+        // Hibernate materialises an existing row through this constructor, so
+        // an entity that arrives from the database is by definition not new.
+        this.isNew = false;
     }
 
     /**
@@ -224,8 +245,25 @@ public class Invoice {
         this.pdfSha256 = pdfSha256;
     }
 
+    @Override
     public UUID getId() {
         return id;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    /**
+     * Called by Hibernate after the INSERT and after loading a row, so a
+     * second {@code save()} on the same instance (as {@code storno()} does
+     * when it flips the original to STORNIERT) correctly issues an UPDATE.
+     */
+    @jakarta.persistence.PostPersist
+    @jakarta.persistence.PostLoad
+    void markNotNew() {
+        this.isNew = false;
     }
 
     public UUID getTenantId() {

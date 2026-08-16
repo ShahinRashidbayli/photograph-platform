@@ -117,6 +117,43 @@ class PaymentServiceIT extends IntegrationTestBase {
     }
 
     @Test
+    void manualPaymentAboveTheOutstandingBalanceIsRejected() {
+        // Regression: an explicit amountCents was accepted unchecked, so a
+        // typo ("100000" for "10000") booked revenue the invoice never asked
+        // for — money that then has to be refunded outside the system, and a
+        // DATEV export claiming more turnover than was invoiced.
+        TestFixture fx = createTenantAndInvoice();
+
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(fx.totalCents() + 1), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class);
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.paidCents()).isZero();
+    }
+
+    @Test
+    void aStorniertInvoiceCanNoLongerBePaid() {
+        // Regression: neither payment path looked at the invoice's status, so
+        // a client sitting on a payment link (or a photographer on a stale
+        // invoice screen) could still collect against an invoice that had been
+        // legally withdrawn underneath them.
+        TestFixture fx = createTenantAndInvoice();
+        InvoiceResponse storno = asUser(fx, () -> invoiceService.storno(fx.invoiceId(), "203.0.113.5"));
+
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(1_000), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("storniert");
+
+        // Nor is the Storno correction itself a payable document.
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+            storno.id(), new RecordManualPaymentRequest(1_000), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("Storno correction");
+    }
+
+    @Test
     void webhookRejectsInvalidSignature() {
         String payload = paymentIntentSucceededPayload("pi_test_invalid_sig", UUID.randomUUID(), UUID.randomUUID());
         assertThatThrownBy(() -> paymentService.handleWebhookEvent(payload, "t=1,v1=deadbeef"))

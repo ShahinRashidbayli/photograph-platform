@@ -2,6 +2,7 @@ package com.photographplatform.api.booking.service;
 
 import com.photographplatform.api.booking.domain.BookingPaymentState;
 import com.photographplatform.api.invoice.domain.Invoice;
+import com.photographplatform.api.invoice.domain.InvoiceStatus;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.repository.PaymentRepository;
 import java.time.OffsetDateTime;
@@ -44,15 +45,18 @@ public class BookingPaymentStateResolver {
     public record Summary(BookingPaymentState state, int invoicedCents, int paidCents) {
     }
 
+    /**
+     * Single-booking form. Delegates to {@link #resolveAll} rather than
+     * keeping its own loop: the previous implementation summed payments with
+     * one {@code sumSucceededAmountCents} call per invoice, so a booking with
+     * an original plus a Storno correction cost three queries instead of two —
+     * a small N+1, but on the write paths ({@code createBooking},
+     * {@code updateBooking}, {@code changeStatus}) that all map their result
+     * through here.
+     */
     public Summary resolve(UUID bookingId) {
-        List<Invoice> invoices = invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId);
-        if (invoices.isEmpty()) {
-            return new Summary(BookingPaymentState.NOT_INVOICED, 0, 0);
-        }
-        int paid = invoices.stream()
-            .mapToInt(inv -> (int) paymentRepository.sumSucceededAmountCents(inv.getId()))
-            .sum();
-        return summarize(invoices, paid);
+        return resolveAll(List.of(bookingId))
+            .getOrDefault(bookingId, new Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
     }
 
     /**
@@ -109,13 +113,22 @@ public class BookingPaymentStateResolver {
         if (paid >= invoiced) {
             return new Summary(BookingPaymentState.PAID, invoiced, paid);
         }
-        boolean overdue = invoices.stream().anyMatch(this::isPastDue);
+        boolean overdue = invoices.stream()
+            .filter(inv -> inv.getStatus() != InvoiceStatus.STORNIERT && inv.getStornoOfId() == null)
+            .anyMatch(this::isPastDue);
         BookingPaymentState state = paid <= 0
             ? (overdue ? BookingPaymentState.OVERDUE : BookingPaymentState.OPEN)
             : (overdue ? BookingPaymentState.OVERDUE : BookingPaymentState.PARTIALLY_PAID);
         return new Summary(state, invoiced, paid);
     }
 
+    /**
+     * Only live invoices can be overdue. A withdrawn invoice and its Storno
+     * both keep their original {@code issued_at}, so counting them meant a
+     * booking that was corrected and re-invoiced showed OVERDUE from the
+     * cancelled document's date — while the replacement was still well inside
+     * its own payment window.
+     */
     private boolean isPastDue(Invoice invoice) {
         return invoice.getIssuedAt().plusDays(DEFAULT_DUE_DAYS).isBefore(OffsetDateTime.now());
     }

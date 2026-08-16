@@ -3,16 +3,20 @@ package com.photographplatform.api.lead.controller;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.audit.dto.AuditLogResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
+import com.photographplatform.api.lead.domain.LeadStatus;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
 import com.photographplatform.api.lead.dto.LeadResponse;
 import com.photographplatform.api.lead.dto.UpdateLeadNotesRequest;
 import com.photographplatform.api.lead.dto.UpdateLeadRequest;
 import com.photographplatform.api.lead.dto.UpdateLeadStatusRequest;
+import com.photographplatform.api.lead.service.LeadConversionService;
+import com.photographplatform.api.lead.service.LeadReportingService;
 import com.photographplatform.api.lead.service.LeadService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -44,12 +48,19 @@ public class LeadController {
     private static final Duration RATE_LIMIT_WINDOW = Duration.ofMinutes(5);
 
     private final LeadService leadService;
+    private final LeadConversionService leadConversionService;
+    private final LeadReportingService leadReportingService;
     private final TenantRepository tenantRepository;
     private final StringRedisTemplate redisTemplate;
 
-    public LeadController(LeadService leadService, TenantRepository tenantRepository,
-                         StringRedisTemplate redisTemplate) {
+    public LeadController(LeadService leadService,
+                          LeadConversionService leadConversionService,
+                          LeadReportingService leadReportingService,
+                          TenantRepository tenantRepository,
+                          StringRedisTemplate redisTemplate) {
         this.leadService = leadService;
+        this.leadConversionService = leadConversionService;
+        this.leadReportingService = leadReportingService;
         this.tenantRepository = tenantRepository;
         this.redisTemplate = redisTemplate;
     }
@@ -103,7 +114,7 @@ public class LeadController {
         @Valid @RequestBody ConvertLeadRequest request,
         HttpServletRequest httpRequest
     ) {
-        BookingResponse booking = leadService.convertLead(id, request, ClientIp.from(httpRequest));
+        BookingResponse booking = leadConversionService.convertLead(id, request, ClientIp.from(httpRequest));
         return ResponseEntity.status(HttpStatus.CREATED).body(booking);
     }
 
@@ -149,17 +160,13 @@ public class LeadController {
         // (LEAD_REPLIED vs LEAD_REJECTED), not a generic "status changed".
         // BOOKED is intentionally NOT accepted here — it has its own
         // /convert endpoint that also creates the booking row.
-        String target = request.status();
         String ip = ClientIp.from(httpRequest);
-        if ("REPLIED".equalsIgnoreCase(target)) {
-            return ResponseEntity.ok(leadService.markReplied(id, ip));
-        }
-        if ("REJECTED".equalsIgnoreCase(target)) {
-            return ResponseEntity.ok(leadService.rejectLead(id, ip));
-        }
-        throw new com.photographplatform.api.common.exception.ConflictException(
-            "Unsupported status transition: " + target
-        );
+        return switch (LeadStatus.parse(request.status())) {
+            case REPLIED -> ResponseEntity.ok(leadService.markReplied(id, ip));
+            case REJECTED -> ResponseEntity.ok(leadService.rejectLead(id, ip));
+            case NEW, BOOKED -> throw new ConflictException(
+                "Unsupported status transition: " + request.status());
+        };
     }
 
     /**
@@ -215,7 +222,7 @@ public class LeadController {
             "Content-Disposition",
             "attachment; filename=\"leads-" + LocalDate.now() + ".csv\""
         );
-        leadService.exportCsv(response.getOutputStream());
+        leadReportingService.exportCsv(response.getOutputStream());
     }
 
     /**
@@ -230,7 +237,7 @@ public class LeadController {
      */
     @GetMapping("/leads/{id}/activity")
     public ResponseEntity<List<AuditLogResponse>> getActivity(@PathVariable UUID id) {
-        return ResponseEntity.ok(leadService.getActivity(id));
+        return ResponseEntity.ok(leadReportingService.getActivity(id));
     }
 
     @GetMapping("/leads")

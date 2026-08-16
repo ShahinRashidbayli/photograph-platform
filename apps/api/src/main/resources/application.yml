@@ -7,6 +7,24 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Sized deliberately rather than left at Hikari's default of 10/10.
+      # Connections here are precious: TenantRoutingDataSource binds
+      # app.tenant_id per acquisition, and the deployment target is Supavisor
+      # in transaction mode, which multiplexes these onto a much smaller set
+      # of real Postgres backends. A large client-side pool would queue at the
+      # pooler instead of here, where it is visible.
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      # Fail fast instead of piling up request threads on an exhausted pool.
+      connection-timeout: 5000
+      validation-timeout: 3000
+      idle-timeout: 300000
+      # Under the pooler's own idle reaping, keep client-side lifetimes shorter
+      # than anything upstream is likely to cut, so we never hand out a socket
+      # that was closed underneath us.
+      max-lifetime: 900000
+      keepalive-time: 120000
 
   flyway:
     enabled: false
@@ -15,14 +33,55 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          # Without this, saveAll() emits one round-trip per row: issuing an
+          # invoice with 10 line items was 10 separate INSERTs. Batching folds
+          # them into one statement — the single biggest win on the invoice
+          # write path, which is otherwise latency-bound on round-trips.
+          batch_size: 50
+        # Batching only actually kicks in when consecutive statements target
+        # the same table, so let Hibernate group them before flushing.
+        order_inserts: true
+        order_updates: true
+        query:
+          # The batched lookups (findByInvoiceIdIn..., findByBookingIdIn...,
+          # sumSucceededAmountCentsGroupedByInvoiceId) build an IN list whose
+          # length varies per call, and each distinct length is a distinct SQL
+          # string — a new entry in Hibernate's query plan cache and a new
+          # prepared statement server-side. Padding the list to the next power
+          # of two collapses that to a handful of shapes.
+          in_clause_parameter_padding: true
 
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # An unreachable Redis must not hang a request thread indefinitely.
+      # Rate limiting is on the login/register/inquiry paths, so a Redis stall
+      # would otherwise stall authentication itself.
+      timeout: 2000
+      connect-timeout: 2000
+
+  # Outbound HTTP (SendGrid / Resend via RestClient) had no timeouts at all,
+  # so a hung provider socket pinned the calling thread forever. Those sends
+  # are @Async now, but an unbounded wait would still leak pool threads.
+  http:
+    client:
+      connect-timeout: 5s
+      read-timeout: 10s
 
 server:
   port: 8080
+  compression:
+    # List endpoints return highly repetitive JSON (bookings, leads, photos
+    # with long presigned R2 URLs — those alone are ~500 bytes each and
+    # compress extremely well). Cheap CPU for a large drop in transfer time,
+    # which dominates on mobile connections.
+    enabled: true
+    mime-types: application/json,text/csv,text/plain
+    min-response-size: 2048
 
 app:
   cors:

@@ -1,5 +1,6 @@
 package com.photographplatform.api.auth.service;
 
+import com.photographplatform.api.common.util.Normalize;
 import java.util.Set;
 
 /**
@@ -28,6 +29,6 @@ final class ReservedSubdomains {
     }
 
     static boolean isReserved(String subdomain) {
-        return subdomain != null && RESERVED.contains(subdomain.toLowerCase());
+        return subdomain != null && RESERVED.contains(Normalize.lower(subdomain));
     }
 }

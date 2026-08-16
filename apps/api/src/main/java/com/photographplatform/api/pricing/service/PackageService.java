@@ -9,6 +9,7 @@ import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.util.List;
 import java.util.UUID;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -123,7 +124,7 @@ public class PackageService {
 
     private void applyOptionalFields(Package pkg, PackageRequest request) {
         if (request.currency() != null && !request.currency().isBlank()) {
-            pkg.setCurrency(request.currency().trim().toUpperCase());
+            pkg.setCurrency(Normalize.upper(request.currency()));
         }
         pkg.setDurationHours(request.durationHours());
         pkg.setIncludedPhotos(request.includedPhotos());

@@ -18,6 +18,7 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -95,8 +96,8 @@ public class AuthService {
     public AuthResult register(RegisterRequest req, String ipAddress) {
         checkRegisterRateLimit(ipAddress);
 
-        String normalizedEmail = req.email().trim().toLowerCase();
-        String normalizedSubdomain = req.subdomain().trim().toLowerCase();
+        String normalizedEmail = Normalize.email(req.email());
+        String normalizedSubdomain = Normalize.lower(req.subdomain());
 
         if (ReservedSubdomains.isReserved(normalizedSubdomain)) {
             // A reserved name can never be granted — that's invalid input (400),
@@ -151,7 +152,7 @@ public class AuthService {
 
     @Transactional
     public AuthResult login(LoginRequest req, String ipAddress) {
-        String normalizedEmail = req.email().trim().toLowerCase();
+        String normalizedEmail = Normalize.email(req.email());
         String emailLockKey = "login:lock:email:" + normalizedEmail;
         String emailFailKey = "login:fail:email:" + normalizedEmail;
         String ipLockKey = "login:lock:ip:" + ipAddress;
@@ -235,6 +236,17 @@ public class AuthService {
 
     // ── Me ────────────────────────────────────────────────────────────────────
 
+    /**
+     * {@code readOnly} matters here beyond skipping dirty-checking: without
+     * any transaction the two lookups below each ran in their own implicit
+     * one, so each borrowed a pooled connection and each paid the
+     * {@code SELECT set_config('app.tenant_id', …)} round-trip that
+     * {@link com.photographplatform.api.common.config.TenantRoutingDataSource}
+     * issues per connection acquisition. {@code /api/auth/me} is called on
+     * every page load, so that was double the connection churn and double the
+     * tenant-binding latency on the app's most frequent request.
+     */
+    @Transactional(readOnly = true)
     public MeResponse me(UUID userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new UnauthorizedException("User not found"));
@@ -268,7 +280,7 @@ public class AuthService {
         }
 
         if (req.subdomain() != null) {
-            String subdomain = req.subdomain().trim().toLowerCase();
+            String subdomain = Normalize.lower(req.subdomain());
             // Only validate/persist when it actually changes — re-saving the
             // current value must never trip the uniqueness check.
             if (!subdomain.equals(tenant.getSubdomain())) {

@@ -18,6 +18,7 @@ import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -111,8 +112,8 @@ public class CustomerAuthService {
         if (subdomain == null || subdomain.isBlank() || email == null || email.isBlank()) {
             return;
         }
-        String normalizedSubdomain = subdomain.trim().toLowerCase();
-        String normalizedEmail = email.trim().toLowerCase();
+        String normalizedSubdomain = Normalize.lower(subdomain);
+        String normalizedEmail = Normalize.email(email);
 
         // Rate-limit BEFORE doing any DB work so an unauthenticated attacker
         // cannot probe the system at full speed.

@@ -16,6 +16,7 @@ import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
@@ -94,18 +95,16 @@ public class BookingService {
 
         Booking booking = new Booking(
             request.clientName().trim(),
-            request.clientEmail().trim().toLowerCase(),
+            Normalize.email(request.clientEmail()),
             request.eventDate()
         );
         booking.setTenantId(tenantId);
         booking.setClientId(request.clientId());
         booking.setEventTime(request.eventTime());
-        booking.setEventType(trimToNull(request.eventType()));
-        booking.setLocation(trimToNull(request.location()));
-        booking.setPackageId(request.packageId());
-        booking.setTotalAmountCents(resolvePrice(request.packageId(), request.totalAmountCents()));
-        booking.setDepositAmountCents(request.depositAmountCents() != null ? request.depositAmountCents() : 0);
-        booking.setInternalNotes(trimToNull(request.internalNotes()));
+        booking.setEventType(Normalize.trimToNull(request.eventType()));
+        booking.setLocation(Normalize.trimToNull(request.location()));
+        applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
+        booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);
@@ -139,18 +138,16 @@ public class BookingService {
 
         Booking booking = new Booking(
             lead.getName().trim(),
-            lead.getEmail().trim().toLowerCase(),
+            Normalize.email(lead.getEmail()),
             lead.getEventDate()
         );
         booking.setTenantId(tenantId);
         booking.setLeadId(lead.getId());
-        booking.setEventType(trimToNull(lead.getEventType()));
+        booking.setEventType(Normalize.trimToNull(lead.getEventType()));
         booking.setEventTime(overrides.eventTime());
-        booking.setLocation(trimToNull(overrides.location()));
-        booking.setPackageId(overrides.packageId());
-        booking.setTotalAmountCents(resolvePrice(overrides.packageId(), overrides.totalAmountCents()));
-        booking.setDepositAmountCents(overrides.depositAmountCents() != null ? overrides.depositAmountCents() : 0);
-        booking.setInternalNotes(trimToNull(overrides.internalNotes()));
+        booking.setLocation(Normalize.trimToNull(overrides.location()));
+        applyPricing(booking, overrides.packageId(), overrides.totalAmountCents(), overrides.depositAmountCents());
+        booking.setInternalNotes(Normalize.trimToNull(overrides.internalNotes()));
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);
@@ -184,13 +181,13 @@ public class BookingService {
             : customer.getFullName();
         Booking booking = new Booking(
             name.trim(),
-            customer.getEmail().trim().toLowerCase(),
+            Normalize.email(customer.getEmail()),
             inquiry.getProposedDate()
         );
         booking.setTenantId(tenantId);
         booking.setInquiryId(inquiry.getId());
-        booking.setEventType(trimToNull(inquiry.getEventType()));
-        booking.setLocation(trimToNull(inquiry.getLocation()));
+        booking.setEventType(Normalize.trimToNull(inquiry.getEventType()));
+        booking.setLocation(Normalize.trimToNull(inquiry.getLocation()));
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);
@@ -276,22 +273,14 @@ public class BookingService {
         Booking booking = bookingRepository.findById(bookingId)
             .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
 
-        int total = resolvePrice(request.packageId(), request.totalAmountCents());
-        int deposit = request.depositAmountCents() != null ? request.depositAmountCents() : 0;
-        if (deposit > total) {
-            throw new ConflictException("Deposit cannot exceed the total amount");
-        }
-
         booking.setClientName(request.clientName().trim());
-        booking.setClientEmail(request.clientEmail().trim().toLowerCase());
+        booking.setClientEmail(Normalize.email(request.clientEmail()));
         booking.setEventDate(request.eventDate());
         booking.setEventTime(request.eventTime());
-        booking.setEventType(trimToNull(request.eventType()));
-        booking.setLocation(trimToNull(request.location()));
-        booking.setPackageId(request.packageId());
-        booking.setTotalAmountCents(total);
-        booking.setDepositAmountCents(deposit);
-        booking.setInternalNotes(trimToNull(request.internalNotes()));
+        booking.setEventType(Normalize.trimToNull(request.eventType()));
+        booking.setLocation(Normalize.trimToNull(request.location()));
+        applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
+        booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
 
         Booking saved = bookingRepository.save(booking);
 
@@ -307,7 +296,27 @@ public class BookingService {
         return toResponse(saved);
     }
 
-    // current user extraction moved to SecurityUtils.requireCurrentUserId()
+    /**
+     * Set {@code package_id}, {@code total_amount_cents} and {@code
+     * deposit_amount_cents} together, because they are only valid together: a
+     * deposit larger than the total is a negative outstanding balance, which
+     * {@link BookingPaymentStateResolver} and the invoice totals both read as
+     * money the photographer owes the client.
+     *
+     * <p>Shared by every write path. The rule previously lived only in {@link
+     * #updateBooking}, so a booking could be *created* with deposit > total and
+     * then be rejected on the first edit that touched nothing but the location.
+     */
+    private void applyPricing(Booking booking, UUID packageId, Integer totalCents, Integer depositCents) {
+        int total = resolvePrice(packageId, totalCents);
+        int deposit = depositCents != null ? depositCents : 0;
+        if (deposit > total) {
+            throw new ConflictException("Deposit cannot exceed the total amount");
+        }
+        booking.setPackageId(packageId);
+        booking.setTotalAmountCents(total);
+        booking.setDepositAmountCents(deposit);
+    }
 
     /**
      * Decide what to store in {@code total_amount_cents}.
@@ -320,7 +329,7 @@ public class BookingService {
      * packageId} surfaces as 404 — failing closed beats silently zero-pricing
      * a wedding.
      */
-    private Integer resolvePrice(UUID packageId, Integer explicitTotalCents) {
+    private int resolvePrice(UUID packageId, Integer explicitTotalCents) {
         if (explicitTotalCents != null) {
             return explicitTotalCents;
         }
@@ -330,14 +339,6 @@ public class BookingService {
         Package pkg = packageRepository.findById(packageId)
             .orElseThrow(() -> new NotFoundException("Package not found: " + packageId));
         return pkg.getPriceCents();
-    }
-
-    private static String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private BookingResponse toResponse(Booking booking) {

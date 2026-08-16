@@ -9,6 +9,7 @@ import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.client.repository.ClientRepository;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -145,7 +147,35 @@ class BookingAutoPricingTest {
         ).isInstanceOf(NotFoundException.class);
     }
 
+    @Test
+    void depositAboveTheTotalIsRejectedOnCreateNotJustOnUpdate() {
+        // Regression: the deposit<=total rule was only enforced in
+        // updateBooking, so a booking could be *created* with a deposit larger
+        // than its total — a negative outstanding balance that the payment
+        // state resolver and invoice totals both read as money owed to the
+        // client. It must fail at the same place it fails on edit.
+        assertThatThrownBy(() ->
+            bookingService.createBooking(req(null, 100_000, 150_000), "1.2.3.4")
+        ).isInstanceOf(ConflictException.class);
+
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    void depositEqualToTheTotalIsAccepted() {
+        // The boundary is inclusive — paying the whole thing up front is a
+        // normal deposit, not an overpayment.
+        BookingResponse resp = bookingService.createBooking(req(null, 100_000, 100_000), "1.2.3.4");
+
+        assertThat(resp.depositAmountCents()).isEqualTo(100_000);
+        assertThat(resp.totalAmountCents()).isEqualTo(100_000);
+    }
+
     private static CreateBookingRequest req(UUID packageId, Integer totalCents) {
+        return req(packageId, totalCents, null);
+    }
+
+    private static CreateBookingRequest req(UUID packageId, Integer totalCents, Integer depositCents) {
         return new CreateBookingRequest(
             "Anna Schmidt",
             "anna@example.de",
@@ -156,7 +186,7 @@ class BookingAutoPricingTest {
             null,
             packageId,
             totalCents,
-            null,
+            depositCents,
             null
         );
     }

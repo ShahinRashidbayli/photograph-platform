@@ -9,7 +9,9 @@ import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.invoice.domain.Invoice;
+import com.photographplatform.api.invoice.domain.InvoiceStatus;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.domain.Payment;
 import com.photographplatform.api.payment.domain.PaymentMethod;
@@ -98,6 +100,7 @@ public class PaymentService {
         UUID actorId = SecurityUtils.requireCurrentUserId();
         Invoice invoice = requireInvoice(invoiceId);
         requireOwnedByCallerIfCustomer(invoice);
+        requirePayable(invoice);
 
         long outstanding = outstandingCents(invoice);
         if (outstanding <= 0) {
@@ -110,18 +113,32 @@ public class PaymentService {
         // instead of creating another; it clears once the webhook resolves
         // it (SUCCEEDED/FAILED/CANCELED), so a genuinely new attempt after
         // that still gets a fresh intent.
+        //
+        // Only reuse it while it still bills the right amount, though: a
+        // manual part-payment (or a second card payment) recorded between the
+        // two calls lowers the outstanding balance, and handing back the older
+        // intent would charge the client the pre-payment total — overcharging
+        // them by exactly what they just paid. A stale intent is cancelled and
+        // replaced rather than reused.
         Optional<Payment> existingPending = paymentRepository
             .findFirstByInvoiceIdAndStatusAndStripePaymentIntentIdIsNotNullOrderByCreatedAtDesc(
                 invoice.getId(), PaymentStatus.PENDING.name());
         if (existingPending.isPresent()) {
             Payment pending = existingPending.get();
-            try {
-                PaymentIntent existingIntent = requireStripe().v1().paymentIntents()
-                    .retrieve(pending.getStripePaymentIntentId());
-                return toResponse(pending, existingIntent.getClientSecret());
-            } catch (StripeException ex) {
-                LOG.warn("Could not retrieve existing PaymentIntent {} for invoice {}, creating a new one",
-                    pending.getStripePaymentIntentId(), invoice.getInvoiceNumber(), ex);
+            if (pending.getAmountCents() == outstanding) {
+                try {
+                    PaymentIntent existingIntent = requireStripe().v1().paymentIntents()
+                        .retrieve(pending.getStripePaymentIntentId());
+                    return toResponse(pending, existingIntent.getClientSecret());
+                } catch (StripeException ex) {
+                    LOG.warn("Could not retrieve existing PaymentIntent {} for invoice {}, creating a new one",
+                        pending.getStripePaymentIntentId(), invoice.getInvoiceNumber(), ex);
+                }
+            } else {
+                LOG.info("Outstanding balance on invoice {} changed from {} to {} — replacing PaymentIntent {}",
+                    invoice.getInvoiceNumber(), pending.getAmountCents(), outstanding,
+                    pending.getStripePaymentIntentId());
+                cancelIntentQuietly(pending);
             }
         }
 
@@ -129,7 +146,7 @@ public class PaymentService {
         try {
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(outstanding)
-                .setCurrency(invoice.getCurrency().toLowerCase(java.util.Locale.ROOT))
+                .setCurrency(Normalize.lower(invoice.getCurrency()))
                 .addPaymentMethodType(req.method() == PaymentMethod.CARD ? "card" : "sepa_debit")
                 .setReceiptEmail(invoice.getBuyerEmail())
                 .putMetadata("tenant_id", tenantId.toString())
@@ -161,11 +178,21 @@ public class PaymentService {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
         Invoice invoice = requireInvoice(invoiceId);
+        requirePayable(invoice);
 
         long outstanding = outstandingCents(invoice);
         int amount = req.amountCents() != null ? req.amountCents() : (int) outstanding;
         if (amount <= 0) {
             throw new ConflictException("Payment amount must be positive");
+        }
+        // An explicit amount above the outstanding balance is a typo, not a
+        // gift: accepting it books money the invoice never asked for, which
+        // then has to be refunded outside the system and leaves the DATEV
+        // export claiming more revenue than was invoiced.
+        if (amount > outstanding) {
+            throw new ConflictException(
+                "Payment of " + amount + " cents exceeds the " + outstanding
+                    + " cents outstanding on invoice " + invoice.getInvoiceNumber());
         }
 
         Payment payment = new Payment(tenantId, invoice.getId(), PaymentMethod.UEBERWEISUNG, amount, null);
@@ -340,6 +367,40 @@ public class PaymentService {
             : null;
         if (booking == null || !booking.getClientEmail().equalsIgnoreCase(user.getEmail())) {
             throw new NotFoundException("Invoice not found: " + invoice.getId());
+        }
+    }
+
+    /**
+     * A storniert invoice has been legally withdrawn — its Storno counterpart
+     * already nets it to zero, so collecting against it books money that no
+     * document claims. Neither payment path checked this, so a client sitting
+     * on a payment link (or a photographer on a stale invoice screen) could
+     * still pay an invoice that had been cancelled underneath them.
+     */
+    private void requirePayable(Invoice invoice) {
+        if (invoice.getStatus() == InvoiceStatus.STORNIERT) {
+            throw new ConflictException(
+                "Invoice " + invoice.getInvoiceNumber() + " has been storniert and can no longer be paid");
+        }
+        if (invoice.getStornoOfId() != null) {
+            throw new ConflictException(
+                "Invoice " + invoice.getInvoiceNumber() + " is a Storno correction, not a payable invoice");
+        }
+    }
+
+    /**
+     * Best-effort cancellation of a superseded PaymentIntent. Stripe is the
+     * source of truth for the intent's own state and the webhook will settle
+     * our row either way, so a failure here must not block minting the
+     * correctly-priced replacement.
+     */
+    private void cancelIntentQuietly(Payment pending) {
+        try {
+            requireStripe().v1().paymentIntents().cancel(pending.getStripePaymentIntentId());
+            pending.setStatus(PaymentStatus.CANCELED);
+            paymentRepository.save(pending);
+        } catch (StripeException ex) {
+            LOG.warn("Could not cancel superseded PaymentIntent {}", pending.getStripePaymentIntentId(), ex);
         }
     }
 

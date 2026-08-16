@@ -49,8 +49,14 @@ public class Lead {
     @Column(nullable = false, length = 10)
     private String score = "LOW";
 
+    /**
+     * Stored as text (not {@code @Enumerated}) so the existing column and the
+     * derived {@code findByStatus} queries keep working unchanged; the enum is
+     * the API this class exposes. Same split {@code Payment} and {@code
+     * Invoice} use for their own status columns.
+     */
     @Column(nullable = false, length = 20)
-    private String status = "NEW";
+    private String status = LeadStatus.NEW.name();
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
@@ -167,12 +173,12 @@ public class Lead {
         this.score = score;
     }
 
-    public String getStatus() {
-        return status;
+    public LeadStatus getStatus() {
+        return LeadStatus.parse(status);
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setStatus(LeadStatus status) {
+        this.status = status.name();
     }
 
     public String getIpAddress() {

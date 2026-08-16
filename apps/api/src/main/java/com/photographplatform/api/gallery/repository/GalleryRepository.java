@@ -7,12 +7,29 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface GalleryRepository extends JpaRepository<Gallery, UUID> {
 
     Optional<Gallery> findByAccessToken(String accessToken);
+
+    /**
+     * Atomically bumps a gallery's view counter.
+     *
+     * <p>Replaces a read-modify-write through the entity
+     * ({@code incrementViewCount()} then {@code save()}), which was both
+     * slower and wrong: two visitors loading the same gallery concurrently
+     * each read the old count and each wrote {@code old + 1}, so one of the
+     * views was silently lost. Doing the arithmetic in SQL makes the update
+     * atomic under Postgres' row lock, and touches one column instead of
+     * flushing the whole dirty-checked entity on what is otherwise a pure
+     * read path.
+     */
+    @Modifying
+    @Query("UPDATE Gallery g SET g.viewCount = g.viewCount + 1 WHERE g.id = :id")
+    void incrementViewCount(@Param("id") UUID id);
 
     /**
      * One row per gallery joined with its parent booking and a count of

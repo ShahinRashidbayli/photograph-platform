@@ -9,8 +9,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PhotoRepository extends JpaRepository<Photo, UUID> {
 
-    List<Photo> findByCategoryIdOrderBySortOrderAsc(UUID categoryId);
-
     List<Photo> findByIsPublishedTrueOrderBySortOrderAsc();
 
     List<Photo> findAllByOrderBySortOrderAsc();

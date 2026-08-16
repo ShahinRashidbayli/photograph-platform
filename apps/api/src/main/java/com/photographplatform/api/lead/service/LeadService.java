@@ -1,18 +1,15 @@
 package com.photographplatform.api.lead.service;
 
-import com.photographplatform.api.audit.dto.AuditLogResponse;
-import com.photographplatform.api.audit.repository.AuditLogRepository;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.security.SecurityUtils;
-import com.photographplatform.api.booking.dto.BookingResponse;
-import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.lead.domain.Lead;
-import com.photographplatform.api.lead.dto.ConvertLeadRequest;
+import com.photographplatform.api.lead.domain.LeadStatus;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
 import com.photographplatform.api.lead.dto.LeadResponse;
 import com.photographplatform.api.lead.dto.UpdateLeadRequest;
@@ -31,29 +28,33 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LeadService {
 
-    private static final String LEAD_STATUS_BOOKED = "BOOKED";
+    /**
+     * Actor recorded on the audit row for a lead submitted through the public
+     * form. There is no authenticated user on that path, and the previous
+     * {@code UUID.randomUUID()} minted a fresh, meaningless id per submission
+     * — indistinguishable from a real user id to anyone reading the trail, and
+     * impossible to filter or group by. A single stable sentinel says "public
+     * form, no actor" honestly and makes those rows queryable as a set.
+     */
+    public static final UUID ANONYMOUS_ACTOR_ID =
+        UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     private final LeadRepository leadRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditService auditService;
-    private final BookingService bookingService;
     private final UserRepository userRepository;
-    private final AuditLogRepository auditLogRepository;
     private final LeadScoringService leadScoringService;
-    private final LeadCsvExporter leadCsvExporter;
+    private final LeadResponseMapper mapper;
 
     public LeadService(LeadRepository leadRepository, ApplicationEventPublisher eventPublisher,
-                       AuditService auditService, BookingService bookingService,
-                       UserRepository userRepository, AuditLogRepository auditLogRepository,
-                       LeadScoringService leadScoringService, LeadCsvExporter leadCsvExporter) {
+                       AuditService auditService, UserRepository userRepository,
+                       LeadScoringService leadScoringService, LeadResponseMapper mapper) {
         this.leadRepository = leadRepository;
         this.eventPublisher = eventPublisher;
         this.auditService = auditService;
-        this.bookingService = bookingService;
         this.userRepository = userRepository;
-        this.auditLogRepository = auditLogRepository;
         this.leadScoringService = leadScoringService;
-        this.leadCsvExporter = leadCsvExporter;
+        this.mapper = mapper;
     }
 
     /**
@@ -72,17 +73,13 @@ public class LeadService {
         Lead lead = leadRepository.findById(leadId)
             .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
 
-        if ("REJECTED".equalsIgnoreCase(lead.getStatus())) {
-            return toResponse(lead);
+        LeadStatus previousStatus = lead.getStatus();
+        if (previousStatus == LeadStatus.REJECTED) {
+            return mapper.toResponse(lead);
         }
-        if (LEAD_STATUS_BOOKED.equalsIgnoreCase(lead.getStatus())) {
-            throw new ConflictException(
-                "Cannot reject a lead that has been converted to a booking"
-            );
-        }
+        previousStatus.assertCanTransitionTo(LeadStatus.REJECTED);
 
-        String previousStatus = lead.getStatus();
-        lead.setStatus("REJECTED");
+        lead.setStatus(LeadStatus.REJECTED);
         leadRepository.save(lead);
 
         UUID actorId = SecurityUtils.requireCurrentUserId();
@@ -94,11 +91,11 @@ public class LeadService {
             tenantId,
             actorId,
             ipAddress,
-            previousStatus,
-            "REJECTED"
+            previousStatus.name(),
+            LeadStatus.REJECTED.name()
         );
 
-        return toResponse(lead);
+        return mapper.toResponse(lead);
     }
 
     /**
@@ -118,8 +115,7 @@ public class LeadService {
         Lead lead = leadRepository.findById(leadId)
             .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
 
-        if (LEAD_STATUS_BOOKED.equalsIgnoreCase(lead.getStatus())
-            || "REJECTED".equalsIgnoreCase(lead.getStatus())) {
+        if (lead.getStatus().isTerminal()) {
             // Editing a terminal-state lead would put its facts out of sync
             // with the booking it spawned (or the rejection reason in the
             // photographer's head). Force the photographer to either undo
@@ -158,11 +154,11 @@ public class LeadService {
 
         // Idempotency: no fields actually changed → no-op success, no audit row.
         if (changedFields.length() == 0) {
-            return toResponse(lead);
+            return mapper.toResponse(lead);
         }
 
         lead.setName(req.name().trim());
-        lead.setEmail(req.email().trim().toLowerCase());
+        lead.setEmail(Normalize.email(req.email()));
         lead.setPhone(req.phone() == null || req.phone().isBlank() ? null : req.phone().trim());
         lead.setEventDate(req.eventDate());
         lead.setEventType(req.eventType().trim());
@@ -193,7 +189,7 @@ public class LeadService {
             changedFields.toString()
         );
 
-        return toResponse(lead);
+        return mapper.toResponse(lead);
     }
 
     private static boolean safeEq(String a, String b) {
@@ -229,17 +225,13 @@ public class LeadService {
         Lead lead = leadRepository.findById(leadId)
             .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
 
-        String current = lead.getStatus();
-        if ("REPLIED".equalsIgnoreCase(current)) {
-            return toResponse(lead);
+        LeadStatus current = lead.getStatus();
+        if (current == LeadStatus.REPLIED) {
+            return mapper.toResponse(lead);
         }
-        if (LEAD_STATUS_BOOKED.equalsIgnoreCase(current) || "REJECTED".equalsIgnoreCase(current)) {
-            throw new ConflictException(
-                "Cannot mark a " + current + " lead as REPLIED — it's already in a terminal state."
-            );
-        }
+        current.assertCanTransitionTo(LeadStatus.REPLIED);
 
-        lead.setStatus("REPLIED");
+        lead.setStatus(LeadStatus.REPLIED);
         leadRepository.save(lead);
 
         UUID actorId = SecurityUtils.requireCurrentUserId();
@@ -251,11 +243,11 @@ public class LeadService {
             tenantId,
             actorId,
             ipAddress,
-            current,
-            "REPLIED"
+            current.name(),
+            LeadStatus.REPLIED.name()
         );
 
-        return toResponse(lead);
+        return mapper.toResponse(lead);
     }
 
     /**
@@ -297,107 +289,8 @@ public class LeadService {
                 null, actor.getEmail())
         );
 
-        return toResponse(saved);
+        return mapper.toResponse(saved);
     }
-
-    /**
-     * Stream every lead in this tenant as CSV. Tenant scoping is enforced by
-     * RLS (see {@code V11__tenant_rls.sql}), driven by the tenant bound to
-     * this request's {@link com.photographplatform.api.common.config.TenantContext}.
-     * Owns the read transaction and lead fetch; {@link LeadCsvExporter} owns
-     * the row layout and RFC 4180 escaping.
-     */
-    @Transactional(readOnly = true)
-    public void exportCsv(java.io.OutputStream out) throws java.io.IOException {
-        leadCsvExporter.write(out, leadRepository.findAll(Sort.by("createdAt").descending()));
-    }
-
-    /**
-     * Activity timeline for a single lead — backs the right-panel "Activity"
-     * section. Reads from {@code audit_log} filtered to this lead, ordered
-     * newest first.
-     *
-     * <p>Filtered by tenant id as well as entity id: {@code audit_log} has no
-     * RLS policy, so entity_id alone is not enough to guarantee isolation.
-     * UUIDs are unguessable in practice but defence-in-depth still requires
-     * the explicit tenant filter.
-     *
-     * <p>404s if the lead isn't visible in this tenant — surfacing activity
-     * for a lead that doesn't exist in scope would leak the existence of an
-     * id outside the photographer's tenant.
-     */
-    @Transactional(readOnly = true)
-    public List<AuditLogResponse> getActivity(UUID leadId) {
-        // Existence check: leadRepository is tenant-scoped via the routing
-        // data source, so a missing lead here means "not visible to this
-        // tenant" — surface as 404 rather than returning an empty timeline.
-        Lead lead = leadRepository.findById(leadId)
-            .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
-
-        UUID tenantId = SecurityUtils.requireCurrentTenantId();
-
-        return auditLogRepository
-            .findByTenantIdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(tenantId, "LEAD", lead.getId())
-            .stream()
-            .map(LeadService::toAuditResponse)
-            .toList();
-    }
-
-    private static AuditLogResponse toAuditResponse(com.photographplatform.api.audit.domain.AuditLog row) {
-        return new AuditLogResponse(
-            row.getId(),
-            row.getAction(),
-            row.getEntityType(),
-            row.getEntityId(),
-            row.getOldValue(),
-            row.getNewValue(),
-            row.getActorId(),
-            row.getCreatedAt()
-        );
-    }
-
-    /**
-     * Convert a lead into a booking. The booking inherits the lead's contact
-     * info, event date and type; the photographer supplies the remaining
-     * operational fields (time, location, pricing) via {@link ConvertLeadRequest}.
-     *
-     * <p>Idempotent on the lead side: a second convert call against a lead that
-     * is already {@code BOOKED} returns HTTP 409 rather than silently producing
-     * a duplicate booking. Booking creation and the lead status flip happen in
-     * the same transaction so a failure midway never leaves the lead
-     * advertising "BOOKED" without a matching booking row.
-     */
-    @Transactional
-    public BookingResponse convertLead(UUID leadId, ConvertLeadRequest overrides, String ipAddress) {
-        Lead lead = leadRepository.findById(leadId)
-            .orElseThrow(() -> new NotFoundException("Lead not found: " + leadId));
-
-        if (LEAD_STATUS_BOOKED.equalsIgnoreCase(lead.getStatus())) {
-            throw new ConflictException("Lead already converted: " + leadId);
-        }
-
-        BookingResponse booking = bookingService.createFromLead(lead, overrides, ipAddress);
-
-        String previousStatus = lead.getStatus();
-        lead.setStatus(LEAD_STATUS_BOOKED);
-        leadRepository.save(lead);
-
-        UUID actorId = SecurityUtils.requireCurrentUserId();
-        UUID tenantId = SecurityUtils.currentTenantId();
-        auditService.log(
-            "LEAD_CONVERTED",
-            "LEAD",
-            lead.getId(),
-            tenantId,
-            actorId,
-            ipAddress,
-            previousStatus,
-            LEAD_STATUS_BOOKED
-        );
-
-        return booking;
-    }
-
 
     @Transactional
     public LeadResponse createLead(CreateLeadRequest req, Tenant tenant, String ipAddress) {
@@ -419,18 +312,18 @@ public class LeadService {
         Lead saved = leadRepository.save(lead);
 
         auditService.log("LEAD_CREATED", "LEAD", saved.getId(), tenant.getId(),
-            UUID.randomUUID(), ipAddress);
+            ANONYMOUS_ACTOR_ID, ipAddress);
 
         eventPublisher.publishEvent(
             new LeadCreatedEvent(this, saved.getId(), req.name(), req.email(), score,
                 tenant.getSubdomain(), tenant.getOwnerEmail())
         );
 
-        return toResponse(saved);
+        return mapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public java.util.List<LeadResponse> getLeads(String score, String status, int page, int size) {
+    public List<LeadResponse> getLeads(String score, String status, int page, int size) {
         var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         Page<Lead> result;
@@ -443,44 +336,19 @@ public class LeadService {
         } else {
             result = leadRepository.findAll(pageable);
         }
-        return result.stream().map(this::toResponse).toList();
+        return result.stream().map(mapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
-    public java.util.List<LeadResponse> getRecentLeads(int limit) {
+    public List<LeadResponse> getRecentLeads(int limit) {
         return leadRepository.findAll(PageRequest.of(0, limit, Sort.by("createdAt").descending()))
             .stream()
-            .map(this::toResponse)
+            .map(mapper::toResponse)
             .toList();
     }
 
     private String calculateScore(CreateLeadRequest req) {
         return leadScoringService.rollup(req.budgetRange(), req.eventType(), req.eventDate());
-    }
-
-    private LeadResponse toResponse(Lead lead) {
-        LeadScoringService.ScoreBreakdown b =
-            leadScoringService.breakdown(lead.getBudgetRange(), lead.getEventType(), lead.getEventDate());
-        return new LeadResponse(
-            lead.getId(),
-            lead.getName(),
-            lead.getEmail(),
-            lead.getPhone(),
-            lead.getEventDate(),
-            lead.getEventType(),
-            lead.getBudgetRange(),
-            lead.getMessage(),
-            lead.getInternalNotes(),
-            lead.getScore(),
-            b.budget(),
-            b.type(),
-            b.time(),
-            lead.getStatus(),
-            lead.getSource(),
-            lead.getIgMessageId(),
-            lead.getIgUsername(),
-            lead.getCreatedAt()
-        );
     }
 
     /**
@@ -500,7 +368,7 @@ public class LeadService {
         boolean unchanged = (previous == null && normalized == null)
             || (previous != null && previous.equals(normalized));
         if (unchanged) {
-            return toResponse(lead);
+            return mapper.toResponse(lead);
         }
 
         lead.setInternalNotes(normalized);
@@ -523,6 +391,6 @@ public class LeadService {
             normalized == null ? "empty" : "present"
         );
 
-        return toResponse(lead);
+        return mapper.toResponse(lead);
     }
 }

@@ -10,6 +10,7 @@ import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.inquiry.dto.CreateInquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
@@ -121,8 +122,8 @@ public class InquiryRequestService {
             req.eventType(),
             req.budgetRange(),
             req.proposedDate(),
-            blankToNull(req.location()),
-            blankToNull(req.message()),
+            Normalize.trimToNull(req.location()),
+            Normalize.trimToNull(req.message()),
             score,
             "BIO_LINK"
         );
@@ -193,7 +194,7 @@ public class InquiryRequestService {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
 
-        String target = targetStatus == null ? "" : targetStatus.trim().toUpperCase();
+        String target = targetStatus == null ? "" : Normalize.upper(targetStatus);
         if (!target.equals("ACCEPTED") && !target.equals("REJECTED")) {
             throw new ConflictException("Unsupported status transition: " + targetStatus);
         }
@@ -203,7 +204,7 @@ public class InquiryRequestService {
 
         if (!"PENDING".equals(inquiry.getStatus())) {
             throw new ConflictException(
-                "This inquiry has already been " + inquiry.getStatus().toLowerCase().replace('_', ' ') + ".");
+                "This inquiry has already been " + Normalize.lower(inquiry.getStatus()).replace('_', ' ') + ".");
         }
 
         // The inquiry carries only a customer_id; the booking (and the email)
@@ -358,9 +359,5 @@ public class InquiryRequestService {
     private static String displayName(User customer) {
         String name = customer.getFullName();
         return name == null || name.isBlank() ? customer.getEmail() : name;
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

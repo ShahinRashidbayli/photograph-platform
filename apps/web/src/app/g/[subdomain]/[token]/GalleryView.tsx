@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { parseApiDate } from '@/lib/date';
 import type { PublicGalleryPayload, DeliveryPhoto } from './page';
 
 /**
@@ -11,9 +12,64 @@ import type { PublicGalleryPayload, DeliveryPhoto } from './page';
  */
 export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
   const [active, setActive] = useState<DeliveryPhoto | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  /**
+   * Saves a photo to disk.
+   *
+   * <p>The `download` attribute on a plain `<a>` does **not** work here: the
+   * href is a presigned R2 URL on another origin, and browsers ignore
+   * `download` for cross-origin targets. The link therefore navigated to the
+   * image instead of saving it — the client got a JPEG rendered in a tab and
+   * lost the gallery, which for the photographer's final deliverable is the
+   * one interaction that has to work.
+   *
+   * <p>Fetching the bytes and handing over a same-origin `blob:` URL restores
+   * the intended behaviour, including the original filename. If the fetch is
+   * blocked we fall back to opening the image in a new tab — still not a save,
+   * but at least it no longer navigates the gallery away.
+   */
+  async function download(photo: DeliveryPhoto) {
+    if (!photo.viewUrl || downloading) return;
+    setDownloading(photo.id);
+    try {
+      const res = await fetch(photo.viewUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = photo.originalFilename || 'photo.jpg';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(photo.viewUrl, '_blank', 'noopener,noreferrer');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  // Escape closes the lightbox, and the page behind it stops scrolling while
+  // it's open — both of which the sibling public portfolio viewer already does.
+  // Without them the only way out was the × (no keyboard escape at all), and
+  // scrolling the overlay scrolled the gallery underneath it.
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActive(null);
+    };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [active]);
 
   const shot = data.shootDate
-    ? new Date(data.shootDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    ? parseApiDate(data.shootDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
     : null;
 
   return (
@@ -50,9 +106,9 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
                 )}
               </button>
               {data.downloadEnabled && photo.viewUrl && (
-                <a href={photo.viewUrl} download={photo.originalFilename ?? undefined} style={styles.download}>
-                  Download
-                </a>
+                <button type="button" onClick={() => download(photo)} style={styles.download}>
+                  {downloading === photo.id ? 'Saving…' : 'Download'}
+                </button>
               )}
             </figure>
           ))}
@@ -73,14 +129,16 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
             <div style={{ color: '#fff' }}>Preview unavailable</div>
           )}
           {data.downloadEnabled && active.viewUrl && (
-            <a
-              href={active.viewUrl}
-              download={active.originalFilename ?? undefined}
+            <button
+              type="button"
               style={styles.lightboxDownload}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                void download(active);
+              }}
             >
-              Download
-            </a>
+              {downloading === active.id ? 'Saving…' : 'Download'}
+            </button>
           )}
         </div>
       )}

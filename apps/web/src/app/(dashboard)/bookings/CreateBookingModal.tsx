@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { extractApiError, eurosToCents, todayIso } from '@/lib/helpers';
+import { extractApiError, eurosToCents, resolveTotalCents, todayIso } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { DateField } from '@/components/DateField';
 import { Booking, Package } from '@/types/api';
@@ -138,7 +138,12 @@ export function CreateBookingModal({
   }
 
   function handleTotalChange(value: string) {
-    setTotalOverridden(true);
+    // Empty is not an override — it means "let the package price it", which is
+    // the not-overridden state. Latching on '' left auto-fill permanently off,
+    // so picking a different package no longer updated the total. (In edit
+    // mode the flag starts true: an existing booking already has its own
+    // stored price and must not be silently re-priced.)
+    setTotalOverridden(isEdit || value.trim() !== '');
     update('totalAmount', value);
   }
 
@@ -159,7 +164,10 @@ export function CreateBookingModal({
       // @FutureOrPresent sits on CreateBookingRequest and not on the update.
       errors.eventDate = t('createBooking.errDatePast');
     }
-    const total = eurosToCents(form.totalAmount);
+    // Compare against the total the *server* will resolve, not just what's
+    // typed: a blank total with a package linked means "price it from the
+    // package", and treating that as 0 rejected every deposit.
+    const total = resolveTotalCents(form.totalAmount, form.packageId, packages);
     const deposit = eurosToCents(form.depositAmount);
     if (form.depositAmount.trim() && deposit > total) {
       errors.depositAmount = t('createBooking.errDeposit');

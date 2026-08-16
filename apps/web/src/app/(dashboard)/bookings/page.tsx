@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseApiDate, startOfToday } from '@/lib/date';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useBookings, bookingsQueryKey } from '@/hooks/useBookings';
@@ -116,14 +117,8 @@ const GROUP_LABEL_KEY: Record<GroupKey, TranslationKey> = {
   past: 'bookings.group.past',
 };
 
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function groupFor(eventDate: string, today: Date): GroupKey {
-  const date = new Date(eventDate);
+  const date = parseApiDate(eventDate);
   date.setHours(0, 0, 0, 0);
   const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
   if (days < 0) return 'past';
@@ -338,16 +333,16 @@ function BookingsView() {
         (b) =>
           isBillableStatus(b.status) &&
           b.status !== 'COMPLETED' &&
-          new Date(b.eventDate) >= today,
+          parseApiDate(b.eventDate) >= today,
       )
-      .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime())[0] ?? null;
+      .sort((a, b) => parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime())[0] ?? null;
   }, [bookings]);
 
   const daysUntilNext = useMemo(() => {
     if (!nextSession) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const diff = new Date(nextSession.eventDate).getTime() - today.getTime();
+    const diff = parseApiDate(nextSession.eventDate).getTime() - today.getTime();
     return Math.max(0, Math.round(diff / 86_400_000));
   }, [nextSession]);
 
@@ -1417,7 +1412,7 @@ function BookingListItem({
   registerRef,
 }: ListItemProps) {
   const { t, format } = useTranslation();
-  const date = new Date(booking.eventDate);
+  const date = parseApiDate(booking.eventDate);
   const month = format.monthAbbrUpper(date);
   const day = date.getDate();
   const status = getStatusVisual(booking.status, colors, 'list');

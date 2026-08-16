@@ -99,8 +99,9 @@ export default function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label}>Email address</label>
+          <label style={s.label} htmlFor="forgot-email">Email address</label>
           <input
+            id="forgot-email"
             type="email"
             style={{ ...s.input, ...(focused ? s.inputFocus : {}) }}
             placeholder="you@example.com"

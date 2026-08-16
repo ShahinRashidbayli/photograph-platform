@@ -26,6 +26,7 @@ function CustomerVerifyInner() {
       return;
     }
     let cancelled = false;
+    let redirectTimer: number | undefined;
     (async () => {
       try {
         const { data: user } = await api.post<AuthUser>(
@@ -39,7 +40,11 @@ function CustomerVerifyInner() {
         // replace, not push: drops the token-bearing /verify URL from history so
         // the single-use magic-link token can't resurface via Back or be leaked
         // through the referrer of a later navigation.
-        setTimeout(() => router.replace('/bookings'), 800);
+        //
+        // Tracked so the cleanup below can cancel it — the `cancelled` flag
+        // guards the setState calls but did not stop this timer, so navigating
+        // away inside the 800ms pause still bounced the user to /bookings.
+        redirectTimer = window.setTimeout(() => router.replace('/bookings'), 800);
       } catch (err: unknown) {
         if (cancelled) return;
         const apiMessage =
@@ -53,6 +58,7 @@ function CustomerVerifyInner() {
     })();
     return () => {
       cancelled = true;
+      if (redirectTimer !== undefined) window.clearTimeout(redirectTimer);
     };
   }, [token, setUser, router]);
 

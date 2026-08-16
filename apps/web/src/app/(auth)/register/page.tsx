@@ -9,7 +9,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
 
 // Registration is photographer-only: creating a studio spins up a tenant and
@@ -138,7 +138,6 @@ function RegisterForm() {
       });
       setUser(user);
       setStep('ph-success');
-      setTimeout(() => router.push('/dashboard'), 1200);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -148,6 +147,17 @@ function RegisterForm() {
       setLoading(false);
     }
   };
+
+  // The success step pauses briefly before moving on. Driven by an effect
+  // rather than a bare setTimeout in the submit handler so unmounting cancels
+  // it: otherwise a user who clicked away during that window (the page still
+  // has links) was yanked to /dashboard a moment later, overriding the
+  // navigation they actually chose.
+  useEffect(() => {
+    if (step !== 'ph-success') return;
+    const id = window.setTimeout(() => router.push('/dashboard'), 1200);
+    return () => window.clearTimeout(id);
+  }, [step, router]);
 
   const passwordStrength = getPasswordStrength(form.password);
 
@@ -186,8 +196,9 @@ function RegisterForm() {
             }}
           >
             <div style={s.formGroup}>
-              <label style={s.label}>{t('register.fullNameLabel')}</label>
+              <label style={s.label} htmlFor="reg-fullname">{t('register.fullNameLabel')}</label>
               <input
+                id="reg-fullname"
                 type="text"
                 style={s.input}
                 placeholder="Anna Fischer"
@@ -198,8 +209,9 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>{t('register.emailLabel')}</label>
+              <label style={s.label} htmlFor="reg-email">{t('register.emailLabel')}</label>
               <input
+                id="reg-email"
                 type="email"
                 style={s.input}
                 placeholder="anna@fotografie.de"
@@ -210,9 +222,10 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>{t('register.subdomainLabel')}</label>
+              <label style={s.label} htmlFor="reg-subdomain">{t('register.subdomainLabel')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input
+                  id="reg-subdomain"
                   type="text"
                   style={s.input}
                   placeholder="anna-foto"
@@ -238,8 +251,9 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>{t('register.passwordLabel')}</label>
+              <label style={s.label} htmlFor="reg-password">{t('register.passwordLabel')}</label>
               <input
+                id="reg-password"
                 type="password"
                 style={s.input}
                 placeholder="••••••••"

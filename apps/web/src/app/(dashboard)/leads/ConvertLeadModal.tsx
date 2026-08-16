@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { extractApiError, eurosToCents } from '@/lib/helpers';
+import { extractApiError, eurosToCents, resolveTotalCents } from '@/lib/helpers';
 import { Booking, Lead, Package } from '@/types/api';
 import { useTranslation } from '@/lib/i18n';
 import { translateOr, EVENT_LABEL_KEYS, type ColorTokens } from './leadTypes';
@@ -69,7 +69,11 @@ export function ConvertLeadModal({
   };
 
   const handleTotalChange = (value: string) => {
-    setTotalOverridden(true);
+    // Only a non-empty value counts as an override. Clearing the field means
+    // "no custom price — use the package's", which is exactly the
+    // not-overridden state; latching `true` on an empty string left the form
+    // stuck, so switching to another package no longer refreshed the total.
+    setTotalOverridden(value.trim() !== '');
     setTotalAmount(value);
     setFieldError(null);
   };
@@ -82,7 +86,9 @@ export function ConvertLeadModal({
     const totalTyped = totalAmount.trim();
     const depositTyped = depositAmount.trim();
     if (depositTyped) {
-      const total = totalTyped ? eurosToCents(totalAmount) : 0;
+      // Same rule the backend applies: blank total + linked package means the
+      // package price, not zero.
+      const total = resolveTotalCents(totalAmount, packageId, packages);
       const deposit = eurosToCents(depositAmount);
       if (deposit > total) {
         setFieldError(t('createBooking.errDeposit'));

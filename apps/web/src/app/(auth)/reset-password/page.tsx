@@ -151,8 +151,9 @@ function ResetPasswordForm() {
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label}>New password</label>
+          <label style={s.label} htmlFor="reset-password">New password</label>
           <input
+            id="reset-password"
             type="password"
             style={inputStyle('password')}
             placeholder="••••••••••"
@@ -166,8 +167,9 @@ function ResetPasswordForm() {
         </div>
 
         <div style={s.formGroup}>
-          <label style={s.label}>Confirm new password</label>
+          <label style={s.label} htmlFor="reset-password-confirm">Confirm new password</label>
           <input
+            id="reset-password-confirm"
             type="password"
             style={inputStyle('confirm')}
             placeholder="••••••••••"

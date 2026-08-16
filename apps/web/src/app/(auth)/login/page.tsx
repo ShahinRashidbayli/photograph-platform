@@ -8,6 +8,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
 
@@ -62,7 +63,16 @@ export default function LoginPage() {
       setUser(user);
       const role = user.role?.toUpperCase();
       const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-      router.push(isPhotographer ? '/dashboard' : '/bookings');
+      // The middleware puts the blocked destination in `?next=` precisely so
+      // login can return to it ("Preserve the original destination so
+      // post-login can return to it"), but nothing ever read it — so any deep
+      // link into the app (an emailed booking link, a bookmarked lead) lost
+      // its target and dumped the user on the dashboard.
+      const next =
+        typeof window === 'undefined'
+          ? null
+          : safeRedirectPath(window.location.search, window.location.origin);
+      router.push(next ?? (isPhotographer ? '/dashboard' : '/bookings'));
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
@@ -97,8 +107,9 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label}>{t('login.emailLabel')}</label>
+          <label style={s.label} htmlFor="login-email">{t('login.emailLabel')}</label>
           <input
+            id="login-email"
             type="email"
             style={inputStyle('email')}
             placeholder={t('auth.emailPlaceholder')}
@@ -111,9 +122,10 @@ export default function LoginPage() {
         </div>
 
         <div style={s.formGroup}>
-          <label style={s.label}>{t('login.passwordLabel')}</label>
+          <label style={s.label} htmlFor="login-password">{t('login.passwordLabel')}</label>
           <div style={{ position: 'relative' }}>
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               style={{ ...inputStyle('password'), paddingRight: 44 }}
               placeholder="••••••••"

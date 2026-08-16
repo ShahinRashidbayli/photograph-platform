@@ -658,7 +658,12 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/register" style={s.lnkClient}>
+            {/* Clients sign in through their photographer's link — /register is
+                the *photographer* studio signup (subdomain, plan, PHOTOGRAPHER
+                role), so pointing the "For clients" CTA there asked a client to
+                open a studio account. There is no photographer directory yet;
+                the client sign-in page is the real entry point. */}
+            <Link href="/customer/auth/login" style={s.lnkClient}>
               {t('landing.audience.findPhotographer')}
               <Icon name="arrow-right" size={16} strokeWidth={2} />
             </Link>
@@ -804,7 +809,7 @@ export default function LandingPage() {
               <h5 style={s.footColH}>{t('landing.footer.account')}</h5>
               <Link href="/login" style={s.footLink}>{t('landing.nav.signIn')}</Link>
               <Link href="/register" style={s.footLink}>{t('landing.nav.getStarted')}</Link>
-              <Link href="/register" style={s.footLink}>{t('landing.audience.findPhotographer')}</Link>
+              <Link href="/customer/auth/login" style={s.footLink}>{t('landing.audience.findPhotographer')}</Link>
             </div>
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.legal')}</h5>

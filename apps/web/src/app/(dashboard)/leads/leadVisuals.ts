@@ -1,9 +1,10 @@
+import { parseApiDate } from '@/lib/date';
 import type { TranslationKey } from '@/lib/i18n';
 import type { ColorTokens, LeadScore } from './leadTypes';
 
 export function daysUntilEvent(iso: string): number {
   const now = new Date();
-  const event = new Date(iso);
+  const event = parseApiDate(iso);
   const diff = event.getTime() - now.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }

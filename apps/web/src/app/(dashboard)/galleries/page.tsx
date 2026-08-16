@@ -159,7 +159,17 @@ function GalleryDetail({
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
 }>) {
-  const [copied, setCopied] = useState(false);
+  // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
+  // can tell the user to copy the link manually instead of appearing inert.
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  // Reset the transient feedback after a moment, cancelled on unmount so it
+  // never fires into a detail panel the user has already navigated away from.
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const id = window.setTimeout(() => setCopyState('idle'), 2500);
+    return () => window.clearTimeout(id);
+  }, [copyState]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // The viewer lives in-app at /g/{subdomain}/{token}. Without a subdomain the
@@ -171,12 +181,27 @@ function GalleryDetail({
     ? `${window.location.host}/g/${subdomain}/${gallery.accessToken}`
     : 'Gallery link unavailable';
 
-  function copyLink() {
+  /**
+   * Copying the share link is how a finished gallery actually reaches the
+   * client, so it must never fail silently.
+   *
+   * <p>`navigator.clipboard` is undefined outside a secure context — plain
+   * HTTP, and notably a dev server reached over a LAN IP — so calling
+   * `.writeText` on it threw a TypeError straight out of the click handler.
+   * Where it does exist the promise can still reject (permission denied,
+   * document not focused), and nothing was catching that either: the button
+   * just did nothing. Fall back to selecting the text so the user can copy it
+   * manually, and say so when even that isn't possible.
+   */
+  async function copyLink() {
     if (!shareUrl) return;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
   }
 
   if (!gallery) {
@@ -318,7 +343,12 @@ function GalleryDetail({
             onClick={copyLink}
             disabled={!shareUrl}
           >
-            <IconCopy /> {copied ? 'Copied!' : 'Copy Link'}
+            <IconCopy />{' '}
+            {copyState === 'copied'
+              ? 'Copied!'
+              : copyState === 'failed'
+                ? 'Press Ctrl/⌘+C'
+                : 'Copy Link'}
           </button>
         </div>
 
@@ -509,11 +539,21 @@ export default function GalleriesPage() {
           `/api/galleries/${galleryId}/photos/initiate-upload`,
           { filename: file.name, contentType: file.type || 'application/octet-stream' },
         );
-        await fetch(init.uploadUrl, {
+        const put = await fetch(init.uploadUrl, {
           method: 'PUT',
           body: file,
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
         });
+        // `fetch` only rejects on a network failure — a 403 (expired presign),
+        // 400 or 5xx from R2 resolves normally. Without this check the code
+        // marched straight on to `complete`, so the delivery_photos row was
+        // created pointing at an object that was never stored: the photographer
+        // saw "uploaded", photoCount counted it, and the client's gallery
+        // rendered a broken image. The portfolio uploader already checks its
+        // status (see fetchPutWithProgress); this path did not.
+        if (!put.ok) {
+          throw new Error(`Storage rejected the upload (HTTP ${put.status})`);
+        }
         await api.post(`/api/galleries/photos/${init.photoId}/complete`, { fileSizeBytes: file.size });
       }
       // Re-read so photoCount reflects the new uploads.

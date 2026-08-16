@@ -1,4 +1,5 @@
 import { INTL_LOCALE, type Locale } from './config';
+import { parseApiDate } from '@/lib/date';
 
 /**
  * Locale-aware date, number and currency formatting.
@@ -12,8 +13,8 @@ import { INTL_LOCALE, type Locale } from './config';
  */
 export type DateInput = string | Date;
 
-const asDate = (value: DateInput): Date =>
-  typeof value === 'string' ? new Date(value) : value;
+// Date-only strings must be read as local, not UTC — see parseApiDate.
+const asDate = (value: DateInput): Date => parseApiDate(value);
 
 type DateStyle = Intl.DateTimeFormatOptions;
 

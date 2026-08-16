@@ -6,6 +6,7 @@ import com.photographplatform.api.portfolio.domain.Category;
 import com.photographplatform.api.portfolio.dto.CategoryRequest;
 import com.photographplatform.api.portfolio.dto.CategoryResponse;
 import com.photographplatform.api.portfolio.repository.CategoryRepository;
+import com.photographplatform.api.portfolio.repository.PhotoRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final PhotoRepository photoRepository;
 
-    public CategoryService(CategoryRepository categoryRepository) {
+    public CategoryService(CategoryRepository categoryRepository, PhotoRepository photoRepository) {
         this.categoryRepository = categoryRepository;
+        this.photoRepository = photoRepository;
     }
 
     @Transactional(readOnly = true)
@@ -44,8 +47,15 @@ public class CategoryService {
         return toResponse(categoryRepository.save(category));
     }
 
+    /**
+     * Deleting a category un-files its photos rather than orphaning them — they
+     * return to "Uncategorised", where the photographer can re-file them. Same
+     * transaction, so a photo can never be left pointing at a category that is
+     * already gone.
+     */
     @Transactional
     public void deleteCategory(UUID id) {
+        photoRepository.clearCategory(id);
         categoryRepository.deleteById(id);
     }
 

@@ -57,6 +57,7 @@ public class AuthService {
     private final StringRedisTemplate redis;
     private final AuditService auditService;
     private final EmailVerificationService emailVerificationService;
+    private final AvatarUrlResolver avatarUrlResolver;
     private final long refreshTokenExpiryMs;
 
     /**
@@ -75,6 +76,7 @@ public class AuthService {
         StringRedisTemplate redis,
         AuditService auditService,
         EmailVerificationService emailVerificationService,
+        AvatarUrlResolver avatarUrlResolver,
         @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs
     ) {
         this.tenantRepository = tenantRepository;
@@ -85,6 +87,7 @@ public class AuthService {
         this.redis = redis;
         this.auditService = auditService;
         this.emailVerificationService = emailVerificationService;
+        this.avatarUrlResolver = avatarUrlResolver;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
         this.dummyBcryptHash = passwordEncoder.encode(
             "timing-equalization-placeholder-" + UUID.randomUUID());
@@ -315,7 +318,7 @@ public class AuthService {
             user.getId(), user.getEmail(), user.getFullName(), user.getRole(),
             user.isEmailVerified(),
             new MeResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
-            user.getAvatarUrl()
+            avatarUrlResolver.resolve(user.getAvatarUrl())
         );
     }
 
@@ -340,7 +343,7 @@ public class AuthService {
             user.getRole(),
             user.isEmailVerified(),
             new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
-            user.getAvatarUrl()
+            avatarUrlResolver.resolve(user.getAvatarUrl())
         );
         return new AuthResult(response, accessToken, rawRefresh);
     }

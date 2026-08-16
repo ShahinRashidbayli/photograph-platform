@@ -13,7 +13,18 @@ const api = axios.create({
 });
 
 let isRefreshing = false;
-let queue: Array<() => void> = [];
+
+/**
+ * Requests that 401'd while a token refresh was already in flight. Each entry
+ * holds *both* outcomes: the queue has to be able to fail, not just succeed.
+ * Previously it stored only a resolve callback, so when the refresh itself
+ * failed the queue was discarded and every promise waiting on it never
+ * settled — the awaiting components hung forever with their `finally`
+ * cleanup (spinners, submit locks) never running. The `location.href` redirect
+ * usually papered over it, but navigation is asynchronous and the app keeps
+ * rendering until it commits.
+ */
+let queue: Array<{ retry: () => void; fail: (_reason: unknown) => void }> = [];
 
 api.interceptors.response.use(
   (res) => res,
@@ -50,8 +61,16 @@ api.interceptors.response.use(
     }
 
     if (isRefreshing) {
-      return new Promise<void>((resolve) => {
-        queue.push(() => resolve(api(original)));
+      return new Promise((resolve, reject) => {
+        queue.push({
+          // Mark the retry so a second 401 can't send it back through the
+          // refresh flow and loop.
+          retry: () => {
+            original._retry = true;
+            resolve(api(original));
+          },
+          fail: reject,
+        });
       });
     }
 
@@ -61,11 +80,16 @@ api.interceptors.response.use(
     try {
       // No body needed — the refresh_token httpOnly cookie is sent automatically
       await api.post('/api/auth/refresh');
-      queue.forEach((cb) => cb());
+      const waiting = queue;
       queue = [];
+      waiting.forEach((entry) => entry.retry());
       return api(original);
     } catch (refreshError) {
+      // Settle the queue before redirecting: every waiter must reject so its
+      // caller's catch/finally runs, rather than being dropped mid-flight.
+      const waiting = queue;
       queue = [];
+      waiting.forEach((entry) => entry.fail(refreshError));
       useAuthStore.getState().clearUser();
       globalThis.location.href = '/login';
       throw refreshError;

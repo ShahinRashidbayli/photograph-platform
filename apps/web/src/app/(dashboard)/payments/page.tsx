@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { formatEUR, formatDayMonth, formatMonthDayYear } from '@/lib/helpers';
 import { useBookings } from '@/hooks/useBookings';
+import { parseApiDate, startOfToday } from '@/lib/date';
 import { isBillableStatus } from '@/lib/booking-status';
 import type { Booking } from '@/types/api';
 import { ComingSoon } from '@/components/ComingSoon';
@@ -54,9 +55,8 @@ function derivePayment(b: Booking): PayItem {
 }
 
 function daysUntil(iso: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((new Date(iso).getTime() - today.getTime()) / 86_400_000);
+  const today = startOfToday();
+  return Math.round((parseApiDate(iso).getTime() - today.getTime()) / 86_400_000);
 }
 
 export default function PaymentsPage() {

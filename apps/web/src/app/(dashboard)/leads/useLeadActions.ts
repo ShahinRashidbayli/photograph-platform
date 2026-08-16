@@ -1,7 +1,9 @@
 'use client';
 
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { bookingsQueryKey } from '@/hooks/useBookings';
 import type { Booking, Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
 
@@ -69,6 +71,23 @@ export interface LeadActions {
  */
 export function useLeadActions(deps: LeadActionsDeps): LeadActions {
   const { reload, setLeads, setInquiries, selectedLead, selectedInquiry } = deps;
+  const queryClient = useQueryClient();
+
+  /**
+   * Both "convert lead" and "accept inquiry" create a booking server-side, so
+   * the cached bookings list is stale the moment either succeeds.
+   *
+   * <p>This matters more than a normal staleness window because the success
+   * banner immediately offers "View in bookings →" — the app invites the exact
+   * navigation that exposes the stale cache, and `useBookings` holds its data
+   * fresh for 30s with `refetchOnWindowFocus` off, so the photographer lands on
+   * a list that is missing the booking they just created. Invalidating marks it
+   * stale so the bookings screen refetches on mount.
+   */
+  const invalidateBookings = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: bookingsQueryKey(true) });
+    queryClient.invalidateQueries({ queryKey: bookingsQueryKey(false) });
+  }, [queryClient]);
 
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [convertSuccess, setConvertSuccess] = useState<ConvertSuccess | null>(null);
@@ -102,9 +121,10 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
         if (lead) setConvertSuccess({ bookingId: booking.id, leadName: lead.name });
         return null;
       });
+      invalidateBookings();
       reload();
     },
-    [reload],
+    [reload, invalidateBookings],
   );
 
   const applyNoteSaved = useCallback(
@@ -148,6 +168,7 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
         // so surface it exactly like a lead conversion — the "view in bookings"
         // banner — rather than letting the row just quietly move buckets.
         if (status === 'ACCEPTED') {
+          invalidateBookings();
           setConvertSuccess({
             bookingId: '',
             leadName: data.customerName ?? selectedInquiry.customerName ?? '',
@@ -159,7 +180,7 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
         setInquiryBusyId(null);
       }
     },
-    [selectedInquiry, setInquiries],
+    [selectedInquiry, setInquiries, invalidateBookings],
   );
 
   const markSelectedReplied = useCallback(async () => {

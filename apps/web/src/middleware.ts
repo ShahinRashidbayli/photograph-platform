@@ -7,6 +7,15 @@ import { NextRequest, NextResponse } from 'next/server';
 //   /reset-password     — auth flows. Password recovery is by definition done
 //                         by someone who cannot sign in, so the reset link from
 //                         the email must open without a token cookie.
+//   /verify-email       — same reasoning: the confirmation link is clicked from
+//                         an inbox, very often on a phone or a browser where
+//                         the user has never signed in. Gating it sent those
+//                         clicks to /login and the address was never confirmed,
+//                         which in turn kept every @RequiresVerifiedEmail
+//                         endpoint locked. The token in the URL is the
+//                         credential, and the BE endpoint it posts to
+//                         (/api/auth/verify-email) is permitAll for the same
+//                         reason.
 //   /p/...              — public photographer portfolio (SSR)
 //   /r/...              — public booking-request form
 //   /g/...              — client gallery viewer, addressed by access token. The
@@ -18,6 +27,7 @@ const PUBLIC_PATHS = [
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/verify-email',
   '/p/',
   '/r/',
   '/g/',

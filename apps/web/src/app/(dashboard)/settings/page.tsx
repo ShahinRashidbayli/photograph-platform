@@ -6,7 +6,6 @@ import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import api from '@/lib/api';
 import type { Package } from '@/types/api';
-import Image from 'next/image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export default function SettingsPage() {
@@ -30,6 +29,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seed the inputs only when the user *identity* changes (i.e. loads on
@@ -101,12 +101,11 @@ export default function SettingsPage() {
     setAvatarError(null);
     try {
       const contentType = file.type || 'image/jpeg';
-      const { data: presign } = await api.post<{ uploadUrl: string; viewUrl: string }>(
+      const { data: presign } = await api.post<{ uploadUrl: string; viewUrl: string; r2Key: string }>(
         `/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}`
       );
-      
-      // Check if presign response looks valid (has uploadUrl)
-      if (!presign.uploadUrl || !presign.viewUrl) {
+
+      if (!presign.uploadUrl || !presign.r2Key) {
         throw new Error('Storage not configured. Please contact support.');
       }
       
@@ -116,8 +115,15 @@ export default function SettingsPage() {
         body: file,
       });
       if (!uploadRes.ok) throw new Error('Upload to storage failed');
-      const { data: updated } = await api.patch<AuthUser>('/api/auth/me', { avatarUrl: presign.viewUrl });
+      // Store the OBJECT KEY, not `presign.viewUrl`. That view URL is a
+      // pre-signed GET that expires with app.r2.presigned-expiry-minutes (60 by
+      // default) — the endpoint's own javadoc says callers must not cache it —
+      // so writing it into the profile meant every avatar turned into a 403 an
+      // hour after upload, permanently, with no refresh path. The backend
+      // re-signs the key on every read instead.
+      const { data: updated } = await api.patch<AuthUser>('/api/auth/me', { avatarUrl: presign.r2Key });
       setUser(updated);
+      setAvatarBroken(false);
     } catch (err) {
       const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       const msg = responseError ?? 'Could not upload photo. Please try again.';
@@ -213,13 +219,25 @@ export default function SettingsPage() {
           border: `1px solid ${c.borderSoft}`
         }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            {user?.avatarUrl ? (
+            {user?.avatarUrl && !avatarBroken ? (
               <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', border: `3px solid ${c.primary}`, boxShadow: `0 4px 12px rgba(0,0,0,0.15)` }}>
-                <Image
+                {/* Plain <img>, like every other remote image in this app.
+                    next/image refuses any host absent from images.remotePatterns
+                    in next.config — which is an empty array — so as soon as a
+                    user actually had an avatar it threw "Invalid src prop ...
+                    hostname is not configured" and took the settings page with
+                    it. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={user.avatarUrl}
                   alt="Profile photo"
-                  fill
-                  style={{ objectFit: 'cover' }}
+                  width={96}
+                  height={96}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  // A stored object key is re-signed per response, but an old
+                  // row may still hold an expired URL — fall back to the
+                  // initials placeholder rather than a broken-image icon.
+                  onError={() => setAvatarBroken(true)}
                 />
               </div>
             ) : (

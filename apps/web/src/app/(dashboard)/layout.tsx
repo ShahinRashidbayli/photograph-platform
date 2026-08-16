@@ -1,6 +1,7 @@
 "use client";
 
 import api from '@/lib/api';
+import { fetchAllPages } from '@/lib/paging';
 import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
@@ -268,9 +269,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     if (!isPhotographer) return;
     let cancelled = false;
     const fetchCount = () => {
+      // Paged, not a bare GET: `/api/leads` caps at 20 by default, so the
+      // badge stopped counting new leads once the 20 most recent rows were
+      // no longer all NEW — i.e. it under-reported exactly when there was a
+      // backlog to flag.
       Promise.all([
-        api.get<Array<{ status: string }>>('/api/leads').then((r) => r.data).catch(() => null),
-        api.get<Array<{ status: string }>>('/api/inquiries?size=100').then((r) => r.data).catch(() => null),
+        fetchAllPages<{ status: string }>('/api/leads').catch(() => null),
+        fetchAllPages<{ status: string }>('/api/inquiries').catch(() => null),
       ]).then(([leads, inquiries]) => {
         if (cancelled) return;
         // If both calls failed, leave the previous count untouched.
@@ -729,14 +734,26 @@ function EmailVerifyToast() {
   const [toast, setToast] = useState<{ text: string } | null>(null);
   const { t } = useTranslation();
 
+  // One timer, restarted per event. Scheduling a fresh un-tracked timeout on
+  // every event meant they stacked: a dashboard page fires several gated
+  // requests at once, so three 403s scheduled three dismissals, and the first
+  // to expire cleared the *latest* toast — the message vanished a second after
+  // appearing, precisely when it fired most often. Tracking it in a ref also
+  // lets the unmount cleanup cancel a pending dismissal.
+  const dismissTimer = useRef<number | undefined>(undefined);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail;
       setToast({ text: detail?.message ?? '' });
-      window.setTimeout(() => setToast(null), 6000);
+      if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
+      dismissTimer.current = window.setTimeout(() => setToast(null), 6000);
     };
     window.addEventListener('app:email-not-verified', handler);
-    return () => window.removeEventListener('app:email-not-verified', handler);
+    return () => {
+      window.removeEventListener('app:email-not-verified', handler);
+      if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
+    };
   }, []);
 
   if (!toast) return null;

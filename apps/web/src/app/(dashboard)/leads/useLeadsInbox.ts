@@ -1,7 +1,7 @@
 'use client';
 
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react';
-import api from '@/lib/api';
+import { fetchAllPages } from '@/lib/paging';
 import type { Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
 
@@ -34,19 +34,21 @@ export function useLeadsInbox(): LeadsInbox {
   const reload = useCallback(() => {
     setLoading(true);
     setLoadFailed(false);
+    // Both lists are fetched page by page: `/api/leads` defaults to 20 rows
+    // when no size is given, and this screen has no pagination control, so the
+    // inbox silently stopped at the 20 most recent leads — every older lead was
+    // unreachable, not just unlisted.
     Promise.allSettled([
-      api.get<Lead[]>('/api/leads'),
-      api.get<Inquiry[]>('/api/inquiries?size=100'),
+      fetchAllPages<Lead>('/api/leads'),
+      fetchAllPages<Inquiry>('/api/inquiries'),
     ])
       .then(([leadsRes, inqRes]) => {
-        if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value.data)) {
-          setLeads(leadsRes.value.data);
+        if (leadsRes.status === 'fulfilled') {
+          setLeads(leadsRes.value);
         } else {
           setLoadFailed(true);
         }
-        setInquiries(
-          inqRes.status === 'fulfilled' && Array.isArray(inqRes.value.data) ? inqRes.value.data : [],
-        );
+        setInquiries(inqRes.status === 'fulfilled' ? inqRes.value : []);
       })
       .finally(() => setLoading(false));
   }, []);

@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import api from '@/lib/api';
-import { Booking, Lead } from '@/types/api';
+import { fetchAllPages } from '@/lib/paging';
+import { parseApiDate, startOfToday } from '@/lib/date';
+import { useBookings } from '@/hooks/useBookings';
+import { Lead } from '@/types/api';
 import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
@@ -40,35 +42,43 @@ export default function DashboardPage() {
   const colors = useMemo(() => getDashboardColors(theme), [theme]);
 
   const router = useRouter();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  // Every KPI below is a sum or a count over these two lists, so a truncated
+  // list is not a shorter screen — it is a wrong number, silently. Bookings
+  // came back capped at 50 and leads at the API's default of 20, so a studio
+  // past either threshold saw understated revenue, collected and client
+  // counts with nothing to indicate it.
+  //
+  // useBookings already pages through the whole list (and caches it, so the
+  // bookings screen and this one share one fetch); leads get the same
+  // treatment via fetchAllPages.
+  const { data: bookingsData, isLoading: bookingsLoading } = useBookings(true);
+  const bookings = useMemo(() => bookingsData ?? [], [bookingsData]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [leadsLoading, setLeadsLoading] = useState(true);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const loading = bookingsLoading || leadsLoading;
 
   useEffect(() => {
-    Promise.allSettled([
-      api.get<Booking[]>('/api/photographerBookings?size=50'),
-      api.get<Lead[]>('/api/leads'),
-    ]).then(([bookingsRes, leadsRes]) => {
-      setBookings(
-        bookingsRes.status === 'fulfilled' && Array.isArray(bookingsRes.value.data)
-          ? bookingsRes.value.data
-          : [],
-      );
-      setLeads(
-        leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value.data)
-          ? leadsRes.value.data
-          : [],
-      );
-      setLoading(false);
-    });
+    let cancelled = false;
+    fetchAllPages<Lead>('/api/leads')
+      .then((rows) => {
+        if (!cancelled) setLeads(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setLeads([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLeadsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const kpis = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
+    const now = startOfToday();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thisMonthBookings = bookings.filter(b => new Date(b.eventDate) >= monthStart);
+    const thisMonthBookings = bookings.filter(b => parseApiDate(b.eventDate) >= monthStart);
     const billable = bookings.filter(b => isBillableStatus(b.status));
     const revenue = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
     // Collected must reflect what's actually been paid (derived server-side from
@@ -79,7 +89,7 @@ export default function DashboardPage() {
       billable.filter(b => b.status !== 'COMPLETED').map(b => b.clientEmail),
     ).size;
     const upcoming = billable.filter(
-      b => b.status !== 'COMPLETED' && new Date(b.eventDate) >= now,
+      b => b.status !== 'COMPLETED' && parseApiDate(b.eventDate) >= now,
     ).length;
     const newLeads = leads.filter(l => l.status === 'NEW').length;
     return {
@@ -94,16 +104,15 @@ export default function DashboardPage() {
   }, [bookings, leads]);
 
   const upcomingBookings = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
+    const now = startOfToday();
     return bookings
       .filter((b) => {
         if (!isBillableStatus(b.status) || b.status === 'COMPLETED') return false;
-        return new Date(b.eventDate) >= now;
+        return parseApiDate(b.eventDate) >= now;
       })
       .sort(
         (a, b) =>
-          new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime(),
+          parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime(),
       )
       .slice(0, 4);
   }, [bookings]);

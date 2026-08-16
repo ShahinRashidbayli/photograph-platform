@@ -6,6 +6,7 @@ import { getBookingStatusMeta, getCustomerBookingStatusLabelKey, isBillableStatu
 import { useTranslation } from '@/lib/i18n';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
+import { parseApiDate, startOfToday } from '@/lib/date';
 import { getBookingsColors } from './bookings.styles';
 
 type Props = {
@@ -23,9 +24,8 @@ function initialsFor(label: string): string {
 }
 
 function daysUntil(iso: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((new Date(iso).getTime() - today.getTime()) / 86_400_000);
+  const today = startOfToday();
+  return Math.round((parseApiDate(iso).getTime() - today.getTime()) / 86_400_000);
 }
 
 type Step = { label: string; meta: string; done: boolean };

@@ -196,9 +196,16 @@ export default function PortfolioAdminPage() {
 
   const visiblePhotos = useMemo(() => {
     if (activeCategory === 'all') return photos;
-    if (activeCategory === 'none') return photos.filter((p) => !p.categoryId);
+    // A photo whose categoryId names no existing category counts as
+    // uncategorised. Rows can carry a stale id (a category deleted before the
+    // backend started clearing the reference), and without this they matched
+    // no chip *and* failed the `!categoryId` test — visible only under "All",
+    // with no way to re-file them.
+    const known = new Set(categories.map((c) => c.id));
+    const isUnfiled = (p: Photo) => !p.categoryId || !known.has(p.categoryId);
+    if (activeCategory === 'none') return photos.filter(isUnfiled);
     return photos.filter((p) => p.categoryId === activeCategory);
-  }, [photos, activeCategory]);
+  }, [photos, activeCategory, categories]);
 
   async function confirmDelete() {
     if (!photoToDelete) return;

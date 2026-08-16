@@ -153,8 +153,9 @@ function CustomerLoginInner() {
 
           <form onSubmit={handleSubmit}>
             <div style={s.formGroup}>
-              <label style={s.label}>{t('customerLogin.emailLabel')}</label>
+              <label style={s.label} htmlFor="cust-email">{t('customerLogin.emailLabel')}</label>
               <input
+                id="cust-email"
                 type="email"
                 style={inputStyle('email')}
                 placeholder={t('auth.emailPlaceholder')}
@@ -167,9 +168,10 @@ function CustomerLoginInner() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>{t('customerLogin.subdomainLabel')}</label>
+              <label style={s.label} htmlFor="cust-subdomain">{t('customerLogin.subdomainLabel')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
                 <input
+                  id="cust-subdomain"
                   type="text"
                   style={{
                     ...inputStyle('subdomain'),
@@ -208,8 +210,9 @@ function CustomerLoginInner() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label}>{t('customerLogin.fullNameLabel')}</label>
+              <label style={s.label} htmlFor="cust-fullname">{t('customerLogin.fullNameLabel')}</label>
               <input
+                id="cust-fullname"
                 type="text"
                 style={inputStyle('fullName')}
                 placeholder="Maria Klein"

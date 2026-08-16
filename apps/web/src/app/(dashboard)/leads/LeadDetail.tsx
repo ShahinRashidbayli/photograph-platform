@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Lead, LeadActivity } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { whatsappHref } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import {
   translateOr,
@@ -88,9 +89,7 @@ export function LeadDetail({
   const formattedEventDate = format.fullDate(lead.eventDate);
 
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
-  const waHref = lead.phone
-    ? `https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`
-    : null;
+  const waHref = whatsappHref(lead.phone);
 
   return (
     <>

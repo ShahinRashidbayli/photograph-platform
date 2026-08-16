@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import api from '@/lib/api';
 import { Client } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import { whatsappHref } from '@/lib/helpers';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
   getClientsColors,
@@ -192,9 +193,7 @@ function ClientDetail({
   const lastBookingDate = client.lastBookingDate ? new Date(client.lastBookingDate) : null;
   const joinedDate = new Date(client.createdAt);
   const avatar = pickAvatarColor(client.id || client.fullName, c.isDark);
-  const waHref = client.phone
-    ? `https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`
-    : null;
+  const waHref = whatsappHref(client.phone);
 
   return (
     <>

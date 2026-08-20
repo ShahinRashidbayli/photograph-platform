@@ -1,10 +1,8 @@
 package com.photographplatform.api.lead.controller;
 
-import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.audit.dto.AuditLogResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
@@ -19,7 +17,7 @@ import com.photographplatform.api.lead.service.LeadConversionService;
 import com.photographplatform.api.lead.service.LeadReportingService;
 import com.photographplatform.api.lead.service.LeadService;
 import com.photographplatform.api.tenant.domain.Tenant;
-import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -50,18 +48,18 @@ public class LeadController {
     private final LeadService leadService;
     private final LeadConversionService leadConversionService;
     private final LeadReportingService leadReportingService;
-    private final TenantRepository tenantRepository;
+    private final PublicTenantResolver tenantResolver;
     private final StringRedisTemplate redisTemplate;
 
     public LeadController(LeadService leadService,
                           LeadConversionService leadConversionService,
                           LeadReportingService leadReportingService,
-                          TenantRepository tenantRepository,
+                          PublicTenantResolver tenantResolver,
                           StringRedisTemplate redisTemplate) {
         this.leadService = leadService;
         this.leadConversionService = leadConversionService;
         this.leadReportingService = leadReportingService;
-        this.tenantRepository = tenantRepository;
+        this.tenantResolver = tenantResolver;
         this.redisTemplate = redisTemplate;
     }
 
@@ -82,16 +80,10 @@ public class LeadController {
 
         checkRateLimit(ip);
 
-        Tenant tenant = tenantRepository.findBySubdomain(subdomain)
-            .orElseThrow(() -> new NotFoundException("Photographer not found: " + subdomain));
-
-        TenantContext.setTenant(tenant.getId().toString());
-        try {
-            LeadResponse response = leadService.createLead(request, tenant, ip);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } finally {
-            TenantContext.clear();
-        }
+        Tenant tenant = tenantResolver.requireBySubdomain(subdomain);
+        LeadResponse response = tenantResolver.inTenantContext(
+            tenant, () -> leadService.createLead(request, tenant, ip));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**

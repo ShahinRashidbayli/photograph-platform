@@ -5,9 +5,7 @@ export type ClientsTheme = Theme;
 
 export const getClientsColors = getColors;
 
-export const getClientsStyles = (
-  theme: ClientsTheme,
-): Record<string, React.CSSProperties> => {
+export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSProperties> => {
   const c = getClientsColors(theme);
 
   return {
@@ -23,8 +21,7 @@ export const getClientsStyles = (
       margin: '0 auto',
       background: c.bg,
       color: c.text,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -164,8 +161,7 @@ export const getClientsStyles = (
       border: `1px solid ${c.border}`,
       borderRadius: '10px',
       fontSize: '0.875rem',
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',
@@ -432,8 +428,7 @@ export const getClientsStyles = (
       border: `1px solid ${c.border}`,
       borderRadius: '12px',
       fontSize: '0.875rem',
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       minHeight: '110px',

@@ -21,8 +21,7 @@ export const clients: Record<keyof EnClients, string> = {
   'clients.stat.avgSpend': 'Durchschnittlicher Umsatz',
   'clients.stat.avgSpendHint': 'Pro Kunde insgesamt',
   'clients.listTitle': 'Alle Kunden',
-  'clients.listSubtitle':
-    'Sortiert nach letzter Aktivität · Umsatz & Buchungen auf einen Blick',
+  'clients.listSubtitle': 'Sortiert nach letzter Aktivität · Umsatz & Buchungen auf einen Blick',
   'clients.search.placeholder': 'Name oder E-Mail suchen…',
   'clients.filter.All': 'Alle',
   'clients.filter.Active': 'Aktiv',

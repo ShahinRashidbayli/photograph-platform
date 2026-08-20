@@ -115,9 +115,7 @@ export function ConvertLeadModal({
     } catch (err) {
       // 409 from the backend means the lead was already converted (idempotency
       // contract). Surface it plainly rather than the generic error.
-      setSubmitError(
-        extractApiError(err, t('convertLead.errSubmit')),
-      );
+      setSubmitError(extractApiError(err, t('convertLead.errSubmit')));
     } finally {
       setSubmitting(false);
     }
@@ -280,7 +278,16 @@ export function ConvertLeadModal({
               borderRadius: '10px',
             }}
           >
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+            <div
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: c.textMuted,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: '8px',
+              }}
+            >
               {t('convertLead.fromLead')}
             </div>
             <div style={readOnlyRow}>
@@ -321,7 +328,9 @@ export function ConvertLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-time">{t('createBooking.eventTime')}</label>
+              <label style={label} htmlFor="cv-time">
+                {t('createBooking.eventTime')}
+              </label>
               <input
                 id="cv-time"
                 type="time"
@@ -331,7 +340,9 @@ export function ConvertLeadModal({
               />
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-location">{t('createBooking.location')}</label>
+              <label style={label} htmlFor="cv-location">
+                {t('createBooking.location')}
+              </label>
               <input
                 id="cv-location"
                 type="text"
@@ -346,7 +357,9 @@ export function ConvertLeadModal({
 
           {packages.length > 0 && (
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-package">{t('createBooking.package')}</label>
+              <label style={label} htmlFor="cv-package">
+                {t('createBooking.package')}
+              </label>
               <select
                 id="cv-package"
                 value={packageId}
@@ -368,7 +381,9 @@ export function ConvertLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-total">{t('convertLead.total')}</label>
+              <label style={label} htmlFor="cv-total">
+                {t('convertLead.total')}
+              </label>
               <input
                 id="cv-total"
                 type="number"
@@ -380,7 +395,9 @@ export function ConvertLeadModal({
               />
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="cv-deposit">{t('createBooking.deposit')}</label>
+              <label style={label} htmlFor="cv-deposit">
+                {t('createBooking.deposit')}
+              </label>
               <input
                 id="cv-deposit"
                 type="number"
@@ -403,7 +420,9 @@ export function ConvertLeadModal({
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="cv-notes">{t('createBooking.notes')}</label>
+            <label style={label} htmlFor="cv-notes">
+              {t('createBooking.notes')}
+            </label>
             <textarea
               id="cv-notes"
               value={internalNotes}
@@ -418,12 +437,7 @@ export function ConvertLeadModal({
           <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </button>
-          <button
-            type="button"
-            style={primaryBtn}
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
+          <button type="button" style={primaryBtn} onClick={handleSubmit} disabled={submitting}>
             {submitting ? t('convertLead.submitting') : t('leads.convertToBooking')}
           </button>
         </div>

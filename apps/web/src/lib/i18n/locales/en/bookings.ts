@@ -135,8 +135,6 @@ export const bookings = {
   'customerBooking.dueOn': 'Due {date}.',
   'customerBooking.dueOnDays_one': 'Due {date} — {count} day before your session.',
   'customerBooking.dueOnDays_other': 'Due {date} — {count} days before your session.',
-  'customerBooking.payNow': 'Pay now',
-  'customerBooking.paymentsSoon': 'Online payments coming soon',
   'customerBooking.paidInFull': 'Paid in full — thank you! {amount}',
   'customerBooking.progress': 'Progress',
   'customerBooking.step.requestSent': 'Request sent',

@@ -9,8 +9,7 @@ export const clients = {
   'clients.title': 'Clients',
   'clients.subtitle': 'Manage client relationships, track sessions, and build lasting connections.',
   'clients.errorTitle': "Couldn't load clients",
-  'clients.errorLoad':
-    'We couldn’t load your clients. Please check your connection and try again.',
+  'clients.errorLoad': 'We couldn’t load your clients. Please check your connection and try again.',
   'clients.loadingDetails': 'Loading client details…',
   'clients.stat.total': 'Total clients',
   'clients.stat.totalHint': '{amount} lifetime revenue',

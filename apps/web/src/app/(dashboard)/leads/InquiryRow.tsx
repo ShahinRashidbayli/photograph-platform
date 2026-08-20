@@ -1,12 +1,7 @@
 import React from 'react';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
-import {
-  translateOr,
-  SCORE_SHORT_KEY,
-  type ColorTokens,
-  type Styles,
-} from './leadTypes';
+import { translateOr, SCORE_SHORT_KEY, type ColorTokens, type Styles } from './leadTypes';
 import {
   type Inquiry,
   INQUIRY_EVENT_LABEL_KEY,

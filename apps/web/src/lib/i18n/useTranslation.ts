@@ -66,7 +66,7 @@ export function useTranslation() {
   const t = useCallback(
     (key: TranslationKey, params?: TranslateParams): string =>
       interpolate(dictionaries[lang][key] ?? en[key] ?? key, params),
-    [lang],
+    [lang]
   );
 
   /**
@@ -88,7 +88,7 @@ export function useTranslation() {
         ...params,
       });
     },
-    [lang],
+    [lang]
   );
 
   const format: Formatters = useMemo(() => getFormatters(lang), [lang]);

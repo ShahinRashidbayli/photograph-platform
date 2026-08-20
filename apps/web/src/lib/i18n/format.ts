@@ -40,6 +40,15 @@ type DateStyleName = keyof typeof DATE_STYLES;
 export type Formatters = {
   /** Whole-euro currency, e.g. "€1,730" (en) / "1.730 €" (de). */
   eur: (_cents: number | null | undefined) => string;
+  /**
+   * Currency to the cent, e.g. "€1,730.50" / "1.730,50 €".
+   *
+   * Use this anywhere the figure is a legal or transactional amount — an
+   * invoice line, a total, the label on a Pay button. {@link eur} rounds to
+   * whole euros, which is fine for a dashboard summary but wrong on a document
+   * or a charge: it would print €1,235 next to a button that debits €1,234.56.
+   */
+  eurExact: (_cents: number | null | undefined) => string;
   /** Plain number with locale grouping — used for interpolated counts. */
   number: (_value: number) => string;
 } & Record<DateStyleName, (_value: DateInput) => string> & {
@@ -57,20 +66,26 @@ function build(locale: Locale): Formatters {
     currency: 'EUR',
     maximumFractionDigits: 0,
   });
+  const currencyExact = new Intl.NumberFormat(tag, {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const number = new Intl.NumberFormat(tag);
 
   const dates = Object.fromEntries(
     Object.entries(DATE_STYLES).map(([name, options]) => [
       name,
       new Intl.DateTimeFormat(tag, options),
-    ]),
+    ])
   ) as Record<DateStyleName, Intl.DateTimeFormat>;
 
   const formatters = {
     eur: (cents: number | null | undefined) => currency.format((cents ?? 0) / 100),
+    eurExact: (cents: number | null | undefined) => currencyExact.format((cents ?? 0) / 100),
     number: (value: number) => number.format(value),
-    monthAbbrUpper: (value: DateInput) =>
-      dates.monthAbbr.format(asDate(value)).toUpperCase(),
+    monthAbbrUpper: (value: DateInput) => dates.monthAbbr.format(asDate(value)).toUpperCase(),
   } as Formatters;
 
   for (const name of Object.keys(DATE_STYLES) as DateStyleName[]) {

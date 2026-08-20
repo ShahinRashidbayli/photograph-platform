@@ -5,11 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useTranslation } from '@/lib/i18n';
-import {
-  getLeadsColors,
-  getLeadsStyles,
-  type LeadsTheme,
-} from './leads.styles';
+import { getLeadsColors, getLeadsStyles, type LeadsTheme } from './leads.styles';
 import { FilterBar } from './FilterBar';
 import { LeadListItem } from './LeadListItem';
 import { LeadDetail } from './LeadDetail';
@@ -92,12 +88,18 @@ function LeadsView() {
   }, [selected, filteredLeads, filteredInquiries]);
 
   const selectedLead = useMemo(
-    () => (effectiveSelected?.kind === 'lead' ? leads.find((l) => l.id === effectiveSelected.id) ?? null : null),
-    [effectiveSelected, leads],
+    () =>
+      effectiveSelected?.kind === 'lead'
+        ? (leads.find((l) => l.id === effectiveSelected.id) ?? null)
+        : null,
+    [effectiveSelected, leads]
   );
   const selectedInquiry = useMemo(
-    () => (effectiveSelected?.kind === 'inquiry' ? inquiries.find((i) => i.id === effectiveSelected.id) ?? null : null),
-    [effectiveSelected, inquiries],
+    () =>
+      effectiveSelected?.kind === 'inquiry'
+        ? (inquiries.find((i) => i.id === effectiveSelected.id) ?? null)
+        : null,
+    [effectiveSelected, inquiries]
   );
 
   const {
@@ -130,8 +132,8 @@ function LeadsView() {
   // PENDING inquiries are the two "hasn't been triaged yet" states.
   const stats = useMemo(() => {
     const needsReply =
-      leads.filter((l) => l.status === 'NEW').length
-      + inquiries.filter((i) => i.status === 'PENDING').length;
+      leads.filter((l) => l.status === 'NEW').length +
+      inquiries.filter((i) => i.status === 'PENDING').length;
     return { needsReply };
   }, [leads, inquiries]);
 
@@ -253,21 +255,14 @@ function LeadsView() {
       )}
 
       {notingLead && (
-        <EditNoteModal
-          lead={notingLead}
-          c={c}
-          onClose={cancelNote}
-          onSaved={applyNoteSaved}
-        />
+        <EditNoteModal lead={notingLead} c={c} onClose={cancelNote} onSaved={applyNoteSaved} />
       )}
 
       <ConfirmDialog
         open={!!rejectingLead}
         theme={themeKey === 'dark' ? 'dark' : 'light'}
         title={t('leads.reject.title')}
-        message={
-          rejectingLead ? t('leads.reject.message', { name: rejectingLead.name }) : ''
-        }
+        message={rejectingLead ? t('leads.reject.message', { name: rejectingLead.name }) : ''}
         confirmLabel={t('leads.reject.confirm')}
         tone="danger"
         busy={rejectBusy}
@@ -362,7 +357,7 @@ function LeadsView() {
             {bold(
               t('leads.awaitingReply'),
               '{enquiries}',
-              tPlural('leads.enquiryCount', stats.needsReply),
+              tPlural('leads.enquiryCount', stats.needsReply)
             )}
           </span>
           {/* Surface the action: jump them straight to the Active tab with
@@ -411,7 +406,17 @@ function LeadsView() {
                 shown when both sources actually have entries — a photographer
                 with no inquiries yet shouldn't see an empty toggle. */}
             {inquiries.length > 0 && (
-              <div style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 10, border: `1px solid ${c.border}`, background: c.surface, marginBottom: 10 }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  gap: 2,
+                  padding: 2,
+                  borderRadius: 10,
+                  border: `1px solid ${c.border}`,
+                  background: c.surface,
+                  marginBottom: 10,
+                }}
+              >
                 {(['all', 'form', 'customer'] as const).map((sf) => {
                   const active = sourceFilter === sf;
                   return (
@@ -462,7 +467,9 @@ function LeadsView() {
                 </div>
               ) : filteredLeads.length === 0 && filteredInquiries.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noMatchTitle')}</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>
+                    {t('leads.empty.noMatchTitle')}
+                  </div>
                   {/* If the Active view is empty but there ARE resolved leads
                       sitting in Booked/Rejected, surface that explicitly —
                       otherwise the photographer wonders "where did my leads
@@ -489,7 +496,9 @@ function LeadsView() {
                     <InquiryRow
                       key={`inq-${inq.id}`}
                       inquiry={inq}
-                      isActive={effectiveSelected?.kind === 'inquiry' && effectiveSelected.id === inq.id}
+                      isActive={
+                        effectiveSelected?.kind === 'inquiry' && effectiveSelected.id === inq.id
+                      }
                       isHovered={hoveredId === inq.id}
                       onSelect={() => setSelected({ kind: 'inquiry', id: inq.id })}
                       onHover={(hov) => setHoveredId(hov ? inq.id : null)}
@@ -501,7 +510,9 @@ function LeadsView() {
                     <LeadListItem
                       key={lead.id}
                       lead={lead}
-                      isActive={effectiveSelected?.kind === 'lead' && effectiveSelected.id === lead.id}
+                      isActive={
+                        effectiveSelected?.kind === 'lead' && effectiveSelected.id === lead.id
+                      }
                       isHovered={hoveredId === lead.id}
                       onSelect={() => setSelected({ kind: 'lead', id: lead.id })}
                       onHover={(hov) => setHoveredId(hov ? lead.id : null)}

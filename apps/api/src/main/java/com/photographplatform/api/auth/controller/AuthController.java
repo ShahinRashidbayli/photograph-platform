@@ -13,18 +13,16 @@ import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.dto.VerifyEmailRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.AuthService;
+import com.photographplatform.api.auth.service.AvatarService;
 import com.photographplatform.api.auth.service.EmailVerificationService;
 import com.photographplatform.api.auth.service.PasswordResetService;
-import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.ClientIp;
-import com.photographplatform.api.portfolio.service.R2StorageService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,20 +44,20 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
     private final AuthCookieWriter cookies;
-    private final Optional<R2StorageService> r2StorageService;
+    private final AvatarService avatarService;
 
     public AuthController(
         AuthService authService,
         EmailVerificationService emailVerificationService,
         PasswordResetService passwordResetService,
         AuthCookieWriter cookies,
-        Optional<R2StorageService> r2StorageService
+        AvatarService avatarService
     ) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
         this.passwordResetService = passwordResetService;
         this.cookies = cookies;
-        this.r2StorageService = r2StorageService;
+        this.avatarService = avatarService;
     }
 
     @PostMapping("/register")
@@ -203,19 +201,7 @@ public class AuthController {
         @RequestParam(defaultValue = "image/jpeg") String contentType
     ) {
         requireUserId(userId);
-
-        if (!r2StorageService.isPresent()) {
-            throw new IllegalStateException("R2 storage is not configured. Please contact support.");
-        }
-
-        String tenantId = TenantContext.getTenant();
-        String ext = contentType.contains("png") ? ".png"
-            : contentType.contains("webp") ? ".webp" : ".jpg";
-        String r2Key = "avatars/" + tenantId + "/" + UUID.randomUUID() + ext;
-        R2StorageService r2 = r2StorageService.get();
-        String uploadUrl = r2.generateUploadUrl(r2Key, contentType);
-        String viewUrl = r2.generateDownloadUrl(r2Key);
-        return ResponseEntity.ok(new AvatarPresignResponse(uploadUrl, viewUrl, r2Key));
+        return ResponseEntity.ok(avatarService.presign(contentType));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

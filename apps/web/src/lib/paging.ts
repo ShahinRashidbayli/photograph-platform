@@ -32,7 +32,7 @@ const MAX_PAGES = 25;
  */
 export async function fetchAllPages<T>(
   path: string,
-  params: Record<string, string> = {},
+  params: Record<string, string> = {}
 ): Promise<T[]> {
   const all: T[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {

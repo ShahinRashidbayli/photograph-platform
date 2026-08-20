@@ -8,11 +8,7 @@ import { Client } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { whatsappHref } from '@/lib/helpers';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
-import {
-  getClientsColors,
-  getClientsStyles,
-  type ClientsTheme,
-} from './clients.styles';
+import { getClientsColors, getClientsStyles, type ClientsTheme } from './clients.styles';
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
 
@@ -22,17 +18,33 @@ const FILTER_LABEL_KEY: Record<ClientFilter, TranslationKey> = {
   Repeat: 'clients.filter.Repeat',
 };
 
- 
-
 const ICONS = {
   search: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
     </svg>
   ),
   plus: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 5v14M5 12h14" />
     </svg>
   ),
@@ -42,19 +54,46 @@ const ICONS = {
     </svg>
   ),
   email: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="m3 7 9 6 9-6" />
     </svg>
   ),
   arrowRight: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M5 12h14" />
       <path d="m13 6 6 6-6 6" />
     </svg>
   ),
   users: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -62,13 +101,31 @@ const ICONS = {
     </svg>
   ),
   calendar: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   ),
   euro: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M4 10h12M4 14h9" />
       <path d="M19 5a7 7 0 1 0 0 14" />
     </svg>
@@ -268,9 +325,7 @@ function ClientDetail({
           <div style={s.statBox}>
             <span style={s.statBoxLabel}>{t('clientDetail.stat.lastSession')}</span>
             <span style={s.statBoxValue}>
-              {lastBookingDate
-                ? format.monthDay(lastBookingDate)
-                : '—'}
+              {lastBookingDate ? format.monthDay(lastBookingDate) : '—'}
             </span>
           </div>
         </div>
@@ -289,9 +344,7 @@ function ClientDetail({
               </div>
               <div style={s.infoRow}>
                 <span style={s.infoLabel}>{t('clientDetail.joinedLabel')}</span>
-                <span style={s.infoValue}>
-                  {format.monthDayYear(joinedDate)}
-                </span>
+                <span style={s.infoValue}>{format.monthDayYear(joinedDate)}</span>
               </div>
             </div>
           </div>
@@ -356,7 +409,10 @@ function NotesEditor({
         <button
           type="button"
           style={{ ...s.secondaryButton, marginTop: 10, alignSelf: 'flex-start' }}
-          onClick={() => { setValue(initialNotes); setEditing(true); }}
+          onClick={() => {
+            setValue(initialNotes);
+            setEditing(true);
+          }}
         >
           {t('clientDetail.notesEdit')}
         </button>
@@ -394,7 +450,12 @@ function NotesEditor({
         <button type="button" style={s.invertedPrimaryButton} onClick={save} disabled={saving}>
           {saving ? t('clientDetail.notesSaving') : t('clientDetail.notesSave')}
         </button>
-        <button type="button" style={s.secondaryButton} onClick={() => setEditing(false)} disabled={saving}>
+        <button
+          type="button"
+          style={s.secondaryButton}
+          onClick={() => setEditing(false)}
+          disabled={saving}
+        >
           {t('clientDetail.notesCancel')}
         </button>
       </div>
@@ -478,7 +539,7 @@ function ClientsView() {
 
   const selectedClient = useMemo(
     () => filteredClients.find((cl) => cl.id === selectedClientId) || filteredClients[0] || null,
-    [filteredClients, selectedClientId],
+    [filteredClients, selectedClientId]
   );
 
   const stats = useMemo(() => {
@@ -590,7 +651,9 @@ function ClientsView() {
                 <ClientListSkeleton s={s} />
               ) : clients.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>{t('clients.empty.noneTitle')}</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>
+                    {t('clients.empty.noneTitle')}
+                  </div>
                   <div>{t('clients.empty.noneBody')}</div>
                   <button
                     type="button"
@@ -602,7 +665,9 @@ function ClientsView() {
                 </div>
               ) : filteredClients.length === 0 ? (
                 <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>{t('clients.empty.noMatchTitle')}</div>
+                  <div style={{ color: c.text, fontWeight: 600 }}>
+                    {t('clients.empty.noMatchTitle')}
+                  </div>
                   <div>{t('common.tryOtherFilter')}</div>
                 </div>
               ) : (

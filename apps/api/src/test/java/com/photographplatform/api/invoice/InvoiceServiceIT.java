@@ -15,6 +15,7 @@ import com.photographplatform.api.invoice.repository.InvoiceLineItemRepository;
 import com.photographplatform.api.invoice.repository.InvoiceNumberAllocator;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.invoice.service.InvoiceService;
+import com.photographplatform.api.payment.dto.RecordManualPaymentRequest;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.domain.TaxMode;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.when;
 class InvoiceServiceIT extends IntegrationTestBase {
 
     @Autowired private InvoiceService invoiceService;
+    @Autowired private com.photographplatform.api.payment.service.PaymentService paymentService;
     @Autowired private InvoiceRepository invoiceRepository;
     @Autowired private InvoiceLineItemRepository lineItemRepository;
     @Autowired private InvoiceNumberAllocator numberAllocator;
@@ -385,7 +387,107 @@ class InvoiceServiceIT extends IntegrationTestBase {
         // saving grows with every line billed.)
     }
 
+    /**
+     * The client-facing list resolves ownership from the caller's identity —
+     * their email matched against {@code bookings.client_email} — because a
+     * CUSTOMER has no booking id to ask with and no access to the endpoint
+     * that takes one. Getting that wrong in the permissive direction would
+     * show one client another client's invoice, tax numbers and totals, all
+     * inside the same tenant where RLS can't help.
+     */
+    @Test
+    void customerSeesOnlyInvoicesAddressedToTheirOwnEmail() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        when(r2StorageService.generateDownloadUrl(anyString())).thenReturn("https://cdn.example/invoice.pdf");
+
+        InvoiceResponse theirs = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Hochzeitsreportage", BigDecimal.ONE, 120_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        // A second booking, for a different client of the same photographer.
+        UUID otherBookingId = asTenant(fx.tenantId(), () -> {
+            Booking booking = new Booking("Jonas Weber", "jonas@example.test", LocalDate.now().plusDays(45));
+            booking.setTenantId(fx.tenantId());
+            return bookingRepository.save(booking).getId();
+        });
+        asUser(fx, () -> invoiceService.issueForBooking(
+            otherBookingId,
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Portrait", BigDecimal.ONE, 40_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        UUID customerId = asTenant(fx.tenantId(), () -> {
+            User customer = new User(fx.tenantId(), "maria@example.test", "hash", "Maria Kellner");
+            customer.setRole("CUSTOMER");
+            return userRepository.save(customer).getId();
+        });
+
+        List<InvoiceResponse> visible = asCustomer(fx.tenantId(), customerId,
+            () -> invoiceService.listForCustomer());
+
+        assertThat(visible).extracting(InvoiceResponse::id).containsExactly(theirs.id());
+    }
+
+    @Test
+    void customerWithNoBookingsSeesNoInvoices() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+
+        UUID strangerId = asTenant(fx.tenantId(), () -> {
+            User stranger = new User(fx.tenantId(), "stranger-" + UUID.randomUUID() + "@example.test",
+                "hash", "Nobody");
+            stranger.setRole("CUSTOMER");
+            return userRepository.save(stranger).getId();
+        });
+
+        assertThat(asCustomer(fx.tenantId(), strangerId, () -> invoiceService.listForCustomer())).isEmpty();
+    }
+
     // ── fixtures ──────────────────────────────────────────────────────────
+
+    /**
+     * The settlement figures the invoice list carries.
+     *
+     * <p>They exist so a page of invoices costs one request instead of one per
+     * row (see {@code InvoiceResponse}), which only holds if the list path
+     * actually populates them — there they come from a grouped query, where the
+     * single-invoice path does a direct read. Two code paths to the same number
+     * is exactly the shape that drifts, so this pins them against each other.
+     */
+    @Test
+    void listedInvoicesCarryTheirOwnPaidAndOutstandingFigures() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        when(r2StorageService.generateDownloadUrl(anyString())).thenReturn("https://cdn.example/invoice.pdf");
+
+        InvoiceResponse issued = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Hochzeitspaket", BigDecimal.ONE, 100_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        assertThat(issued.paidCents()).isZero();
+        assertThat(issued.outstandingCents()).isEqualTo(issued.totalCents());
+        assertThat(issued.verwendungszweck()).isEqualTo("RE-" + issued.invoiceNumber());
+
+        asUser(fx, () -> paymentService.recordManualPayment(
+            issued.id(), new RecordManualPaymentRequest(40_000), "203.0.113.5"));
+
+        List<InvoiceResponse> listed = asUser(fx, () -> invoiceService.listForBooking(fx.bookingId()));
+        assertThat(listed).hasSize(1);
+        assertThat(listed.get(0).paidCents()).isEqualTo(40_000);
+        assertThat(listed.get(0).outstandingCents()).isEqualTo(issued.totalCents() - 40_000);
+
+        InvoiceResponse fetched = asUser(fx, () -> invoiceService.get(issued.id()));
+        assertThat(fetched.paidCents()).isEqualTo(listed.get(0).paidCents());
+        assertThat(fetched.outstandingCents()).isEqualTo(listed.get(0).outstandingCents());
+    }
 
     private record TestFixture(UUID tenantId, UUID userId, UUID bookingId, String clientName) {
     }
@@ -400,6 +502,9 @@ class InvoiceServiceIT extends IntegrationTestBase {
             tenant.setPostalCode("10115");
             tenant.setCity("Berlin");
             tenant.setCountry("DE");
+            // §14 Abs. 4 Nr. 2 UStG — Steuernummer or USt-IdNr. Without one,
+            // hasBillingProfile() is false and issuance is refused.
+            tenant.setTaxId("21/815/08150");
             tenant.setTaxMode(taxMode);
             return tenantRepository.save(tenant).getId();
         });
@@ -418,6 +523,19 @@ class InvoiceServiceIT extends IntegrationTestBase {
         });
 
         return new TestFixture(tenantId, userId, bookingId, clientName);
+    }
+
+    /** Same as {@link #asUser} but for an arbitrary (customer) principal. */
+    private <T> T asCustomer(UUID tenantId, UUID userId, java.util.function.Supplier<T> action) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(userId.toString(), null));
+        TenantContext.setTenant(tenantId.toString());
+        try {
+            return action.get();
+        } finally {
+            SecurityContextHolder.clearContext();
+            TenantContext.clear();
+        }
     }
 
     private <T> T asUser(TestFixture fx, java.util.function.Supplier<T> action) {

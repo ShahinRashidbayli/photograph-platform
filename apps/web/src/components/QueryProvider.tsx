@@ -24,7 +24,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             refetchOnWindowFocus: false,
           },
         },
-      }),
+      })
   );
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;

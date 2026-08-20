@@ -26,7 +26,12 @@ const THEME_MAP = {
   },
 } as const;
 
-export function FotolioLogo({ variant = 'brand', theme = 'light', showText = true, ariaLabel = 'Fotolio' }: Readonly<FotolioLogoProps>) {
+export function FotolioLogo({
+  variant = 'brand',
+  theme = 'light',
+  showText = true,
+  ariaLabel = 'Fotolio',
+}: Readonly<FotolioLogoProps>) {
   const sizing = LOGO_VARIANTS[variant];
   const palette = THEME_MAP[theme];
   const semanticProps = showText ? {} : { role: 'img' as const, 'aria-label': ariaLabel };

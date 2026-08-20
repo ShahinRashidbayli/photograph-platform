@@ -35,18 +35,13 @@ api.interceptors.response.use(
     // when an annotated endpoint is hit by an unverified user. Surface this
     // globally via a window event so any listening UI (banner, toast) can
     // react without each call site needing its own handler.
-    if (
-      error.response?.status === 403 &&
-      error.response?.data?.code === 'EMAIL_NOT_VERIFIED'
-    ) {
+    if (error.response?.status === 403 && error.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
       const message =
         typeof error.response.data?.error === 'string'
           ? error.response.data.error
           : 'Please verify your email before performing this action.';
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('app:email-not-verified', { detail: { message } })
-        );
+        window.dispatchEvent(new CustomEvent('app:email-not-verified', { detail: { message } }));
       }
       throw error;
     }

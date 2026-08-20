@@ -47,6 +47,24 @@ public class Payment {
     @Column(name = "stripe_payment_intent_id", updatable = false, length = 255)
     private String stripePaymentIntentId;
 
+    /**
+     * The connected account the PaymentIntent was created on. Needed to
+     * retrieve or cancel it later — a direct-charge intent does not exist
+     * from the platform account's point of view — and checked against the
+     * webhook event's own {@code account} so an event from a different
+     * connected account can never settle this row.
+     */
+    @Column(name = "stripe_account_id", updatable = false, length = 255)
+    private String stripeAccountId;
+
+    /**
+     * The platform's commission on this charge, in cents. A historical fact,
+     * not a derived one: the tenant's plan (and so its rate) can change after
+     * the money has moved.
+     */
+    @Column(name = "application_fee_cents", nullable = false, updatable = false)
+    private Integer applicationFeeCents = 0;
+
     @Column(name = "confirmed_by_user_id")
     private UUID confirmedByUserId;
 
@@ -71,11 +89,25 @@ public class Payment {
         Integer amountCents,
         String stripePaymentIntentId
     ) {
+        this(tenantId, invoiceId, method, amountCents, stripePaymentIntentId, null, 0);
+    }
+
+    public Payment(
+        UUID tenantId,
+        UUID invoiceId,
+        PaymentMethod method,
+        Integer amountCents,
+        String stripePaymentIntentId,
+        String stripeAccountId,
+        Integer applicationFeeCents
+    ) {
         this.tenantId = tenantId;
         this.invoiceId = invoiceId;
         this.method = method.name();
         this.amountCents = amountCents;
         this.stripePaymentIntentId = stripePaymentIntentId;
+        this.stripeAccountId = stripeAccountId;
+        this.applicationFeeCents = applicationFeeCents != null ? applicationFeeCents : 0;
     }
 
     public UUID getId() {
@@ -112,6 +144,14 @@ public class Payment {
 
     public String getStripePaymentIntentId() {
         return stripePaymentIntentId;
+    }
+
+    public String getStripeAccountId() {
+        return stripeAccountId;
+    }
+
+    public Integer getApplicationFeeCents() {
+        return applicationFeeCents;
     }
 
     public UUID getConfirmedByUserId() {

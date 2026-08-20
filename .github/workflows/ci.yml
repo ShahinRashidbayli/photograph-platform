@@ -1,10 +1,12 @@
 name: CI
 
 on:
+  # `main` was push-only, so a pull request INTO main ran no checks at all —
+  # the one moment they matter most. Both long-lived branches are gated now.
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Job dependency graph:
@@ -81,6 +83,19 @@ jobs:
 
       - name: ESLint (TypeScript)
         run: npm run lint --workspace=apps/web
+
+      # The build job would catch a type error eventually, but it runs after
+      # every other job and takes minutes; tsc answers in seconds and says
+      # exactly which line.
+      - name: Typecheck (tsc)
+        run: npm run typecheck --workspace=apps/web
+
+      # Catches what the compiler cannot see inside translation strings:
+      # a placeholder renamed in one locale only, a plural form missing the
+      # categories its language requires, an orphaned key. All of these ship
+      # silently and surface as broken copy in front of a user.
+      - name: i18n dictionaries
+        run: npm run i18n:check --workspace=apps/web
 
   # ── 3. TEST — API ──────────────────────────────────────────
   test-api:

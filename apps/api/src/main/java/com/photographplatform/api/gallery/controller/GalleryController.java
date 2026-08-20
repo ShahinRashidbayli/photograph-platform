@@ -1,9 +1,5 @@
 package com.photographplatform.api.gallery.controller;
 
-import com.photographplatform.api.auth.domain.User;
-import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.common.config.TenantContext;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.gallery.dto.CreateGalleryRequest;
 import com.photographplatform.api.gallery.dto.DeliveryPhotoResponse;
@@ -14,8 +10,7 @@ import com.photographplatform.api.gallery.service.GalleryService;
 import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadResponse;
-import com.photographplatform.api.tenant.domain.Tenant;
-import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -36,15 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class GalleryController {
 
     private final GalleryService galleryService;
-    private final TenantRepository tenantRepository;
-    private final UserRepository userRepository;
+    private final PublicTenantResolver tenantResolver;
 
-    public GalleryController(GalleryService galleryService,
-                             TenantRepository tenantRepository,
-                             UserRepository userRepository) {
+    public GalleryController(GalleryService galleryService, PublicTenantResolver tenantResolver) {
         this.galleryService = galleryService;
-        this.tenantRepository = tenantRepository;
-        this.userRepository = userRepository;
+        this.tenantResolver = tenantResolver;
     }
 
     // ── owner ────────────────────────────────────────────────────────────────
@@ -110,19 +101,9 @@ public class GalleryController {
         @PathVariable String subdomain,
         @PathVariable String token
     ) {
-        Tenant tenant = tenantRepository.findBySubdomain(subdomain)
-            .orElseThrow(() -> new NotFoundException("Photographer not found: " + subdomain));
-
-        User owner = userRepository.findByEmail(tenant.getOwnerEmail()).orElse(null);
-        String photographerName = owner != null && owner.getFullName() != null
-            ? owner.getFullName()
-            : tenant.getSubdomain();
-
-        TenantContext.setTenant(tenant.getId().toString());
-        try {
-            return ResponseEntity.ok(galleryService.getPublicByToken(token, photographerName));
-        } finally {
-            TenantContext.clear();
-        }
+        var photographer = tenantResolver.requirePhotographer(subdomain);
+        return ResponseEntity.ok(tenantResolver.inTenantContext(
+            photographer.tenant(),
+            () -> galleryService.getPublicByToken(token, photographer.displayName())));
     }
 }

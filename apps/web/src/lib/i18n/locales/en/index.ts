@@ -7,6 +7,12 @@ import { bookings } from './bookings';
 import { leads } from './leads';
 import { clients } from './clients';
 import { inquiries } from './inquiries';
+import { invoices } from './invoices';
+import { payments } from './payments';
+import { galleries } from './galleries';
+import { portfolio } from './portfolio';
+import { settings } from './settings';
+import { stubs } from './stubs';
 
 /**
  * The English dictionary, assembled from one file per surface. Keys stay flat
@@ -23,4 +29,10 @@ export const en = {
   ...leads,
   ...clients,
   ...inquiries,
+  ...invoices,
+  ...payments,
+  ...galleries,
+  ...portfolio,
+  ...settings,
+  ...stubs,
 };

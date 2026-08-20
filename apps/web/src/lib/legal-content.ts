@@ -171,10 +171,22 @@ export const DATENSCHUTZ: LegalDoc = {
         {
           type: 'defs',
           rows: [
-            { k: 'Bereitstellung des Dienstes, Vertragserfüllung', v: 'Art. 6 Abs. 1 lit. b DSGVO' },
-            { k: 'Sicherheit, E-Mail-Verifizierung, Missbrauchsvermeidung', v: 'Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse)' },
-            { k: 'Einwilligungsbasierte Verarbeitung (z. B. optionale Kommunikation)', v: 'Art. 6 Abs. 1 lit. a DSGVO' },
-            { k: 'Gesetzliche Aufbewahrungspflichten (z. B. GoBD/Rechnungen)', v: 'Art. 6 Abs. 1 lit. c DSGVO' },
+            {
+              k: 'Bereitstellung des Dienstes, Vertragserfüllung',
+              v: 'Art. 6 Abs. 1 lit. b DSGVO',
+            },
+            {
+              k: 'Sicherheit, E-Mail-Verifizierung, Missbrauchsvermeidung',
+              v: 'Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse)',
+            },
+            {
+              k: 'Einwilligungsbasierte Verarbeitung (z. B. optionale Kommunikation)',
+              v: 'Art. 6 Abs. 1 lit. a DSGVO',
+            },
+            {
+              k: 'Gesetzliche Aufbewahrungspflichten (z. B. GoBD/Rechnungen)',
+              v: 'Art. 6 Abs. 1 lit. c DSGVO',
+            },
           ],
         },
       ],
@@ -189,11 +201,20 @@ export const DATENSCHUTZ: LegalDoc = {
         {
           type: 'defs',
           rows: [
-            { k: 'Resend', v: 'Versand transaktionaler E-Mails (Verifizierung, Magic-Link, Benachrichtigungen).' },
+            {
+              k: 'Resend',
+              v: 'Versand transaktionaler E-Mails (Verifizierung, Magic-Link, Benachrichtigungen).',
+            },
             { k: 'Cloudflare R2', v: 'Speicherung von Portfolio- und Galerie-Bilddateien.' },
-            { k: COMPANY.hostingProvider, v: 'Betrieb von Web-/API-Servern und PostgreSQL-Datenbank (Speicherung der Stamm- und Buchungsdaten).' },
+            {
+              k: COMPANY.hostingProvider,
+              v: 'Betrieb von Web-/API-Servern und PostgreSQL-Datenbank (Speicherung der Stamm- und Buchungsdaten).',
+            },
             { k: 'Redis', v: 'Temporäres Caching/Session-Handling.' },
-            { k: 'Stripe', v: 'Zahlungsabwicklung – sobald die Zahlungsfunktion aktiviert ist (derzeit noch nicht live).' },
+            {
+              k: 'Stripe',
+              v: 'Zahlungsabwicklung – sobald die Zahlungsfunktion aktiviert ist (derzeit noch nicht live).',
+            },
           ],
         },
       ],
@@ -261,7 +282,10 @@ export const DATENSCHUTZ: LegalDoc = {
     {
       heading: '10. Kontakt in Datenschutzfragen',
       blocks: [
-        { type: 'p', text: `Für Anfragen zum Datenschutz erreichen Sie uns unter ${COMPANY.email}.` },
+        {
+          type: 'p',
+          text: `Für Anfragen zum Datenschutz erreichen Sie uns unter ${COMPANY.email}.`,
+        },
       ],
     },
   ],

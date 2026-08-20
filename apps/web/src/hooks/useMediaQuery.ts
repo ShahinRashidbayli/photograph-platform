@@ -19,7 +19,7 @@ export function useMediaQuery(query: string): boolean {
       list.addEventListener('change', onChange);
       return () => list.removeEventListener('change', onChange);
     },
-    [query],
+    [query]
   );
 
   return useSyncExternalStore(
@@ -27,6 +27,6 @@ export function useMediaQuery(query: string): boolean {
     () => window.matchMedia(query).matches,
     // Server snapshot: assume the roomy layout, which is what the desktop-first
     // styles already describe.
-    () => false,
+    () => false
   );
 }

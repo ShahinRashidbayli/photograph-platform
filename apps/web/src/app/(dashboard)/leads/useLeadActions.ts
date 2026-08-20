@@ -124,7 +124,7 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
       invalidateBookings();
       reload();
     },
-    [reload, invalidateBookings],
+    [reload, invalidateBookings]
   );
 
   const applyNoteSaved = useCallback(
@@ -134,7 +134,7 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
       setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
       setNotingLead(null);
     },
-    [setLeads],
+    [setLeads]
   );
 
   const confirmReject = useCallback(async () => {
@@ -159,10 +159,9 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
       setInquiryBusyId(selectedInquiry.id);
       setActionError(null);
       try {
-        const { data } = await api.patch<Inquiry>(
-          `/api/inquiries/${selectedInquiry.id}/status`,
-          { status },
-        );
+        const { data } = await api.patch<Inquiry>(`/api/inquiries/${selectedInquiry.id}/status`, {
+          status,
+        });
         setInquiries((prev) => prev.map((i) => (i.id === data.id ? data : i)));
         // Accepting creates a booking on the server (status -> BOOKING_CREATED),
         // so surface it exactly like a lead conversion — the "view in bookings"
@@ -180,14 +179,16 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
         setInquiryBusyId(null);
       }
     },
-    [selectedInquiry, setInquiries, invalidateBookings],
+    [selectedInquiry, setInquiries, invalidateBookings]
   );
 
   const markSelectedReplied = useCallback(async () => {
     if (!selectedLead) return;
     setActionError(null);
     try {
-      const res = await api.patch<Lead>(`/api/leads/${selectedLead.id}/status`, { status: 'REPLIED' });
+      const res = await api.patch<Lead>(`/api/leads/${selectedLead.id}/status`, {
+        status: 'REPLIED',
+      });
       setLeads((prev) => prev.map((l) => (l.id === res.data.id ? res.data : l)));
     } catch {
       setActionError('Could not mark as replied. Please try again.');

@@ -49,7 +49,6 @@ export function ActivityTimeline({
     }
   };
 
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: '10px' }}>
       {activity.map((entry, idx) => {
@@ -103,8 +102,8 @@ export function ActivityTimeline({
                     entry.action === 'LEAD_CONVERTED'
                       ? c.success
                       : entry.action === 'LEAD_REJECTED'
-                      ? c.danger
-                      : c.primary,
+                        ? c.danger
+                        : c.primary,
                 }}
               />
             </span>
@@ -115,9 +114,7 @@ export function ActivityTimeline({
               <div style={{ fontSize: '0.75rem', color: c.textMuted, marginTop: '2px' }}>
                 {format.dateTime(entry.createdAt)}
                 {meta.detail ? ` · ${meta.detail}` : ''}
-                {entry.oldValue && entry.newValue
-                  ? ` · ${entry.oldValue} → ${entry.newValue}`
-                  : ''}
+                {entry.oldValue && entry.newValue ? ` · ${entry.oldValue} → ${entry.newValue}` : ''}
               </div>
             </div>
           </div>

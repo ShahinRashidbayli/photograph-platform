@@ -64,12 +64,39 @@ const BOOKINGS: {
 
 // Ordered lifecycle — every booking moves through these five stages in order,
 // so the numbering encodes a real sequence rather than decoration.
-const PIPELINE: { icon: IconName; titleKey: TranslationKey; textKey: TranslationKey; soon?: boolean }[] = [
-  { icon: 'target', titleKey: 'landing.pipeline.enquiryTitle', textKey: 'landing.pipeline.enquiryText' },
-  { icon: 'calendar', titleKey: 'landing.pipeline.bookingTitle', textKey: 'landing.pipeline.bookingText' },
-  { icon: 'contract', titleKey: 'landing.pipeline.contractTitle', textKey: 'landing.pipeline.contractText', soon: true },
-  { icon: 'card', titleKey: 'landing.pipeline.paymentTitle', textKey: 'landing.pipeline.paymentText', soon: true },
-  { icon: 'gallery', titleKey: 'landing.pipeline.galleryTitle', textKey: 'landing.pipeline.galleryText' },
+const PIPELINE: {
+  icon: IconName;
+  titleKey: TranslationKey;
+  textKey: TranslationKey;
+  soon?: boolean;
+}[] = [
+  {
+    icon: 'target',
+    titleKey: 'landing.pipeline.enquiryTitle',
+    textKey: 'landing.pipeline.enquiryText',
+  },
+  {
+    icon: 'calendar',
+    titleKey: 'landing.pipeline.bookingTitle',
+    textKey: 'landing.pipeline.bookingText',
+  },
+  {
+    icon: 'contract',
+    titleKey: 'landing.pipeline.contractTitle',
+    textKey: 'landing.pipeline.contractText',
+    soon: true,
+  },
+  {
+    icon: 'card',
+    titleKey: 'landing.pipeline.paymentTitle',
+    textKey: 'landing.pipeline.paymentText',
+    soon: true,
+  },
+  {
+    icon: 'gallery',
+    titleKey: 'landing.pipeline.galleryTitle',
+    textKey: 'landing.pipeline.galleryText',
+  },
 ];
 
 const PHOTOGRAPHER_FEATURES: { labelKey: TranslationKey; soon?: boolean }[] = [
@@ -113,6 +140,10 @@ const GALLERY_FRAMES: { no: string; ar: string; fav?: boolean; selected?: boolea
 // it is the thing a photographer will compare against Pro; the footnote adds
 // that it sits on top of Stripe's own fee.
 //
+// Both payment rows lost their "soon" badge on 2026-08-18, when card/SEPA
+// shipped on Stripe Connect Express — they are the only two promises on this
+// page above Starter's baseline that the product now actually keeps.
+//
 // Labels answer "what do I actually get?" for a first-time visitor — no
 // internal jargon ("lead", "portfolio & website"). They stay short because a
 // pricing bullet is scanned, not read, and the row lays its check icon out with
@@ -146,7 +177,7 @@ const PRICING: {
       { labelKey: 'landing.price.f.leadMgmt' },
       { labelKey: 'landing.price.f.onlineBookings' },
       { labelKey: 'landing.price.f.crm' },
-      { labelKey: 'landing.price.f.stripeDeposits', soon: true, footnote: true },
+      { labelKey: 'landing.price.f.stripeDeposits', footnote: true },
       { labelKey: 'landing.price.f.retention60', soon: true },
     ],
   },
@@ -162,7 +193,7 @@ const PRICING: {
     features: [
       { labelKey: 'landing.price.f.everythingStarter' },
       { labelKey: 'landing.price.f.instagramDm', soon: true },
-      { labelKey: 'landing.price.f.zeroCommission', soon: true },
+      { labelKey: 'landing.price.f.zeroCommission' },
       { labelKey: 'landing.price.f.contractsEsign', soon: true },
       { labelKey: 'landing.price.f.retention1y', soon: true },
     ],
@@ -205,7 +236,7 @@ export default function LandingPage() {
   // Scroll-reveal — reveal below-the-fold blocks as they enter the viewport.
   useEffect(() => {
     const els = Array.from(
-      document.querySelectorAll<HTMLElement>('.landing-reveal, .landing-reveal-stagger'),
+      document.querySelectorAll<HTMLElement>('.landing-reveal, .landing-reveal-stagger')
     );
     if (typeof IntersectionObserver === 'undefined') {
       els.forEach((el) => el.classList.add('in'));
@@ -220,7 +251,7 @@ export default function LandingPage() {
           }
         });
       },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
@@ -231,7 +262,11 @@ export default function LandingPage() {
 
   return (
     <div className="landing-root" style={s.page}>
-      <div className="landing-grain" style={{ opacity: c.isDark ? 0.06 : 0.035 }} aria-hidden="true" />
+      <div
+        className="landing-grain"
+        style={{ opacity: c.isDark ? 0.06 : 0.035 }}
+        aria-hidden="true"
+      />
 
       {/* ── Nav ─────────────────────────────────────────────────── */}
       <nav style={{ ...s.navbar, ...(scrolled ? s.navbarScrolled : {}) }}>
@@ -241,10 +276,18 @@ export default function LandingPage() {
           </Link>
 
           <div style={s.navLinks} className="landing-nav-links">
-            <a href="#features" style={s.navLink}>{t('landing.nav.features')}</a>
-            <a href="#workflow" style={s.navLink}>{t('landing.nav.howItWorks')}</a>
-            <a href="#pricing" style={s.navLink}>{t('landing.nav.pricing')}</a>
-            <a href="#audience" style={s.navLink}>{t('landing.nav.forClients')}</a>
+            <a href="#features" style={s.navLink}>
+              {t('landing.nav.features')}
+            </a>
+            <a href="#workflow" style={s.navLink}>
+              {t('landing.nav.howItWorks')}
+            </a>
+            <a href="#pricing" style={s.navLink}>
+              {t('landing.nav.pricing')}
+            </a>
+            <a href="#audience" style={s.navLink}>
+              {t('landing.nav.forClients')}
+            </a>
           </div>
 
           <div style={s.navRight}>
@@ -253,7 +296,11 @@ export default function LandingPage() {
             <Link href="/login" style={s.navSignIn}>
               {t('landing.nav.signIn')}
             </Link>
-            <Link href="/register" className="landing-btn landing-btn-primary" style={{ padding: '10px 18px', fontSize: '0.88rem' }}>
+            <Link
+              href="/register"
+              className="landing-btn landing-btn-primary"
+              style={{ padding: '10px 18px', fontSize: '0.88rem' }}
+            >
               {t('landing.nav.getStarted')}
             </Link>
           </div>
@@ -277,8 +324,13 @@ export default function LandingPage() {
             </span>
 
             <h1 style={s.heroTitle}>
-              {t('landing.hero.title1')}<br />
-              {t('landing.hero.title2pre')}<span className="landing-accent-shimmer" style={s.heroAccent}>{t('landing.hero.title2accent')}</span>.
+              {t('landing.hero.title1')}
+              <br />
+              {t('landing.hero.title2pre')}
+              <span className="landing-accent-shimmer" style={s.heroAccent}>
+                {t('landing.hero.title2accent')}
+              </span>
+              .
             </h1>
 
             <p style={s.lede}>{t('landing.hero.lede')}</p>
@@ -299,16 +351,14 @@ export default function LandingPage() {
             </div>
 
             <div style={s.heroMicro}>
-              {[t('landing.hero.microNoCard'), t('landing.hero.microCancel')].map(
-                (item) => (
-                  <span key={item} style={s.heroMicroItem}>
-                    <span style={{ color: c.success, display: 'flex' }}>
-                      <Icon name="check" size={15} strokeWidth={2.6} />
-                    </span>
-                    {item}
+              {[t('landing.hero.microNoCard'), t('landing.hero.microCancel')].map((item) => (
+                <span key={item} style={s.heroMicroItem}>
+                  <span style={{ color: c.success, display: 'flex' }}>
+                    <Icon name="check" size={15} strokeWidth={2.6} />
                   </span>
-                ),
-              )}
+                  {item}
+                </span>
+              ))}
             </div>
           </div>
 
@@ -333,7 +383,10 @@ export default function LandingPage() {
               </div>
 
               {BOOKINGS.map((b, i) => (
-                <div key={b.name} style={{ ...s.row, ...(i === BOOKINGS.length - 1 ? { marginBottom: 0 } : {}) }}>
+                <div
+                  key={b.name}
+                  style={{ ...s.row, ...(i === BOOKINGS.length - 1 ? { marginBottom: 0 } : {}) }}
+                >
                   <span style={{ ...s.avatar, background: b.gradient }}>{b.initials}</span>
                   <span style={s.rowInfo}>
                     <span style={s.rowName}>{b.name}</span>
@@ -444,7 +497,8 @@ export default function LandingPage() {
                   <div style={s.miniRowActive}>
                     <span style={s.miniLabel}>Sat 12 Jul · 14:00</span>
                     <span style={s.miniPillSuccess}>
-                      <Icon name="check" size={11} strokeWidth={2.5} /> {t('landing.features.booked')}
+                      <Icon name="check" size={11} strokeWidth={2.5} />{' '}
+                      {t('landing.features.booked')}
                     </span>
                   </div>
                   <div style={s.miniRow}>
@@ -464,7 +518,8 @@ export default function LandingPage() {
                   <div style={s.miniRow}>
                     <span style={s.miniLabel}>Shooting-Vertrag.pdf</span>
                     <span style={s.miniPillSuccess}>
-                      <Icon name="check" size={11} strokeWidth={2.5} /> {t('landing.features.signed')}
+                      <Icon name="check" size={11} strokeWidth={2.5} />{' '}
+                      {t('landing.features.signed')}
                     </span>
                   </div>
                   <div style={s.miniSign}>
@@ -486,7 +541,8 @@ export default function LandingPage() {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={s.miniValue}>€480</span>
                       <span style={s.miniPillSuccess}>
-                        <Icon name="check" size={11} strokeWidth={2.5} /> {t('landing.features.paid')}
+                        <Icon name="check" size={11} strokeWidth={2.5} />{' '}
+                        {t('landing.features.paid')}
                       </span>
                     </span>
                   </div>
@@ -711,10 +767,14 @@ export default function LandingPage() {
           {PRICING.map((plan) => (
             <div
               key={plan.tier}
-              className={plan.highlighted ? 'landing-price-pro landing-card-hover' : 'landing-card-hover'}
+              className={
+                plan.highlighted ? 'landing-price-pro landing-card-hover' : 'landing-card-hover'
+              }
               style={{ ...s.priceCard, ...(plan.highlighted ? s.priceCardHot : {}) }}
             >
-              {plan.highlighted && <div style={s.priceBadge}>{t('landing.pricing.mostPopular')}</div>}
+              {plan.highlighted && (
+                <div style={s.priceBadge}>{t('landing.pricing.mostPopular')}</div>
+              )}
 
               <div style={{ ...s.tier, ...(plan.highlighted ? s.tierPro : {}) }}>{plan.tier}</div>
               <div style={s.amount}>
@@ -800,22 +860,42 @@ export default function LandingPage() {
 
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.product')}</h5>
-              <a href="#features" style={s.footLink}>{t('landing.nav.features')}</a>
-              <a href="#pricing" style={s.footLink}>{t('landing.nav.pricing')}</a>
-              <a href="#workflow" style={s.footLink}>{t('landing.nav.howItWorks')}</a>
-              <a href="#audience" style={s.footLink}>{t('landing.nav.forClients')}</a>
+              <a href="#features" style={s.footLink}>
+                {t('landing.nav.features')}
+              </a>
+              <a href="#pricing" style={s.footLink}>
+                {t('landing.nav.pricing')}
+              </a>
+              <a href="#workflow" style={s.footLink}>
+                {t('landing.nav.howItWorks')}
+              </a>
+              <a href="#audience" style={s.footLink}>
+                {t('landing.nav.forClients')}
+              </a>
             </div>
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.account')}</h5>
-              <Link href="/login" style={s.footLink}>{t('landing.nav.signIn')}</Link>
-              <Link href="/register" style={s.footLink}>{t('landing.nav.getStarted')}</Link>
-              <Link href="/customer/auth/login" style={s.footLink}>{t('landing.audience.findPhotographer')}</Link>
+              <Link href="/login" style={s.footLink}>
+                {t('landing.nav.signIn')}
+              </Link>
+              <Link href="/register" style={s.footLink}>
+                {t('landing.nav.getStarted')}
+              </Link>
+              <Link href="/customer/auth/login" style={s.footLink}>
+                {t('landing.audience.findPhotographer')}
+              </Link>
             </div>
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.legal')}</h5>
-              <Link href="/impressum" style={s.footLink}>Impressum</Link>
-              <Link href="/datenschutz" style={s.footLink}>Datenschutz</Link>
-              <Link href="/agb" style={s.footLink}>AGB</Link>
+              <Link href="/impressum" style={s.footLink}>
+                Impressum
+              </Link>
+              <Link href="/datenschutz" style={s.footLink}>
+                Datenschutz
+              </Link>
+              <Link href="/agb" style={s.footLink}>
+                AGB
+              </Link>
             </div>
           </div>
 

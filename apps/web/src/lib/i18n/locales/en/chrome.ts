@@ -26,7 +26,8 @@ export const chrome = {
   'chrome.loading': 'Loading dashboard…',
   'chrome.redirecting': 'Redirecting…',
   'chrome.accessDenied.title': 'This page is for photographers',
-  'chrome.accessDenied.body': "You're signed in as {email}, a client account. Sign in with your photographer account to open this page.",
+  'chrome.accessDenied.body':
+    "You're signed in as {email}, a client account. Sign in with your photographer account to open this page.",
   'chrome.accessDenied.switch': 'Sign in as photographer',
   'chrome.accessDenied.myBookings': 'Go to my bookings',
   'chrome.openMenu': 'Open navigation menu',

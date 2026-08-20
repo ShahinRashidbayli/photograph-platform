@@ -1,11 +1,13 @@
 package com.photographplatform.api.invoice.service;
 
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.invoice.domain.Invoice;
 import com.photographplatform.api.invoice.domain.InvoiceLineItem;
@@ -16,6 +18,7 @@ import com.photographplatform.api.invoice.dto.InvoiceResponse;
 import com.photographplatform.api.invoice.repository.InvoiceLineItemRepository;
 import com.photographplatform.api.invoice.repository.InvoiceNumberAllocator;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
+import com.photographplatform.api.payment.repository.PaymentRepository;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -49,32 +52,38 @@ public class InvoiceService {
     private final InvoiceLineItemRepository lineItemRepository;
     private final InvoiceNumberAllocator numberAllocator;
     private final BookingRepository bookingRepository;
+    private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
     private final InvoicePdfRenderer pdfRenderer;
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
     private final DatevInvoiceExporter datevExporter;
+    private final PaymentRepository paymentRepository;
 
     public InvoiceService(
         InvoiceRepository invoiceRepository,
         InvoiceLineItemRepository lineItemRepository,
         InvoiceNumberAllocator numberAllocator,
         BookingRepository bookingRepository,
+        UserRepository userRepository,
         TenantRepository tenantRepository,
         InvoicePdfRenderer pdfRenderer,
         Optional<R2StorageService> storage,
         AuditService auditService,
-        DatevInvoiceExporter datevExporter
+        DatevInvoiceExporter datevExporter,
+        PaymentRepository paymentRepository
     ) {
         this.invoiceRepository = invoiceRepository;
         this.lineItemRepository = lineItemRepository;
         this.numberAllocator = numberAllocator;
         this.bookingRepository = bookingRepository;
+        this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.pdfRenderer = pdfRenderer;
         this.storage = storage;
         this.auditService = auditService;
         this.datevExporter = datevExporter;
+        this.paymentRepository = paymentRepository;
     }
 
     @Transactional
@@ -95,7 +104,8 @@ public class InvoiceService {
 
         if (!tenant.hasBillingProfile()) {
             throw new ConflictException(
-                "Complete your business details (name, address) before issuing an invoice");
+                "Complete your business details in Settings — §14 UStG requires your business name, "
+                    + "address and either your Steuernummer or USt-IdNr. on every invoice");
         }
 
         List<InvoiceTaxCalculator.LineInput> inputs = req.lineItems().stream()
@@ -240,20 +250,64 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public List<InvoiceResponse> listForBooking(UUID bookingId) {
-        List<Invoice> invoices = invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId);
+        return toResponses(invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId));
+    }
+
+    /**
+     * Every invoice addressed to the authenticated customer, newest first.
+     *
+     * <p>The photographer-facing {@code listForBooking} can't serve this: it
+     * takes a booking id the customer has no way to enumerate, and {@code
+     * /api/bookings/**} is closed to CUSTOMER tokens anyway. Ownership is
+     * resolved the same way {@code BookingService#getOwnBookings} and {@code
+     * PaymentService#requireOwnedByCallerIfCustomer} do it — from the JWT's
+     * user, matched on {@code client_email}, never from a caller-supplied id.
+     * RLS still scopes everything to the one tenant the token belongs to.
+     */
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> listForCustomer() {
+        var user = userRepository.findById(SecurityUtils.requireCurrentUserId())
+            .orElseThrow(() -> new UnauthorizedException("Authentication required"));
+        List<UUID> bookingIds = bookingRepository.findByClientEmailIgnoreCase(user.getEmail())
+            .stream().map(Booking::getId).toList();
+        if (bookingIds.isEmpty()) {
+            return List.of();
+        }
+        return toResponses(invoiceRepository.findByBookingIdInOrderByIssuedAtDesc(bookingIds));
+    }
+
+    /**
+     * Invoices with their line items, in one extra query rather than one per
+     * invoice.
+     *
+     * <p>Shared by both list endpoints because the grouping is not incidental
+     * detail — it is the N+1 fix, and it was written out twice. Two copies of a
+     * batching strategy is one copy away from a later edit re-introducing the
+     * per-row lookup on whichever side nobody was looking at.
+     */
+    private List<InvoiceResponse> toResponses(List<Invoice> invoices) {
         if (invoices.isEmpty()) {
             return List.of();
         }
-        // One query for every invoice's lines, then group in memory — the
-        // previous per-invoice lookup inside the map() was an N+1 that grew
-        // with the booking's correction history.
+        List<UUID> ids = invoices.stream().map(Invoice::getId).toList();
         Map<UUID, List<InvoiceLineItem>> linesByInvoice = lineItemRepository
-            .findByInvoiceIdInOrderByInvoiceIdAscSortOrderAsc(invoices.stream().map(Invoice::getId).toList())
+            .findByInvoiceIdInOrderByInvoiceIdAscSortOrderAsc(ids)
             .stream()
             .collect(Collectors.groupingBy(InvoiceLineItem::getInvoiceId));
+        // One grouped query for the whole page's settlement figures. Invoices
+        // with no successful payment are simply absent from the result, hence
+        // the getOrDefault rather than an entry per id.
+        Map<UUID, Long> paidByInvoice = paymentRepository
+            .sumSucceededAmountCentsGroupedByInvoiceId(ids)
+            .stream()
+            .collect(Collectors.toMap(
+                PaymentRepository.SucceededSum::getInvoiceId, PaymentRepository.SucceededSum::getTotal));
 
         return invoices.stream()
-            .map(inv -> toResponse(inv, linesByInvoice.getOrDefault(inv.getId(), List.of())))
+            .map(inv -> toResponse(
+                inv,
+                linesByInvoice.getOrDefault(inv.getId(), List.of()),
+                paidByInvoice.getOrDefault(inv.getId(), 0L)))
             .toList();
     }
 
@@ -303,7 +357,16 @@ public class InvoiceService {
         return storage.orElseThrow(() -> new IllegalStateException("R2 storage not configured"));
     }
 
+    /**
+     * Reads the paid total for one invoice, then renders it. Only for the
+     * single-invoice paths — a list must use {@link #toResponses} instead,
+     * which resolves every invoice's total in one grouped query.
+     */
     private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines) {
+        return toResponse(invoice, lines, paymentRepository.sumSucceededAmountCents(invoice.getId()));
+    }
+
+    private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines, long paidCents) {
         String downloadUrl = storage.map(s -> s.generateDownloadUrl(invoice.getPdfR2Key())).orElse(null);
         List<InvoiceLineItemResponse> lineResponses = lines.stream()
             .map(l -> new InvoiceLineItemResponse(
@@ -323,6 +386,9 @@ public class InvoiceService {
             invoice.getSubtotalCents(),
             invoice.getTaxCents(),
             invoice.getTotalCents(),
+            (int) paidCents,
+            (int) Math.max(0, invoice.getTotalCents() - paidCents),
+            invoice.getVerwendungszweck(),
             invoice.getStornoOfId(),
             downloadUrl,
             invoice.getIssuedAt(),

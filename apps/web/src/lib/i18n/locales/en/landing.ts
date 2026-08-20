@@ -82,8 +82,7 @@ export const landing = {
   'landing.workflow.sub':
     'Fotolio moves each booking through the same clean flow — so you always know exactly what’s next.',
   'landing.pipeline.enquiryTitle': 'Enquiry',
-  'landing.pipeline.enquiryText':
-    'A lead lands from your portfolio and gets scored automatically.',
+  'landing.pipeline.enquiryText': 'A lead lands from your portfolio and gets scored automatically.',
   'landing.pipeline.bookingTitle': 'Booking',
   'landing.pipeline.bookingText': 'The client picks a slot; it syncs straight to your calendar.',
   'landing.pipeline.contractTitle': 'Contract',

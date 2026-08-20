@@ -36,10 +36,9 @@ const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
 // `null` so the page can render notFound() rather than crashing the route.
 async function fetchPortfolio(subdomain: string): Promise<PublicPortfolioPayload | null> {
   try {
-    const res = await fetch(
-      `${API_BASE}/api/public/portfolio/${encodeURIComponent(subdomain)}`,
-      { next: { revalidate: 300 } }
-    );
+    const res = await fetch(`${API_BASE}/api/public/portfolio/${encodeURIComponent(subdomain)}`, {
+      next: { revalidate: 300 },
+    });
     if (res.status === 404) return null;
     if (!res.ok) {
       // eslint-disable-next-line no-console

@@ -7,7 +7,7 @@ import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.security.TenantContextFilter;
 import com.photographplatform.api.portfolio.controller.PortfolioController;
 import com.photographplatform.api.portfolio.service.PhotoService;
-import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -49,9 +49,17 @@ class PortfolioSecurityRuleTest {
     @MockitoBean
     private PhotoService photoService;
 
+    /**
+     * The public portfolio endpoint resolves its photographer through this
+     * rather than the two repositories it used to reach for directly.
+     */
     @MockitoBean
-    private TenantRepository tenantRepository;
+    private PublicTenantResolver tenantResolver;
 
+    /**
+     * Not used by this controller any more, but {@code WebMvcConfig}'s
+     * {@code EmailVerificationInterceptor} still needs one to construct.
+     */
     @MockitoBean
     private UserRepository userRepository;
 

@@ -113,7 +113,8 @@ export function LeadDetail({
               </span>
             </div>
             <span style={s.detailSubtitle}>
-              {translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)} · {formattedEventDate}
+              {translateOr(t, EVENT_LABEL_KEYS[lead.eventType], lead.eventType)} ·{' '}
+              {formattedEventDate}
             </span>
           </div>
         </div>
@@ -135,7 +136,9 @@ export function LeadDetail({
           <a
             href={lead.email ? `mailto:${lead.email}` : undefined}
             aria-disabled={!lead.email}
-            title={lead.email ? t('contact.emailTitle', { email: lead.email }) : t('contact.noEmail')}
+            title={
+              lead.email ? t('contact.emailTitle', { email: lead.email }) : t('contact.noEmail')
+            }
             style={{
               ...s.secondaryButton,
               textDecoration: 'none',
@@ -169,11 +172,7 @@ export function LeadDetail({
               >
                 {t('leadDetail.bookedPill')}
               </span>
-              <button
-                type="button"
-                style={s.invertedPrimaryButton}
-                onClick={onViewBooking}
-              >
+              <button type="button" style={s.invertedPrimaryButton} onClick={onViewBooking}>
                 {t('leads.viewInBookings')} →
               </button>
             </>
@@ -250,9 +249,7 @@ export function LeadDetail({
                   ? c.successText
                   : c.text
               }
-              emphasised={
-                lead.budgetRange === '500_1000' || lead.budgetRange === 'OVER_1000'
-              }
+              emphasised={lead.budgetRange === '500_1000' || lead.budgetRange === 'OVER_1000'}
             />
           </div>
         </div>
@@ -260,9 +257,7 @@ export function LeadDetail({
         {/* Score breakdown — shown when the backend exposes component scores.
             Tells the photographer *why* a lead is rated HIGH/MED/LOW instead
             of forcing them to trust the rollup label. */}
-        {(lead.budgetScore != null
-          || lead.typeScore != null
-          || lead.timeScore != null) && (
+        {(lead.budgetScore != null || lead.typeScore != null || lead.timeScore != null) && (
           <div style={s.section}>
             <span style={s.sectionTitle}>{t('leadDetail.scoreBreakdown')}</span>
             <ScoreBreakdown

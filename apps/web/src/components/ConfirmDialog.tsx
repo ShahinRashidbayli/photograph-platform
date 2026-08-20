@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useEffect, useRef } from 'react';
 import { getColors, type Theme } from '@/lib/design-tokens';
@@ -82,10 +82,20 @@ export function ConfirmDialog({
           padding: '24px',
         }}
       >
-        <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: c.text, letterSpacing: '-0.01em' }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '1.05rem',
+            fontWeight: 800,
+            color: c.text,
+            letterSpacing: '-0.01em',
+          }}
+        >
           {title}
         </h2>
-        <p style={{ margin: '8px 0 20px', fontSize: '0.9rem', color: c.textMuted, lineHeight: 1.55 }}>
+        <p
+          style={{ margin: '8px 0 20px', fontSize: '0.9rem', color: c.textMuted, lineHeight: 1.55 }}
+        >
           {message}
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -123,7 +133,7 @@ export function ConfirmDialog({
               minWidth: '96px',
             }}
           >
-            {busy ? t('common.working') : confirmLabel ?? t('common.confirm')}
+            {busy ? t('common.working') : (confirmLabel ?? t('common.confirm'))}
           </button>
         </div>
       </div>

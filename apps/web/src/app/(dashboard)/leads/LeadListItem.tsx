@@ -14,12 +14,7 @@ import {
   type Styles,
 } from './leadTypes';
 import { ICONS } from './leadIcons';
-import {
-  daysUntilEvent,
-  getScoreVisual,
-  getUrgencyVisual,
-  statusBadgeVisual,
-} from './leadVisuals';
+import { daysUntilEvent, getScoreVisual, getUrgencyVisual, statusBadgeVisual } from './leadVisuals';
 
 export function LeadListItem({
   lead,

@@ -50,7 +50,7 @@ export function statusBadgeVisual(status: string, c: ColorTokens) {
  */
 export function getUrgencyVisual(
   daysUntil: number,
-  c: ColorTokens,
+  c: ColorTokens
 ): { bg: string; color: string; dot: string; labelKey: TranslationKey } {
   if (daysUntil <= 0) {
     return { bg: c.neutralBg, color: c.neutralText, dot: c.neutral, labelKey: 'leadUrgency.past' };
@@ -59,7 +59,17 @@ export function getUrgencyVisual(
     return { bg: c.dangerBg, color: c.dangerText, dot: c.danger, labelKey: 'leadUrgency.daysAway' };
   }
   if (daysUntil < 60) {
-    return { bg: c.warningBg, color: c.warningText, dot: c.warning, labelKey: 'leadUrgency.daysAway' };
+    return {
+      bg: c.warningBg,
+      color: c.warningText,
+      dot: c.warning,
+      labelKey: 'leadUrgency.daysAway',
+    };
   }
-  return { bg: c.primaryBg, color: c.primaryStrong, dot: c.primary, labelKey: 'leadUrgency.daysAway' };
+  return {
+    bg: c.primaryBg,
+    color: c.primaryStrong,
+    dot: c.primary,
+    labelKey: 'leadUrgency.daysAway',
+  };
 }

@@ -114,7 +114,16 @@ export function EditNoteModal({
         }
         style={card}
       >
-        <div style={{ padding: '20px 24px 12px', borderBottom: `1px solid ${c.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+        <div
+          style={{
+            padding: '20px 24px 12px',
+            borderBottom: `1px solid ${c.divider}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '12px',
+          }}
+        >
           <div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
               {isEdit ? t('editNote.titleEdit') : t('editNote.titleAdd')}
@@ -181,7 +190,15 @@ export function EditNoteModal({
           </div>
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: `1px solid ${c.divider}`, display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <div
+          style={{
+            padding: '16px 24px',
+            borderTop: `1px solid ${c.divider}`,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '10px',
+          }}
+        >
           <button type="button" style={ghostBtn} onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </button>

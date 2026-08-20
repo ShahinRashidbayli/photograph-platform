@@ -61,7 +61,9 @@ export function inquiryPipeline(status: InquiryStatus): Exclude<LeadPipelineFilt
 }
 
 export function inquiryDisplayName(inq: Inquiry): string {
-  return (inq.customerName && inq.customerName.trim())
-    || (inq.customerEmail && inq.customerEmail.trim())
-    || '—';
+  return (
+    (inq.customerName && inq.customerName.trim()) ||
+    (inq.customerEmail && inq.customerEmail.trim()) ||
+    '—'
+  );
 }

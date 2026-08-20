@@ -28,17 +28,21 @@ The three plan names exist end to end, but **nothing enforces them**.
 | Layer | Reality |
 |---|---|
 | Database | `tenants.plan VARCHAR(20) NOT NULL DEFAULT 'STARTER'`, `CHECK (plan IN ('STARTER','PRO','STUDIO'))` |
-| Backend | `Tenant.plan` is a plain `String` (not an enum). It is read in four places — `AuthService` ×2, `CustomerAuthService`, `PortfolioController` — and every one of them only copies it into a response DTO. **No code branches on it. There is no entitlement check anywhere.** |
+| Backend | `Tenant.plan` is still a plain `String` (not an enum), and most reads (`AuthService` ×2, `CustomerAuthService`, `PortfolioController`) only copy it into a response DTO. **One place now branches on it:** `PaymentProperties.Commission` maps the plan to a commission rate, which `PaymentService` charges as Stripe's `application_fee_amount` (§4). That is a *price* branch, not an entitlement one — no feature is gated by plan anywhere. |
 | Frontend | Rendered as a badge in the sidebar and Settings. Never used to gate a feature. |
 | Landing | `PRICING` array in `apps/web/src/app/page.tsx` — €19 / €39 / €79 (yearly €16 / €32 / €65) |
-| Billing | **Does not exist.** No Stripe subscription, no trial expiry. The copy promises a 14-day trial; nothing happens when it ends. |
+| Billing (ours) | **Does not exist.** No Stripe subscription, no trial expiry. The copy promises a 14-day trial; nothing happens when it ends. |
+| Billing (theirs) | **Built.** Photographers issue §14 UStG invoices per booking, clients pay them by card / SEPA / bank transfer, and the DATEV export covers the year. Money moves on Stripe Connect (Express) — direct charges on the photographer's own connected account, with our commission taken off the top. |
 
 **Consequence: a STARTER tenant can use every feature of PRO and STUDIO today.**
-The plans are decoration.
+The plans are decoration everywhere except the commission rate, which is the
+one thing a plan actually changes.
 
 ### What the landing page sells vs. what is built
 
-Reconciled with §4/§4b/§5 on 2026-07-17 — the page below is the current one.
+Reconciled with §4/§4b/§5 on 2026-07-17. Payments (§4) shipped on 2026-08-18 on
+Stripe Connect Express; the two rows below moved to ✅ and the landing page's
+"soon" badges on them should come off.
 
 | Plan | Feature | Built? |
 |---|---|---|
@@ -46,11 +50,11 @@ Reconciled with §4/§4b/§5 on 2026-07-17 — the page below is the current one
 | Starter | Lead management | ✅ |
 | Starter | Online bookings | ✅ |
 | Starter | Client management | ✅ |
-| Starter | Stripe deposits* | ❌ "soon" |
+| Starter | Stripe deposits* | ✅ card + SEPA on Connect Express, with the 2% commission (§4) |
 | Starter | Galleries online 60 days | ❌ "soon" — `expires_at` exists but nothing sets or enforces it (§4b) |
 | Pro | Everything in Starter | — |
 | Pro | Instagram DM automation | ❌ "soon" — the anchor we now sell (§7.5) |
-| Pro | 0% commission | ❌ "soon" — needs Stripe Connect (§4) |
+| Pro | 0% commission | ✅ `app.stripe.commission.pro-bps: 0` — the fee is simply not sent |
 | Pro | Contracts & e-sign | ❌ "soon" |
 | Pro | Galleries online 1 year | ❌ "soon" (§4b) |
 | Studio | Everything in Pro | — |
@@ -59,10 +63,11 @@ Reconciled with §4/§4b/§5 on 2026-07-17 — the page below is the current one
 | Studio | White-label branding | ❌ |
 | Studio | Galleries online 2 years | ❌ "soon" (§4b) |
 
-**Every single thing that distinguishes Pro or Studio from Starter is unbuilt.**
-The page is now honest about that — each one carries a "soon" badge — but it
-means the plans cannot be sold yet, only announced. Starter is the only tier
-whose promises the product currently keeps.
+**Pro's 0% commission is now the only built difference from Starter.** It is
+also the one §4 called the real conversion trigger, so the tier is no longer
+purely announced — but everything else that separates Pro or Studio (Instagram
+DM automation, contracts, retention windows, multi-user, analytics) is still
+unbuilt and still carries a "soon" badge.
 
 ---
 

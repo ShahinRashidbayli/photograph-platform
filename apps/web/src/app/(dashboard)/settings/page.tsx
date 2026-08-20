@@ -1,16 +1,21 @@
-"use client";
+'use client';
 
 import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import api from '@/lib/api';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
+import { useTranslation } from '@/lib/i18n';
+import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
+import { BillingProfileSection, StripeConnectSection } from './BillingSettings';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export default function SettingsPage() {
-  const user = useAuthStore(st => st.user);
-  const setUser = useAuthStore(st => st.setUser);
+  const { t } = useTranslation();
+  const user = useAuthStore((st) => st.user);
+  const setUser = useAuthStore((st) => st.setUser);
   const { theme } = useThemeStore();
   const c = useMemo(() => getColors(theme), [theme]);
 
@@ -56,25 +61,6 @@ export default function SettingsPage() {
     boxShadow: c.overlayShadow,
   };
 
-  const input: React.CSSProperties = {
-    padding: '10px 14px',
-    border: `1px solid ${c.border}`,
-    borderRadius: '10px',
-    fontSize: '0.92rem',
-    color: c.text,
-    background: c.surfaceAlt,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-  };
-
-  const label: React.CSSProperties = {
-    fontSize: '0.82rem',
-    fontWeight: 600,
-    color: c.textMuted,
-    letterSpacing: '0.02em',
-  };
-
   const saveBtn: React.CSSProperties = {
     padding: '10px 24px',
     background: c.primarySolid,
@@ -94,39 +80,44 @@ export default function SettingsPage() {
 
   const handleAvatarUpload = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
-      setAvatarError('File must be smaller than 5 MB.');
+      setAvatarError(t('settings.account.avatarTooLarge'));
       return;
     }
     setAvatarUploading(true);
     setAvatarError(null);
     try {
       const contentType = file.type || 'image/jpeg';
-      const { data: presign } = await api.post<{ uploadUrl: string; viewUrl: string; r2Key: string }>(
-        `/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}`
-      );
+      const { data: presign } = await api.post<{
+        uploadUrl: string;
+        viewUrl: string;
+        r2Key: string;
+      }>(`/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}`);
 
       if (!presign.uploadUrl || !presign.r2Key) {
-        throw new Error('Storage not configured. Please contact support.');
+        throw new Error(t('settings.account.storageUnavailable'));
       }
-      
+
       const uploadRes = await fetch(presign.uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': contentType },
         body: file,
       });
-      if (!uploadRes.ok) throw new Error('Upload to storage failed');
+      if (!uploadRes.ok) throw new Error(t('settings.account.uploadFailed'));
       // Store the OBJECT KEY, not `presign.viewUrl`. That view URL is a
       // pre-signed GET that expires with app.r2.presigned-expiry-minutes (60 by
       // default) — the endpoint's own javadoc says callers must not cache it —
       // so writing it into the profile meant every avatar turned into a 403 an
       // hour after upload, permanently, with no refresh path. The backend
       // re-signs the key on every read instead.
-      const { data: updated } = await api.patch<AuthUser>('/api/auth/me', { avatarUrl: presign.r2Key });
+      const { data: updated } = await api.patch<AuthUser>('/api/auth/me', {
+        avatarUrl: presign.r2Key,
+      });
       setUser(updated);
       setAvatarBroken(false);
     } catch (err) {
-      const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      const msg = responseError ?? 'Could not upload photo. Please try again.';
+      const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data
+        ?.error;
+      const msg = responseError ?? t('settings.account.avatarError');
       setAvatarError(msg);
     } finally {
       setAvatarUploading(false);
@@ -154,33 +145,29 @@ export default function SettingsPage() {
     } catch (err) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Could not save your changes. Please try again.';
+        t('settings.account.saveError');
       setError(msg);
     } finally {
       setSaving(false);
     }
   };
 
-  const saveButtonStyle: React.CSSProperties = {
-    ...saveBtn,
-    minWidth: '140px',
-    background: saved ? c.successBg : saveBtn.background,
-    color: saved ? c.successText : saveBtn.color,
-    border: saved ? `1px solid ${c.successBorder}` : 'none',
-    cursor: saving ? 'progress' : !dirty ? 'not-allowed' : 'pointer',
-    opacity: !dirty ? 0.55 : 1,
-  };
-
-  const saveButtonLabel = saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes';
+  const saveButtonLabel = saving
+    ? t('settings.account.saving')
+    : saved
+      ? t('settings.account.saved')
+      : t('settings.account.save');
 
   return (
-    <div style={{
-      padding: '28px 28px 40px',
-      maxWidth: '860px',
-      margin: '0 auto',
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      color: c.text,
-    }}>
+    <div
+      style={{
+        padding: '28px 28px 40px',
+        maxWidth: '860px',
+        margin: '0 auto',
+        fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: c.text,
+      }}
+    >
       <style>{`
         @media (max-width: 600px) {
           .settings-profile-grid { grid-template-columns: 1fr !important; }
@@ -188,39 +175,53 @@ export default function SettingsPage() {
       `}</style>
 
       <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: c.text, marginBottom: '6px' }}>
-        Settings
+        {t('settings.title')}
       </h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: '32px' }}>
-        {isPhotographer
-          ? 'Manage your account, studio and billing preferences.'
-          : 'Manage your account.'}
+        {isPhotographer ? t('settings.subtitle.photographer') : t('settings.subtitle.client')}
       </p>
 
       {/* Account & Studio */}
       <section style={section} aria-labelledby="settings-account">
-        <h2 id="settings-account" style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}>
-          {isPhotographer ? 'Account & Studio' : 'Account'}
+        <h2
+          id="settings-account"
+          style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+        >
+          {isPhotographer
+            ? t('settings.account.title.photographer')
+            : t('settings.account.title.client')}
         </h2>
         <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
           {isPhotographer
-            ? 'Your personal information and studio details.'
-            : 'Your personal information.'}
+            ? t('settings.account.subtitle.photographer')
+            : t('settings.account.subtitle.client')}
         </p>
 
         {/* Avatar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          marginBottom: '24px',
-          padding: '16px',
-          background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-          borderRadius: '12px',
-          border: `1px solid ${c.borderSoft}`
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px',
+            marginBottom: '24px',
+            padding: '16px',
+            background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+            borderRadius: '12px',
+            border: `1px solid ${c.borderSoft}`,
+          }}
+        >
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {user?.avatarUrl && !avatarBroken ? (
-              <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', border: `3px solid ${c.primary}`, boxShadow: `0 4px 12px rgba(0,0,0,0.15)` }}>
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  border: `3px solid ${c.primary}`,
+                  boxShadow: `0 4px 12px rgba(0,0,0,0.15)`,
+                }}
+              >
                 {/* Plain <img>, like every other remote image in this app.
                     next/image refuses any host absent from images.remotePatterns
                     in next.config — which is an empty array — so as soon as a
@@ -241,25 +242,42 @@ export default function SettingsPage() {
                 />
               </div>
             ) : (
-              <div style={{
-                width: 96, height: 96, borderRadius: '50%',
-                background: c.primaryBg,
-                border: `3px solid ${c.primary}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '2.4rem', color: c.primaryText, fontWeight: 700,
-                boxShadow: `0 4px 12px rgba(0,0,0,0.15)`
-              }}>
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: '50%',
+                  background: c.primaryBg,
+                  border: `3px solid ${c.primary}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '2.4rem',
+                  color: c.primaryText,
+                  fontWeight: 700,
+                  boxShadow: `0 4px 12px rgba(0,0,0,0.15)`,
+                }}
+              >
                 {user?.fullName?.[0]?.toUpperCase() ?? '?'}
               </div>
             )}
             {avatarUploading && (
-              <div style={{
-                position: 'absolute', inset: -3, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.7rem', color: '#fff', fontWeight: 700, letterSpacing: '0.04em',
-                backdropFilter: 'blur(2px)'
-              }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: -3,
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.7rem',
+                  color: '#fff',
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  backdropFilter: 'blur(2px)',
+                }}
+              >
                 uploading
               </div>
             )}
@@ -284,12 +302,14 @@ export default function SettingsPage() {
                   fontSize: '0.88rem',
                   background: c.primaryBg,
                   color: c.primaryText,
-                  border: `1px solid ${c.primaryBorder}`
+                  border: `1px solid ${c.primaryBorder}`,
                 }}
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
               >
-                {avatarUploading ? 'Uploading…' : 'Change photo'}
+                {avatarUploading
+                  ? t('settings.account.uploading')
+                  : t('settings.account.changePhoto')}
               </button>
             </div>
             {avatarError && (
@@ -302,12 +322,14 @@ export default function SettingsPage() {
                   borderRadius: '8px',
                   fontSize: '0.85rem',
                   color: c.dangerText,
-                  marginBottom: '10px'
+                  marginBottom: '10px',
                 }}
               >
-                {avatarError.includes('Storage not configured') || avatarError.includes('R2 storage') ? (
+                {avatarError.includes('Storage not configured') ||
+                avatarError.includes('R2 storage') ? (
                   <>
-                    ⚠️ Avatar upload requires Cloudflare R2 storage. Set R2_ENDPOINT, R2_ACCESS_KEY, and R2_SECRET_KEY in your environment to enable this feature.
+                    ⚠️ Avatar upload requires Cloudflare R2 storage. Set R2_ENDPOINT, R2_ACCESS_KEY,
+                    and R2_SECRET_KEY in your environment to enable this feature.
                   </>
                 ) : (
                   avatarError
@@ -319,62 +341,66 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
-        <div className="settings-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label htmlFor="settings-fullname" style={label}>Full name</label>
-            <input
-              id="settings-fullname"
-              value={fullNameInput}
-              onChange={(e) => { setFullNameInput(e.target.value); markDirty(); }}
-              style={input}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label htmlFor="settings-email" style={label}>Email address</label>
-            <input id="settings-email" defaultValue={user?.email ?? ''} style={input} readOnly />
-          </div>
+        <div
+          className="settings-profile-grid"
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}
+        >
+          <Field label={t('settings.account.fullName')}>
+            {(props) => (
+              <Input
+                {...props}
+                value={fullNameInput}
+                onChange={(e) => {
+                  setFullNameInput(e.target.value);
+                  markDirty();
+                }}
+              />
+            )}
+          </Field>
+          <Field label={t('settings.account.email')}>
+            {(props) => <Input {...props} defaultValue={user?.email ?? ''} readOnly />}
+          </Field>
         </div>
 
         {/* Studio subdomain — photographer/tenant-level, hidden from clients */}
         {isPhotographer && (
           <>
             <div style={{ height: '1px', background: c.divider, margin: '24px 0' }} />
-            <div style={{
-              padding: '16px',
-              background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-              borderRadius: '12px',
-              border: `1px solid ${c.borderSoft}`
-            }}>
+            <div
+              style={{
+                padding: '16px',
+                background: c.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                borderRadius: '12px',
+                border: `1px solid ${c.borderSoft}`,
+              }}
+            >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label htmlFor="settings-subdomain" style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  color: c.textMuted,
-                  letterSpacing: '0.02em'
-                }}>
-                  Studio name / subdomain
-                </label>
-                <input
-                  id="settings-subdomain"
-                  value={subdomainInput}
-                  onChange={(e) => { setSubdomainInput(e.target.value); markDirty(); }}
+                <Field label={t('settings.account.subdomain')}>
+                  {(props) => (
+                    <Input
+                      {...props}
+                      value={subdomainInput}
+                      onChange={(e) => {
+                        setSubdomainInput(e.target.value);
+                        markDirty();
+                      }}
+                      style={{ fontWeight: 500, background: c.surfaceHover }}
+                    />
+                  )}
+                </Field>
+                <div
                   style={{
-                    ...input,
-                    fontSize: '0.95rem',
-                    fontWeight: 500,
-                    background: c.surfaceHover
+                    padding: '10px 14px',
+                    background: c.primaryBg,
+                    border: `1px solid ${c.primaryBorder}`,
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    color: c.primaryText,
+                    marginTop: '8px',
                   }}
-                />
-                <div style={{
-                  padding: '10px 14px',
-                  background: c.primaryBg,
-                  border: `1px solid ${c.primaryBorder}`,
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  color: c.primaryText,
-                  marginTop: '8px'
-                }}>
-                  Your public address: <strong style={{ color: c.primaryStrong }}>
+                >
+                  {t('settings.account.publicAddress')}{' '}
+                  <strong style={{ color: c.primaryStrong }}>
                     {(subdomainInput.trim() || 'your-studio').toLowerCase()}.fotolio.app
                   </strong>
                 </div>
@@ -384,92 +410,144 @@ export default function SettingsPage() {
         )}
 
         {/* Save button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '24px', flexWrap: 'wrap' }}>
-          <button
-            style={saveButtonStyle}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            marginTop: '24px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Button
+            variant="primary"
             onClick={handleSave}
-            disabled={saving || !dirty}
+            busy={saving}
+            busyLabel={t('settings.account.saving')}
+            disabled={!dirty}
             aria-live="polite"
+            style={
+              saved
+                ? {
+                    background: c.successBg,
+                    color: c.successText,
+                    border: `1px solid ${c.successBorder}`,
+                  }
+                : undefined
+            }
           >
             {saveButtonLabel}
-          </button>
-          {error && (
-            <span role="alert" style={{ fontSize: '0.82rem', color: c.dangerText, fontWeight: 600 }}>
-              {error}
-            </span>
-          )}
+          </Button>
+          {error && <Alert tone="danger">{error}</Alert>}
         </div>
       </section>
 
       {/* Packages — photographer-only service catalog */}
       {isPhotographer && <PackagesSection theme={theme} />}
 
+      {/* Invoicing identity and payout account. Both are photographer-only and
+          tenant-wide: a client shares the tenant but must never see (let alone
+          rewrite) the tax numbers that go on invoices, or the Stripe account
+          their own money lands in. The API enforces that too. */}
+      {isPhotographer && <BillingProfileSection />}
+      {isPhotographer && (
+        // useSearchParams needs a Suspense boundary — Stripe sends the browser
+        // back here with ?stripe=return after hosted onboarding.
+        <React.Suspense fallback={null}>
+          <StripeConnectSection />
+        </React.Suspense>
+      )}
+
       {/* Billing — the tenant's subscription; never shown to clients */}
       {isPhotographer && (
-      <section style={section} aria-labelledby="settings-billing">
-        <h2 id="settings-billing" style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}>
-          Plan &amp; Billing
+        <section style={section} aria-labelledby="settings-billing">
+          <h2
+            id="settings-billing"
+            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+          >
+            {t('settings.plan.title')}
+          </h2>
+          <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
+            {t('settings.plan.subtitle')}
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <div
+                style={{ fontSize: '0.9rem', fontWeight: 600, color: c.text, marginBottom: '4px' }}
+              >
+                {t('settings.plan.current')}
+              </div>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  padding: '4px 12px',
+                  borderRadius: '999px',
+                  background: c.primaryBg,
+                  color: c.primaryText,
+                  border: `1px solid ${c.primaryBorder}`,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {user?.tenant?.plan ?? 'Starter'}
+              </span>
+            </div>
+            <button
+              style={{
+                padding: '9px 20px',
+                background: c.surface,
+                color: c.text,
+                border: `1px solid ${c.border}`,
+                borderRadius: '10px',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {t('settings.plan.upgrade')}
+            </button>
+          </div>
+          <div style={{ height: '1px', background: c.divider, margin: '20px 0' }} />
+          <div style={{ fontSize: '0.88rem', color: c.textMuted }}>{t('settings.plan.note')}</div>
+        </section>
+      )}
+
+      {/* Danger zone */}
+      <section
+        style={{ ...section, borderColor: c.dangerBorder, marginTop: '20px' }}
+        aria-labelledby="settings-danger"
+      >
+        <h2
+          id="settings-danger"
+          style={{ fontSize: '1rem', fontWeight: 700, color: c.danger, marginBottom: '4px' }}
+        >
+          {t('settings.danger.title')}
         </h2>
         <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
-          Your current subscription and payment settings.
+          {t('settings.danger.subtitle')}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: c.text, marginBottom: '4px' }}>Current plan</div>
-            <span style={{
-              display: 'inline-flex',
-              padding: '4px 12px',
-              borderRadius: '999px',
-              background: c.primaryBg,
-              color: c.primaryText,
-              border: `1px solid ${c.primaryBorder}`,
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}>
-              {user?.tenant?.plan ?? 'Starter'}
-            </span>
-          </div>
-          <button style={{
+        <button
+          style={{
             padding: '9px 20px',
-            background: c.surface,
-            color: c.text,
-            border: `1px solid ${c.border}`,
+            background: c.dangerBg,
+            color: c.dangerText,
+            border: `1px solid ${c.dangerBorder}`,
             borderRadius: '10px',
             fontSize: '0.88rem',
             fontWeight: 600,
             cursor: 'pointer',
-          }}>
-            Upgrade plan
-          </button>
-        </div>
-        <div style={{ height: '1px', background: c.divider, margin: '20px 0' }} />
-        <div style={{ fontSize: '0.88rem', color: c.textMuted }}>
-          Billing history and invoice management coming soon.
-        </div>
-      </section>
-      )}
-
-      {/* Danger zone */}
-      <section style={{ ...section, borderColor: c.dangerBorder, marginTop: '20px' }} aria-labelledby="settings-danger">
-        <h2 id="settings-danger" style={{ fontSize: '1rem', fontWeight: 700, color: c.danger, marginBottom: '4px' }}>
-          Danger zone
-        </h2>
-        <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
-          Irreversible actions. Please proceed with caution.
-        </p>
-        <button style={{
-          padding: '9px 20px',
-          background: c.dangerBg,
-          color: c.dangerText,
-          border: `1px solid ${c.dangerBorder}`,
-          borderRadius: '10px',
-          fontSize: '0.88rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}>
-          Delete account
+          }}
+        >
+          {t('settings.danger.deleteAccount')}
         </button>
       </section>
     </div>
@@ -526,10 +604,11 @@ function packageToForm(pkg: Package): PackageFormState {
 }
 
 function PackagesSection({ theme }: { readonly theme: Theme }) {
+  const { t } = useTranslation();
   const c = useMemo(() => getColors(theme), [theme]);
 
   const [packages, setPackages] = useState<Package[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<AsyncError | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   // `creating` opens an inline create form. Mutually exclusive with editing
   // any existing row so the photographer can't accidentally edit two things
@@ -547,11 +626,12 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
       const { data } = await api.get<Package[]>('/api/packages');
       setPackages(data);
     } catch (err) {
-      const msg = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error ?? 'Could not load packages.';
-      setLoadError(msg);
+      setLoadError(asyncError(err, 'settings.packages.loadError'));
       setPackages([]);
     }
+    // Deliberately not depending on `t`: an effect below depends on `reload`,
+    // so a `t` here would reload the package list on every language change.
+    // The failure is kept as a key and translated where it is rendered.
   }, []);
 
   useEffect(() => {
@@ -582,14 +662,14 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
     if (submitting) return;
     const trimmedName = form.name.trim();
     if (!trimmedName) {
-      setSubmitError('Name is required.');
+      setSubmitError(t('settings.packages.nameRequired'));
       return;
     }
     const euros = Number(form.priceEuros);
     if (!Number.isFinite(euros) || euros <= 0) {
       // Backend allows 0 today; the UI is stricter on purpose — a €0 package
       // is almost always a typo and easier to catch here than in invoices.
-      setSubmitError('Price must be a positive number of euros.');
+      setSubmitError(t('settings.packages.priceInvalid'));
       return;
     }
     const payload = {
@@ -614,8 +694,9 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
       await reload();
       cancelEdit();
     } catch (err) {
-      const msg = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error ?? 'Could not save the package.';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        t('settings.packages.saveError');
       setSubmitError(msg);
     } finally {
       setSubmitting(false);
@@ -630,8 +711,9 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
       setPendingDelete(null);
       await reload();
     } catch (err) {
-      const msg = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error ?? 'Could not delete the package.';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        t('settings.packages.deleteError');
       setSubmitError(msg);
     } finally {
       setDeleting(false);
@@ -647,32 +729,11 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
     marginBottom: '20px',
     boxShadow: c.overlayShadow,
   };
-  const input: React.CSSProperties = {
-    padding: '10px 14px',
-    border: `1px solid ${c.border}`,
-    borderRadius: '10px',
-    fontSize: '0.9rem',
-    color: c.text,
-    background: c.surfaceAlt,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-  };
   const label: React.CSSProperties = {
     fontSize: '0.82rem',
     fontWeight: 600,
     color: c.textMuted,
     letterSpacing: '0.02em',
-  };
-  const primaryBtn: React.CSSProperties = {
-    padding: '10px 20px',
-    background: c.primarySolid,
-    color: '#fff',
-    border: 'none',
-    borderRadius: '10px',
-    fontSize: '0.9rem',
-    fontWeight: 600,
-    cursor: 'pointer',
   };
   const ghostBtn: React.CSSProperties = {
     padding: '8px 16px',
@@ -708,91 +769,93 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
           gap: '20px',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-          <label style={label} htmlFor="pkg-name">Package name *</label>
-          <input
-            id="pkg-name"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            style={{
-              ...input,
-              fontSize: '0.95rem',
-              background: c.surfaceHover
-            }}
-            placeholder="e.g. Standard Wedding"
-            maxLength={200}
-          />
+        <div style={{ gridColumn: 'span 2' }}>
+          <Field label={t('settings.packages.name')}>
+            {(props) => (
+              <Input
+                {...props}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                maxLength={200}
+                placeholder={t('settings.packages.namePlaceholder')}
+                style={{ background: c.surfaceHover }}
+              />
+            )}
+          </Field>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={label} htmlFor="pkg-price">Price (€) *</label>
-          <input
-            id="pkg-price"
-            type="number"
-            min="1"
-            step="1"
-            value={form.priceEuros}
-            onChange={(e) => setForm((f) => ({ ...f, priceEuros: e.target.value }))}
-            style={{
-              ...input,
-              fontSize: '0.95rem',
-              background: c.surfaceHover
-            }}
-            placeholder="e.g. 1800"
-          />
+        <div>
+          <Field label={t('settings.packages.price')}>
+            {(props) => (
+              <Input
+                {...props}
+                type="number"
+                min="1"
+                step="1"
+                value={form.priceEuros}
+                onChange={(e) => setForm((f) => ({ ...f, priceEuros: e.target.value }))}
+                placeholder={t('settings.packages.pricePlaceholder')}
+                style={{ background: c.surfaceHover }}
+              />
+            )}
+          </Field>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={label} htmlFor="pkg-duration">Duration (hours)</label>
-          <input
-            id="pkg-duration"
-            type="number"
-            min="0"
-            step="0.5"
-            value={form.durationHours}
-            onChange={(e) => setForm((f) => ({ ...f, durationHours: e.target.value }))}
-            style={{
-              ...input,
-              fontSize: '0.95rem',
-              background: c.surfaceHover
-            }}
-            placeholder="e.g. 8"
-          />
+        <div>
+          <Field label={t('settings.packages.duration')}>
+            {(props) => (
+              <Input
+                {...props}
+                type="number"
+                min="0"
+                step="0.5"
+                value={form.durationHours}
+                onChange={(e) => setForm((f) => ({ ...f, durationHours: e.target.value }))}
+                placeholder={t('settings.packages.durationPlaceholder')}
+                style={{ background: c.surfaceHover }}
+              />
+            )}
+          </Field>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={label} htmlFor="pkg-photos">Included photos</label>
-          <input
-            id="pkg-photos"
-            type="number"
-            min="0"
-            step="1"
-            value={form.includedPhotos}
-            onChange={(e) => setForm((f) => ({ ...f, includedPhotos: e.target.value }))}
-            style={{
-              ...input,
-              fontSize: '0.95rem',
-              background: c.surfaceHover
-            }}
-            placeholder="e.g. 300"
-          />
+        <div>
+          <Field label={t('settings.packages.includedPhotos')}>
+            {(props) => (
+              <Input
+                {...props}
+                type="number"
+                min="0"
+                step="1"
+                value={form.includedPhotos}
+                onChange={(e) => setForm((f) => ({ ...f, includedPhotos: e.target.value }))}
+                placeholder={t('settings.packages.includedPhotosPlaceholder')}
+                style={{ background: c.surfaceHover }}
+              />
+            )}
+          </Field>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={label} htmlFor="pkg-sort">Sort order</label>
-          <input
-            id="pkg-sort"
-            type="number"
-            step="1"
-            value={form.sortOrder}
-            onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
-            style={{
-              ...input,
-              fontSize: '0.95rem',
-              background: c.surfaceHover
-            }}
-          />
+        <div>
+          <Field label={t('settings.packages.sortOrder')}>
+            {(props) => (
+              <Input
+                {...props}
+                type="number"
+                min="0"
+                step="1"
+                value={form.sortOrder}
+                onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
+                style={{ background: c.surfaceHover }}
+              />
+            )}
+          </Field>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', paddingBottom: '4px' }}>
           <label
             htmlFor="pkg-active"
-            style={{ ...label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            style={{
+              ...label,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+            }}
           >
             <input
               id="pkg-active"
@@ -803,75 +866,93 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
                 width: '18px',
                 height: '18px',
                 cursor: 'pointer',
-                accentColor: c.primary
+                accentColor: c.primary,
               }}
             />
-            Active
+            {t('settings.packages.active')}
           </label>
         </div>
       </div>
 
       {submitError && (
-        <div
-          role="alert"
-          style={{
-            marginTop: '20px',
-            padding: '14px 16px',
-            background: c.isDark ? 'rgba(220, 38, 38, 0.15)' : 'rgba(220, 38, 38, 0.08)',
-            color: c.dangerText,
-            border: `1px solid ${c.isDark ? '#F87171' : '#FCA5A5'}`,
-            borderRadius: '10px',
-            fontSize: '0.9rem',
-          }}
-        >
+        <Alert tone="danger" style={{ marginTop: 20 }}>
           {submitError}
-        </div>
+        </Alert>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '24px', paddingTop: '20px', borderTop: `1px solid ${c.borderSoft}` }}>
-        <button type="button" style={ghostBtn} onClick={cancelEdit} disabled={submitting}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1, cursor: submitting ? 'wait' : 'pointer' }}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '14px',
+          marginTop: '24px',
+          paddingTop: '20px',
+          borderTop: `1px solid ${c.borderSoft}`,
+        }}
+      >
+        <Button variant="ghost" onClick={cancelEdit} disabled={submitting}>
+          {t('settings.packages.cancel')}
+        </Button>
+        <Button
+          variant="primary"
           onClick={handleSubmit}
-          disabled={submitting}
+          busy={submitting}
+          busyLabel={t('settings.packages.submitting')}
         >
-          {submitting ? 'Saving…' : editingId ? 'Save changes' : 'Create package'}
-        </button>
+          {editingId ? t('settings.packages.save') : t('settings.packages.create')}
+        </Button>
       </div>
     </div>
   );
 
   return (
     <section style={section} aria-labelledby="settings-packages">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
-          <h2 id="settings-packages" style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}>
-            Packages
+          <h2
+            id="settings-packages"
+            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+          >
+            {t('settings.packages.title')}
           </h2>
           <p style={{ fontSize: '0.88rem', color: c.textMuted, margin: 0 }}>
-            Pricing packages your clients can be booked into. Choosing one on a booking
-            auto-fills the total.
+            {t('settings.packages.subtitle')}
+            the total.
           </p>
         </div>
         {!creating && !editingId && (
-          <button type="button" style={{
-            padding: '9px 18px',
-            background: c.primaryBg,
-            color: c.primaryText,
-            border: `1px solid ${c.primaryBorder}`,
-            borderRadius: '8px',
-            fontSize: '0.88rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }} onClick={startCreate}>
+          <button
+            type="button"
+            style={{
+              padding: '9px 18px',
+              background: c.primaryBg,
+              color: c.primaryText,
+              border: `1px solid ${c.primaryBorder}`,
+              borderRadius: '8px',
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onClick={startCreate}
+          >
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              <path
+                d="M7 1v12M1 7h12"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
             </svg>
             + Add package
           </button>
@@ -891,18 +972,31 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
             marginBottom: '12px',
           }}
         >
-          {loadError}
+          {asyncErrorText(loadError, t)}
         </div>
       )}
 
       {packages === null ? (
-        <div style={{ padding: '40px', fontSize: '0.9rem', color: c.textMuted, textAlign: 'center' }}>
+        <div
+          style={{ padding: '40px', fontSize: '0.9rem', color: c.textMuted, textAlign: 'center' }}
+        >
           <div style={{ marginBottom: '16px', opacity: 0.5 }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M3 4h13M3 8h9m-9 4h6m4 0h4M4 16h16M5 20h14" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path
+                d="M3 4h13M3 8h9m-9 4h6m4 0h4M4 16h16M5 20h14"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </div>
-          Loading packages...
+          {t('settings.packages.loading')}
         </div>
       ) : packages.length === 0 && !creating ? (
         <div
@@ -915,11 +1009,22 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
           }}
         >
           <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.3 }}>📦</div>
-          <p style={{ fontSize: '0.95rem', color: c.textMuted, margin: '0 0 20px', fontWeight: 500 }}>
-            No packages yet
+          <p
+            style={{ fontSize: '0.95rem', color: c.textMuted, margin: '0 0 20px', fontWeight: 500 }}
+          >
+            {t('settings.packages.empty')}
           </p>
-          <p style={{ fontSize: '0.88rem', color: c.textMuted, margin: '0 0 24px', maxWidth: '320px', marginInline: 'auto' }}>
-            Add a pricing package to start using auto-pricing on bookings. Clients will see these when booking your services.
+          <p
+            style={{
+              fontSize: '0.88rem',
+              color: c.textMuted,
+              margin: '0 0 24px',
+              maxWidth: '320px',
+              marginInline: 'auto',
+            }}
+          >
+            {t('settings.packages.emptyBody')}
+            when booking your services.
           </p>
           <button
             type="button"
@@ -932,7 +1037,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
               fontSize: '0.9rem',
               fontWeight: 600,
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
             }}
             onClick={startCreate}
           >
@@ -943,23 +1048,101 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: c.textMuted, borderBottom: `2px solid ${c.divider}` }}>
-                <th style={{ padding: '14px 12px 14px 0', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Name</th>
-                <th style={{ padding: '14px 12px', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Price</th>
-                <th style={{ padding: '14px 12px', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Duration</th>
-                <th style={{ padding: '14px 12px', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Photos</th>
-                <th style={{ padding: '14px 12px', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</th>
-                <th style={{ padding: '14px 12px', fontWeight: 600, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.06em' }} aria-label="Actions" />
+              <tr
+                style={{
+                  textAlign: 'left',
+                  color: c.textMuted,
+                  borderBottom: `2px solid ${c.divider}`,
+                }}
+              >
+                <th
+                  style={{
+                    padding: '14px 12px 14px 0',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Name
+                </th>
+                <th
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {t('settings.packages.price')}
+                </th>
+                <th
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {t('settings.packages.duration')}
+                </th>
+                <th
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {t('settings.packages.photos')}
+                </th>
+                <th
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {t('settings.packages.status')}
+                </th>
+                <th
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                  aria-label={t('settings.packages.actions')}
+                />
               </tr>
             </thead>
             <tbody>
               {packages.map((pkg) => (
                 <React.Fragment key={pkg.id}>
-                  <tr style={{ borderBottom: `1px solid ${c.borderSoft}`, transition: 'background 0.2s ease' }}>
-                    <td style={{ padding: '16px 12px 16px 0', color: c.text, fontWeight: 600 }}>{pkg.name}</td>
-                    <td style={{ padding: '16px 12px', color: c.text, fontWeight: 500 }}>{formatPriceEur(pkg.priceCents, pkg.currency)}</td>
-                    <td style={{ padding: '16px 12px', color: c.textMuted }}>{pkg.durationHours != null ? `${pkg.durationHours}h` : '—'}</td>
-                    <td style={{ padding: '16px 12px', color: c.textMuted }}>{pkg.includedPhotos != null ? pkg.includedPhotos : '—'}</td>
+                  <tr
+                    style={{
+                      borderBottom: `1px solid ${c.borderSoft}`,
+                      transition: 'background 0.2s ease',
+                    }}
+                  >
+                    <td style={{ padding: '16px 12px 16px 0', color: c.text, fontWeight: 600 }}>
+                      {pkg.name}
+                    </td>
+                    <td style={{ padding: '16px 12px', color: c.text, fontWeight: 500 }}>
+                      {formatPriceEur(pkg.priceCents, pkg.currency)}
+                    </td>
+                    <td style={{ padding: '16px 12px', color: c.textMuted }}>
+                      {pkg.durationHours != null ? `${pkg.durationHours}h` : '—'}
+                    </td>
+                    <td style={{ padding: '16px 12px', color: c.textMuted }}>
+                      {pkg.includedPhotos != null ? pkg.includedPhotos : '—'}
+                    </td>
                     <td style={{ padding: '16px 12px' }}>
                       <span
                         style={{
@@ -975,10 +1158,18 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
                           border: `1px solid ${pkg.active ? c.successBorder : c.border}`,
                         }}
                       >
-                        {pkg.active ? 'Active' : 'Inactive'}
+                        {pkg.active
+                          ? t('settings.packages.active')
+                          : t('settings.packages.inactive')}
                       </span>
                     </td>
-                    <td style={{ padding: '16px 0 16px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td
+                      style={{
+                        padding: '16px 0 16px 12px',
+                        textAlign: 'right',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       <button
                         type="button"
                         style={{ ...ghostBtn, marginRight: '8px' }}
@@ -993,13 +1184,15 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
                         onClick={() => setPendingDelete(pkg)}
                         disabled={!!editingId || creating}
                       >
-                        Delete
+                        {t('settings.packages.delete')}
                       </button>
                     </td>
                   </tr>
                   {editingId === pkg.id && (
                     <tr>
-                      <td colSpan={6} style={{ padding: 0 }}>{renderForm()}</td>
+                      <td colSpan={6} style={{ padding: 0 }}>
+                        {renderForm()}
+                      </td>
                     </tr>
                   )}
                 </React.Fragment>
@@ -1014,7 +1207,7 @@ function PackagesSection({ theme }: { readonly theme: Theme }) {
       <ConfirmDialog
         open={!!pendingDelete}
         theme={theme}
-        title="Delete this package?"
+        title={t('settings.packages.deleteConfirm')}
         message={
           pendingDelete
             ? `"${pendingDelete.name}" will be removed. Bookings that referenced this package will keep their total amounts but lose the package link.`

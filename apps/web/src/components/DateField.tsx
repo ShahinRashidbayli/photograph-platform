@@ -77,11 +77,7 @@ export function displayToIso(input: string, pattern: DatePattern): string | null
 function buildIso(year: number, month: number, day: number): string | null {
   if (year < 1000 || month < 1 || month > 12 || day < 1 || day > 31) return null;
   const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
     return null;
   }
   return `${year}-${pad(month)}-${pad(day)}`;
@@ -192,8 +188,19 @@ export function DateField({
           borderRadius: radius.control,
         }}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
       </button>
 
@@ -245,9 +252,9 @@ function MonthGrid({
   const monthLabel = useMemo(
     () =>
       new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric' }).format(
-        new Date(cursor.year, cursor.month, 1),
+        new Date(cursor.year, cursor.month, 1)
       ),
-    [tag, cursor],
+    [tag, cursor]
   );
 
   const days = useMemo(() => {
@@ -348,7 +355,10 @@ function MonthGrid({
               style={{
                 height: 30,
                 borderRadius: radius.control,
-                border: isToday && !isSelected ? `1px solid ${colors.primaryBorder}` : '1px solid transparent',
+                border:
+                  isToday && !isSelected
+                    ? `1px solid ${colors.primaryBorder}`
+                    : '1px solid transparent',
                 background: isSelected ? colors.primarySolid : 'transparent',
                 color: isSelected ? '#FFFFFF' : disabled ? colors.textMuted : colors.text,
                 opacity: disabled ? 0.35 : 1,
@@ -358,7 +368,8 @@ function MonthGrid({
                 cursor: disabled ? 'not-allowed' : 'pointer',
               }}
               onMouseEnter={(e) => {
-                if (!disabled && !isSelected) e.currentTarget.style.background = colors.surfaceHover;
+                if (!disabled && !isSelected)
+                  e.currentTarget.style.background = colors.surfaceHover;
               }}
               onMouseLeave={(e) => {
                 if (!isSelected) e.currentTarget.style.background = 'transparent';

@@ -94,6 +94,12 @@ public class SecurityConfig {
                     // same gate.
                     "/api/inquiries/**"
                 ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
+                // Tenant-level settings: the business identity printed on every
+                // invoice (including the tenant's tax numbers) and the Stripe
+                // Connect payout link. Tenant-wide, not per-user — a CUSTOMER
+                // shares the tenant and must never read or rewrite it. The
+                // customer's own account settings live under /api/auth/me.
+                .requestMatchers("/api/settings/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
                 // Recording a manual (bank-transfer) payment is the photographer
                 // taking their own word for money having arrived — never a
                 // customer action. Declared before the broader payments matcher

@@ -66,7 +66,7 @@ function ResetPasswordForm() {
       setError(
         status === 401
           ? 'This reset link is no longer valid. Request a new one and try again.'
-          : extractApiError(err, 'Could not reset your password. Please try again.'),
+          : extractApiError(err, 'Could not reset your password. Please try again.')
       );
     } finally {
       setLoading(false);
@@ -81,9 +81,7 @@ function ResetPasswordForm() {
         <div style={s.header}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</div>
           <h2 style={s.title}>Link is missing its token</h2>
-          <p style={s.subtitle}>
-            Open the link straight from the email, or request a fresh one.
-          </p>
+          <p style={s.subtitle}>Open the link straight from the email, or request a fresh one.</p>
         </div>
         <Link
           href="/forgot-password"
@@ -114,8 +112,8 @@ function ResetPasswordForm() {
           {/* Worth stating plainly: the reset revoked every existing session, so
               anyone who was signed in as them (including an intruder) is out. */}
           <p style={s.subtitle}>
-            You&apos;ve been signed out everywhere else for safety. Sign in with your new
-            password to continue.
+            You&apos;ve been signed out everywhere else for safety. Sign in with your new password
+            to continue.
           </p>
         </div>
 
@@ -142,16 +140,16 @@ function ResetPasswordForm() {
     >
       <div style={s.header}>
         <h2 style={s.title}>Set a new password</h2>
-        <p style={s.subtitle}>
-          At least {MIN_LENGTH} characters, with a letter and a digit.
-        </p>
+        <p style={s.subtitle}>At least {MIN_LENGTH} characters, with a letter and a digit.</p>
       </div>
 
       {error && <div style={s.alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label} htmlFor="reset-password">New password</label>
+          <label style={s.label} htmlFor="reset-password">
+            New password
+          </label>
           <input
             id="reset-password"
             type="password"
@@ -167,7 +165,9 @@ function ResetPasswordForm() {
         </div>
 
         <div style={s.formGroup}>
-          <label style={s.label} htmlFor="reset-password-confirm">Confirm new password</label>
+          <label style={s.label} htmlFor="reset-password-confirm">
+            Confirm new password
+          </label>
           <input
             id="reset-password-confirm"
             type="password"

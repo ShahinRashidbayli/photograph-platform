@@ -108,3 +108,114 @@ export interface DashboardData {
   galleries: Gallery[];
   revenueHistory: Array<{ month: string; amount: number }>;
 }
+
+// ── Invoicing & payments ─────────────────────────────────────────────────────
+// Mirrors the API records one-for-one. Money is always integer cents, never a
+// float: `totalCents` etc. are what the backend stores and what Stripe charges,
+// and rounding a euro amount through a JS number is how a €1,200.00 deposit
+// becomes €1,199.99 on someone's invoice.
+
+export type TaxCategory = 'STANDARD' | 'REDUCED' | 'EXEMPT';
+export type TaxMode = 'KLEINUNTERNEHMER' | 'REGELBESTEUERUNG';
+
+export interface InvoiceLineItem {
+  description: string;
+  /** Decimal — serialized as a JSON number by Jackson (e.g. 1, 2.5). */
+  quantity: number;
+  unitPriceCents: number;
+  taxCategory: TaxCategory;
+  taxRatePercent: number;
+  lineTotalCents: number;
+}
+
+export interface Invoice {
+  id: string;
+  bookingId: string | null;
+  invoiceNumber: string;
+  status: 'ISSUED' | 'STORNIERT';
+  taxMode: TaxMode;
+  buyerName: string;
+  buyerEmail: string;
+  currency: string;
+  subtotalCents: number;
+  taxCents: number;
+  /** Negative on a Storno — it is designed to net the original to zero. */
+  totalCents: number;
+  /**
+   * Settlement figures, served with the invoice itself rather than fetched per
+   * row from the payment-summary endpoint — the latter cost one HTTP request
+   * per invoice on every list that showed them.
+   */
+  paidCents: number;
+  outstandingCents: number;
+  /** Bank-transfer reference, e.g. `RE-2026-0001`. */
+  verwendungszweck: string;
+  /** Set on a Storno, pointing at the invoice it corrects. */
+  stornoOfId: string | null;
+  /** Pre-signed R2 GET, refreshed on every read — do not cache it. */
+  pdfDownloadUrl: string | null;
+  issuedAt: string;
+  lineItems: InvoiceLineItem[];
+}
+
+export type PaymentMethod = 'CARD' | 'SEPA' | 'UEBERWEISUNG';
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  method: PaymentMethod;
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+  amountCents: number;
+  currency: string;
+  /** Only on a freshly created/reused intent — never on history rows. */
+  clientSecret: string | null;
+  /**
+   * Returned with the client secret. Charges are DIRECT charges on the
+   * photographer's connected account, so Stripe.js must be loaded with the
+   * publishable key AND `stripeAccount` — the platform key alone cannot
+   * resolve the secret.
+   */
+  publishableKey: string | null;
+  stripeAccountId: string | null;
+  applicationFeeCents: number;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+
+export interface InvoicePaymentSummary {
+  totalCents: number;
+  paidCents: number;
+  outstandingCents: number;
+  /** Reference the client puts on a bank transfer so it can be matched. */
+  verwendungszweck: string;
+  payments: Payment[];
+}
+
+// ── Tenant settings ──────────────────────────────────────────────────────────
+
+export interface BillingProfile {
+  businessName: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string | null;
+  taxId: string | null;
+  vatId: string | null;
+  taxMode: TaxMode;
+  /** Server's verdict on §14 UStG completeness — the gate on issuing at all. */
+  complete: boolean;
+}
+
+export interface StripeConnectStatus {
+  /** False when the deployment has no Stripe credentials at all. */
+  platformConfigured: boolean;
+  accountId: string | null;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  onboardedAt: string | null;
+  plan: string;
+  /** Platform commission on this plan, in basis points (200 = 2%). */
+  commissionBps: number;
+}

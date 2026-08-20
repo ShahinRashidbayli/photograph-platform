@@ -211,37 +211,82 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         </label>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 16,
+        }}
+      >
         <div>
           <label style={labelStyle} htmlFor="name">
             Your name *
           </label>
-          <input id="name" name="name" type="text" required className="lead-form-input" style={inputStyle} />
+          <input
+            id="name"
+            name="name"
+            type="text"
+            required
+            className="lead-form-input"
+            style={inputStyle}
+          />
         </div>
         <div>
           <label style={labelStyle} htmlFor="email">
             Email *
           </label>
-          <input id="email" name="email" type="email" required className="lead-form-input" style={inputStyle} />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            className="lead-form-input"
+            style={inputStyle}
+          />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 16,
+        }}
+      >
         <div>
           <label style={labelStyle} htmlFor="phone">
             Phone (optional)
           </label>
-          <input id="phone" name="phone" type="tel" className="lead-form-input" style={inputStyle} />
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            className="lead-form-input"
+            style={inputStyle}
+          />
         </div>
         <div>
           <label style={labelStyle} htmlFor="eventDate">
             Event date *
           </label>
-          <input id="eventDate" name="eventDate" type="date" required className="lead-form-input" style={inputStyle} />
+          <input
+            id="eventDate"
+            name="eventDate"
+            type="date"
+            required
+            className="lead-form-input"
+            style={inputStyle}
+          />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 16,
+        }}
+      >
         <div>
           <label style={labelStyle} htmlFor="eventType">
             Session type *

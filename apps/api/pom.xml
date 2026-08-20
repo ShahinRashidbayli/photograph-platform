@@ -156,6 +156,18 @@
             <version>1.1.73</version>
         </dependency>
 
+        <!-- Actuator — /actuator/health only (see application.yml).
+             SecurityConfig has permitAll'd and CSRF-exempted that path since
+             before this dependency existed, so the deployment's health probe
+             was hitting a route with no handler: it fell through to the static
+             resource handler and the catch-all exception handler turned the
+             miss into a 500. A platform probe pointed at it marks every deploy
+             unhealthy. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Stripe — Card + SEPA Payment Intents, webhook signature verification. -->
         <dependency>
             <groupId>com.stripe</groupId>

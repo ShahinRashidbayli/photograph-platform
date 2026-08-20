@@ -69,7 +69,11 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
   }, [active]);
 
   const shot = data.shootDate
-    ? parseApiDate(data.shootDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    ? parseApiDate(data.shootDate).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
     : null;
 
   return (
@@ -79,7 +83,8 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
         <h1 style={styles.title}>{data.bookingName || 'Your gallery'}</h1>
         <p style={styles.meta}>
           {[data.eventType, shot].filter(Boolean).join(' · ')}
-          {data.photos.length > 0 && ` · ${data.photos.length} photo${data.photos.length === 1 ? '' : 's'}`}
+          {data.photos.length > 0 &&
+            ` · ${data.photos.length} photo${data.photos.length === 1 ? '' : 's'}`}
         </p>
       </header>
 
@@ -92,7 +97,11 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
         <div style={styles.grid}>
           {data.photos.map((photo) => (
             <figure key={photo.id} style={styles.cell}>
-              <button style={styles.cellBtn} onClick={() => setActive(photo)} aria-label="Open photo">
+              <button
+                style={styles.cellBtn}
+                onClick={() => setActive(photo)}
+                aria-label="Open photo"
+              >
                 {photo.thumbnailUrl || photo.viewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -121,10 +130,17 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
 
       {active && (
         <div style={styles.lightbox} onClick={() => setActive(null)}>
-          <button style={styles.close} onClick={() => setActive(null)} aria-label="Close">×</button>
+          <button style={styles.close} onClick={() => setActive(null)} aria-label="Close">
+            ×
+          </button>
           {active.viewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={active.viewUrl} alt={active.originalFilename || 'Gallery photo'} style={styles.lightboxImg} onClick={(e) => e.stopPropagation()} />
+            <img
+              src={active.viewUrl}
+              alt={active.originalFilename || 'Gallery photo'}
+              style={styles.lightboxImg}
+              onClick={(e) => e.stopPropagation()}
+            />
           ) : (
             <div style={{ color: '#fff' }}>Preview unavailable</div>
           )}
@@ -155,7 +171,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 0 60px',
   },
   header: { textAlign: 'center', padding: '64px 24px 40px', maxWidth: 760, margin: '0 auto' },
-  kicker: { fontSize: '0.8rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a1a1aa', marginBottom: 12 },
+  kicker: {
+    fontSize: '0.8rem',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: '#a1a1aa',
+    marginBottom: 12,
+  },
   title: { fontSize: '2.2rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0 },
   meta: { fontSize: '0.95rem', color: '#a1a1aa', marginTop: 10 },
   grid: {
@@ -166,22 +188,78 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 1400,
     margin: '0 auto',
   },
-  cell: { margin: 0, position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#1c1c22' },
-  cellBtn: { display: 'block', width: '100%', border: 'none', padding: 0, background: 'none', cursor: 'pointer' },
+  cell: {
+    margin: 0,
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
+    background: '#1c1c22',
+  },
+  cellBtn: {
+    display: 'block',
+    width: '100%',
+    border: 'none',
+    padding: 0,
+    background: 'none',
+    cursor: 'pointer',
+  },
   img: { width: '100%', height: 260, objectFit: 'cover', display: 'block' },
-  imgFallback: { width: '100%', height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#71717a', fontSize: '0.85rem' },
+  imgFallback: {
+    width: '100%',
+    height: 260,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#71717a',
+    fontSize: '0.85rem',
+  },
   download: {
-    position: 'absolute', bottom: 10, right: 10, background: 'rgba(0,0,0,0.65)', color: '#fff',
-    fontSize: '0.78rem', fontWeight: 600, padding: '6px 12px', borderRadius: 8, textDecoration: 'none', backdropFilter: 'blur(4px)',
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    background: 'rgba(0,0,0,0.65)',
+    color: '#fff',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    padding: '6px 12px',
+    borderRadius: 8,
+    textDecoration: 'none',
+    backdropFilter: 'blur(4px)',
   },
   empty: { textAlign: 'center', color: '#a1a1aa', padding: '80px 24px' },
   emptySub: { fontSize: '0.85rem', color: '#71717a', marginTop: 6 },
   footer: { textAlign: 'center', color: '#71717a', fontSize: '0.82rem', marginTop: 50 },
   lightbox: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24, flexDirection: 'column', gap: 16,
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.92)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 24,
+    flexDirection: 'column',
+    gap: 16,
   },
   lightboxImg: { maxWidth: '92vw', maxHeight: '82vh', objectFit: 'contain', borderRadius: 8 },
-  close: { position: 'absolute', top: 20, right: 28, background: 'none', border: 'none', color: '#fff', fontSize: '2.4rem', cursor: 'pointer', lineHeight: 1 },
-  lightboxDownload: { background: '#fff', color: '#0f0f12', fontWeight: 600, fontSize: '0.85rem', padding: '9px 18px', borderRadius: 8, textDecoration: 'none' },
+  close: {
+    position: 'absolute',
+    top: 20,
+    right: 28,
+    background: 'none',
+    border: 'none',
+    color: '#fff',
+    fontSize: '2.4rem',
+    cursor: 'pointer',
+    lineHeight: 1,
+  },
+  lightboxDownload: {
+    background: '#fff',
+    color: '#0f0f12',
+    fontWeight: 600,
+    fontSize: '0.85rem',
+    padding: '9px 18px',
+    borderRadius: 8,
+    textDecoration: 'none',
+  },
 };

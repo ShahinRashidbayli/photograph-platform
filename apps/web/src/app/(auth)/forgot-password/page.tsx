@@ -55,9 +55,8 @@ export default function ForgotPasswordPage() {
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>📬</div>
           <h2 style={s.title}>Check your email</h2>
           <p style={s.subtitle}>
-            If an account exists for <strong>{email.trim().toLowerCase()}</strong>, we&apos;ve
-            sent it a link to choose a new password. It expires in an hour and can only be
-            used once.
+            If an account exists for <strong>{email.trim().toLowerCase()}</strong>, we&apos;ve sent
+            it a link to choose a new password. It expires in an hour and can only be used once.
           </p>
         </div>
 
@@ -99,7 +98,9 @@ export default function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit}>
         <div style={s.formGroup}>
-          <label style={s.label} htmlFor="forgot-email">Email address</label>
+          <label style={s.label} htmlFor="forgot-email">
+            Email address
+          </label>
           <input
             id="forgot-email"
             type="email"
@@ -130,8 +131,8 @@ export default function ForgotPasswordPage() {
       </form>
 
       <div style={{ ...s.alertInfo, marginTop: 24 }}>
-        Tip: if you&apos;re a client, you don&apos;t need a password — use your emailed
-        magic link to sign in.
+        Tip: if you&apos;re a client, you don&apos;t need a password — use your emailed magic link
+        to sign in.
       </div>
 
       <p style={{ ...s.centerText, color: colors.textSubtle }}>

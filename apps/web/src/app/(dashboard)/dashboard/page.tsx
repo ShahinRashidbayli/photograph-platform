@@ -12,20 +12,35 @@ import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/book
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
-import {
-  getDashboardColors,
-  getDashboardStyles,
-} from './dashboard.styles';
+import { getDashboardColors, getDashboardStyles } from './dashboard.styles';
 
 const ICONS = {
   plus: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   ),
   arrowRight: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
     </svg>
@@ -78,20 +93,20 @@ export default function DashboardPage() {
   const kpis = useMemo(() => {
     const now = startOfToday();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thisMonthBookings = bookings.filter(b => parseApiDate(b.eventDate) >= monthStart);
-    const billable = bookings.filter(b => isBillableStatus(b.status));
+    const thisMonthBookings = bookings.filter((b) => parseApiDate(b.eventDate) >= monthStart);
+    const billable = bookings.filter((b) => isBillableStatus(b.status));
     const revenue = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
     // Collected must reflect what's actually been paid (derived server-side from
     // real invoice/payment rows), not the quoted deposit — otherwise an accepted
     // but unpaid booking shows its deposit as already banked.
     const collected = billable.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
     const activeClients = new Set(
-      billable.filter(b => b.status !== 'COMPLETED').map(b => b.clientEmail),
+      billable.filter((b) => b.status !== 'COMPLETED').map((b) => b.clientEmail)
     ).size;
     const upcoming = billable.filter(
-      b => b.status !== 'COMPLETED' && parseApiDate(b.eventDate) >= now,
+      (b) => b.status !== 'COMPLETED' && parseApiDate(b.eventDate) >= now
     ).length;
-    const newLeads = leads.filter(l => l.status === 'NEW').length;
+    const newLeads = leads.filter((l) => l.status === 'NEW').length;
     return {
       thisMonth: thisMonthBookings.length,
       revenue,
@@ -110,19 +125,13 @@ export default function DashboardPage() {
         if (!isBillableStatus(b.status) || b.status === 'COMPLETED') return false;
         return parseApiDate(b.eventDate) >= now;
       })
-      .sort(
-        (a, b) =>
-          parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime(),
-      )
+      .sort((a, b) => parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime())
       .slice(0, 4);
   }, [bookings]);
 
   const sortedLeads = useMemo(() => {
     return [...leads]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 4);
   }, [leads]);
 
@@ -188,9 +197,7 @@ export default function DashboardPage() {
             <h1 style={styles.pageTitle}>
               {t('dashboard.welcome', { name: user?.fullName ?? user?.email ?? '' })}
             </h1>
-            <p style={styles.pageSubtitle}>
-              {t('dashboard.clientSubtitle')}
-            </p>
+            <p style={styles.pageSubtitle}>{t('dashboard.clientSubtitle')}</p>
           </div>
         </div>
       </div>
@@ -219,17 +226,19 @@ export default function DashboardPage() {
           <h1 style={styles.pageTitle}>
             {t('dashboard.welcome', { name: user?.fullName ?? user?.email ?? '' })}
             {user?.tenant?.plan && (
-              <span style={styles.planBadge}>{t('dashboard.planBadge', { plan: user.tenant.plan })}</span>
+              <span style={styles.planBadge}>
+                {t('dashboard.planBadge', { plan: user.tenant.plan })}
+              </span>
             )}
           </h1>
           <p style={styles.pageSubtitle}>
             {t('dashboard.subtitle')}
             {user?.tenant?.subdomain && (
               <>
-                <span aria-hidden style={{ color: colors.textSubtle }}>•</span>
-                <span style={styles.subdomainChip}>
-                  {user.tenant.subdomain}
+                <span aria-hidden style={{ color: colors.textSubtle }}>
+                  •
                 </span>
+                <span style={styles.subdomainChip}>{user.tenant.subdomain}</span>
               </>
             )}
           </p>
@@ -239,8 +248,12 @@ export default function DashboardPage() {
             type="button"
             style={styles.secondaryButton}
             onClick={() => router.push('/portfolio')}
-            onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceHover; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = colors.surface; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = colors.surfaceHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = colors.surface;
+            }}
           >
             {t('dashboard.viewPortfolio')}
           </button>
@@ -248,8 +261,12 @@ export default function DashboardPage() {
             type="button"
             style={styles.primaryButton}
             onClick={() => router.push('/bookings')}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
             {ICONS.plus}
             {t('dashboard.createBooking')}
@@ -331,9 +348,7 @@ export default function DashboardPage() {
                     style={{
                       ...styles.listRow,
                       ...(idx > 0 ? styles.listRowDivider : {}),
-                      background: isHovered
-                        ? colors.surfaceHover
-                        : 'transparent',
+                      background: isHovered ? colors.surfaceHover : 'transparent',
                     }}
                     onMouseEnter={() => setHoveredRow(rowKey)}
                     onMouseLeave={() => setHoveredRow(null)}
@@ -343,9 +358,7 @@ export default function DashboardPage() {
                         <span style={styles.bookingDateMonth}>
                           {format.monthAbbrUpper(booking.eventDate)}
                         </span>
-                        <span style={styles.bookingDateDay}>
-                          {getDay(booking.eventDate)}
-                        </span>
+                        <span style={styles.bookingDateDay}>{getDay(booking.eventDate)}</span>
                       </div>
                       <div style={styles.rowMetaInfo}>
                         <div style={styles.rowName}>{booking.clientName}</div>
@@ -414,9 +427,7 @@ export default function DashboardPage() {
                     style={{
                       ...styles.listRow,
                       ...(idx > 0 ? styles.listRowDivider : {}),
-                      background: isHovered
-                        ? colors.surfaceHover
-                        : 'transparent',
+                      background: isHovered ? colors.surfaceHover : 'transparent',
                     }}
                     onMouseEnter={() => setHoveredRow(rowKey)}
                     onMouseLeave={() => setHoveredRow(null)}
@@ -435,8 +446,7 @@ export default function DashboardPage() {
                       <div style={styles.rowMetaInfo}>
                         <div style={styles.rowName}>{lead.name}</div>
                         <div style={styles.rowMeta}>
-                          {formatEventType(lead.eventType)} •{' '}
-                          {formatBudget(lead.budgetRange)}
+                          {formatEventType(lead.eventType)} • {formatBudget(lead.budgetRange)}
                         </div>
                       </div>
                     </div>
@@ -476,14 +486,7 @@ type MetricCardProps = {
   trendColor?: string;
 };
 
-function MetricCard({
-  styles,
-  colors,
-  label,
-  value,
-  trend,
-  trendColor,
-}: MetricCardProps) {
+function MetricCard({ styles, colors, label, value, trend, trendColor }: MetricCardProps) {
   const [hover, setHover] = useState(false);
   return (
     <div

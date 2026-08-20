@@ -52,9 +52,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(ERROR_KEY, ex.getMessage()));
     }
 
+    /**
+     * A dependency failed, not us. The response carries only the generic line
+     * the exception was constructed with — the provider's own message went
+     * into the cause and stays in the log, because it is written for an
+     * integrator and routinely names account ids, capabilities and API
+     * versions that have no business reaching a payer's browser.
+     */
+    @ExceptionHandler(UpstreamServiceException.class)
+    public ResponseEntity<Map<String, String>> handleUpstream(UpstreamServiceException ex) {
+        LOG.error("Upstream service {} failed", ex.getService(), ex);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(ERROR_KEY, ex.getMessage()));
+    }
+
+    /**
+     * The catch-all for "this should not have happened". Logged in full;
+     * answered with a fixed line, because an unplanned exception's message is
+     * by definition not something anyone wrote for a user to read, and echoing
+     * it has handed out connection strings and file paths in enough systems to
+     * be worth refusing on principle.
+     */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(ERROR_KEY, ex.getMessage()));
+        LOG.error("Unexpected illegal state", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(Map.of(ERROR_KEY, "Something went wrong on our side. Please try again."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

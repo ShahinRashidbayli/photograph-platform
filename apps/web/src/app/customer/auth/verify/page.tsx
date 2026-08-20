@@ -22,17 +22,18 @@ function CustomerVerifyInner() {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setMessage('This sign-in link is missing its token. Request a new one from your photographer.');
+      setMessage(
+        'This sign-in link is missing its token. Request a new one from your photographer.'
+      );
       return;
     }
     let cancelled = false;
     let redirectTimer: number | undefined;
     (async () => {
       try {
-        const { data: user } = await api.post<AuthUser>(
-          '/api/auth/customer/magic-link/verify',
-          { token }
-        );
+        const { data: user } = await api.post<AuthUser>('/api/auth/customer/magic-link/verify', {
+          token,
+        });
         if (cancelled) return;
         setUser(user);
         setStatus('success');
@@ -47,8 +48,8 @@ function CustomerVerifyInner() {
         redirectTimer = window.setTimeout(() => router.replace('/bookings'), 800);
       } catch (err: unknown) {
         if (cancelled) return;
-        const apiMessage =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error;
         setStatus('error');
         setMessage(
           apiMessage ??
@@ -62,8 +63,7 @@ function CustomerVerifyInner() {
     };
   }, [token, setUser, router]);
 
-  const accent =
-    status === 'success' ? '#10B981' : status === 'error' ? '#EF4444' : '#3B82F6';
+  const accent = status === 'success' ? '#10B981' : status === 'error' ? '#EF4444' : '#3B82F6';
 
   return (
     <div style={authStyles.page}>

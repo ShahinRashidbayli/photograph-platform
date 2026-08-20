@@ -30,7 +30,15 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: c.bg, color: c.text, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: c.bg,
+        color: c.text,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/* ── Nav ─────────────────────────────────────────────── */}
       <nav
         style={{
@@ -41,7 +49,16 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
           zIndex: 10,
         }}
       >
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: '0 auto',
+            padding: '14px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <Link href="/" aria-label="Fotolio Startseite" style={{ textDecoration: 'none' }}>
             <FotolioLogo theme={theme} variant="brand" showText={true} />
           </Link>
@@ -50,7 +67,12 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
             <ThemeToggle variant="pill" />
             <Link
               href="/"
-              style={{ fontSize: '0.88rem', fontWeight: 600, color: c.textMuted, textDecoration: 'none' }}
+              style={{
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                color: c.textMuted,
+                textDecoration: 'none',
+              }}
             >
               ← Zur Startseite
             </Link>
@@ -59,13 +81,34 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
       </nav>
 
       {/* ── Content ─────────────────────────────────────────── */}
-      <main style={{ flex: 1, maxWidth: 820, width: '100%', margin: '0 auto', padding: '40px 24px 72px' }}>
-        <p style={{ fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: c.textSubtle, fontWeight: 600, margin: 0 }}>
+      <main
+        style={{
+          flex: 1,
+          maxWidth: 820,
+          width: '100%',
+          margin: '0 auto',
+          padding: '40px 24px 72px',
+        }}
+      >
+        <p
+          style={{
+            fontSize: '0.78rem',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: c.textSubtle,
+            fontWeight: 600,
+            margin: 0,
+          }}
+        >
           Rechtliches
         </p>
-        <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: '10px 0 6px', lineHeight: 1.15 }}>{doc.title}</h1>
+        <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: '10px 0 6px', lineHeight: 1.15 }}>
+          {doc.title}
+        </h1>
         <p style={{ fontSize: '1rem', color: c.textMuted, margin: 0 }}>{doc.subtitle}</p>
-        <p style={{ fontSize: '0.82rem', color: c.textSubtle, margin: '10px 0 0' }}>Stand: {LEGAL_UPDATED}</p>
+        <p style={{ fontSize: '0.82rem', color: c.textSubtle, margin: '10px 0 0' }}>
+          Stand: {LEGAL_UPDATED}
+        </p>
 
         {/* Draft notice — the content is a scaffold pending legal finalisation. */}
         <div
@@ -81,8 +124,8 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
             lineHeight: 1.55,
           }}
         >
-          <strong>Entwurf – noch nicht rechtsverbindlich.</strong> Dieser Text ist eine
-          strukturelle Vorlage. Vor dem Launch müssen die mit <code style={{ fontSize: '0.8em' }}>[…]</code>{' '}
+          <strong>Entwurf – noch nicht rechtsverbindlich.</strong> Dieser Text ist eine strukturelle
+          Vorlage. Vor dem Launch müssen die mit <code style={{ fontSize: '0.8em' }}>[…]</code>{' '}
           markierten Angaben ergänzt und die Formulierungen mit einem Generator (eRecht24) oder
           einer Rechtsberatung finalisiert werden.
         </div>
@@ -91,7 +134,14 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
           {doc.sections.map((section, i) => (
             <section key={i} style={{ marginTop: 28 }}>
               {section.heading && (
-                <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 12px', color: c.text }}>
+                <h2
+                  style={{
+                    fontSize: '1.15rem',
+                    fontWeight: 700,
+                    margin: '0 0 12px',
+                    color: c.text,
+                  }}
+                >
                   {section.heading}
                 </h2>
               )}
@@ -122,7 +172,11 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
           <span>© {year} Fotolio · Made in Germany</span>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
             {legalLinks.map((l) => (
-              <Link key={l.href} href={l.href} style={{ color: c.textMuted, textDecoration: 'none', fontWeight: 500 }}>
+              <Link
+                key={l.href}
+                href={l.href}
+                style={{ color: c.textMuted, textDecoration: 'none', fontWeight: 500 }}
+              >
                 {l.label}
               </Link>
             ))}
@@ -137,7 +191,12 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
 type Colors = ReturnType<typeof getColors>;
 
 function Block({ block, c }: { block: LegalBlock; c: Colors }) {
-  const pStyle: CSSProperties = { fontSize: '0.94rem', lineHeight: 1.7, color: c.textMuted, margin: '0 0 12px' };
+  const pStyle: CSSProperties = {
+    fontSize: '0.94rem',
+    lineHeight: 1.7,
+    color: c.textMuted,
+    margin: '0 0 12px',
+  };
 
   if (block.type === 'p') {
     return <p style={pStyle}>{renderText(block.text, c)}</p>;
@@ -145,7 +204,15 @@ function Block({ block, c }: { block: LegalBlock; c: Colors }) {
 
   if (block.type === 'list') {
     return (
-      <ul style={{ margin: '0 0 12px', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <ul
+        style={{
+          margin: '0 0 12px',
+          paddingLeft: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
         {block.items.map((item, i) => (
           <li key={i} style={{ ...pStyle, margin: 0 }}>
             {renderText(item, c)}
@@ -157,11 +224,22 @@ function Block({ block, c }: { block: LegalBlock; c: Colors }) {
 
   // defs — label/value rows.
   return (
-    <dl style={{ margin: '0 0 12px', display: 'grid', gridTemplateColumns: 'minmax(120px, 200px) 1fr', gap: '8px 20px' }}>
+    <dl
+      style={{
+        margin: '0 0 12px',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(120px, 200px) 1fr',
+        gap: '8px 20px',
+      }}
+    >
       {block.rows.map((row, i) => (
         <Fragment key={i}>
-          <dt style={{ fontSize: '0.9rem', fontWeight: 600, color: c.text }}>{renderText(row.k, c)}</dt>
-          <dd style={{ fontSize: '0.94rem', lineHeight: 1.6, color: c.textMuted, margin: 0 }}>{renderText(row.v, c)}</dd>
+          <dt style={{ fontSize: '0.9rem', fontWeight: 600, color: c.text }}>
+            {renderText(row.k, c)}
+          </dt>
+          <dd style={{ fontSize: '0.94rem', lineHeight: 1.6, color: c.textMuted, margin: 0 }}>
+            {renderText(row.v, c)}
+          </dd>
         </Fragment>
       ))}
     </dl>
@@ -199,14 +277,24 @@ function renderText(text: string, c: Colors): ReactNode {
     }
     if (/^https?:\/\//.test(part)) {
       return (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: c.primaryText, textDecoration: 'underline' }}>
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: c.primaryText, textDecoration: 'underline' }}
+        >
           {part}
         </a>
       );
     }
     if (/^[\w.+-]+@[\w.-]+\.\w+$/.test(part)) {
       return (
-        <a key={i} href={`mailto:${part}`} style={{ color: c.primaryText, textDecoration: 'underline' }}>
+        <a
+          key={i}
+          href={`mailto:${part}`}
+          style={{ color: c.primaryText, textDecoration: 'underline' }}
+        >
           {part}
         </a>
       );

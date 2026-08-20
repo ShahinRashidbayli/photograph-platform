@@ -32,7 +32,13 @@ export function LanguageToggle({ variant = 'pill', style }: Readonly<LanguageTog
   const title = next === 'en' ? 'Switch to English' : 'Auf Deutsch umschalten';
 
   const shell: CSSProperties = isPill
-    ? { height: 38, minWidth: 38, borderRadius: 999, border: `1px solid ${c.border}`, padding: '0 12px' }
+    ? {
+        height: 38,
+        minWidth: 38,
+        borderRadius: 999,
+        border: `1px solid ${c.border}`,
+        padding: '0 12px',
+      }
     : { height: 34, minWidth: 34, borderRadius: 8, border: 'none', padding: '0 8px' };
 
   return (

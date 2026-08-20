@@ -25,14 +25,12 @@ export const auth = {
     'First time here? No sign-up needed — entering your details sets up your account automatically.',
   'customerLogin.errorRequired': 'Email and photographer subdomain are required',
   'customerLogin.errorEmail': 'Please enter a valid email address',
-  'customerLogin.errorSubdomain':
-    'Please enter a valid photographer subdomain (e.g. anna-foto)',
+  'customerLogin.errorSubdomain': 'Please enter a valid photographer subdomain (e.g. anna-foto)',
   'customerLogin.errorSend': 'Could not send magic link. Please try again.',
   'customerLogin.sentTitle': 'Check your inbox',
   'customerLogin.sentBody':
     'If {email} is registered with that photographer, we just sent you a sign-in link. It’s valid for 15 minutes.',
-  'customerLogin.sentHint':
-    "Didn't get it? Check your spam folder, or request a new one below.",
+  'customerLogin.sentHint': "Didn't get it? Check your spam folder, or request a new one below.",
   'customerLogin.resend': 'Resend link',
   'customerLogin.resendLoading': 'Resending…',
   'customerLogin.resendDone': 'Sent! Check your inbox again.',
@@ -84,8 +82,7 @@ export const auth = {
   'register.errorAllRequired': 'All fields are required',
   'register.errorEmail': 'Please enter a valid email address',
   'register.errorPasswordLength': 'Password must be at least 10 characters',
-  'register.errorPasswordComposition':
-    'Password must contain at least one letter and one digit',
+  'register.errorPasswordComposition': 'Password must contain at least one letter and one digit',
   'register.errorSubdomain':
     'Subdomain must be 3–63 chars, start and end with a letter or digit, hyphens allowed in between',
   'register.errorGeneric': 'Registration failed',

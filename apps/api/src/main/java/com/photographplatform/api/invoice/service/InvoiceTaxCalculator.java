@@ -4,6 +4,7 @@ import com.photographplatform.api.invoice.domain.TaxCategory;
 import com.photographplatform.api.tenant.domain.TaxMode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,7 +41,7 @@ public final class InvoiceTaxCalculator {
 
         int subtotal = 0;
         int tax = 0;
-        java.util.ArrayList<LineResult> lines = new java.util.ArrayList<>();
+        List<LineResult> lines = new ArrayList<>();
 
         for (LineInput in : inputs) {
             BigDecimal lineTotal = in.quantity()

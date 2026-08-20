@@ -54,12 +54,36 @@ export interface BookingStatusMeta {
 }
 
 export const BOOKING_STATUS: Record<BookingStatusKey, BookingStatusMeta> = {
-  ENQUIRY: { labelKey: 'bookingStatus.ENQUIRY', customerLabelKey: 'bookingStatusCustomer.ENQUIRY', tone: 'neutral' },
-  CONFIRMED: { labelKey: 'bookingStatus.CONFIRMED', customerLabelKey: 'bookingStatusCustomer.CONFIRMED', tone: 'success' },
-  POSTPONED: { labelKey: 'bookingStatus.POSTPONED', customerLabelKey: 'bookingStatusCustomer.POSTPONED', tone: 'warning' },
-  COMPLETED: { labelKey: 'bookingStatus.COMPLETED', customerLabelKey: 'bookingStatusCustomer.COMPLETED', tone: 'info' },
-  DECLINED: { labelKey: 'bookingStatus.DECLINED', customerLabelKey: 'bookingStatusCustomer.DECLINED', tone: 'danger' },
-  CANCELLED: { labelKey: 'bookingStatus.CANCELLED', customerLabelKey: 'bookingStatusCustomer.CANCELLED', tone: 'danger' },
+  ENQUIRY: {
+    labelKey: 'bookingStatus.ENQUIRY',
+    customerLabelKey: 'bookingStatusCustomer.ENQUIRY',
+    tone: 'neutral',
+  },
+  CONFIRMED: {
+    labelKey: 'bookingStatus.CONFIRMED',
+    customerLabelKey: 'bookingStatusCustomer.CONFIRMED',
+    tone: 'success',
+  },
+  POSTPONED: {
+    labelKey: 'bookingStatus.POSTPONED',
+    customerLabelKey: 'bookingStatusCustomer.POSTPONED',
+    tone: 'warning',
+  },
+  COMPLETED: {
+    labelKey: 'bookingStatus.COMPLETED',
+    customerLabelKey: 'bookingStatusCustomer.COMPLETED',
+    tone: 'info',
+  },
+  DECLINED: {
+    labelKey: 'bookingStatus.DECLINED',
+    customerLabelKey: 'bookingStatusCustomer.DECLINED',
+    tone: 'danger',
+  },
+  CANCELLED: {
+    labelKey: 'bookingStatus.CANCELLED',
+    customerLabelKey: 'bookingStatusCustomer.CANCELLED',
+    tone: 'danger',
+  },
 };
 
 export interface PaymentStateMeta {

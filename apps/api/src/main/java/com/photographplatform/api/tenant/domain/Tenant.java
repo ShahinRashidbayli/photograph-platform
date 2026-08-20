@@ -62,6 +62,26 @@ public class Tenant {
     @Column(name = "tax_mode", nullable = false, length = 20)
     private String taxMode = TaxMode.KLEINUNTERNEHMER.name();
 
+    // ── Stripe Connect (Express) — the photographer is the merchant of record ──
+    // Charges are created directly on this connected account (see
+    // PaymentService), so the money lands where the invoice says it did and
+    // the platform takes its commission via application_fee_amount.
+
+    @Column(name = "stripe_account_id", length = 255)
+    private String stripeAccountId;
+
+    @Column(name = "stripe_charges_enabled", nullable = false)
+    private boolean stripeChargesEnabled;
+
+    @Column(name = "stripe_payouts_enabled", nullable = false)
+    private boolean stripePayoutsEnabled;
+
+    @Column(name = "stripe_details_submitted", nullable = false)
+    private boolean stripeDetailsSubmitted;
+
+    @Column(name = "stripe_onboarded_at")
+    private OffsetDateTime stripeOnboardedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -194,23 +214,77 @@ public class Tenant {
         return createdAt;
     }
 
+    public String getStripeAccountId() {
+        return stripeAccountId;
+    }
+
+    public void setStripeAccountId(String stripeAccountId) {
+        this.stripeAccountId = stripeAccountId;
+    }
+
+    public boolean isStripeChargesEnabled() {
+        return stripeChargesEnabled;
+    }
+
+    public boolean isStripePayoutsEnabled() {
+        return stripePayoutsEnabled;
+    }
+
+    public boolean isStripeDetailsSubmitted() {
+        return stripeDetailsSubmitted;
+    }
+
+    public OffsetDateTime getStripeOnboardedAt() {
+        return stripeOnboardedAt;
+    }
+
+    /**
+     * Copies the connected account's capability flags from Stripe.
+     *
+     * <p>Set together rather than through three independent setters because
+     * they are three facets of one remote state — writing one without the
+     * others produces a mirror that never existed at Stripe. {@code
+     * stripeOnboardedAt} is stamped the first time charges go live and then
+     * left alone: Stripe can revoke {@code charges_enabled} later (pending
+     * re-verification, say), and that must not erase the fact that the
+     * photographer did complete onboarding.
+     */
+    public void applyStripeCapabilities(boolean chargesEnabled, boolean payoutsEnabled, boolean detailsSubmitted) {
+        this.stripeChargesEnabled = chargesEnabled;
+        this.stripePayoutsEnabled = payoutsEnabled;
+        this.stripeDetailsSubmitted = detailsSubmitted;
+        if (chargesEnabled && this.stripeOnboardedAt == null) {
+            this.stripeOnboardedAt = OffsetDateTime.now();
+        }
+    }
+
+    /** True when this tenant can accept a card/SEPA charge right now. */
+    public boolean canAcceptStripePayments() {
+        return stripeAccountId != null && !stripeAccountId.isBlank() && stripeChargesEnabled;
+    }
+
     /**
      * True once every field §14 UStG requires on an invoice issuer is
-     * present.
+     * present: the issuer's full name and address (Abs. 4 Nr. 1) and either
+     * the Steuernummer or the Umsatzsteuer-ID (Abs. 4 Nr. 2).
      *
-     * <p>Strictly, §14 Abs. 4 Nr. 2 UStG also requires either the
-     * Steuernummer ({@code taxId}) or the Umsatzsteuer-ID ({@code vatId}) —
-     * deliberately NOT enforced here yet: nothing in this codebase currently
-     * lets a tenant set either field (no settings endpoint, no onboarding
-     * step — {@code setTaxId}/{@code setVatId} have zero callers outside
-     * this class), so requiring one would just make {@code issueForBooking}
-     * permanently unissuable for every tenant. Add the check back once a
-     * billing-profile settings endpoint actually collects these.
+     * <p>The tax-number half of that used to be commented out, because
+     * nothing in the codebase could set {@code taxId}/{@code vatId} — no
+     * settings endpoint, no onboarding step — so enforcing it would have made
+     * {@code issueForBooking} permanently unissuable. {@code
+     * TenantSettingsController} now collects the whole profile, so the
+     * requirement is back where the statute puts it.
      */
     public boolean hasBillingProfile() {
         return businessName != null && !businessName.isBlank()
             && addressLine1 != null && !addressLine1.isBlank()
             && postalCode != null && !postalCode.isBlank()
-            && city != null && !city.isBlank();
+            && city != null && !city.isBlank()
+            && hasTaxIdentifier();
+    }
+
+    /** §14 Abs. 4 Nr. 2 UStG — Steuernummer or USt-IdNr., at least one. */
+    public boolean hasTaxIdentifier() {
+        return (taxId != null && !taxId.isBlank()) || (vatId != null && !vatId.isBlank());
     }
 }

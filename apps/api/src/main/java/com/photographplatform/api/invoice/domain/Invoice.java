@@ -274,6 +274,19 @@ public class Invoice implements Persistable<UUID> {
         return bookingId;
     }
 
+    /**
+     * What the client writes on a bank transfer so the photographer can match
+     * it to this invoice.
+     *
+     * <p>On the invoice because it is a property of the document, not of any
+     * one screen. It used to be assembled inside {@code
+     * PaymentService#getSummary}, which meant the invoice list had no way to
+     * show it without also fetching a payment summary per row.
+     */
+    public String getVerwendungszweck() {
+        return "RE-" + invoiceNumber;
+    }
+
     public String getInvoiceNumber() {
         return invoiceNumber;
     }

@@ -173,7 +173,9 @@ export function RequestSessionModal({
             >
               ✓
             </div>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: colors.text, marginBottom: 6 }}>
+            <div
+              style={{ fontWeight: 700, fontSize: '1.05rem', color: colors.text, marginBottom: 6 }}
+            >
               {t('requestSession.sentTitle')}
             </div>
             <p style={{ fontSize: '0.9rem', color: colors.textMuted, margin: 0 }}>

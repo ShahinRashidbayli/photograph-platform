@@ -4,10 +4,10 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
-import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.exception.UpstreamServiceException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.invoice.domain.Invoice;
@@ -22,29 +22,45 @@ import com.photographplatform.api.payment.dto.InvoicePaymentSummaryResponse;
 import com.photographplatform.api.payment.dto.PaymentResponse;
 import com.photographplatform.api.payment.dto.RecordManualPaymentRequest;
 import com.photographplatform.api.payment.repository.PaymentRepository;
-import com.photographplatform.api.payment.repository.ProcessedStripeEventRepository;
+import com.photographplatform.api.tenant.domain.Tenant;
+import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.stripe.StripeClient;
-import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
-import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
-import com.stripe.net.Webhook;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCreateParams;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Payments against an issued {@link Invoice} — Stripe Card/SEPA Payment
  * Intents, and the manual Überweisung path (still the most common method at
  * this price point in Germany, per the spec's own market read).
+ *
+ * <h2>Direct charges on the photographer's own Stripe account</h2>
+ * Every card/SEPA charge is created <em>on the tenant's connected Express
+ * account</em> (see {@link StripeConnectService}), not on the platform's. The
+ * invoice this payment settles names the photographer as the issuer under §14
+ * UStG, so the funds must land with the photographer for the document to be
+ * true; the platform's commission comes off the same charge as an {@code
+ * application_fee_amount}, which is exactly the arrangement PRICING.md §4
+ * fixed on 2026-07-17 (2% on Starter, 0% on Pro/Studio).
+ *
+ * <p>Two consequences run through this class. A PaymentIntent created this way
+ * is invisible to a platform-scoped API call, so every later {@code retrieve}
+ * or {@code cancel} has to carry the same {@code stripeAccount} — which is why
+ * the account id is stored on the payment row rather than looked up from the
+ * tenant, whose account could in principle have been replaced. And the webhook
+ * arrives with the connected account in {@link Event#getAccount()}, which is
+ * checked against the row before it is allowed to settle it.
  */
 @Service
 public class PaymentService {
@@ -52,35 +68,34 @@ public class PaymentService {
     private static final Logger LOG = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
-    private final ProcessedStripeEventRepository processedEventRepository;
     private final InvoiceRepository invoiceRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final TenantRepository tenantRepository;
     private final Optional<StripeClient> stripeClient;
-    private final String webhookSecret;
+    private final String publishableKey;
+    private final PaymentProperties.Commission commission;
     private final AuditService auditService;
-    private final TransactionTemplate freshTransaction;
 
     public PaymentService(
         PaymentRepository paymentRepository,
-        ProcessedStripeEventRepository processedEventRepository,
         InvoiceRepository invoiceRepository,
         BookingRepository bookingRepository,
         UserRepository userRepository,
+        TenantRepository tenantRepository,
         Optional<StripeClient> stripeClient,
         PaymentProperties paymentProperties,
-        AuditService auditService,
-        PlatformTransactionManager transactionManager
+        AuditService auditService
     ) {
         this.paymentRepository = paymentRepository;
-        this.processedEventRepository = processedEventRepository;
         this.invoiceRepository = invoiceRepository;
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
+        this.tenantRepository = tenantRepository;
         this.stripeClient = stripeClient;
-        this.webhookSecret = paymentProperties.getWebhookSecret();
+        this.publishableKey = paymentProperties.getPublishableKey();
+        this.commission = paymentProperties.getCommission();
         this.auditService = auditService;
-        this.freshTransaction = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -98,9 +113,23 @@ public class PaymentService {
         }
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        Invoice invoice = requireInvoice(invoiceId);
+        Invoice invoice = lockInvoiceForPayment(invoiceId);
         requireOwnedByCallerIfCustomer(invoice);
         requirePayable(invoice);
+
+        // The charge goes onto the photographer's connected account, so there
+        // is no fallback if they haven't finished Stripe's onboarding: taking
+        // the money onto the platform account instead would put it somewhere
+        // the invoice says it isn't. Fail with something the client can act on
+        // — they can still pay by Überweisung, which needs no Stripe at all.
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant not found"));
+        if (!tenant.canAcceptStripePayments()) {
+            throw new ConflictException(
+                "This photographer has not finished setting up online payments yet — "
+                    + "please pay by bank transfer, or ask them to connect Stripe in Settings");
+        }
+        String connectedAccountId = tenant.getStripeAccountId();
 
         long outstanding = outstandingCents(invoice);
         if (outstanding <= 0) {
@@ -125,46 +154,82 @@ public class PaymentService {
                 invoice.getId(), PaymentStatus.PENDING.name());
         if (existingPending.isPresent()) {
             Payment pending = existingPending.get();
-            if (pending.getAmountCents() == outstanding) {
+            // Reusable only while it still bills the right amount, on the
+            // account we would charge today, by the method the client just
+            // picked. A tenant that reconnected Stripe under a new account
+            // leaves intents behind on the old one — unreachable for the
+            // client, and crediting the wrong merchant if they somehow
+            // weren't. And an intent is created with a fixed
+            // payment_method_types: handing back the card intent to someone
+            // who just chose SEPA-Lastschrift renders a card form under a
+            // SEPA heading.
+            boolean sameAccount = Objects.equals(connectedAccountId, pending.getStripeAccountId());
+            boolean sameMethod = pending.getMethod() == req.method();
+            if (pending.getAmountCents() == outstanding && sameAccount && sameMethod) {
                 try {
                     PaymentIntent existingIntent = requireStripe().v1().paymentIntents()
-                        .retrieve(pending.getStripePaymentIntentId());
-                    return toResponse(pending, existingIntent.getClientSecret());
+                        .retrieve(pending.getStripePaymentIntentId(), accountOptions(connectedAccountId));
+                    return toStripeResponse(pending, existingIntent.getClientSecret());
                 } catch (StripeException ex) {
                     LOG.warn("Could not retrieve existing PaymentIntent {} for invoice {}, creating a new one",
                         pending.getStripePaymentIntentId(), invoice.getInvoiceNumber(), ex);
                 }
             } else {
-                LOG.info("Outstanding balance on invoice {} changed from {} to {} — replacing PaymentIntent {}",
-                    invoice.getInvoiceNumber(), pending.getAmountCents(), outstanding,
-                    pending.getStripePaymentIntentId());
-                cancelIntentQuietly(pending);
+                LOG.info("Superseding PaymentIntent {} on invoice {} (amount {}→{}, method {}→{})",
+                    pending.getStripePaymentIntentId(), invoice.getInvoiceNumber(),
+                    pending.getAmountCents(), outstanding, pending.getMethod(), req.method());
+                // Minting the replacement is only safe once the old intent is
+                // provably dead. If Stripe refuses to cancel it — because it
+                // already succeeded, or simply because the call failed — the
+                // client can still be holding its client secret in another tab,
+                // and two confirmable intents against one invoice is a double
+                // charge. Only the newest PENDING row is ever reconsidered, so
+                // nothing would come back to clean it up either.
+                if (!cancelSupersededIntent(pending)) {
+                    throw new ConflictException(
+                        "A payment for this invoice is still being processed. "
+                            + "Please reload the page and try again in a moment.");
+                }
             }
         }
 
+        long applicationFee = commission.feeCents(outstanding, tenant.getPlan());
+
         PaymentIntent intent;
         try {
-            PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+            PaymentIntentCreateParams.Builder params = PaymentIntentCreateParams.builder()
                 .setAmount(outstanding)
                 .setCurrency(Normalize.lower(invoice.getCurrency()))
                 .addPaymentMethodType(req.method() == PaymentMethod.CARD ? "card" : "sepa_debit")
                 .setReceiptEmail(invoice.getBuyerEmail())
+                .setDescription("Rechnung " + invoice.getInvoiceNumber())
                 .putMetadata("tenant_id", tenantId.toString())
                 .putMetadata("invoice_id", invoice.getId().toString())
-                .putMetadata("invoice_number", invoice.getInvoiceNumber())
-                .build();
-            intent = requireStripe().v1().paymentIntents().create(params);
+                .putMetadata("invoice_number", invoice.getInvoiceNumber());
+            // Omitted entirely rather than sent as 0 on the plans that pay no
+            // commission — Stripe treats a present application_fee_amount as
+            // an assertion that the platform is taking a cut, and a zero-fee
+            // one shows up as a €0.00 application fee on the photographer's
+            // own dashboard for no reason.
+            if (applicationFee > 0) {
+                params.setApplicationFeeAmount(applicationFee);
+            }
+            intent = requireStripe().v1().paymentIntents()
+                .create(params.build(), accountOptions(connectedAccountId));
         } catch (StripeException ex) {
             LOG.error("Stripe PaymentIntent creation failed for invoice {}", invoice.getInvoiceNumber(), ex);
-            throw new IllegalStateException("Could not start payment: " + ex.getMessage(), ex);
+            throw new UpstreamServiceException("stripe",
+                "We couldn't start the card payment just now. Please try again, "
+                    + "or pay this invoice by bank transfer.", ex);
         }
 
-        Payment payment = new Payment(tenantId, invoice.getId(), req.method(), (int) outstanding, intent.getId());
+        Payment payment = new Payment(tenantId, invoice.getId(), req.method(), (int) outstanding,
+            intent.getId(), connectedAccountId, (int) applicationFee);
         paymentRepository.save(payment);
 
         auditService.log("PAYMENT_INTENT_CREATED", "PAYMENT", payment.getId(), tenantId, actorId, ipAddress);
 
-        return toResponse(payment, intent.getClientSecret());
+        return toStripeResponse(payment, intent.getClientSecret());
     }
 
     /**
@@ -177,7 +242,7 @@ public class PaymentService {
     public PaymentResponse recordManualPayment(UUID invoiceId, RecordManualPaymentRequest req, String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        Invoice invoice = requireInvoice(invoiceId);
+        Invoice invoice = lockInvoiceForPayment(invoiceId);
         requirePayable(invoice);
 
         long outstanding = outstandingCents(invoice);
@@ -203,131 +268,7 @@ public class PaymentService {
 
         auditService.log("PAYMENT_RECORDED_MANUAL", "PAYMENT", payment.getId(), tenantId, actorId, ipAddress);
 
-        return toResponse(payment, null);
-    }
-
-    /**
-     * Verifies the Stripe signature, then applies the event idempotently.
-     * Unauthenticated by design (Stripe calls this directly) — the tenant is
-     * recovered from the PaymentIntent's own metadata, not from a JWT, and
-     * bound to {@link TenantContext} only for the duration of the DB work
-     * below so the payment row update is RLS-scoped correctly.
-     *
-     * <p>Deliberately NOT {@code @Transactional} at the method level, and the
-     * DB work runs inside a freshly-started {@link TransactionTemplate}
-     * rather than an ambient ({@code @Transactional}-proxy-opened) one: a
-     * transaction's JDBC connection — and with it, the {@code app.tenant_id}
-     * GUC {@link com.photographplatform.api.common.config.TenantRoutingDataSource}
-     * binds when that connection is first acquired — is fixed for the whole
-     * transaction. If this method's own {@code @Transactional} proxy had
-     * already opened (and so already acquired a connection for) the
-     * transaction before {@link TenantContext} is set below, setting it
-     * afterwards would silently do nothing and the payment lookup would see
-     * zero rows (RLS fails closed) even though the row exists — starting a
-     * genuinely new transaction here, after the tenant is known, is what
-     * guarantees the connection is acquired (and the GUC bound) at the right
-     * moment. Signature verification and event/intent deserialization happen
-     * first and need no DB access at all.
-     */
-    public void handleWebhookEvent(String payload, String signatureHeader) {
-        if (webhookSecret == null || webhookSecret.isBlank()) {
-            throw new IllegalStateException("Stripe webhook secret not configured");
-        }
-        Event event;
-        try {
-            event = Webhook.constructEvent(payload, signatureHeader, webhookSecret);
-        } catch (SignatureVerificationException ex) {
-            throw new ConflictException("Invalid Stripe webhook signature");
-        }
-
-        PaymentIntent intent = deserializePaymentIntent(event);
-        String tenantIdStr = (intent != null && intent.getMetadata() != null)
-            ? intent.getMetadata().get("tenant_id")
-            : null;
-
-        if (tenantIdStr != null) {
-            TenantContext.setTenant(tenantIdStr);
-        }
-        try {
-            freshTransaction.executeWithoutResult(status -> applyWebhookEvent(event, intent, tenantIdStr));
-        } finally {
-            TenantContext.clear();
-        }
-    }
-
-    private void applyWebhookEvent(Event event, PaymentIntent intent, String tenantIdStr) {
-        boolean claimed = processedEventRepository.tryClaim(event.getId()) > 0;
-        if (!claimed) {
-            LOG.info("Ignoring already-processed Stripe event {}", event.getId());
-            return;
-        }
-
-        if (intent != null && isPaymentIntentEvent(event.getType())) {
-            applyPaymentIntentUpdate(event.getType(), intent, tenantIdStr);
-        }
-    }
-
-    /**
-     * {@code getObject()} only succeeds when the event's {@code api_version}
-     * matches the SDK's compiled version exactly — Stripe's documented
-     * fallback is {@code deserializeUnsafe()}, which parses the raw JSON
-     * regardless of version skew. Without this fallback, a Stripe account
-     * pinned to a slightly different API version than this SDK build would
-     * silently produce a {@code null} intent here and every webhook would be
-     * marked processed without ever updating the payment row.
-     */
-    private PaymentIntent deserializePaymentIntent(Event event) {
-        Optional<com.stripe.model.StripeObject> deserialized = event.getDataObjectDeserializer().getObject();
-        com.stripe.model.StripeObject object;
-        if (deserialized.isPresent()) {
-            object = deserialized.get();
-        } else {
-            try {
-                object = event.getDataObjectDeserializer().deserializeUnsafe();
-            } catch (com.stripe.exception.EventDataObjectDeserializationException ex) {
-                LOG.warn("Could not deserialize Stripe event {} data object", event.getId(), ex);
-                return null;
-            }
-        }
-        return object instanceof PaymentIntent intent ? intent : null;
-    }
-
-    /**
-     * Caller ({@link #handleWebhookEvent}) has already bound {@link
-     * TenantContext} to {@code tenantIdStr} before its own first DB call —
-     * this method must not re-set it, since by this point the transaction's
-     * connection (and its {@code app.tenant_id} GUC) is already fixed for
-     * the rest of the transaction regardless.
-     */
-    private void applyPaymentIntentUpdate(String eventType, PaymentIntent intent, String tenantIdStr) {
-        if (tenantIdStr == null) {
-            LOG.warn("PaymentIntent {} has no tenant_id metadata — skipping", intent.getId());
-            return;
-        }
-        Optional<Payment> maybePayment = paymentRepository.findByStripePaymentIntentId(intent.getId());
-        if (maybePayment.isEmpty()) {
-            LOG.warn("No payment row for PaymentIntent {}", intent.getId());
-            return;
-        }
-        Payment payment = maybePayment.get();
-        switch (eventType) {
-            case "payment_intent.succeeded" -> {
-                payment.setStatus(PaymentStatus.SUCCEEDED);
-                payment.setConfirmedAt(OffsetDateTime.now());
-            }
-            case "payment_intent.payment_failed" -> payment.setStatus(PaymentStatus.FAILED);
-            case "payment_intent.canceled" -> payment.setStatus(PaymentStatus.CANCELED);
-            default -> {
-                return;
-            }
-        }
-        paymentRepository.save(payment);
-        auditService.log("PAYMENT_" + payment.getStatus(), "PAYMENT", payment.getId(),
-            UUID.fromString(tenantIdStr), payment.getConfirmedByUserId(), "stripe-webhook");
-    }
-
-    private boolean isPaymentIntentEvent(String type) {
-        return type.startsWith("payment_intent.");
+        return toResponse(payment);
     }
 
     @Transactional(readOnly = true)
@@ -336,12 +277,12 @@ public class PaymentService {
         requireOwnedByCallerIfCustomer(invoice);
         List<Payment> payments = paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(invoiceId);
         long paid = paymentRepository.sumSucceededAmountCents(invoiceId);
-        List<PaymentResponse> responses = payments.stream().map(p -> toResponse(p, null)).toList();
+        List<PaymentResponse> responses = payments.stream().map(this::toResponse).toList();
         return new InvoicePaymentSummaryResponse(
             invoice.getTotalCents(),
             (int) paid,
             (int) Math.max(0, invoice.getTotalCents() - paid),
-            "RE-" + invoice.getInvoiceNumber(),
+            invoice.getVerwendungszweck(),
             responses
         );
     }
@@ -389,19 +330,42 @@ public class PaymentService {
     }
 
     /**
-     * Best-effort cancellation of a superseded PaymentIntent. Stripe is the
-     * source of truth for the intent's own state and the webhook will settle
-     * our row either way, so a failure here must not block minting the
-     * correctly-priced replacement.
+     * Cancels a superseded PaymentIntent, reporting whether it is now safe to
+     * mint a replacement.
+     *
+     * <p>Returns false rather than throwing so the caller decides what a
+     * failure means — but it must not treat it as harmless: a live intent the
+     * client still holds the secret for can settle the same invoice a second
+     * time.
      */
-    private void cancelIntentQuietly(Payment pending) {
+    private boolean cancelSupersededIntent(Payment pending) {
         try {
-            requireStripe().v1().paymentIntents().cancel(pending.getStripePaymentIntentId());
+            requireStripe().v1().paymentIntents()
+                .cancel(pending.getStripePaymentIntentId(), accountOptions(pending.getStripeAccountId()));
             pending.setStatus(PaymentStatus.CANCELED);
-            paymentRepository.save(pending);
+            // saveAndFlush, not save: `uq_payments_one_pending_per_invoice`
+            // allows one PENDING row per invoice, and Hibernate's default flush
+            // order writes INSERTs before UPDATEs. Left to the automatic flush,
+            // the replacement row would be inserted while this one is still
+            // PENDING in the database and the insert would fail on the index —
+            // turning a routine supersede into an error. Pushing the status
+            // change out first keeps the two writes in the order the constraint
+            // describes.
+            paymentRepository.saveAndFlush(pending);
+            return true;
         } catch (StripeException ex) {
             LOG.warn("Could not cancel superseded PaymentIntent {}", pending.getStripePaymentIntentId(), ex);
+            return false;
         }
+    }
+
+    /**
+     * Scopes a Stripe call to a connected account. A direct-charge
+     * PaymentIntent does not exist from the platform account's point of view,
+     * so omitting this turns every retrieve/cancel into a 404 from Stripe.
+     */
+    private RequestOptions accountOptions(String connectedAccountId) {
+        return RequestOptions.builder().setStripeAccount(connectedAccountId).build();
     }
 
     private long outstandingCents(Invoice invoice) {
@@ -414,11 +378,65 @@ public class PaymentService {
             .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
     }
 
-    private StripeClient requireStripe() {
-        return stripeClient.orElseThrow(() -> new IllegalStateException("Stripe is not configured"));
+    /**
+     * Loads the invoice with a row lock held for the rest of the transaction,
+     * making every operation that collects money against one invoice mutually
+     * exclusive.
+     *
+     * <p>Both callers below are check-then-act on the outstanding balance —
+     * "no open intent, so mint one", "this amount fits, so book it" — and
+     * neither conclusion survives a concurrent writer. Serialising them per
+     * invoice is what makes those reads still true at the moment they are
+     * acted on. See {@code InvoiceRepository#findByIdForPayment} for why the
+     * lock is NOWAIT rather than blocking.
+     */
+    private Invoice lockInvoiceForPayment(UUID invoiceId) {
+        try {
+            return invoiceRepository.findByIdForPayment(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
+        } catch (PessimisticLockingFailureException ex) {
+            // Someone else is mid-payment on this invoice. Not an error worth a
+            // stack trace — the honest answer is that the caller should look
+            // again in a second, by which time the other request has settled
+            // and the balance they'd be paying may well have changed.
+            LOG.info("Invoice {} is locked by another payment operation", invoiceId);
+            throw new ConflictException(
+                "A payment for this invoice is already being processed. "
+                    + "Please reload the page and try again in a moment.");
+        }
     }
 
-    private PaymentResponse toResponse(Payment payment, String clientSecret) {
+    /**
+     * The Stripe client, or a 409 explaining that this deployment runs without
+     * one. Deliberately the same exception {@code
+     * StripeConnectService#requireStripe} throws: it is the same condition seen
+     * from two places, and answering 500 here and 409 there made the frontend's
+     * handling of "Stripe isn't available" depend on which endpoint it happened
+     * to call. Not a server fault either way — running on bank transfer alone
+     * is a supported configuration.
+     */
+    private StripeClient requireStripe() {
+        return stripeClient.orElseThrow(() -> new ConflictException(
+            "Online payments are not available on this deployment — Stripe is not configured"));
+    }
+
+    /** History/summary shape — no client secret, so no Stripe.js credentials. */
+    private PaymentResponse toResponse(Payment payment) {
+        return buildResponse(payment, null, null, null);
+    }
+
+    /**
+     * A payable intent. Carries the publishable key and the connected account
+     * together, because Stripe.js needs both to resolve this client secret:
+     * initialised against the platform account alone it cannot see a direct
+     * charge that lives on the photographer's.
+     */
+    private PaymentResponse toStripeResponse(Payment payment, String clientSecret) {
+        return buildResponse(payment, clientSecret, publishableKey, payment.getStripeAccountId());
+    }
+
+    private PaymentResponse buildResponse(
+        Payment payment, String clientSecret, String pubKey, String connectedAccountId) {
         return new PaymentResponse(
             payment.getId(),
             payment.getInvoiceId(),
@@ -427,6 +445,9 @@ public class PaymentService {
             payment.getAmountCents(),
             payment.getCurrency(),
             clientSecret,
+            pubKey,
+            connectedAccountId,
+            payment.getApplicationFeeCents(),
             payment.getCreatedAt(),
             payment.getConfirmedAt()
         );

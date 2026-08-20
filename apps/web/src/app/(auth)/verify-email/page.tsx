@@ -18,7 +18,9 @@ function VerifyEmailInner() {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setMessage('This verification link is missing its token. Request a new email from your dashboard.');
+      setMessage(
+        'This verification link is missing its token. Request a new email from your dashboard.'
+      );
       return;
     }
     let cancelled = false;
@@ -27,12 +29,18 @@ function VerifyEmailInner() {
         await api.post('/api/auth/verify-email', { token });
         if (cancelled) return;
         setStatus('success');
-        setMessage('Your email is confirmed. You can close this tab or continue to your dashboard.');
+        setMessage(
+          'Your email is confirmed. You can close this tab or continue to your dashboard.'
+        );
       } catch (err: unknown) {
         if (cancelled) return;
-        const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error;
         setStatus('error');
-        setMessage(apiMessage ?? 'This verification link is invalid or has expired. Request a new one from your dashboard.');
+        setMessage(
+          apiMessage ??
+            'This verification link is invalid or has expired. Request a new one from your dashboard.'
+        );
       }
     })();
     return () => {
@@ -40,8 +48,7 @@ function VerifyEmailInner() {
     };
   }, [token]);
 
-  const accent =
-    status === 'success' ? '#10B981' : status === 'error' ? '#EF4444' : '#3B82F6';
+  const accent = status === 'success' ? '#10B981' : status === 'error' ? '#EF4444' : '#3B82F6';
 
   return (
     <div style={authStyles.page}>
@@ -50,10 +57,7 @@ function VerifyEmailInner() {
           <FotolioLogo theme="light" showText={true} />
         </Link>
         <div style={authStyles.navRight}>
-          <Link
-            href="/login"
-            style={{ ...authStyles.navButton, ...authStyles.navButtonPrimary }}
-          >
+          <Link href="/login" style={{ ...authStyles.navButton, ...authStyles.navButtonPrimary }}>
             Sign in
           </Link>
         </div>

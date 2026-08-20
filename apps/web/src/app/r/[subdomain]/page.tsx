@@ -23,10 +23,9 @@ const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
  */
 async function fetchPhotographer(subdomain: string): Promise<{ displayName: string } | null> {
   try {
-    const res = await fetch(
-      `${API_BASE}/api/public/portfolio/${encodeURIComponent(subdomain)}`,
-      { next: { revalidate: 300 } },
-    );
+    const res = await fetch(`${API_BASE}/api/public/portfolio/${encodeURIComponent(subdomain)}`, {
+      next: { revalidate: 300 },
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { photographer?: { displayName?: string } };
     const displayName = data.photographer?.displayName;
@@ -59,8 +58,7 @@ export default async function PublicRequestPage({ params }: Props) {
         minHeight: '100vh',
         background: '#F9FAFB',
         padding: '32px 16px 80px',
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -68,8 +66,7 @@ export default async function PublicRequestPage({ params }: Props) {
           Request a session
         </h1>
         <p style={{ color: '#475569', margin: '0 0 32px' }}>
-          Send {photographer.displayName} a few details about your shoot — they
-          will reply shortly.
+          Send {photographer.displayName} a few details about your shoot — they will reply shortly.
         </p>
         <RequestForm subdomain={subdomain} />
       </div>

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '@/lib/api';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/lib/i18n';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
@@ -44,6 +46,7 @@ type PendingUpload = {
 };
 
 export default function PortfolioAdminPage() {
+  const { t } = useTranslation();
   const { theme } = useThemeStore();
   const colors = useColors(theme);
 
@@ -51,7 +54,7 @@ export default function PortfolioAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | 'all' | 'none'>('all');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AsyncError | null>(null);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [photoToDelete, setPhotoToDelete] = useState<Photo | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -63,10 +66,12 @@ export default function PortfolioAdminPage() {
       setPhotos(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load photos');
+      setError(asyncError(e, 'portfolio.photos.loadError'));
     } finally {
       setLoading(false);
     }
+    // No `t` in the deps: an effect depends on `refresh`, so that would refetch
+    // the whole photo list every time the language changes.
   }, []);
 
   const loadCategories = useCallback(async () => {
@@ -104,7 +109,9 @@ export default function PortfolioAdminPage() {
   }
 
   async function setPhotoCategory(photo: Photo, categoryId: string | null) {
-    const { data } = await api.patch<Photo>(`/api/portfolio/photos/${photo.id}/category`, { categoryId });
+    const { data } = await api.patch<Photo>(`/api/portfolio/photos/${photo.id}/category`, {
+      categoryId,
+    });
     setPhotos((prev) => prev.map((p) => (p.id === photo.id ? data : p)));
   }
 
@@ -121,7 +128,7 @@ export default function PortfolioAdminPage() {
     if (file.size > MAX_BYTES) {
       setPending((prev) =>
         prev.map((p) =>
-          p.id === id ? { ...p, status: 'error', error: 'File exceeds 25 MB' } : p
+          p.id === id ? { ...p, status: 'error', error: t('portfolio.upload.tooLarge') } : p
         )
       );
       return;
@@ -165,7 +172,16 @@ export default function PortfolioAdminPage() {
       }, 1200);
       refresh();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Upload failed';
+      const message =
+        e instanceof UploadError
+          ? t(
+              e.code === 'readError'
+                ? 'portfolio.upload.readError'
+                : 'portfolio.upload.networkError'
+            )
+          : e instanceof Error
+            ? e.message
+            : t('portfolio.upload.failed');
       setPending((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: 'error', error: message } : p))
       );
@@ -189,7 +205,7 @@ export default function PortfolioAdminPage() {
       // EMAIL_NOT_VERIFIED is surfaced globally by the axios interceptor toast
       // — no need to alert again here.
       if (code !== 'EMAIL_NOT_VERIFIED') {
-        setError(e instanceof Error ? e.message : `${action} failed`);
+        setError({ text: e instanceof Error ? e.message : `${action} failed` });
       }
     }
   }
@@ -215,7 +231,7 @@ export default function PortfolioAdminPage() {
       setPhotoToDelete(null);
       refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
+      setError(e instanceof Error ? { text: e.message } : { key: 'portfolio.photos.deleteError' });
       setPhotoToDelete(null);
     } finally {
       setDeleting(false);
@@ -236,10 +252,7 @@ export default function PortfolioAdminPage() {
         transition: 'background 0.2s ease, color 0.2s ease',
       }}
     >
-      <Header
-        colors={colors}
-        onUploadClick={() => fileInputRef.current?.click()}
-      />
+      <Header colors={colors} onUploadClick={() => fileInputRef.current?.click()} />
 
       <StatRow colors={colors} stats={stats} />
 
@@ -260,7 +273,13 @@ export default function PortfolioAdminPage() {
 
       {pending.length > 0 && <UploadQueue colors={colors} items={pending} />}
 
-      {error && <ErrorBanner colors={colors} message={error} onDismiss={() => setError(null)} />}
+      {error && (
+        <ErrorBanner
+          colors={colors}
+          message={asyncErrorText(error, t) ?? ''}
+          onDismiss={() => setError(null)}
+        />
+      )}
 
       {!loading && photos.length > 0 && (
         <CategoryBar
@@ -272,7 +291,7 @@ export default function PortfolioAdminPage() {
           onCreate={createCategory}
           onRename={renameCategory}
           onDelete={deleteCategory}
-          onError={(m) => setError(m)}
+          onError={(m) => setError({ text: m })}
         />
       )}
 
@@ -281,8 +300,17 @@ export default function PortfolioAdminPage() {
       ) : photos.length === 0 ? (
         <EmptyState colors={colors} onUploadClick={() => fileInputRef.current?.click()} />
       ) : visiblePhotos.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 24px', background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 12, color: colors.subText }}>
-          No photos in this category yet.
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '48px 24px',
+            background: colors.cardBg,
+            border: `1px solid ${colors.border}`,
+            borderRadius: 12,
+            color: colors.subText,
+          }}
+        >
+          {t('portfolio.empty.inCategory')}
         </div>
       ) : (
         <Grid
@@ -299,7 +327,7 @@ export default function PortfolioAdminPage() {
         open={photoToDelete !== null}
         theme={theme}
         tone="danger"
-        title="Delete this photo?"
+        title={t('portfolio.photos.deleteConfirmTitle')}
         message="This permanently removes the photo from your portfolio. This cannot be undone."
         confirmLabel="Delete photo"
         busy={deleting}
@@ -312,13 +340,8 @@ export default function PortfolioAdminPage() {
 
 // ─── components ────────────────────────────────────────────────────────────
 
-function Header({
-  colors,
-  onUploadClick,
-}: {
-  colors: ColorTokens;
-  onUploadClick: () => void;
-}) {
+function Header({ colors, onUploadClick }: { colors: ColorTokens; onUploadClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -331,9 +354,27 @@ function Header({
       }}
     >
       <div>
-        <h1 style={{ margin: 0, fontSize: '1.875rem', fontWeight: 800, letterSpacing: '-0.025em', color: colors.text }}>Portfolio</h1>
-        <p style={{ margin: '6px 0 0', color: colors.subText, fontSize: '0.9rem', lineHeight: 1.5, maxWidth: 640 }}>
-          Upload, publish, and curate the photos visitors see on your public page.
+        <h1
+          style={{
+            margin: 0,
+            fontSize: '1.875rem',
+            fontWeight: 800,
+            letterSpacing: '-0.025em',
+            color: colors.text,
+          }}
+        >
+          {t('portfolio.title')}
+        </h1>
+        <p
+          style={{
+            margin: '6px 0 0',
+            color: colors.subText,
+            fontSize: '0.9rem',
+            lineHeight: 1.5,
+            maxWidth: 640,
+          }}
+        >
+          {t('portfolio.subtitle')}
         </p>
       </div>
       <button
@@ -353,7 +394,16 @@ function Header({
           whiteSpace: 'nowrap',
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M12 5v14M5 12h14" />
         </svg>
         Upload photos
@@ -381,16 +431,33 @@ function StatRow({
         gap: 6,
       }}
     >
-      <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: colors.subText }}>
+      <span
+        style={{
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: colors.subText,
+        }}
+      >
         {label}
       </span>
-      <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: accent }}>
+      <span
+        style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: accent }}
+      >
         {value}
       </span>
     </div>
   );
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 24 }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 16,
+        marginBottom: 24,
+      }}
+    >
       {card('Total photos', stats.total, colors.text)}
       {card('Published', stats.published, colors.successText)}
       {card('Draft', stats.draft, colors.warningText)}
@@ -405,6 +472,7 @@ function DropZone({
   colors: ColorTokens;
   onFiles: (_list: FileList | null) => void;
 }) {
+  const { t } = useTranslation();
   const [over, setOver] = useState(false);
   return (
     <div
@@ -430,14 +498,16 @@ function DropZone({
       }}
     >
       <span style={{ fontSize: 14 }}>
-        Drop JPG, PNG, or WebP here — or use <strong style={{ color: colors.text }}>Upload photos</strong> above.
-        Max 25 MB per file.
+        {t('portfolio.upload.dropHint')}{' '}
+        <strong style={{ color: colors.text }}>{t('portfolio.upload.button')}</strong>{' '}
+        {t('portfolio.upload.dropHintTail')}
       </span>
     </div>
   );
 }
 
 function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpload[] }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -448,8 +518,16 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
         marginBottom: 24,
       }}
     >
-      <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: colors.subText, marginBottom: 12 }}>
-        Uploading {items.length}
+      <div
+        style={{
+          fontSize: 12,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: colors.subText,
+          marginBottom: 12,
+        }}
+      >
+        {t('portfolio.upload.inProgress', { count: items.length })}
       </div>
       <div style={{ display: 'grid', gap: 10 }}>
         {items.map((it) => {
@@ -459,15 +537,39 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
 
           let statusText: string | undefined = `${Math.round(it.progress)}%`;
           if (it.status === 'error') statusText = it.error;
-          else if (it.status === 'done') statusText = 'Done ✓';
+          else if (it.status === 'done') statusText = t('portfolio.upload.done');
 
           return (
-            <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+            <div
+              key={it.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 12,
+                alignItems: 'center',
+              }}
+            >
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: colors.text, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: colors.text,
+                    marginBottom: 4,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {it.file.name}
                 </div>
-                <div style={{ height: 4, borderRadius: 999, background: colors.border, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: 4,
+                    borderRadius: 999,
+                    background: colors.border,
+                    overflow: 'hidden',
+                  }}
+                >
                   <div
                     style={{
                       height: '100%',
@@ -478,7 +580,14 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
                   />
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: it.status === 'error' ? colors.dangerText : colors.subText, textAlign: 'right', minWidth: 80 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: it.status === 'error' ? colors.dangerText : colors.subText,
+                  textAlign: 'right',
+                  minWidth: 80,
+                }}
+              >
                 {statusText}
               </div>
             </div>
@@ -505,7 +614,13 @@ function Grid({
   onSetCategory: (_photo: Photo, _categoryId: string | null) => void;
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        gap: 16,
+      }}
+    >
       {photos.map((photo) => (
         <Card
           key={photo.id}
@@ -536,6 +651,7 @@ function Card({
   onDelete: (_photo: Photo) => void;
   onSetCategory: (_photo: Photo, _categoryId: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const src = photo.thumbnailUrl ?? photo.viewUrl ?? '';
   const aspect = photo.width && photo.height ? photo.width / photo.height : 4 / 3;
   return (
@@ -558,8 +674,17 @@ function Card({
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.subText, fontSize: 12 }}>
-            Thumbnail pending…
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: colors.subText,
+              fontSize: 12,
+            }}
+          >
+            {t('portfolio.photos.thumbnailPending')}
           </div>
         )}
         <span
@@ -584,8 +709,8 @@ function Card({
         <select
           value={photo.categoryId ?? ''}
           onChange={(e) => onSetCategory(photo, e.target.value || null)}
-          aria-label="Photo category"
-          title="Assign a category"
+          aria-label={t('portfolio.category.label')}
+          title={t('portfolio.category.assign')}
           style={{
             width: '100%',
             padding: '7px 8px',
@@ -597,15 +722,21 @@ function Card({
             cursor: 'pointer',
           }}
         >
-          <option value="">Uncategorised</option>
+          <option value="">{t('portfolio.category.none')}</option>
           {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>{cat.name}</option>
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
           ))}
         </select>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => onPublish(photo)}
-            title={photo.published ? 'Return this photo to draft' : 'Publish this photo to your public page'}
+            title={
+              photo.published
+                ? t('portfolio.photos.unpublishHint')
+                : t('portfolio.photos.publishHint')
+            }
             style={{
               flex: 1,
               padding: '8px 10px',
@@ -619,12 +750,12 @@ function Card({
               fontSize: 12,
             }}
           >
-            {photo.published ? 'Unpublish' : 'Publish'}
+            {photo.published ? t('portfolio.photos.unpublish') : t('portfolio.photos.publish')}
           </button>
           <button
             onClick={() => onDelete(photo)}
-            aria-label="Delete photo"
-            title="Delete photo"
+            aria-label={t('portfolio.photos.deleteLabel')}
+            title={t('portfolio.photos.deleteLabel')}
             style={{
               padding: '8px 10px',
               border: `1px solid ${colors.border}`,
@@ -637,7 +768,17 @@ function Card({
               justifyContent: 'center',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
               <path d="M10 11v6M14 11v6" />
             </svg>
@@ -670,23 +811,29 @@ function CategoryBar({
   onDelete: (_id: string) => Promise<void>;
   onError: (_message: string) => void;
 }) {
+  const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
 
   const countFor = (id: string | 'all' | 'none') =>
-    id === 'all' ? photos.length
-      : id === 'none' ? photos.filter((p) => !p.categoryId).length
+    id === 'all'
+      ? photos.length
+      : id === 'none'
+        ? photos.filter((p) => !p.categoryId).length
         : photos.filter((p) => p.categoryId === id).length;
 
   async function submitNew() {
     const name = draft.trim();
-    if (!name) { setAdding(false); return; }
+    if (!name) {
+      setAdding(false);
+      return;
+    }
     try {
       await onCreate(name);
       setDraft('');
       setAdding(false);
     } catch {
-      onError('Could not create the category.');
+      onError(t('portfolio.category.createError'));
     }
   }
 
@@ -711,7 +858,9 @@ function CategoryBar({
   );
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+    <div
+      style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18 }}
+    >
       {chip('All', 'all', countFor('all'))}
       {categories.map((cat) => (
         <CategoryChip
@@ -721,11 +870,15 @@ function CategoryBar({
           active={active === cat.id}
           count={countFor(cat.id)}
           onSelect={() => onSelect(cat.id)}
-          onRename={(name) => onRename(cat.id, name).catch(() => onError('Could not rename the category.'))}
-          onDelete={() => onDelete(cat.id).catch(() => onError('Could not delete the category.'))}
+          onRename={(name) =>
+            onRename(cat.id, name).catch(() => onError(t('portfolio.category.renameError')))
+          }
+          onDelete={() =>
+            onDelete(cat.id).catch(() => onError(t('portfolio.category.deleteError')))
+          }
         />
       ))}
-      {countFor('none') > 0 && chip('Uncategorised', 'none', countFor('none'))}
+      {countFor('none') > 0 && chip(t('portfolio.category.none'), 'none', countFor('none'))}
 
       {adding ? (
         <input
@@ -733,14 +886,37 @@ function CategoryBar({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={submitNew}
-          onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); if (e.key === 'Escape') { setDraft(''); setAdding(false); } }}
-          placeholder="Category name"
-          style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 12.5, width: 150 }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitNew();
+            if (e.key === 'Escape') {
+              setDraft('');
+              setAdding(false);
+            }
+          }}
+          placeholder={t('portfolio.category.namePlaceholder')}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 999,
+            border: `1px solid ${colors.border}`,
+            background: colors.bg,
+            color: colors.text,
+            fontSize: 12.5,
+            width: 150,
+          }}
         />
       ) : (
         <button
           onClick={() => setAdding(true)}
-          style={{ padding: '6px 12px', borderRadius: 999, border: `1px dashed ${colors.border}`, background: 'transparent', color: colors.subText, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 999,
+            border: `1px dashed ${colors.border}`,
+            background: 'transparent',
+            color: colors.subText,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
         >
           + Category
         </button>
@@ -766,6 +942,7 @@ function CategoryChip({
   onRename: (_name: string) => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
 
@@ -783,8 +960,22 @@ function CategoryChip({
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={commit}
-        onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setName(category.name); setEditing(false); } }}
-        style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 12.5, width: 150 }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setName(category.name);
+            setEditing(false);
+          }
+        }}
+        style={{
+          padding: '6px 12px',
+          borderRadius: 999,
+          border: `1px solid ${colors.border}`,
+          background: colors.bg,
+          color: colors.text,
+          fontSize: 12.5,
+          width: 150,
+        }}
       />
     );
   }
@@ -805,16 +996,38 @@ function CategoryChip({
       <button
         onClick={onSelect}
         onDoubleClick={() => setEditing(true)}
-        title="Click to filter · double-click to rename"
-        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, padding: 0 }}
+        title={t('portfolio.category.filterHint')}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'inherit',
+          cursor: 'pointer',
+          fontSize: 12.5,
+          fontWeight: 600,
+          padding: 0,
+        }}
       >
         {category.name} <span style={{ opacity: 0.6 }}>{count}</span>
       </button>
       <button
-        onClick={() => { if (window.confirm(`Delete category “${category.name}”? Photos in it become uncategorised.`)) onDelete(); }}
+        onClick={() => {
+          if (
+            window.confirm(`Delete category “${category.name}”? Photos in it become uncategorised.`)
+          )
+            onDelete();
+        }}
         aria-label={`Delete ${category.name}`}
-        title="Delete category"
-        style={{ background: 'none', border: 'none', color: 'inherit', opacity: 0.6, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+        title={t('portfolio.category.deleteLabel')}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'inherit',
+          opacity: 0.6,
+          cursor: 'pointer',
+          fontSize: 14,
+          lineHeight: 1,
+          padding: 0,
+        }}
       >
         ×
       </button>
@@ -823,6 +1036,7 @@ function CategoryChip({
 }
 
 function EmptyState({ colors, onUploadClick }: { colors: ColorTokens; onUploadClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -834,19 +1048,34 @@ function EmptyState({ colors, onUploadClick }: { colors: ColorTokens; onUploadCl
         color: colors.subText,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: colors.subText }}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 12,
+          color: colors.subText,
+        }}
+      >
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <path d="m21 15-5-5L5 21" />
         </svg>
       </div>
       <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: colors.text }}>
-        No photos yet
+        {t('portfolio.empty.title')}
       </h3>
-      <p style={{ margin: '0 0 20px', fontSize: 14 }}>
-        Upload your first photographs — they will appear here as drafts until you publish them.
-      </p>
+      <p style={{ margin: '0 0 20px', fontSize: 14 }}>{t('portfolio.empty.body')}</p>
       <button
         onClick={onUploadClick}
         style={{
@@ -868,7 +1097,13 @@ function EmptyState({ colors, onUploadClick }: { colors: ColorTokens; onUploadCl
 
 function Skeleton({ colors }: { colors: ColorTokens }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        gap: 16,
+      }}
+    >
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
@@ -893,6 +1128,7 @@ function ErrorBanner({
   message: string;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -913,8 +1149,15 @@ function ErrorBanner({
       <span>{message}</span>
       <button
         onClick={onDismiss}
-        style={{ border: 'none', background: 'transparent', color: colors.dangerText, cursor: 'pointer', fontSize: 16, padding: 4 }}
-        aria-label="Dismiss"
+        style={{
+          border: 'none',
+          background: 'transparent',
+          color: colors.dangerText,
+          cursor: 'pointer',
+          fontSize: 16,
+          padding: 4,
+        }}
+        aria-label={t('portfolio.dismiss')}
       >
         ✕
       </button>
@@ -977,6 +1220,22 @@ function useColors(theme: Theme): ColorTokens {
   };
 }
 
+/**
+ * An upload failure with a translatable cause.
+ *
+ * <p>The helpers below are plain functions outside the component tree, so they
+ * cannot reach the translation hook — and their message is surfaced to the user
+ * verbatim through `e.message`. Carrying a code instead lets the component that
+ * *can* translate do so, rather than showing a German-speaking photographer an
+ * English sentence from a utility function.
+ */
+class UploadError extends Error {
+  constructor(readonly code: 'readError' | 'networkError') {
+    super(code);
+    this.name = 'UploadError';
+  }
+}
+
 function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -988,7 +1247,7 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Could not read image'));
+      reject(new UploadError('readError'));
     };
     img.src = url;
   });
@@ -1017,7 +1276,7 @@ function fetchPutWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) resolve();
       else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
     };
-    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.onerror = () => reject(new UploadError('networkError'));
     xhr.send(file);
   });
 }

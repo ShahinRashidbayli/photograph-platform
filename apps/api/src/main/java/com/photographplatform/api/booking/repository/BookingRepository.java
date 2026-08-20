@@ -1,6 +1,7 @@
 package com.photographplatform.api.booking.repository;
 
 import com.photographplatform.api.booking.domain.Booking;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,4 +20,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Page<Booking> findByClientEmailIgnoreCaseOrderByEventDateAsc(String clientEmail, Pageable pageable);
 
     Page<Booking> findByClientEmailIgnoreCaseAndStatus(String clientEmail, String status, Pageable pageable);
+
+    /**
+     * Unpaged — used only to resolve which bookings (and so which invoices) a
+     * customer owns. Bounded in practice by one person's own booking history
+     * with one photographer, which is a handful of rows, not a listing that
+     * needs paging.
+     */
+    List<Booking> findByClientEmailIgnoreCase(String clientEmail);
 }

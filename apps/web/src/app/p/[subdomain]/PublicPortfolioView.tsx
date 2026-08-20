@@ -83,7 +83,8 @@ export default function PublicPortfolioView({ data }: { data: PublicPortfolioPay
     if (lightbox === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightbox(null);
-      if (e.key === 'ArrowLeft') setLightbox((i) => (i === null ? null : (i - 1 + photos.length) % photos.length));
+      if (e.key === 'ArrowLeft')
+        setLightbox((i) => (i === null ? null : (i - 1 + photos.length) % photos.length));
       if (e.key === 'ArrowRight') setLightbox((i) => (i === null ? null : (i + 1) % photos.length));
     };
     window.addEventListener('keydown', onKey);
@@ -133,7 +134,12 @@ export default function PublicPortfolioView({ data }: { data: PublicPortfolioPay
       />
 
       {heroPhoto ? (
-        <CinematicHero photo={heroPhoto} photographer={photographer} palette={palette} photoCount={photos.length} />
+        <CinematicHero
+          photo={heroPhoto}
+          photographer={photographer}
+          palette={palette}
+          photoCount={photos.length}
+        />
       ) : (
         <MinimalHero photographer={photographer} palette={palette} />
       )}
@@ -150,11 +156,7 @@ export default function PublicPortfolioView({ data }: { data: PublicPortfolioPay
           )}
         </section>
 
-        <ContactSection
-          photographer={photographer}
-          palette={palette}
-          variant={formVariant}
-        />
+        <ContactSection photographer={photographer} palette={palette} variant={formVariant} />
       </main>
 
       <Footer palette={palette} poweredBy={showPoweredBy} photographer={photographer} />
@@ -165,7 +167,9 @@ export default function PublicPortfolioView({ data }: { data: PublicPortfolioPay
           index={lightbox}
           total={photos.length}
           onClose={() => setLightbox(null)}
-          onPrev={() => setLightbox((i) => (i === null ? null : (i - 1 + photos.length) % photos.length))}
+          onPrev={() =>
+            setLightbox((i) => (i === null ? null : (i - 1 + photos.length) % photos.length))
+          }
           onNext={() => setLightbox((i) => (i === null ? null : (i + 1) % photos.length))}
         />
       )}
@@ -257,7 +261,10 @@ function Nav({
           {photographer.displayName}
         </a>
 
-        <nav className="nav-links-desktop" style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+        <nav
+          className="nav-links-desktop"
+          style={{ display: 'flex', gap: 32, alignItems: 'center' }}
+        >
           <a
             href="#work"
             className="nav-link"
@@ -293,7 +300,12 @@ function Nav({
         </nav>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} hasHero={hasHero && !scrolled} palette={palette} />
+          <ThemeToggle
+            theme={theme}
+            onToggle={onToggleTheme}
+            hasHero={hasHero && !scrolled}
+            palette={palette}
+          />
           <a
             href="#contact"
             className="nav-cta"
@@ -356,12 +368,30 @@ function ThemeToggle({
       }}
     >
       {theme === 'dark' ? (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
         </svg>
       ) : (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
         </svg>
       )}
@@ -463,8 +493,18 @@ function CinematicHero({
             flexWrap: 'wrap',
           }}
         >
-          <span>{photoCount} {photoCount === 1 ? 'photograph' : 'photographs'}</span>
-          <span style={{ width: 4, height: 4, borderRadius: 999, background: 'currentColor', opacity: 0.5 }} />
+          <span>
+            {photoCount} {photoCount === 1 ? 'photograph' : 'photographs'}
+          </span>
+          <span
+            style={{
+              width: 4,
+              height: 4,
+              borderRadius: 999,
+              background: 'currentColor',
+              opacity: 0.5,
+            }}
+          />
           <a
             href="#work"
             style={{
@@ -615,8 +655,7 @@ function PhotoGrid({
               style={{
                 position: 'absolute',
                 inset: 0,
-                background:
-                  'linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.5) 100%)',
+                background: 'linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.5) 100%)',
                 opacity: 0,
                 transition: 'opacity 0.3s ease',
                 display: 'flex',
@@ -625,7 +664,14 @@ function PhotoGrid({
                 pointerEvents: 'none',
               }}
             >
-              <span style={{ color: '#FAFAFA', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              <span
+                style={{
+                  color: '#FAFAFA',
+                  fontSize: 12,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                }}
+              >
                 View ↗
               </span>
             </div>
@@ -713,14 +759,30 @@ function ContactSection({
                 maxWidth: 420,
               }}
             >
-              Tell {photographer.displayName} a few details about your event. You&apos;ll receive a personal
-              reply with availability, packages, and next steps — usually within a few hours.
+              Tell {photographer.displayName} a few details about your event. You&apos;ll receive a
+              personal reply with availability, packages, and next steps — usually within a few
+              hours.
             </p>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 16 }}>
-              <ContactDetail palette={palette} icon="◷" label="Response time" value="Within a few hours" />
-              <ContactDetail palette={palette} icon="✦" label="Availability" value="Booking 2026 — 2027" />
-              <ContactDetail palette={palette} icon="◉" label="Languages" value="Deutsch · English" />
+              <ContactDetail
+                palette={palette}
+                icon="◷"
+                label="Response time"
+                value="Within a few hours"
+              />
+              <ContactDetail
+                palette={palette}
+                icon="✦"
+                label="Availability"
+                value="Booking 2026 — 2027"
+              />
+              <ContactDetail
+                palette={palette}
+                icon="◉"
+                label="Languages"
+                value="Deutsch · English"
+              />
             </ul>
           </div>
 
@@ -811,12 +873,17 @@ function Footer({
           gap: 16,
         }}
       >
-        <div>© {new Date().getFullYear()} {photographer.displayName}. All rights reserved.</div>
+        <div>
+          © {new Date().getFullYear()} {photographer.displayName}. All rights reserved.
+        </div>
         {poweredBy && (
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <span style={{ color: palette.textSubtle }}>
               Powered by{' '}
-              <Link href="/" style={{ color: palette.text, fontWeight: 500, textDecoration: 'none' }}>
+              <Link
+                href="/"
+                style={{ color: palette.text, fontWeight: 500, textDecoration: 'none' }}
+              >
                 Fotolio
               </Link>
             </span>
@@ -857,7 +924,10 @@ function Lightbox({
   onPrev: () => void;
   onNext: () => void;
 }) {
-  const counter = useMemo(() => `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`, [index, total]);
+  const counter = useMemo(
+    () => `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`,
+    [index, total]
+  );
   return (
     <div
       role="dialog"

@@ -5,9 +5,7 @@ export type DashboardTheme = Theme;
 
 export const getDashboardColors = getColors;
 
-export const getDashboardStyles = (
-  theme: DashboardTheme,
-): Record<string, React.CSSProperties> => {
+export const getDashboardStyles = (theme: DashboardTheme): Record<string, React.CSSProperties> => {
   const c = getDashboardColors(theme);
 
   return {
@@ -19,8 +17,7 @@ export const getDashboardStyles = (
       maxWidth: '1400px',
       margin: '0 auto',
       padding: '28px 28px 40px',
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
     },
     pageHeader: {
@@ -62,8 +59,7 @@ export const getDashboardStyles = (
       fontSize: '0.75rem',
       fontWeight: 600,
       letterSpacing: '0.01em',
-      fontFamily:
-        "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+      fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
     },
     planBadge: {
       display: 'inline-flex',

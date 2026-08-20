@@ -65,7 +65,7 @@ export function CreateBookingModal({
   const { t } = useTranslation();
   const isEdit = !!booking;
   const [form, setForm] = useState(
-    booking ? formForBooking(booking) : { ...EMPTY_FORM, eventDate: initialDate ?? '' },
+    booking ? formForBooking(booking) : { ...EMPTY_FORM, eventDate: initialDate ?? '' }
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -124,10 +124,7 @@ export function CreateBookingModal({
       packageId,
       // Auto-fill the total from the picked package unless the photographer
       // has already typed something different — their explicit number wins.
-      totalAmount:
-        picked && !totalOverridden
-          ? String(picked.priceCents / 100)
-          : prev.totalAmount,
+      totalAmount: picked && !totalOverridden ? String(picked.priceCents / 100) : prev.totalAmount,
     }));
     setFieldErrors((prev) => {
       if (!prev.packageId) return prev;
@@ -235,8 +232,12 @@ export function CreateBookingModal({
       >
         <div style={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
-            <div style={styles.modalTitle}>{isEdit ? t('editBooking.title') : t('createBooking.title')}</div>
-            <div style={styles.modalSubtitle}>{isEdit ? t('editBooking.subtitle') : t('createBooking.subtitle')}</div>
+            <div style={styles.modalTitle}>
+              {isEdit ? t('editBooking.title') : t('createBooking.title')}
+            </div>
+            <div style={styles.modalSubtitle}>
+              {isEdit ? t('editBooking.subtitle') : t('createBooking.subtitle')}
+            </div>
           </div>
           <button
             type="button"

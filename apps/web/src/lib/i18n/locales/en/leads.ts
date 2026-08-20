@@ -46,8 +46,7 @@ export const leads = {
   'leads.exportAria': 'Export all leads as CSV',
   'leads.newLead': 'New lead',
   'leads.errorTitle': "Couldn't load leads",
-  'leads.errorLoad':
-    'We couldn’t load your leads. Please check your connection and try again.',
+  'leads.errorLoad': 'We couldn’t load your leads. Please check your connection and try again.',
   'leads.loadingDetails': 'Loading lead details…',
   'leads.convertToBooking': 'Convert to booking',
   'leads.viewInBookings': 'View in Bookings',

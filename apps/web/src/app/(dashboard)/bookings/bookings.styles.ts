@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  fontSize,
-  getColors,
-  leading,
-  radius,
-  space,
-  type Theme,
-} from '@/lib/design-tokens';
+import { fontSize, getColors, leading, radius, space, type Theme } from '@/lib/design-tokens';
 
 export type BookingsTheme = Theme;
 
@@ -19,9 +12,7 @@ export const getBookingsColors = getColors;
  * what made the page read as "slightly off" without the eye being able to name
  * why. A raw px/rem value below should be treated as a bug, not a shortcut.
  */
-export const getBookingsStyles = (
-  theme: BookingsTheme,
-): Record<string, React.CSSProperties> => {
+export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CSSProperties> => {
   const c = getBookingsColors(theme);
 
   return {
@@ -37,8 +28,7 @@ export const getBookingsStyles = (
       margin: '0 auto',
       background: c.bg,
       color: c.text,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -159,8 +149,7 @@ export const getBookingsStyles = (
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',
@@ -172,8 +161,7 @@ export const getBookingsStyles = (
       borderRadius: radius.control,
       fontSize: fontSize.base,
       fontWeight: 600,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       cursor: 'pointer',
@@ -785,8 +773,7 @@ export const getBookingsStyles = (
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       background: c.surfaceAlt,
       outline: 'none',
@@ -797,8 +784,7 @@ export const getBookingsStyles = (
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily:
-        "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       background: c.surfaceAlt,
       outline: 'none',

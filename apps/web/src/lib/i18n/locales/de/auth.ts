@@ -29,7 +29,8 @@ export const auth: Record<keyof EnAuth, string> = {
   'customerLogin.errorEmail': 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
   'customerLogin.errorSubdomain':
     'Bitte geben Sie eine gültige Fotografen-Subdomain ein (z. B. anna-foto)',
-  'customerLogin.errorSend': 'Anmeldelink konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
+  'customerLogin.errorSend':
+    'Anmeldelink konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
   'customerLogin.sentTitle': 'Prüfen Sie Ihr Postfach',
   'customerLogin.sentBody':
     'Wenn {email} bei diesem Fotografen registriert ist, haben wir Ihnen gerade einen Anmeldelink gesendet. Er ist 15 Minuten gültig.',
@@ -62,7 +63,8 @@ export const auth: Record<keyof EnAuth, string> = {
   'register.visualSubtitle':
     '14 Tage kostenlos testen. Keine Kreditkarte. Ihre eigene Buchungsseite in Minuten.',
   'register.title': 'Erstellen Sie Ihr Studio',
-  'register.planNote': 'Sie haben den Tarif {plan} gewählt — 14 Tage kostenlos, jederzeit änderbar.',
+  'register.planNote':
+    'Sie haben den Tarif {plan} gewählt — 14 Tage kostenlos, jederzeit änderbar.',
   'register.planChange': 'Tarife vergleichen',
   'register.subtitle': '14 Tage kostenlos testen · Keine Kreditkarte erforderlich',
   'register.fullNameLabel': 'Vollständiger Name',

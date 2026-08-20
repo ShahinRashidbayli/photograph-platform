@@ -16,9 +16,7 @@ describe('safeRedirectPath', () => {
   it('preserves the query string and hash of the destination', () => {
     // The middleware writes `pathname + search`, so a deep link into a
     // selected booking must survive the round-trip intact.
-    expect(safeRedirectPath('?next=%2Fbookings%3Fid%3Dabc123', ORIGIN)).toBe(
-      '/bookings?id=abc123',
-    );
+    expect(safeRedirectPath('?next=%2Fbookings%3Fid%3Dabc123', ORIGIN)).toBe('/bookings?id=abc123');
     expect(safeRedirectPath('?next=%2Fleads%23panel', ORIGIN)).toBe('/leads#panel');
   });
 

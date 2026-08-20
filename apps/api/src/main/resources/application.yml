@@ -72,6 +72,24 @@ spring:
       connect-timeout: 5s
       read-timeout: 10s
 
+# Actuator: health and nothing else. The default web exposure is already just
+# `health`, but stating it means adding the dependency for a metrics endpoint
+# later cannot quietly widen the unauthenticated surface — everything except
+# /actuator/health falls to `.anyRequest().authenticated()` in SecurityConfig,
+# and this keeps the two definitions from drifting.
+#
+# Details are hidden: an unauthenticated probe needs to know whether the app is
+# up, not which database or Redis host it talks to or why a component is down.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
 server:
   port: 8080
   compression:
@@ -146,3 +164,16 @@ app:
     # Überweisung (manual bank transfer) needs no Stripe key at all.
     secret-key: ${STRIPE_SECRET_KEY:}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    # pk_… — handed to the browser with each PaymentIntent's client secret.
+    # Public by design; it lives here rather than in the frontend's env because
+    # it is only usable paired with the connected account id, which is
+    # per-photographer and therefore only known server-side.
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+    # Platform commission on collected payments, in basis points, per plan.
+    # PRICING.md §4/§7.1 (decided 2026-07-17): Starter pays 2% instead of being
+    # locked out of payments; "0% commission" is what Pro sells. Taken off each
+    # charge as application_fee_amount on the connected account.
+    commission:
+      starter-bps: ${STRIPE_COMMISSION_STARTER_BPS:200}
+      pro-bps: ${STRIPE_COMMISSION_PRO_BPS:0}
+      studio-bps: ${STRIPE_COMMISSION_STUDIO_BPS:0}

@@ -42,7 +42,7 @@ describe('parseApiDate', () => {
     // as past west of Greenwich and dropped out of the "upcoming" lists.
     const today = startOfToday();
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-      today.getDate(),
+      today.getDate()
     ).padStart(2, '0')}`;
 
     expect(parseApiDate(iso).getTime()).toBe(today.getTime());

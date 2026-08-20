@@ -47,8 +47,7 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.loading': 'Buchungen werden geladen…',
   'bookings.loadingCalendar': 'Kalender wird geladen…',
   'bookings.errorTitle': 'Buchungen konnten nicht geladen werden',
-  'bookings.errorLoad':
-    'Wir konnten Ihre Buchungen nicht laden. Bitte versuchen Sie es erneut.',
+  'bookings.errorLoad': 'Wir konnten Ihre Buchungen nicht laden. Bitte versuchen Sie es erneut.',
   'bookings.errorUpdateStatus': 'Der Buchungsstatus konnte nicht aktualisiert werden.',
   'bookings.tryAgain': 'Erneut versuchen',
 
@@ -134,8 +133,6 @@ export const bookings: Record<keyof EnBookings, string> = {
   'customerBooking.dueOn': 'Fällig {date}.',
   'customerBooking.dueOnDays_one': 'Fällig {date} — {count} Tag vor Ihrem Termin.',
   'customerBooking.dueOnDays_other': 'Fällig {date} — {count} Tage vor Ihrem Termin.',
-  'customerBooking.payNow': 'Jetzt bezahlen',
-  'customerBooking.paymentsSoon': 'Online-Zahlungen kommen bald',
   'customerBooking.paidInFull': 'Vollständig bezahlt — vielen Dank! {amount}',
   'customerBooking.progress': 'Fortschritt',
   'customerBooking.step.requestSent': 'Anfrage gesendet',
@@ -157,8 +154,7 @@ export const bookings: Record<keyof EnBookings, string> = {
   // ── Create-booking modal (photographer) ───────────────────────────────────
   'createBooking.aria': 'Neue Buchung erstellen',
   'createBooking.title': 'Neue Buchung',
-  'createBooking.subtitle':
-    'Die Buchung startet als Anfrage — Sie können sie danach weiterführen.',
+  'createBooking.subtitle': 'Die Buchung startet als Anfrage — Sie können sie danach weiterführen.',
   'createBooking.clientName': 'Name des Kunden *',
   'createBooking.clientEmail': 'E-Mail des Kunden *',
   'createBooking.eventDate': 'Datum des Termins *',
@@ -178,7 +174,8 @@ export const bookings: Record<keyof EnBookings, string> = {
   'createBooking.submitting': 'Wird erstellt…',
   'editBooking.aria': 'Buchungsdetails bearbeiten',
   'editBooking.title': 'Buchung bearbeiten',
-  'editBooking.subtitle': 'Details, Preise oder Notizen aktualisieren. Der Status bleibt unverändert.',
+  'editBooking.subtitle':
+    'Details, Preise oder Notizen aktualisieren. Der Status bleibt unverändert.',
   'editBooking.submit': 'Änderungen speichern',
   'editBooking.submitting': 'Wird gespeichert…',
   'createBooking.errName': 'Der Name des Kunden ist erforderlich.',
@@ -202,8 +199,7 @@ export const bookings: Record<keyof EnBookings, string> = {
   'requestSession.location': 'Ort',
   'requestSession.locationPlaceholder': 'Berlin, Hamburg…',
   'requestSession.message': 'Nachricht',
-  'requestSession.messagePlaceholder':
-    'Erzählen Sie Ihrem Fotografen von Anlass, Stil, Gästezahl…',
+  'requestSession.messagePlaceholder': 'Erzählen Sie Ihrem Fotografen von Anlass, Stil, Gästezahl…',
   'requestSession.submit': 'Anfrage senden',
   'requestSession.submitting': 'Wird gesendet…',
   'requestSession.sentTitle': 'Anfrage gesendet',

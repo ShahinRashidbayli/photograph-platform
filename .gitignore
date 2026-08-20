@@ -26,3 +26,8 @@ dist/
 
 # OS
 .DS_Store
+
+# npm workspaces keeps one lockfile at the repo root. A second one inside a
+# workspace installs a divergent tree (this one was pinned to Next 14 while the
+# root was on 15) and makes tooling guess the wrong project root.
+apps/*/package-lock.json

@@ -38,11 +38,14 @@ const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
 // The BE endpoint is public (no auth); the subdomain resolves the tenant and
 // the token authorises the gallery. 404 (missing or expired) collapses to null
 // so the route renders notFound() rather than crashing.
-async function fetchGallery(subdomain: string, token: string): Promise<PublicGalleryPayload | null> {
+async function fetchGallery(
+  subdomain: string,
+  token: string
+): Promise<PublicGalleryPayload | null> {
   try {
     const res = await fetch(
       `${API_BASE}/api/public/galleries/${encodeURIComponent(subdomain)}/${encodeURIComponent(token)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store' }
     );
     if (res.status === 404) return null;
     if (!res.ok) {

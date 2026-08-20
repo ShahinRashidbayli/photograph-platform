@@ -66,7 +66,7 @@ export const SCORE_SHORT_KEY: Record<LeadScore, TranslationKey> = {
 export function translateOr(
   t: (_key: TranslationKey) => string,
   key: TranslationKey | undefined,
-  fallback: string,
+  fallback: string
 ): string {
   return key ? t(key) : fallback;
 }

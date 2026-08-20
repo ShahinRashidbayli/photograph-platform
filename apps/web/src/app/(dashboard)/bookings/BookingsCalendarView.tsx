@@ -102,8 +102,7 @@ function bookingToEvent(b: Booking, c: Colors): EventInput {
       paymentState: b.paymentState,
       clientEmail: b.clientEmail,
     },
-    classNames:
-      b.status === 'CANCELLED' || b.status === 'DECLINED' ? ['booking-cancelled'] : [],
+    classNames: b.status === 'CANCELLED' || b.status === 'DECLINED' ? ['booking-cancelled'] : [],
   };
 }
 
@@ -151,7 +150,7 @@ export function BookingsCalendarView({
   const [hiddenStatuses, setHiddenStatuses] = useState<BookingStatusKey[]>([]);
   const toggleStatus = useCallback((status: BookingStatusKey) => {
     setHiddenStatuses((prev) =>
-      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     );
   }, []);
 
@@ -160,7 +159,7 @@ export function BookingsCalendarView({
       bookings
         .filter((b) => !hiddenStatuses.includes(b.status as BookingStatusKey))
         .map((b) => bookingToEvent(b, colors)),
-    [bookings, colors, hiddenStatuses],
+    [bookings, colors, hiddenStatuses]
   );
 
   // Clicking an event opens an anchored summary instead of driving a side rail
@@ -218,9 +217,7 @@ export function BookingsCalendarView({
         padding: '16px',
         color: colors.text,
         minHeight: '600px',
-        boxShadow: isDark
-          ? '0 2px 6px rgba(0,0,0,0.4)'
-          : '0 1px 3px rgba(15,23,42,0.06)',
+        boxShadow: isDark ? '0 2px 6px rgba(0,0,0,0.4)' : '0 1px 3px rgba(15,23,42,0.06)',
       }}
     >
       {/* Inline scoped styles. FullCalendar's default header text + day numbers
@@ -407,9 +404,7 @@ export function BookingsCalendarView({
         slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         // Highlight the currently-selected booking so the right-hand detail
         // panel and the calendar grid stay visually correlated.
-        eventClassNames={(arg) =>
-          arg.event.id === selectedId ? ['fc-event-selected'] : []
-        }
+        eventClassNames={(arg) => (arg.event.id === selectedId ? ['fc-event-selected'] : [])}
         // Payment rides on its own channel: the block's colour is the lifecycle,
         // the € glyph is the money. One mark can't carry two dimensions.
         eventContent={(arg) => (
@@ -549,9 +544,16 @@ export function BookingsCalendarView({
             fontWeight: 600,
           }}
         >
-          <span aria-hidden style={{ color: colors.success, fontWeight: 800 }}>€</span>
+          <span aria-hidden style={{ color: colors.success, fontWeight: 800 }}>
+            €
+          </span>
           {t('paymentState.PAID')}
-          <span aria-hidden style={{ color: colors.warning, fontWeight: 800, marginLeft: space.sm }}>€</span>
+          <span
+            aria-hidden
+            style={{ color: colors.warning, fontWeight: 800, marginLeft: space.sm }}
+          >
+            €
+          </span>
           {t('paymentState.OPEN')}
         </span>
       </div>
@@ -668,10 +670,7 @@ function EventPopover({
       if (!ref.current?.contains(event.target as Node)) onClose();
     }
     // Deferred: the click that opened the popover is still propagating.
-    const id = window.setTimeout(
-      () => document.addEventListener('mousedown', onPointerDown),
-      0,
-    );
+    const id = window.setTimeout(() => document.addEventListener('mousedown', onPointerDown), 0);
     return () => {
       window.clearTimeout(id);
       document.removeEventListener('mousedown', onPointerDown);
@@ -685,10 +684,7 @@ function EventPopover({
   // Clamp into the viewport, and flip above the event when there isn't room
   // below it — a popover that opens off-screen is worse than no popover.
   const flipUp = rect.bottom + POPOVER_ESTIMATED_HEIGHT > window.innerHeight;
-  const left = Math.min(
-    Math.max(8, rect.left),
-    Math.max(8, window.innerWidth - POPOVER_WIDTH - 8),
-  );
+  const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - POPOVER_WIDTH - 8));
 
   const statusMeta = getBookingStatusMeta(booking.status);
   const statusVisual = toneToVisual(statusMeta.tone, colors);
@@ -739,7 +735,7 @@ function EventPopover({
           >
             {isPhotographer
               ? booking.clientName
-              : booking.eventType ?? t('bookings.sessionFallback')}
+              : (booking.eventType ?? t('bookings.sessionFallback'))}
           </div>
           <div style={{ marginTop: space.xs }}>
             <span
@@ -768,7 +764,16 @@ function EventPopover({
             justifyContent: 'center',
           }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            aria-hidden
+          >
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
@@ -778,8 +783,19 @@ function EventPopover({
         <PopoverRow
           colors={colors}
           icon={
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
             </svg>
           }
           text={[format.dayMonthYearLong(booking.eventDate), booking.eventTime]
@@ -790,8 +806,19 @@ function EventPopover({
           <PopoverRow
             colors={colors}
             icon={
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" /><circle cx="12" cy="10" r="3" />
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
             }
             text={booking.location}
@@ -818,7 +845,11 @@ function EventPopover({
         </span>
       </div>
 
-      <button type="button" onClick={onOpenDetails} style={{ ...styles.primaryButton, width: '100%' }}>
+      <button
+        type="button"
+        onClick={onOpenDetails}
+        style={{ ...styles.primaryButton, width: '100%' }}
+      >
         {t('calendar.openDetails')}
       </button>
     </div>

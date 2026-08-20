@@ -79,7 +79,12 @@ export function ComingSoonButton({
   };
 
   return (
-    <button type="button" disabled title={title} style={{ ...base, ...byVariant[variant], ...style }}>
+    <button
+      type="button"
+      disabled
+      title={title}
+      style={{ ...base, ...byVariant[variant], ...style }}
+    >
       {icon}
       {children}
     </button>

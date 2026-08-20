@@ -1,9 +1,5 @@
 package com.photographplatform.api.portfolio.controller;
 
-import com.photographplatform.api.auth.domain.User;
-import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.common.config.TenantContext;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
 import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
@@ -13,7 +9,7 @@ import com.photographplatform.api.portfolio.dto.PublicPortfolioResponse;
 import com.photographplatform.api.portfolio.dto.UpdatePhotoCategoryRequest;
 import com.photographplatform.api.portfolio.service.PhotoService;
 import com.photographplatform.api.tenant.domain.Tenant;
-import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -32,43 +28,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class PortfolioController {
 
     private final PhotoService photoService;
-    private final TenantRepository tenantRepository;
-    private final UserRepository userRepository;
+    private final PublicTenantResolver tenantResolver;
 
-    public PortfolioController(PhotoService photoService, TenantRepository tenantRepository,
-                               UserRepository userRepository) {
+    public PortfolioController(PhotoService photoService, PublicTenantResolver tenantResolver) {
         this.photoService = photoService;
-        this.tenantRepository = tenantRepository;
-        this.userRepository = userRepository;
+        this.tenantResolver = tenantResolver;
     }
 
     @GetMapping("/public/portfolio/{subdomain}")
     public ResponseEntity<PublicPortfolioResponse> getPublicPortfolio(@PathVariable String subdomain) {
-        Tenant tenant = tenantRepository.findBySubdomain(subdomain)
-            .orElseThrow(() -> new NotFoundException("Photographer not found: " + subdomain));
+        var photographer = tenantResolver.requirePhotographer(subdomain);
+        Tenant tenant = photographer.tenant();
 
-        // Owner display name lives on the OWNER user (not the tenant). Email is
-        // the canonical link. Missing owner is treated as "incomplete profile"
-        // — the public page renders a neutral fallback instead of 500-ing.
-        User owner = userRepository.findByEmail(tenant.getOwnerEmail()).orElse(null);
-        String displayName = owner != null && owner.getFullName() != null
-            ? owner.getFullName()
-            : tenant.getSubdomain();
-        String avatarUrl = owner != null ? owner.getAvatarUrl() : null;
-
-        TenantContext.setTenant(tenant.getId().toString());
-        try {
+        return ResponseEntity.ok(tenantResolver.inTenantContext(tenant, () -> {
             List<PhotoResponse> photos = photoService.listPublished();
-            var photographer = new PublicPortfolioResponse.PhotographerPublic(
-                tenant.getSubdomain(),
-                displayName,
-                tenant.getPlan(),
-                avatarUrl
+            return new PublicPortfolioResponse(
+                new PublicPortfolioResponse.PhotographerPublic(
+                    tenant.getSubdomain(),
+                    photographer.displayName(),
+                    tenant.getPlan(),
+                    photographer.avatarUrl()
+                ),
+                photos
             );
-            return ResponseEntity.ok(new PublicPortfolioResponse(photographer, photos));
-        } finally {
-            TenantContext.clear();
-        }
+        }));
     }
 
     @GetMapping("/portfolio/photos")

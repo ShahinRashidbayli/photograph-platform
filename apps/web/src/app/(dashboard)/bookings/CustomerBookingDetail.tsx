@@ -2,10 +2,16 @@
 
 import React from 'react';
 import { Booking } from '@/types/api';
-import { getBookingStatusMeta, getCustomerBookingStatusLabelKey, isBillableStatus, toneToVisual } from '@/lib/booking-status';
+import {
+  getBookingStatusMeta,
+  getCustomerBookingStatusLabelKey,
+  isBillableStatus,
+  toneToVisual,
+} from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import { ComingSoon } from '@/components/ComingSoon';
 import { ComingSoonButton } from '@/components/ComingSoonButton';
+import { InvoicePayList } from '@/components/InvoicePayList';
 import { parseApiDate, startOfToday } from '@/lib/date';
 import { getBookingsColors } from './bookings.styles';
 
@@ -15,7 +21,6 @@ type Props = {
   colors: ReturnType<typeof getBookingsColors>;
   photographerLabel: string;
 };
-
 
 function initialsFor(label: string): string {
   const parts = label.trim().split(/\s+/).filter(Boolean);
@@ -46,8 +51,7 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
 
   const isPaidStage = booking.paymentState === 'PAID';
   const depositDone = paid > 0;
-  const showPaymentAlert =
-    isBillableStatus(booking.status) && !isPaidStage && remaining > 0;
+  const showPaymentAlert = isBillableStatus(booking.status) && !isPaidStage && remaining > 0;
 
   const daysLeft = daysUntil(booking.eventDate);
   const dueDate = format.dayMonth(booking.eventDate);
@@ -62,9 +66,7 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
       label: depositDone
         ? t('customerBooking.step.depositReceived', { amount: format.eur(depositAmount) })
         : t('customerBooking.step.deposit'),
-      meta: depositDone
-        ? t('customerBooking.step.confirmed')
-        : t('customerBooking.step.pending'),
+      meta: depositDone ? t('customerBooking.step.confirmed') : t('customerBooking.step.pending'),
       done: depositDone,
     },
     {
@@ -91,8 +93,12 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
       <div style={{ ...styles.detailHeader, alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
           <div style={styles.detailTitleRow}>
-            <span style={styles.detailTitle}>{booking.eventType ?? t('bookings.sessionFallback')}</span>
-            <span style={{ ...styles.badge, background: statusVisual.bg, color: statusVisual.color }}>
+            <span style={styles.detailTitle}>
+              {booking.eventType ?? t('bookings.sessionFallback')}
+            </span>
+            <span
+              style={{ ...styles.badge, background: statusVisual.bg, color: statusVisual.color }}
+            >
               <span style={{ ...styles.badgeDot, background: statusVisual.dot }} />
               {t(getCustomerBookingStatusLabelKey(booking.status))}
             </span>
@@ -119,10 +125,25 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
               padding: '16px 18px',
             }}
           >
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: colors.textMuted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <div
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: colors.textMuted,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
               {t('customerBooking.nextPayment')}
             </div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 800, color: colors.warningText, margin: '2px 0' }}>
+            <div
+              style={{
+                fontSize: '1.15rem',
+                fontWeight: 800,
+                color: colors.warningText,
+                margin: '2px 0',
+              }}
+            >
               {format.eur(remaining)}
             </div>
             <div style={{ fontSize: '0.83rem', color: colors.textMuted }}>
@@ -130,17 +151,19 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                 ? t('customerBooking.dueOn', { date: dueDate })
                 : tPlural('customerBooking.dueOnDays', daysLeft, { date: dueDate })}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '14px' }}>
-              <ComingSoonButton
-                variant="primary"
-                title={t('customerBooking.paymentsSoon')}
-                style={{ padding: '9px 20px' }}
-              >
-                {t('customerBooking.payNow')}
-              </ComingSoonButton>
-              <ComingSoon />
-            </div>
           </div>
+        )}
+
+        {/* Invoices — the only thing that is actually payable. The card above
+            shows the balance on the *agreed* total, which is not the same
+            number until the photographer has invoiced it; paying against the
+            document rather than the agreement is what keeps the client's
+            receipt, the §14 invoice and the money in agreement. */}
+        {isBillableStatus(booking.status) && (
+          <section style={styles.section}>
+            <div style={styles.sectionTitle}>{t('invoices.title')}</div>
+            <InvoicePayList bookingId={booking.id} emptyKey="invoices.emptyForBooking" />
+          </section>
         )}
 
         {isPaidStage && (
@@ -187,7 +210,13 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                     >
                       {step.done && (
                         <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          <path
+                            d="M2 6l3 3 5-5"
+                            stroke="#fff"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                       )}
                     </span>
@@ -204,7 +233,13 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                     )}
                   </div>
                   <div style={{ paddingBottom: last ? 0 : '16px' }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: step.done ? colors.text : colors.textMuted }}>
+                    <div
+                      style={{
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: step.done ? colors.text : colors.textMuted,
+                      }}
+                    >
                       {step.label}
                     </div>
                     <div style={{ fontSize: '0.8rem', color: colors.textMuted, marginTop: '2px' }}>
@@ -218,7 +253,13 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
         </section>
 
         {/* Photographer contact card */}
-        <section style={{ ...styles.section, borderTop: `1px solid ${colors.divider}`, paddingTop: '18px' }}>
+        <section
+          style={{
+            ...styles.section,
+            borderTop: `1px solid ${colors.divider}`,
+            paddingTop: '18px',
+          }}
+        >
           <div
             style={{
               background: colors.surfaceAlt,
@@ -254,7 +295,9 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                 <div style={{ fontSize: '0.9rem', fontWeight: 700, color: colors.text }}>
                   {photographerLabel}
                 </div>
-                <div style={{ fontSize: '0.78rem', color: colors.textMuted }}>{t('customerBooking.yourPhotographer')}</div>
+                <div style={{ fontSize: '0.78rem', color: colors.textMuted }}>
+                  {t('customerBooking.yourPhotographer')}
+                </div>
               </div>
               {/* Quick-action icons */}
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -276,7 +319,16 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                     opacity: 0.55,
                   }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.18 6.18l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
                 </button>
@@ -298,7 +350,16 @@ export function CustomerBookingDetail({ booking, styles, colors, photographerLab
                     opacity: 0.55,
                   }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </button>

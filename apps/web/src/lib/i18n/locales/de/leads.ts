@@ -97,8 +97,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'leadDetail.activity': 'Aktivität',
   'leadDetail.internalNotes': 'Interne Notizen',
   'leadDetail.noNotes': 'Noch keine internen Notizen zu diesem Lead.',
-  'leadDetail.notesHint':
-    'Nutzen Sie unten „Notiz hinzufügen“, um diese Notiz zu bearbeiten.',
+  'leadDetail.notesHint': 'Nutzen Sie unten „Notiz hinzufügen“, um diese Notiz zu bearbeiten.',
   'leadDetail.reject': 'Ablehnen',
   'leadDetail.markReplied': 'Als beantwortet markieren',
   'leadDetail.markRepliedTitle':
@@ -136,8 +135,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'addLead.errName': 'Der Name ist erforderlich.',
   'addLead.errEmail': 'Die E-Mail-Adresse ist erforderlich.',
   'addLead.errMessage': 'Fügen Sie eine kurze Notiz zur Anfrage hinzu.',
-  'addLead.errSubmit':
-    'Der Lead konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
+  'addLead.errSubmit': 'Der Lead konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
   'addLead.budget.UNDER_200': 'Unter €200',
   'addLead.budget.200_500': '€200–500',
   'addLead.budget.500_1000': '€500–1.000',
@@ -163,6 +161,5 @@ export const leads: Record<keyof EnLeads, string> = {
   'editNote.subtitle': 'Nur für Sie sichtbar — Kunden sehen interne Notizen nie.',
   'editNote.placeholder': 'Was möchten Sie sich zu diesem Lead merken?',
   'editNote.submit': 'Notiz speichern',
-  'editNote.errSubmit':
-    'Die Notiz konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
+  'editNote.errSubmit': 'Die Notiz konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
 };

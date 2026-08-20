@@ -196,7 +196,9 @@ function RegisterForm() {
             }}
           >
             <div style={s.formGroup}>
-              <label style={s.label} htmlFor="reg-fullname">{t('register.fullNameLabel')}</label>
+              <label style={s.label} htmlFor="reg-fullname">
+                {t('register.fullNameLabel')}
+              </label>
               <input
                 id="reg-fullname"
                 type="text"
@@ -209,7 +211,9 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label} htmlFor="reg-email">{t('register.emailLabel')}</label>
+              <label style={s.label} htmlFor="reg-email">
+                {t('register.emailLabel')}
+              </label>
               <input
                 id="reg-email"
                 type="email"
@@ -222,7 +226,9 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label} htmlFor="reg-subdomain">{t('register.subdomainLabel')}</label>
+              <label style={s.label} htmlFor="reg-subdomain">
+                {t('register.subdomainLabel')}
+              </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input
                   id="reg-subdomain"
@@ -251,7 +257,9 @@ function RegisterForm() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label} htmlFor="reg-password">{t('register.passwordLabel')}</label>
+              <label style={s.label} htmlFor="reg-password">
+                {t('register.passwordLabel')}
+              </label>
               <input
                 id="reg-password"
                 type="password"
@@ -348,7 +356,6 @@ function RegisterForm() {
           </p>
         </div>
       )}
-
     </AuthSplitLayout>
   );
 }

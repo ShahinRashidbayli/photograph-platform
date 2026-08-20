@@ -28,7 +28,8 @@ export const chrome: Record<keyof EnChrome, string> = {
   'chrome.loading': 'Dashboard wird geladen…',
   'chrome.redirecting': 'Weiterleitung…',
   'chrome.accessDenied.title': 'Diese Seite ist für Fotograf:innen',
-  'chrome.accessDenied.body': 'Sie sind als {email} angemeldet – ein Kundenkonto. Melden Sie sich mit Ihrem Fotografen-Konto an, um diese Seite zu öffnen.',
+  'chrome.accessDenied.body':
+    'Sie sind als {email} angemeldet – ein Kundenkonto. Melden Sie sich mit Ihrem Fotografen-Konto an, um diese Seite zu öffnen.',
   'chrome.accessDenied.switch': 'Als Fotograf:in anmelden',
   'chrome.accessDenied.myBookings': 'Zu meinen Buchungen',
   'chrome.openMenu': 'Navigationsmenü öffnen',

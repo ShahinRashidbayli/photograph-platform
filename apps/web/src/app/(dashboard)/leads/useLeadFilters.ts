@@ -70,11 +70,11 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
 
   const scoreMatches = useCallback(
     (score: 'HIGH' | 'MED' | 'LOW') =>
-      filterScore === 'All'
-      || (filterScore === 'High' && score === 'HIGH')
-      || (filterScore === 'Medium' && score === 'MED')
-      || (filterScore === 'Low' && score === 'LOW'),
-    [filterScore],
+      filterScore === 'All' ||
+      (filterScore === 'High' && score === 'HIGH') ||
+      (filterScore === 'Medium' && score === 'MED') ||
+      (filterScore === 'Low' && score === 'LOW'),
+    [filterScore]
   );
 
   const filteredLeads = useMemo(() => {
@@ -91,7 +91,8 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     const q = searchTerm.trim().toLowerCase();
     if (q) {
       list = list.filter((l) => {
-        const haystack = `${l.name} ${l.email ?? ''} ${l.eventType ?? ''} ${l.message ?? ''}`.toLowerCase();
+        const haystack =
+          `${l.name} ${l.email ?? ''} ${l.eventType ?? ''} ${l.message ?? ''}`.toLowerCase();
         return haystack.includes(q);
       });
     }
@@ -108,7 +109,8 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     const q = searchTerm.trim().toLowerCase();
     if (q) {
       list = list.filter((i) => {
-        const haystack = `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`.toLowerCase();
+        const haystack =
+          `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`.toLowerCase();
         return haystack.includes(q);
       });
     }

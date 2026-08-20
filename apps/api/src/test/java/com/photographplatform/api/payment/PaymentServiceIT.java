@@ -18,6 +18,7 @@ import com.photographplatform.api.payment.dto.InvoicePaymentSummaryResponse;
 import com.photographplatform.api.payment.dto.PaymentResponse;
 import com.photographplatform.api.payment.dto.RecordManualPaymentRequest;
 import com.photographplatform.api.payment.service.PaymentService;
+import com.photographplatform.api.payment.service.StripeWebhookService;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.domain.TaxMode;
@@ -31,6 +32,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -52,6 +54,7 @@ class PaymentServiceIT extends IntegrationTestBase {
     private static final String WEBHOOK_SECRET = "whsec_test_secret_for_it_only";
 
     @Autowired private PaymentService paymentService;
+    @Autowired private StripeWebhookService webhookService;
     @Autowired private InvoiceService invoiceService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
@@ -68,13 +71,67 @@ class PaymentServiceIT extends IntegrationTestBase {
         registry.add("app.stripe.webhook-secret", () -> WEBHOOK_SECRET);
     }
 
+    /**
+     * The Connect gate, checked before anything else on the card path. A
+     * photographer who hasn't finished Stripe's hosted onboarding has no
+     * account for the charge to land in, and the platform must not quietly
+     * collect on its own account instead — the invoice names <em>them</em> as
+     * the issuer under §14 UStG. The client is told to pay by Überweisung,
+     * which is a route they can actually take, hence 409 rather than a 500.
+     */
     @Test
-    void cardPaymentIsRejectedWhenStripeNotConfigured() {
+    void cardPaymentIsRejectedWhenPhotographerHasNotConnectedStripe() {
         TestFixture fx = createTenantAndInvoice();
         assertThatThrownBy(() -> asUser(fx, () -> paymentService.createStripePaymentIntent(
             fx.invoiceId(), new CreatePaymentIntentRequest(PaymentMethod.CARD), "203.0.113.5")))
-            .isInstanceOf(IllegalStateException.class)
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("online payments");
+    }
+
+    /**
+     * Past the Connect gate, a deployment with no Stripe credentials at all.
+     *
+     * <p>A 409, not a 500: running on bank transfer alone is a supported
+     * configuration, not a server fault, and the client can act on the answer
+     * by paying the invoice another way. It is also the same exception {@code
+     * StripeConnectService} raises for the same condition — the two used to
+     * disagree, which made "is Stripe available?" answerable differently
+     * depending on which endpoint the frontend happened to ask.
+     */
+    @Test
+    void cardPaymentIsRejectedWhenStripeNotConfigured() {
+        TestFixture fx = createTenantAndInvoice();
+        connectStripe(fx.tenantId());
+
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.createStripePaymentIntent(
+            fx.invoiceId(), new CreatePaymentIntentRequest(PaymentMethod.CARD), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class)
             .hasMessageContaining("Stripe");
+    }
+
+    /**
+     * Überweisung predates Connect and must stay reachable without it —
+     * it is the fallback the Connect gate above points the client at.
+     */
+    @Test
+    void manualPaymentWorksWithoutAStripeConnection() {
+        TestFixture fx = createTenantAndInvoice();
+
+        PaymentResponse payment = asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(null), "203.0.113.5"));
+
+        assertThat(payment.status()).isEqualTo("SUCCEEDED");
+        assertThat(payment.applicationFeeCents()).isZero();
+    }
+
+    /** Marks the tenant as having completed Stripe Express onboarding. */
+    private void connectStripe(UUID tenantId) {
+        asTenant(tenantId, () -> {
+            Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
+            tenant.setStripeAccountId("acct_test_" + UUID.randomUUID().toString().substring(0, 8));
+            tenant.applyStripeCapabilities(true, true, true);
+            return tenantRepository.save(tenant);
+        });
     }
 
     @Test
@@ -156,7 +213,7 @@ class PaymentServiceIT extends IntegrationTestBase {
     @Test
     void webhookRejectsInvalidSignature() {
         String payload = paymentIntentSucceededPayload("pi_test_invalid_sig", UUID.randomUUID(), UUID.randomUUID());
-        assertThatThrownBy(() -> paymentService.handleWebhookEvent(payload, "t=1,v1=deadbeef"))
+        assertThatThrownBy(() -> webhookService.handle(payload, "t=1,v1=deadbeef"))
             .isInstanceOf(ConflictException.class);
     }
 
@@ -172,7 +229,7 @@ class PaymentServiceIT extends IntegrationTestBase {
         String payload = paymentIntentSucceededPayload(stripePaymentIntentId, fx.tenantId(), fx.invoiceId());
         String signature = signStripePayload(payload, WEBHOOK_SECRET);
 
-        paymentService.handleWebhookEvent(payload, signature);
+        webhookService.handle(payload, signature);
 
         InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
         assertThat(summary.payments()).hasSize(1);
@@ -182,9 +239,138 @@ class PaymentServiceIT extends IntegrationTestBase {
         // Stripe explicitly documents at-least-once delivery — a retried
         // event must be a no-op, not double-record the payment or re-fire
         // side effects.
-        paymentService.handleWebhookEvent(payload, signature);
+        webhookService.handle(payload, signature);
         InvoicePaymentSummaryResponse summaryAfterRetry = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
         assertThat(summaryAfterRetry.payments()).hasSize(1);
+    }
+
+    /**
+     * The signature proves an event came from Stripe, not that it came from
+     * this payment's merchant. A webhook endpoint serves every connected
+     * account at once, so a settlement event stamped with a different {@code
+     * acct_…} than the row was created on must not settle it — otherwise one
+     * photographer's charge could mark another's invoice paid.
+     */
+    @Test
+    void webhookRefusesToSettleAPaymentThatBelongsToAnotherConnectedAccount() {
+        TestFixture fx = createTenantAndInvoice();
+        String intentId = "pi_test_" + UUID.randomUUID();
+        asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, intentId, "acct_theRightOne");
+            return null;
+        });
+
+        String payload = paymentIntentPayload(
+            "evt_test_" + UUID.randomUUID(), "payment_intent.succeeded", intentId,
+            fx.tenantId(), fx.invoiceId(), "acct_someoneElse");
+        webhookService.handle(payload, signStripePayload(payload, WEBHOOK_SECRET));
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments().get(0).status()).isEqualTo("PENDING");
+        assertThat(summary.paidCents()).isZero();
+    }
+
+    /**
+     * The claim in the idempotency ledger is a one-way door, so it must only be
+     * kept when the event is genuinely finished with. A settlement event whose
+     * payment row isn't visible yet is not finished with: it fails, and the
+     * <em>same</em> event redelivered later still settles the invoice.
+     *
+     * <p>Without this the failure is invisible and permanent — the first
+     * delivery marks the event processed, every retry is dropped as a
+     * duplicate, and an invoice the client has actually paid stays outstanding
+     * forever behind a single WARN line.
+     */
+    @Test
+    void webhookRetriesASettlementEventWhoseRowIsNotVisibleYet() {
+        TestFixture fx = createTenantAndInvoice();
+        String intentId = "pi_test_" + UUID.randomUUID();
+        String eventId = "evt_test_" + UUID.randomUUID();
+        String payload = paymentIntentPayload(
+            eventId, "payment_intent.succeeded", intentId, fx.tenantId(), fx.invoiceId(), null);
+        String signature = signStripePayload(payload, WEBHOOK_SECRET);
+
+        // First delivery arrives before the row exists.
+        assertThatThrownBy(() -> webhookService.handle(payload, signature))
+            .isInstanceOf(IllegalStateException.class);
+
+        asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, intentId);
+            return null;
+        });
+
+        // Stripe redelivers the same event id. The claim was rolled back with
+        // the failed transaction, so this one is allowed to do the work.
+        webhookService.handle(payload, signature);
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments().get(0).status()).isEqualTo("SUCCEEDED");
+        assertThat(summary.paidCents()).isEqualTo(fx.totalCents());
+    }
+
+    /**
+     * The other half of that distinction: an event we deliberately don't act on
+     * is finished with on first sight, even though it has no row either.
+     * {@code payment_intent.created} fires while its own row is still being
+     * committed, so treating "no row" as retryable for every event type would
+     * turn every intent creation into a burst of failing redeliveries.
+     */
+    @Test
+    void webhookQuietlyIgnoresPaymentIntentEventsItDoesNotActOn() {
+        TestFixture fx = createTenantAndInvoice();
+        String payload = paymentIntentPayload(
+            "evt_test_" + UUID.randomUUID(), "payment_intent.created",
+            "pi_test_" + UUID.randomUUID(), fx.tenantId(), fx.invoiceId(), null);
+
+        webhookService.handle(payload, signStripePayload(payload, WEBHOOK_SECRET));
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments()).isEmpty();
+    }
+
+    /**
+     * The database backstop behind the "one live intent per invoice" rule.
+     *
+     * <p>{@code createStripePaymentIntent} checks for an open intent before
+     * minting one, but a check in application code is only as good as the
+     * transaction isolating it — two concurrent calls both see no open intent.
+     * V18's partial unique index is what actually makes a second live charge
+     * for the same balance impossible, and this pins it: without the index
+     * both rows insert happily.
+     */
+    @Test
+    void aSecondOpenIntentForTheSameInvoiceIsRejectedByTheDatabase() {
+        TestFixture fx = createTenantAndInvoice();
+        asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, "pi_test_" + UUID.randomUUID());
+            return null;
+        });
+
+        assertThatThrownBy(() -> asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, "pi_test_" + UUID.randomUUID());
+            return null;
+        })).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /**
+     * The index must not get in the way of the legitimate case it looks like.
+     * An invoice may collect several bank transfers — a deposit, then the
+     * balance — and those rows are written straight to SUCCEEDED, which is why
+     * the constraint is partial on PENDING rather than on the invoice.
+     */
+    @Test
+    void severalManualPaymentsAgainstOneInvoiceAreStillAllowed() {
+        TestFixture fx = createTenantAndInvoice();
+
+        asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(40_000), "203.0.113.5"));
+        asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(30_000), "203.0.113.5"));
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments()).hasSize(2);
+        assertThat(summary.paidCents()).isEqualTo(70_000);
+        assertThat(summary.outstandingCents()).isEqualTo(fx.totalCents() - 70_000);
     }
 
     @Test
@@ -241,6 +427,7 @@ class PaymentServiceIT extends IntegrationTestBase {
         tenant.setPostalCode("10115");
         tenant.setCity("Berlin");
         tenant.setCountry("DE");
+        tenant.setTaxId("21/815/08150");
         tenant.setTaxMode(TaxMode.REGELBESTEUERUNG);
         return tenant;
     }
@@ -254,20 +441,46 @@ class PaymentServiceIT extends IntegrationTestBase {
      * exercises the webhook's own update logic in isolation.
      */
     private void recordPendingStripePaymentForTest(TestFixture fx, String stripePaymentIntentId) {
+        recordPendingStripePaymentForTest(fx, stripePaymentIntentId, null);
+    }
+
+    /** As above, but pinned to a specific connected account. */
+    private void recordPendingStripePaymentForTest(
+        TestFixture fx, String stripePaymentIntentId, String connectedAccountId) {
         var payment = new com.photographplatform.api.payment.domain.Payment(
-            fx.tenantId(), fx.invoiceId(), PaymentMethod.CARD, fx.totalCents(), stripePaymentIntentId);
+            fx.tenantId(), fx.invoiceId(), PaymentMethod.CARD, fx.totalCents(),
+            stripePaymentIntentId, connectedAccountId, 0);
         paymentRepositoryField.save(payment);
     }
 
     private String paymentIntentSucceededPayload(String paymentIntentId, UUID tenantId, UUID invoiceId) {
+        return paymentIntentPayload(
+            "evt_test_" + UUID.randomUUID(), "payment_intent.succeeded", paymentIntentId,
+            tenantId, invoiceId, null);
+    }
+
+    /**
+     * A Stripe event envelope. Takes the event id explicitly so a test can
+     * redeliver the <em>same</em> event (which is what idempotency is about)
+     * rather than a fresh one that merely looks the same, and takes the
+     * connected account because a direct-charge event is stamped with the
+     * account it happened on — the field the webhook checks the payment row
+     * against.
+     */
+    private String paymentIntentPayload(
+        String eventId, String type, String paymentIntentId,
+        UUID tenantId, UUID invoiceId, String connectedAccountId) {
         long now = Instant.now().getEpochSecond();
+        String accountLine = connectedAccountId == null
+            ? ""
+            : "  \"account\": \"" + connectedAccountId + "\",\n";
         return """
             {
-              "id": "evt_test_%s",
+              "id": "%s",
               "object": "event",
-              "api_version": "2024-06-20",
+            %s  "api_version": "2024-06-20",
               "created": %d,
-              "type": "payment_intent.succeeded",
+              "type": "%s",
               "data": {
                 "object": {
                   "id": "%s",
@@ -282,7 +495,7 @@ class PaymentServiceIT extends IntegrationTestBase {
                 }
               }
             }
-            """.formatted(UUID.randomUUID(), now, paymentIntentId, tenantId, invoiceId);
+            """.formatted(eventId, accountLine, now, type, paymentIntentId, tenantId, invoiceId);
     }
 
     private String signStripePayload(String payload, String secret) {

@@ -80,8 +80,7 @@ export function AddLeadModal({
       });
       onCreated(res.data);
     } catch (err) {
-      const message = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error;
+      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setSubmitError(message ?? t('addLead.errSubmit'));
     } finally {
       setSubmitting(false);
@@ -235,7 +234,9 @@ export function AddLeadModal({
           )}
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-name">{t('addLead.name')}</label>
+            <label style={label} htmlFor="al-name">
+              {t('addLead.name')}
+            </label>
             <input
               id="al-name"
               type="text"
@@ -251,7 +252,9 @@ export function AddLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-email">{t('addLead.email')}</label>
+              <label style={label} htmlFor="al-email">
+                {t('addLead.email')}
+              </label>
               <input
                 id="al-email"
                 type="email"
@@ -265,7 +268,9 @@ export function AddLeadModal({
               )}
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-phone">{t('addLead.phone')}</label>
+              <label style={label} htmlFor="al-phone">
+                {t('addLead.phone')}
+              </label>
               <input
                 id="al-phone"
                 type="tel"
@@ -280,7 +285,9 @@ export function AddLeadModal({
 
           <div style={row}>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-date">{t('addLead.eventDate')}</label>
+              <label style={label} htmlFor="al-date">
+                {t('addLead.eventDate')}
+              </label>
               <DateField
                 id="al-date"
                 value={eventDate}
@@ -289,11 +296,15 @@ export function AddLeadModal({
                 style={input(!!fieldError.eventDate)}
               />
               {fieldError.eventDate && (
-                <span style={{ fontSize: '0.78rem', color: c.dangerText }}>{fieldError.eventDate}</span>
+                <span style={{ fontSize: '0.78rem', color: c.dangerText }}>
+                  {fieldError.eventDate}
+                </span>
               )}
             </div>
             <div style={fieldGroup}>
-              <label style={label} htmlFor="al-type">{t('addLead.eventType')}</label>
+              <label style={label} htmlFor="al-type">
+                {t('addLead.eventType')}
+              </label>
               <select
                 id="al-type"
                 value={eventType}
@@ -311,7 +322,9 @@ export function AddLeadModal({
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-budget">{t('addLead.budget')}</label>
+            <label style={label} htmlFor="al-budget">
+              {t('addLead.budget')}
+            </label>
             <select
               id="al-budget"
               value={budgetRange}
@@ -326,12 +339,19 @@ export function AddLeadModal({
           </div>
 
           <div style={fieldGroup}>
-            <label style={label} htmlFor="al-msg">{t('addLead.message')}</label>
+            <label style={label} htmlFor="al-msg">
+              {t('addLead.message')}
+            </label>
             <textarea
               id="al-msg"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              style={{ ...input(!!fieldError.message), minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }}
+              style={{
+                ...input(!!fieldError.message),
+                minHeight: '90px',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+              }}
               placeholder={t('addLead.messagePlaceholder')}
             />
             {fieldError.message && (

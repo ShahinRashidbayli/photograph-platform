@@ -26,6 +26,7 @@ photograph-platform/
 | Multi-tenant| Schema-per-tenant (PostgreSQL), Flyway migrations   |
 | Rate limit  | Redis (login brute-force protection)                |
 | Media       | Cloudflare R2 (S3 API) — MinIO locally, presigned uploads |
+| Email       | SendGrid / Resend / SMTP — Mailpit locally           |
 | Frontend    | Next.js 15, React 19, TypeScript, Bootstrap 5       |
 | State       | Zustand                                             |
 | Database    | PostgreSQL 16 (Testcontainers for integration tests)|
@@ -61,7 +62,7 @@ cp infra/.env.example infra/.env
 ### 2. Start infrastructure
 
 ```bash
-make infra          # PostgreSQL (5433) + Redis (6379) + MinIO (9000, console 9001)
+make infra          # PostgreSQL (5433), Redis (6379), MinIO (9000/9001), Mailpit (8025)
 ```
 
 MinIO is the local stand-in for Cloudflare R2 and holds every uploaded image.

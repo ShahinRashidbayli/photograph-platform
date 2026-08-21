@@ -62,10 +62,41 @@ class EmailPropertiesTest {
     @Test
     @DisplayName("an unknown provider names itself in the error")
     void unknownProviderFailsWithAnActionableMessage() {
-        assertThatThrownBy(() -> build("smtp", "no-reply@fotolio.de", CONFIGURED, CONFIGURED))
+        assertThatThrownBy(() -> build("mailgun", "no-reply@fotolio.de", CONFIGURED, CONFIGURED))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Unknown EMAIL_PROVIDER 'smtp'")
-            .hasMessageContaining("sendgrid");
+            .hasMessageContaining("Unknown EMAIL_PROVIDER 'mailgun'")
+            .hasMessageContaining("sendgrid")
+            .hasMessageContaining("smtp");
+    }
+
+    // ── smtp ──────────────────────────────────────────────────────────────────
+
+    /**
+     * SMTP carries no API key — its connection settings live under Spring's own
+     * {@code spring.mail.*} and the host is checked by {@code SmtpEmailSender},
+     * which is the only thing that can see whether Boot built a JavaMailSender.
+     * So the absent keys here must NOT be treated as a misconfiguration.
+     */
+    @Test
+    @DisplayName("smtp boots without any provider API key")
+    void smtpNeedsNoApiKey() {
+        assertThatCode(() -> build("smtp", "no-reply@fotolio.de", NO_KEY, NO_KEY))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("smtp still requires a from-address")
+    void smtpWithoutFromAddressFailsFast() {
+        assertThatThrownBy(() -> build("smtp", "  ", CONFIGURED, CONFIGURED))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("EMAIL_FROM");
+    }
+
+    @Test
+    @DisplayName("smtp is normalised like every other provider")
+    void smtpIsCaseInsensitive() {
+        assertThat(build("  SMTP ", "no-reply@fotolio.de", null, null).provider())
+            .isEqualTo("smtp");
     }
 
     // ── the configurations that must keep working ─────────────────────────────

@@ -48,10 +48,17 @@ public record EmailProperties(
     /** Transports that can actually deliver a message. */
     public static final String SENDGRID = "sendgrid";
     public static final String RESEND = "resend";
+    /**
+     * Relay through an SMTP server. Unlike the hosted APIs this needs no
+     * account, which is what makes email testable on a dev machine at all —
+     * see {@code SmtpEmailSender}. Its connection settings live under Spring's
+     * own {@code spring.mail.*}, not here.
+     */
+    public static final String SMTP = "smtp";
     /** Logs and drops. Legitimate for local dev and tests — never for production. */
     public static final String NONE = "none";
 
-    private static final Set<String> KNOWN = Set.of(SENDGRID, RESEND, NONE);
+    private static final Set<String> KNOWN = Set.of(SENDGRID, RESEND, SMTP, NONE);
 
     /** Per-provider transport credentials. */
     public record Provider(String apiKey, String baseUrl) {}
@@ -69,7 +76,7 @@ public record EmailProperties(
             // typo that caused it.
             throw new IllegalStateException(
                 "Unknown EMAIL_PROVIDER '" + provider + "'. Expected one of: "
-                    + SENDGRID + ", " + RESEND + ", " + NONE + ".");
+                    + SENDGRID + ", " + RESEND + ", " + SMTP + ", " + NONE + ".");
         }
 
         if (NONE.equals(provider)) {
@@ -82,6 +89,12 @@ public record EmailProperties(
                 Fine locally; never correct in staging/production. Set
                 EMAIL_PROVIDER=sendgrid (or resend) with the matching API key.
                 ────────────────────────────────────────────────────────────────""");
+        } else if (SMTP.equals(provider)) {
+            // No API key to check: the host lives under spring.mail.* and is
+            // verified by SmtpEmailSender, which is the only thing that can
+            // tell whether Boot actually built a JavaMailSender. The sender
+            // identity is still ours to enforce.
+            requireFrom(provider, from);
         } else {
             // A real transport was named, so everything it needs must be present
             // now — the next chance to notice is a customer who cannot log in.
@@ -102,11 +115,16 @@ public record EmailProperties(
                 "EMAIL_PROVIDER=" + provider + " but app.email." + provider
                     + ".base-url is blank.");
         }
+        requireFrom(provider, from);
+    }
+
+    private static void requireFrom(String provider, String from) {
         if (from == null || from.isBlank()) {
             throw new IllegalStateException(
                 "EMAIL_PROVIDER=" + provider + " but EMAIL_FROM is not set. It must be a sender "
-                    + "address verified in the provider's account (SendGrid Single Sender / "
-                    + "domain authentication), or every send is rejected with a 403.");
+                    + "address the transport will accept — for the hosted providers, one "
+                    + "verified in the account (SendGrid Single Sender / domain "
+                    + "authentication), or every send is rejected with a 403.");
         }
     }
 }

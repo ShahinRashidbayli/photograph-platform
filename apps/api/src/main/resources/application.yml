@@ -78,6 +78,34 @@ spring:
   # Outbound HTTP (SendGrid / Resend via RestClient) had no timeouts at all,
   # so a hung provider socket pinned the calling thread forever. Those sends
   # are @Async now, but an unbounded wait would still leak pool threads.
+  # SMTP transport settings, used when EMAIL_PROVIDER=smtp.
+  #
+  # spring.mail.host is deliberately NOT declared here and must come from the
+  # environment (SPRING_MAIL_HOST). Boot's mail auto-configuration is
+  # conditional on that property merely *existing*, so a `host: ${SPRING_MAIL_HOST:}`
+  # default would build a JavaMailSender pointed at an empty host — and
+  # SmtpEmailSender's boot check, which asks whether the sender exists at all,
+  # would pass while every send failed.
+  mail:
+    properties:
+      # An unreachable mail server must not hang a worker thread. Sends are
+      # already best-effort, so failing fast just drops the message a few
+      # seconds sooner instead of holding a pool thread for JavaMail's
+      # default, which is to wait forever.
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  mvc:
+    async:
+      # The gallery ZIP is a StreamingResponseBody, and Tomcat's default async
+      # timeout is 30s — a multi-gigabyte wedding delivery would be aborted
+      # mid-stream long before it finishes, leaving the client a truncated
+      # file. -1 disables the timeout for async dispatches; the download is
+      # still bounded by the client staying connected, and
+      # GalleryArchiveWriter stops as soon as it doesn't.
+      request-timeout: -1
+
   http:
     client:
       connect-timeout: 5s

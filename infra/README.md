@@ -118,6 +118,48 @@ values mean "not configured" — the API boots, warns once, and image URLs come
 back `null`. A *real* endpoint with placeholder keys refuses to start, rather
 than booting healthy and failing at the first upload.
 
+## Email
+
+`EMAIL_PROVIDER` picks the transport: `smtp`, `sendgrid`, `resend` or `none`.
+
+### Local
+
+`smtp` pointed at the Mailpit container, which `make infra` starts. It accepts
+every message, forwards none, and shows them at **http://localhost:8025**.
+
+This is what makes the email-gated flows testable at all — customer
+magic-link sign-in (the only way a client signs in), address verification,
+password reset, lead auto-replies. The alternative, `none`, logs and drops, so
+those flows simply dead-end.
+
+```
+EMAIL_PROVIDER=smtp
+SPRING_MAIL_HOST=localhost
+SPRING_MAIL_PORT=1025
+```
+
+Any `spring.mail.*` setting works through the environment —
+`SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` for a server requiring auth,
+`SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true` for TLS. Mailpit needs
+none of them.
+
+### Production
+
+Prefer a hosted provider for deliverability:
+
+```
+EMAIL_PROVIDER=sendgrid          # or resend
+SENDGRID_API_KEY=SG.xxxx
+EMAIL_FROM=noreply@yourdomain.de # must be verified in the provider account
+```
+
+**A misconfiguration refuses to boot**, deliberately. Sends are best-effort —
+`EmailService` swallows failures so a mail outage cannot roll back the booking
+or login that triggered it — which means a provider named without its
+credentials would drop every message while every endpoint kept answering
+success. Disabling email is still allowed; it just has to be said out loud
+with `EMAIL_PROVIDER=none`.
+
 ## Environment variables
 
 Copy the template and fill in real values — never commit `.env`:
@@ -134,7 +176,7 @@ inline there. The ones with no safe default:
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Runtime connection, as `fotolio_app`     |
 | `FLYWAY_URL` / `FLYWAY_USER`   | Migration connection, as the **owning** role       |
 | `JWT_SECRET`                   | ≥32 bytes — `openssl rand -base64 64`              |
-| `EMAIL_PROVIDER` + provider key| `sendgrid` \| `resend` \| `none` (boot fails if a provider is named without its key) |
+| `EMAIL_PROVIDER`               | `smtp` \| `sendgrid` \| `resend` \| `none` — see [Email](#email) |
 | `R2_ENDPOINT` / `R2_ACCESS_KEY` / `R2_SECRET_KEY` / `R2_BUCKET` | Object storage      |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional — omit to run manual-transfer only |
 | `API_BASE_URL`                 | Web → API proxy target (server-side only)          |

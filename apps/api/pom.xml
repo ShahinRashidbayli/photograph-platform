@@ -107,6 +107,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Mail — JavaMailSender for the SMTP transport. Spring Boot builds
+             the sender from spring.mail.*, which is also what makes every
+             JavaMail knob (TLS, auth, timeouts) configurable without code. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Redis (rate limiting) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

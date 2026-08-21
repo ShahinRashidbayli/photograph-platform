@@ -1,13 +1,14 @@
 .PHONY: dev api web test migrate clean stop
 
-# Start infra (postgres + redis + object storage) in background.
+# Start infra (postgres + redis + object storage + mail catcher) in background.
 # minio-init is a one-shot that creates the media bucket, so image upload
 # works on a fresh checkout instead of failing on placeholder R2 credentials.
 infra:
-	docker compose -f infra/docker-compose.yml up -d postgres redis minio
+	docker compose -f infra/docker-compose.yml up -d postgres redis minio mailpit
 	docker compose -f infra/docker-compose.yml up minio-init
 	@echo "Waiting for postgres..." && sleep 3
-	@echo "PostgreSQL: localhost:5433 | Redis: localhost:6379 | MinIO: localhost:9000 (console :9001)"
+	@echo "PostgreSQL: localhost:5433 | Redis: localhost:6379"
+	@echo "MinIO: localhost:9000 (console :9001) | Mailpit: http://localhost:8025"
 
 # Kill anything on port 8080, then start the Spring Boot API
 api:

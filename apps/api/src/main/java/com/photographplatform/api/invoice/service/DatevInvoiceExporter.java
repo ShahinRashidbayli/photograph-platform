@@ -116,7 +116,11 @@ public class DatevInvoiceExporter {
             ? REVENUE_ACCOUNT_KLEINUNTERNEHMER
             : REVENUE_ACCOUNT_STANDARD;
         String buSchluessel = buSchluessel(invoice);
-        String belegdatum = invoice.getIssuedAt().format(BELEGDATUM);
+        // Same source as the PDF's Rechnungsdatum — see InvoiceDate. Reading
+        // issued_at directly here posted the invoice a day early, because
+        // Postgres returns it in UTC while the PDF was rendered from the
+        // JVM's local offset.
+        String belegdatum = InvoiceDate.of(invoice.getIssuedAt()).format(BELEGDATUM);
         String buchungstext = "Rechnung " + invoice.getInvoiceNumber() + " " + invoice.getBuyerName();
 
         return String.join(";", List.of(

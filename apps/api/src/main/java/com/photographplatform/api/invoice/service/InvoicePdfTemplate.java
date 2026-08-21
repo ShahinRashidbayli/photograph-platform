@@ -66,7 +66,7 @@ public final class InvoicePdfTemplate {
             + "</div>"
             + "<div class=\"meta\">"
             + "<h1>Rechnung " + esc(invoice.getInvoiceNumber()) + "</h1>"
-            + "Rechnungsdatum: " + invoice.getIssuedAt().format(DATE) + "<br/>"
+            + "Rechnungsdatum: " + InvoiceDate.of(invoice.getIssuedAt()).format(DATE) + "<br/>"
             + (invoice.getBuyerReference() != null ? "Referenz: " + esc(invoice.getBuyerReference()) + "<br/>" : "")
             + "</div>"
             + "</div>"

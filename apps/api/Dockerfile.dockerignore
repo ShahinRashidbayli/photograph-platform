@@ -1,0 +1,21 @@
+# Named <dockerfile>.dockerignore, not .dockerignore: the build context is the
+# repo root, and Docker only reads .dockerignore from the context root. BuildKit
+# looks for this per-Dockerfile form first, which lets the two services in this
+# monorepo keep separate exclude lists.
+#
+# Excludes everything the API image never needs — keeps the context small and
+# stops a stale local build tree from leaking into the image.
+**/target/
+**/node_modules/
+**/.next/
+**/dist/
+**/.git/
+**/.env
+**/.env.*
+!**/.env.example
+apps/web/
+packages/
+docs/
+infra/
+.github/
+*.md

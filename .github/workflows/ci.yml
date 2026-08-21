@@ -184,3 +184,69 @@ jobs:
         run: npm run build --workspace=apps/web
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
+
+  # ── 6. DOCKER IMAGES ───────────────────────────────────────
+  # Builds both deployment images without pushing them. The `build` job above
+  # compiles the same source with Maven and Next directly, which is NOT the
+  # same check: it never exercises the Dockerfiles, so a broken base image, a
+  # missing runtime package or a wrong standalone-bundle path would only be
+  # discovered by a failed production deploy. Both images build from the
+  # repository root as context.
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [format, lint, test-api, test-web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          load: true
+          tags: fotolio-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      # API_BASE_URL is a build arg by necessity — Next bakes the /api/*
+      # rewrite destination into routes-manifest.json at build time. The image
+      # refuses to build without it, so passing a placeholder here also proves
+      # that guard still works.
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          load: true
+          tags: fotolio-web:ci
+          build-args: |
+            API_BASE_URL=http://api.internal:8080
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      # A built image that dies on boot still fails the deploy. Start each one
+      # and wait for it to answer on the port it will actually serve.
+      - name: Smoke-test web image
+        run: |
+          docker run -d --name web -p 3000:3000 fotolio-web:ci
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:3000/login; then
+              echo "web image serves /login"; exit 0
+            fi
+            sleep 2
+          done
+          echo "web image never became ready"; docker logs web; exit 1
+
+      - name: Smoke-test API image (migrate mode refuses bad config)
+        run: |
+          # No FLYWAY_URL — the entrypoint must fail loudly rather than boot
+          # and silently skip migrations.
+          if docker run --rm fotolio-api:ci migrate; then
+            echo "migrate should have failed without FLYWAY_URL"; exit 1
+          fi
+          echo "migrate mode correctly refuses incomplete config"

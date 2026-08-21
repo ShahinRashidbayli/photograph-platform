@@ -27,6 +27,17 @@ spring:
       keepalive-time: 120000
 
   flyway:
+    # Off in the running app, and deliberately with no env escape hatch. The
+    # runtime datasource connects as the least-privilege `fotolio_app` role,
+    # which RLS applies to and which owns nothing and has no DDL rights
+    # (infra/README.md) — it could not migrate even if asked.
+    #
+    # Migrations run as a separate step, as the schema-OWNING role, through
+    # `docker-entrypoint.sh migrate` → FlywayMigrateRunner. That runner starts
+    # no Spring context on purpose: turning this flag on instead would tie the
+    # migration's exit code to JPA, Redis and every other startup check, so a
+    # successful migration followed by an unrelated boot failure would abort a
+    # deploy against an already-migrated database.
     enabled: false
 
   jpa:

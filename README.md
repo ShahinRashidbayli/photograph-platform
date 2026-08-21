@@ -25,6 +25,7 @@ photograph-platform/
 | Auth        | JWT (HS256) + httpOnly cookies, refresh token rotation |
 | Multi-tenant| Schema-per-tenant (PostgreSQL), Flyway migrations   |
 | Rate limit  | Redis (login brute-force protection)                |
+| Media       | Cloudflare R2 (S3 API) — MinIO locally, presigned uploads |
 | Frontend    | Next.js 15, React 19, TypeScript, Bootstrap 5       |
 | State       | Zustand                                             |
 | Database    | PostgreSQL 16 (Testcontainers for integration tests)|
@@ -60,8 +61,14 @@ cp infra/.env.example infra/.env
 ### 2. Start infrastructure
 
 ```bash
-make infra          # starts PostgreSQL (port 5433) + Redis (port 6379)
+make infra          # PostgreSQL (5433) + Redis (6379) + MinIO (9000, console 9001)
 ```
+
+MinIO is the local stand-in for Cloudflare R2 and holds every uploaded image.
+`make infra` also creates the `fotolio-media-dev` bucket, so portfolio uploads
+and gallery delivery work straight away — no Cloudflare account needed. See
+[infra/README.md](infra/README.md#object-storage-r2--minio) for production R2
+setup.
 
 ### 3. Start the API
 
@@ -85,7 +92,7 @@ Run all commands from the **project root**.
 
 | Target       | What it does                                                   |
 |--------------|----------------------------------------------------------------|
-| `make infra` | `docker compose up -d postgres redis`                          |
+| `make infra` | `docker compose up -d postgres redis minio` + creates the media bucket |
 | `make api`   | Kill :8080 → load `infra/.env` → `mvn spring-boot:run`        |
 | `make web`   | `npm run dev` in `apps/web`                                    |
 | `make dev`   | `infra` + `api` (background) + `web` (foreground)              |

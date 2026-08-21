@@ -127,7 +127,10 @@ public final class InvoicePdfTemplate {
 
     private static final String CSS = """
         @page { size: A4; margin: 2cm; }
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #0F172A; }
+        /* InvoiceSans is the embedded DejaVu registered by InvoicePdfRenderer.
+           The base-14 Helvetica it replaced silently dropped every text run
+           containing an umlaut, an ß or a € — i.e. most German invoices. */
+        body { font-family: InvoiceSans, sans-serif; font-size: 10.5pt; color: #0F172A; }
         .header { display: flex; justify-content: space-between; margin-bottom: 24px; }
         .issuer { font-size: 9pt; color: #475569; }
         .meta { text-align: right; }

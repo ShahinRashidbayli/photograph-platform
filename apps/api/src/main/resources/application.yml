@@ -154,8 +154,11 @@ app:
     endpoint: ${R2_ENDPOINT:https://placeholder.r2.cloudflarestorage.com}
     access-key: ${R2_ACCESS_KEY:placeholder}
     secret-key: ${R2_SECRET_KEY:placeholder}
-    bucket: ${R2_BUCKET:fotograf-media-dev}
+    bucket: ${R2_BUCKET:fotolio-media-dev}
     presigned-expiry-minutes: ${R2_PRESIGNED_EXPIRY_MINUTES:60}
+    # true for the local MinIO container, false for Cloudflare R2. A mismatch
+    # signs every presigned URL for the wrong host — see R2Properties#pathStyle.
+    path-style: ${R2_PATH_STYLE:false}
   stripe:
     # Blank (not a placeholder like r2.endpoint above) is deliberate here:
     # StripeConfig's @ConditionalOnProperty requires a non-empty value, so the

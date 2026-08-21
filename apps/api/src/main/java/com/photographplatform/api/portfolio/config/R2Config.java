@@ -11,6 +11,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
@@ -61,21 +62,34 @@ public class R2Config {
     public S3Client r2S3Client() {
         return S3Client.builder()
             .endpointOverride(URI.create(props.getEndpoint()))
-            .credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())
-            ))
+            .credentialsProvider(credentials())
             .region(Region.of("auto"))
+            .forcePathStyle(props.isPathStyle())
             .build();
     }
 
+    /**
+     * The presigner is the one that actually matters for addressing style: the
+     * browser uploads and every gallery <img> hit a presigned URL directly, so
+     * the signature must be computed over the same host form the browser will
+     * request. S3Presigner has no forcePathStyle shortcut — it takes the same
+     * setting through S3Configuration.
+     */
     @Bean
     public S3Presigner r2S3Presigner() {
         return S3Presigner.builder()
             .endpointOverride(URI.create(props.getEndpoint()))
-            .credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())
-            ))
+            .credentialsProvider(credentials())
             .region(Region.of("auto"))
+            .serviceConfiguration(S3Configuration.builder()
+                .pathStyleAccessEnabled(props.isPathStyle())
+                .build())
             .build();
+    }
+
+    private StaticCredentialsProvider credentials() {
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())
+        );
     }
 }

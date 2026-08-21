@@ -28,5 +28,52 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # ── Object storage ────────────────────────────────────────────────────────
+  # Stands in for Cloudflare R2 locally. R2 *is* the S3 API, so the same AWS
+  # SDK client, the same presigned upload flow and the same keys work against
+  # both — only the endpoint and the addressing style differ (see
+  # R2Properties#pathStyle).
+  #
+  # Without this, media upload was the one core feature that could not run on a
+  # fresh checkout: app.r2.* defaulted to literal "placeholder" credentials, so
+  # portfolio uploads and gallery delivery silently did nothing.
+  #
+  # MINIO_API_CORS_ALLOW_ORIGIN is required because the browser PUTs to the
+  # presigned URL directly, cross-origin from localhost:3000. Wide-open here is
+  # fine — it is a throwaway dev container; R2 needs its own CORS policy set on
+  # the bucket (see infra/README.md).
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: fotolio_dev
+      MINIO_ROOT_PASSWORD: fotolio_dev_secret
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console (fotolio_dev / fotolio_dev_secret)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: create the bucket the API expects, then exit. Idempotent, so it
+  # is safe on every `docker compose up`.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 fotolio_dev fotolio_dev_secret &&
+      mc mb --ignore-existing local/fotolio-media-dev &&
+      echo 'MinIO bucket fotolio-media-dev ready'
+      "
+
 volumes:
   postgres_data:
+  minio_data:

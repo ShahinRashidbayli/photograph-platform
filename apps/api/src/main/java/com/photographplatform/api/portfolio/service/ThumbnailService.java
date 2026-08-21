@@ -68,16 +68,10 @@ public class ThumbnailService {
                 return;
             }
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Thumbnails.of(src)
-                .size(THUMB_MAX_DIM, THUMB_MAX_DIM)
-                .keepAspectRatio(true)
-                .outputFormat("jpg")
-                .outputQuality(JPEG_QUALITY)
-                .toOutputStream(out);
+            byte[] thumbnail = renderThumbnail(src);
 
             String thumbKey = thumbnailKeyFor(photo.getR2Key());
-            storage.get().uploadBytes(thumbKey, THUMB_CONTENT_TYPE, out.toByteArray());
+            storage.get().uploadBytes(thumbKey, THUMB_CONTENT_TYPE, thumbnail);
 
             // Backfill dimensions if the client didn't supply them at complete-time.
             if (photo.getWidth() == null) {
@@ -89,7 +83,7 @@ public class ThumbnailService {
             photo.setThumbnailKey(thumbKey);
             photoRepository.save(photo);
 
-            LOG.info("Thumbnail generated for photo {} ({} bytes)", photoId, out.size());
+            LOG.info("Thumbnail generated for photo {} ({} bytes)", photoId, thumbnail.length);
         } catch (IOException e) {
             LOG.error("Failed to generate thumbnail for photo {}: {}", photoId, e.getMessage(), e);
         } finally {
@@ -98,10 +92,29 @@ public class ThumbnailService {
     }
 
     /**
+     * Scales a decoded image down to a {@value #THUMB_MAX_DIM}px JPEG.
+     *
+     * <p>Static and side-effect-free so the gallery's delivery pipeline
+     * ({@code DeliveryPhotoProcessor}) produces byte-identical thumbnails from
+     * the same source without duplicating the encoder settings — two
+     * independent copies of "what a thumbnail is" would drift.
+     */
+    public static byte[] renderThumbnail(BufferedImage source) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Thumbnails.of(source)
+            .size(THUMB_MAX_DIM, THUMB_MAX_DIM)
+            .keepAspectRatio(true)
+            .outputFormat("jpg")
+            .outputQuality(JPEG_QUALITY)
+            .toOutputStream(out);
+        return out.toByteArray();
+    }
+
+    /**
      * Sibling key next to the original. Example:
      *   {tenantId}/photos/abc.jpg → {tenantId}/photos/thumb_abc.jpg
      */
-    static String thumbnailKeyFor(String originalKey) {
+    public static String thumbnailKeyFor(String originalKey) {
         int slash = originalKey.lastIndexOf('/');
         String dir = slash >= 0 ? originalKey.substring(0, slash + 1) : "";
         String base = slash >= 0 ? originalKey.substring(slash + 1) : originalKey;

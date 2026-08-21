@@ -33,6 +33,15 @@ public class DeliveryPhoto {
     @Column(name = "thumbnail_key", length = 500)
     private String thumbnailKey;
 
+    /**
+     * The watermarked derivative served to the client when the gallery has
+     * watermarking on. Null until one has been generated. The original in
+     * {@link #r2Key} is never overwritten, so switching the flag off restores
+     * clean delivery without re-uploading.
+     */
+    @Column(name = "watermark_key", length = 500)
+    private String watermarkKey;
+
     @Column(name = "original_filename", length = 255)
     private String originalFilename;
 
@@ -79,6 +88,18 @@ public class DeliveryPhoto {
 
     public String getThumbnailKey() {
         return thumbnailKey;
+    }
+
+    public void setThumbnailKey(String thumbnailKey) {
+        this.thumbnailKey = thumbnailKey;
+    }
+
+    public String getWatermarkKey() {
+        return watermarkKey;
+    }
+
+    public void setWatermarkKey(String watermarkKey) {
+        this.watermarkKey = watermarkKey;
     }
 
     public String getOriginalFilename() {

@@ -13,4 +13,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DeliveryPhotoRepository extends JpaRepository<DeliveryPhoto, UUID> {
 
     List<DeliveryPhoto> findByGalleryIdOrderBySortOrderAsc(UUID galleryId);
+
+    /**
+     * Photos in a gallery that have no watermarked derivative yet — the work
+     * list for a backfill after watermarking is switched on. Backed by the
+     * partial index in {@code V19__delivery_photo_watermark.sql}.
+     */
+    List<DeliveryPhoto> findByGalleryIdAndWatermarkKeyIsNull(UUID galleryId);
 }

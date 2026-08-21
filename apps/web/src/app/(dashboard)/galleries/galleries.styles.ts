@@ -394,6 +394,50 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       wordBreak: 'break-all',
       lineHeight: '1.5',
     },
+
+    // ── delivered-photo grid ────────────────────────────────────────────────
+    photoGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
+      gap: '8px',
+    },
+    photoCell: {
+      position: 'relative',
+      borderRadius: '8px',
+      overflow: 'hidden',
+      background: c.surfaceAlt,
+      border: `1px solid ${c.border}`,
+      aspectRatio: '1 / 1',
+    },
+    photoImg: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      display: 'block',
+    },
+    photoFallback: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: c.textMuted,
+      fontSize: '0.7rem',
+    },
+    photoDelete: {
+      position: 'absolute',
+      top: '4px',
+      right: '4px',
+      width: '20px',
+      height: '20px',
+      lineHeight: '18px',
+      textAlign: 'center',
+      padding: 0,
+      borderRadius: '6px',
+      border: 'none',
+      background: 'rgba(0,0,0,0.6)',
+      color: '#fff',
+      fontSize: '15px',
+      cursor: 'pointer',
+    },
   };
 };
 

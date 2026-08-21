@@ -6,6 +6,8 @@ import com.photographplatform.api.gallery.dto.DeliveryPhotoResponse;
 import com.photographplatform.api.gallery.dto.GalleryResponse;
 import com.photographplatform.api.gallery.dto.PublicGalleryResponse;
 import com.photographplatform.api.gallery.dto.UpdateGalleryRequest;
+import com.photographplatform.api.gallery.dto.GalleryDownloadPlan;
+import com.photographplatform.api.gallery.service.GalleryArchiveWriter;
 import com.photographplatform.api.gallery.service.GalleryService;
 import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
@@ -15,7 +17,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api")
@@ -32,10 +38,14 @@ public class GalleryController {
 
     private final GalleryService galleryService;
     private final PublicTenantResolver tenantResolver;
+    private final GalleryArchiveWriter archiveWriter;
 
-    public GalleryController(GalleryService galleryService, PublicTenantResolver tenantResolver) {
+    public GalleryController(GalleryService galleryService,
+                             PublicTenantResolver tenantResolver,
+                             GalleryArchiveWriter archiveWriter) {
         this.galleryService = galleryService;
         this.tenantResolver = tenantResolver;
+        this.archiveWriter = archiveWriter;
     }
 
     // ── owner ────────────────────────────────────────────────────────────────
@@ -90,6 +100,17 @@ public class GalleryController {
         return ResponseEntity.ok(galleryService.completePhotoUpload(photoId, request));
     }
 
+    /**
+     * Deletes one delivered photo and its derivatives. Scoped to the caller's
+     * tenant by RLS, so a photo id from another photographer's gallery simply
+     * does not resolve.
+     */
+    @DeleteMapping("/galleries/photos/{photoId}")
+    public ResponseEntity<Void> deletePhoto(@PathVariable UUID photoId, HttpServletRequest http) {
+        galleryService.deletePhoto(photoId, ClientIp.from(http));
+        return ResponseEntity.noContent().build();
+    }
+
     // ── public (token-addressed client view) ─────────────────────────────────
 
     /**
@@ -105,5 +126,39 @@ public class GalleryController {
         return ResponseEntity.ok(tenantResolver.inTenantContext(
             photographer.tenant(),
             () -> galleryService.getPublicByToken(token, photographer.displayName())));
+    }
+
+    /**
+     * Downloads the whole gallery as a ZIP.
+     *
+     * <p>Streamed rather than assembled: the body is written straight to the
+     * socket as each photo is read from object storage, so a multi-gigabyte
+     * delivery costs one buffer instead of a temp file or a heap full of
+     * images. That is also why the response carries no Content-Length — the
+     * total is not known until the last entry is written, and browsers handle
+     * a chunked download of unknown size fine.
+     */
+    @GetMapping("/public/galleries/{subdomain}/{token}/download")
+    public ResponseEntity<StreamingResponseBody> downloadGallery(
+        @PathVariable String subdomain,
+        @PathVariable String token
+    ) {
+        var photographer = tenantResolver.requirePhotographer(subdomain);
+
+        // Resolved inside the tenant context, before streaming starts, so any
+        // rejection (bad token, expired, downloads disabled) still becomes a
+        // clean 404 — once the first byte is written the status is fixed.
+        GalleryDownloadPlan plan = tenantResolver.inTenantContext(
+            photographer.tenant(), () -> galleryService.prepareDownload(token));
+
+        StreamingResponseBody body = out -> archiveWriter.writeTo(plan, out);
+
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                .filename(plan.archiveName())
+                .build()
+                .toString())
+            .body(body);
     }
 }

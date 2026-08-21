@@ -10,9 +10,29 @@ import type { PublicGalleryPayload, DeliveryPhoto } from './page';
  * account. A lightbox opens on click; downloads are offered only when the
  * photographer left downloads enabled.
  */
-export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
+export default function GalleryView({
+  data,
+  subdomain,
+  token,
+}: {
+  data: PublicGalleryPayload;
+  subdomain: string;
+  token: string;
+}) {
   const [active, setActive] = useState<DeliveryPhoto | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+
+  /**
+   * "Download all" is a plain link, not a fetch: the API streams the ZIP as
+   * chunked transfer of unknown length, so buffering it into a blob the way
+   * single-photo download does would hold an entire wedding gallery — several
+   * gigabytes — in the tab's memory before writing anything. A same-origin
+   * navigation lets the browser stream it straight to disk, and the
+   * Content-Disposition header carries the filename.
+   */
+  const archiveHref = `/api/public/galleries/${encodeURIComponent(
+    subdomain
+  )}/${encodeURIComponent(token)}/download`;
 
   /**
    * Saves a photo to disk.
@@ -86,6 +106,14 @@ export default function GalleryView({ data }: { data: PublicGalleryPayload }) {
           {data.photos.length > 0 &&
             ` · ${data.photos.length} photo${data.photos.length === 1 ? '' : 's'}`}
         </p>
+        {data.downloadEnabled && data.photos.length > 0 && (
+          <a href={archiveHref} style={styles.downloadAll} download>
+            Download all {data.photos.length} photos
+          </a>
+        )}
+        {data.watermarkEnabled && data.photos.length > 0 && (
+          <p style={styles.watermarkNote}>These previews carry the photographer’s watermark.</p>
+        )}
       </header>
 
       {data.photos.length === 0 ? (
@@ -180,6 +208,18 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: { fontSize: '2.2rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0 },
   meta: { fontSize: '0.95rem', color: '#a1a1aa', marginTop: 10 },
+  downloadAll: {
+    display: 'inline-block',
+    marginTop: 22,
+    background: '#fff',
+    color: '#0f0f12',
+    fontWeight: 600,
+    fontSize: '0.88rem',
+    padding: '11px 22px',
+    borderRadius: 10,
+    textDecoration: 'none',
+  },
+  watermarkNote: { fontSize: '0.82rem', color: '#71717a', marginTop: 14 },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',

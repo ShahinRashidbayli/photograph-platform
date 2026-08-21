@@ -33,6 +33,17 @@ interface BookingOption {
   eventDate: string;
 }
 
+interface DeliveryPhoto {
+  id: string;
+  viewUrl: string | null;
+  thumbnailUrl: string | null;
+  originalFilename: string | null;
+  fileSizeBytes: number | null;
+  width: number | null;
+  height: number | null;
+  sortOrder: number;
+}
+
 interface InitiateUploadResponse {
   photoId: string;
   r2Key: string;
@@ -266,6 +277,131 @@ function GalleryListItem({
 }
 
 // ─── GalleryDetail ────────────────────────────────────────────────────────────
+
+/**
+ * The delivered photos, with a per-photo delete.
+ *
+ * <p>The detail panel used to show only a count, so a photographer who
+ * uploaded the wrong file — a duplicate, a frame with someone's eyes shut, a
+ * photo from a different shoot — had no way to take it back short of deleting
+ * the whole gallery and re-uploading it. The client, meanwhile, could already
+ * see it.
+ *
+ * <p>Re-fetches whenever {@code photoCount} changes, which is exactly when an
+ * upload or a delete has landed.
+ */
+function GalleryPhotos({
+  galleryId,
+  photoCount,
+  styles,
+  colors,
+  onDeleted,
+}: Readonly<{
+  galleryId: string;
+  photoCount: number;
+  styles: AppStyles;
+  colors: AppColors;
+  onDeleted: () => void;
+}>) {
+  const { t } = useTranslation();
+  const [photos, setPhotos] = useState<DeliveryPhoto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api
+      .get<DeliveryPhoto[]>(`/api/galleries/${galleryId}/photos`)
+      .then(({ data }) => {
+        if (!cancelled && Array.isArray(data)) setPhotos(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPhotos([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    // Cancelled on unmount and on gallery switch so a slow response for the
+    // previous gallery cannot paint its photos into the newly-selected one.
+    return () => {
+      cancelled = true;
+    };
+  }, [galleryId, photoCount]);
+
+  async function remove(photo: DeliveryPhoto) {
+    const name = photo.originalFilename || 'this photo';
+    if (!window.confirm(`Delete ${name}? The client will no longer see it. This cannot be undone.`))
+      return;
+    setDeletingId(photo.id);
+    setDeleteError(null);
+    try {
+      await api.delete(`/api/galleries/photos/${photo.id}`);
+      setPhotos((current) => current.filter((p) => p.id !== photo.id));
+      onDeleted();
+    } catch {
+      // Without this the rejection was unhandled and the row simply stayed
+      // put — indistinguishable from a click that never registered, on an
+      // action the photographer believes removed a client's photo.
+      setDeleteError(t('galleries.detail.deletePhotoError'));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  if (loading) {
+    return <div style={{ color: colors.textMuted, fontSize: '0.85rem' }}>Loading photos…</div>;
+  }
+  if (photos.length === 0) {
+    return (
+      <div style={{ color: colors.textMuted, fontSize: '0.85rem' }}>
+        No photos yet — upload the delivery above.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {deleteError && (
+        <div
+          role="alert"
+          style={{ color: colors.dangerText, fontSize: '0.82rem', marginBottom: 10 }}
+        >
+          {deleteError}
+        </div>
+      )}
+      <div style={styles.photoGrid}>
+        {photos.map((photo) => (
+          <div key={photo.id} style={styles.photoCell}>
+            {photo.thumbnailUrl || photo.viewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photo.thumbnailUrl || photo.viewUrl || ''}
+                alt={photo.originalFilename || 'Delivered photo'}
+                style={styles.photoImg}
+                loading="lazy"
+              />
+            ) : (
+              <div style={{ ...styles.photoImg, ...styles.photoFallback }}>No preview</div>
+            )}
+            <button
+              type="button"
+              onClick={() => remove(photo)}
+              disabled={deletingId === photo.id}
+              style={styles.photoDelete}
+              aria-label={`Delete ${photo.originalFilename || 'photo'}`}
+              title={t('galleries.detail.deletePhoto')}
+            >
+              {deletingId === photo.id ? '…' : '×'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function GalleryDetail({
   gallery,
   subdomain,
@@ -275,6 +411,7 @@ function GalleryDetail({
   onPatch,
   onDelete,
   onUpload,
+  onPhotosChanged,
 }: Readonly<{
   gallery: Gallery | null;
   subdomain: string | null;
@@ -284,6 +421,7 @@ function GalleryDetail({
   onPatch: (_id: string, _body: Record<string, unknown>) => void;
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
+  onPhotosChanged: () => void;
 }>) {
   // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
   // can tell the user to copy the link manually instead of appearing inert.
@@ -423,6 +561,17 @@ function GalleryDetail({
             <div style={styles.statBoxLabel}>{t('galleries.detail.daysLeft')}</div>
             <div style={styles.statBoxValue}>{days === null ? '∞' : days < 0 ? '—' : days}</div>
           </div>
+        </div>
+
+        <div style={styles.section}>
+          <div style={styles.sectionTitle}>{t('galleries.detail.photos')}</div>
+          <GalleryPhotos
+            galleryId={gallery.id}
+            photoCount={gallery.photoCount}
+            styles={styles}
+            colors={colors}
+            onDeleted={onPhotosChanged}
+          />
         </div>
 
         <div style={styles.section}>
@@ -1101,6 +1250,7 @@ export default function GalleriesPage() {
             onPatch={patchGallery}
             onDelete={deleteGallery}
             onUpload={uploadPhotos}
+            onPhotosChanged={loadGalleries}
           />
         </div>
       </div>

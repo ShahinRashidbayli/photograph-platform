@@ -29,6 +29,9 @@ export const galleries: Record<keyof EnGalleries, string> = {
 
   'galleries.detail.selectPrompt': 'Wähle eine Galerie aus',
   'galleries.detail.photos': 'Fotos',
+  'galleries.detail.deletePhoto': 'Foto löschen',
+  'galleries.detail.deletePhotoError':
+    'Das Foto konnte nicht gelöscht werden. Bitte erneut versuchen.',
   'galleries.detail.views': 'Aufrufe',
   'galleries.detail.daysLeft': 'Tage übrig',
   'galleries.detail.accessInfo': 'Zugriff',

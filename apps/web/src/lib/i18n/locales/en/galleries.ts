@@ -33,6 +33,8 @@ export const galleries = {
 
   'galleries.detail.selectPrompt': 'Select a gallery to view',
   'galleries.detail.photos': 'Photos',
+  'galleries.detail.deletePhoto': 'Delete photo',
+  'galleries.detail.deletePhotoError': 'Could not delete that photo. Please try again.',
   'galleries.detail.views': 'Views',
   'galleries.detail.daysLeft': 'Days left',
   'galleries.detail.accessInfo': 'Access Information',

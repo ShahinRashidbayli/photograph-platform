@@ -77,5 +77,5 @@ export default async function PublicGalleryPage({ params }: Props) {
   const data = await fetchGallery(subdomain, token);
   if (!data) notFound();
 
-  return <GalleryView data={data} />;
+  return <GalleryView data={data} subdomain={subdomain} token={token} />;
 }

@@ -1,13 +1,19 @@
 package com.photographplatform.api.portfolio.service;
 
 import com.photographplatform.api.portfolio.config.R2Properties;
+import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
+import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -85,6 +91,47 @@ public class R2StorageService {
                 .build();
         ResponseBytes<GetObjectResponse> resp = s3Client.getObjectAsBytes(getRequest);
         return resp.asByteArray();
+    }
+
+    /**
+     * Opens an object for streaming.
+     *
+     * <p>Unlike {@link #downloadBytes(String)} this never materialises the
+     * object in heap, which is what makes a gallery ZIP possible: a 400-photo
+     * wedding delivery is several gigabytes, and buffering even one photo per
+     * request across a few concurrent downloads is enough to take the
+     * container down. The caller owns the stream and must close it.
+     */
+    public InputStream openStream(String r2Key) {
+        software.amazon.awssdk.services.s3.model.GetObjectRequest getRequest =
+            software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                .bucket(props.getBucket())
+                .key(r2Key)
+                .build();
+        return s3Client.getObject(getRequest);
+    }
+
+    /**
+     * Removes objects from the bucket, ignoring any that are already gone.
+     *
+     * <p>Null and blank keys are filtered out rather than rejected: callers
+     * delete a photo's whole derivative set at once (original, thumbnail,
+     * watermark) and some of those are legitimately absent — a photo deleted
+     * before processing finished never had a thumbnail.
+     */
+    public void deleteObjects(List<String> r2Keys) {
+        List<ObjectIdentifier> ids = r2Keys.stream()
+            .filter(Objects::nonNull)
+            .filter(k -> !k.isBlank())
+            .map(k -> ObjectIdentifier.builder().key(k).build())
+            .toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        s3Client.deleteObjects(DeleteObjectsRequest.builder()
+            .bucket(props.getBucket())
+            .delete(Delete.builder().objects(ids).build())
+            .build());
     }
 
     /**

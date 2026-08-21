@@ -23,7 +23,9 @@ import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -108,6 +110,81 @@ class InvoiceServiceIT extends IntegrationTestBase {
             "203.0.113.5"
         ));
         assertThat(second.invoiceNumber()).matches("\\d{4}-0002");
+    }
+
+
+    /**
+     * The DATEV export is the "your Steuerberater gets it in one click" wedge,
+     * and it had no coverage at all while being exposed in Settings. The format
+     * is unforgiving: DATEV's importer rejects the file outright — not
+     * partially, not with a warning — if the EXTF header, the encoding or the
+     * line endings are wrong, and none of that is visible by eyeballing the
+     * CSV in a UTF-8 editor.
+     */
+    @Test
+    void datevExportProducesAnImportableBuchungsstapel() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        when(r2StorageService.generateDownloadUrl(anyString())).thenReturn("https://cdn.example/i.pdf");
+
+        InvoiceResponse invoice = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Hochzeitspaket", BigDecimal.ONE, 180_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null
+            ),
+            "203.0.113.5"
+        ));
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        asUser(fx, () -> {
+            invoiceService.exportDatevCsv(out, LocalDate.now().getYear());
+            return null;
+        });
+
+        // Windows-1252, not UTF-8 — decoding as UTF-8 would mangle every umlaut
+        // in a German business name and hide the bug.
+        String csv = new String(out.toByteArray(), Charset.forName("windows-1252"));
+
+        assertThat(csv).startsWith("\"EXTF\";700;21;\"Buchungsstapel\";");
+        assertThat(csv).contains("Anna Fotografie");
+        assertThat(csv.split("\r\n"))
+            .as("DATEV requires CRLF; a bare \\n makes the file unreadable to it")
+            .hasSizeGreaterThanOrEqualTo(3);
+        assertThat(csv).doesNotContain("\n\n");
+
+        // The booking's gross total, DATEV-style: comma decimal separator.
+        assertThat(csv).contains("2142,00");
+        assertThat(csv).contains(invoice.invoiceNumber());
+    }
+
+    @Test
+    void datevExportIsScopedToTheRequestedFiscalYear() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        when(r2StorageService.generateDownloadUrl(anyString())).thenReturn("https://cdn.example/i.pdf");
+
+        asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Hochzeitspaket", BigDecimal.ONE, 180_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null
+            ),
+            "203.0.113.5"
+        ));
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        asUser(fx, () -> {
+            invoiceService.exportDatevCsv(out, LocalDate.now().getYear() - 1);
+            return null;
+        });
+        String csv = new String(out.toByteArray(), Charset.forName("windows-1252"));
+
+        // A prior year with no invoices still yields a valid, empty batch —
+        // handing the Steuerberater last year's turnover would be worse than
+        // handing them nothing.
+        assertThat(csv).startsWith("\"EXTF\"");
+        assertThat(csv).doesNotContain("2142,00");
     }
 
     @Test

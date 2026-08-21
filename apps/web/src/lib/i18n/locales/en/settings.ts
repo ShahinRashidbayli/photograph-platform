@@ -136,6 +136,13 @@ export const settings = {
   'settings.stripe.refresh': 'Refresh status',
   'settings.stripe.statusError': 'Could not load your payout status.',
   'settings.stripe.onboardingError': 'Could not open Stripe onboarding.',
+  'settings.datev.title': 'DATEV export',
+  'settings.datev.description':
+    'Hand your tax advisor a DATEV Buchungsstapel (EXTF) of every invoice you issued in a fiscal year. Cancelled invoices and their storno documents are both included, as GoBD requires.',
+  'settings.datev.year': 'Fiscal year',
+  'settings.datev.download': 'Download CSV',
+  'settings.datev.accountsNotice':
+    'The export uses SKR03 standard accounts (debtor 10000, revenue 8400 / 8337 for Kleinunternehmer). Have your tax advisor confirm these match your chart of accounts before importing — the structure is correct, but the account mapping is their call.',
 } as const;
 
 export type EnSettings = typeof settings;

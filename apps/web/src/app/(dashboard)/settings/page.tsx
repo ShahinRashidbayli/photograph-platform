@@ -9,7 +9,7 @@ import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
-import { BillingProfileSection, StripeConnectSection } from './BillingSettings';
+import { BillingProfileSection, DatevExportSection, StripeConnectSection } from './BillingSettings';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export default function SettingsPage() {
@@ -457,6 +457,10 @@ export default function SettingsPage() {
           <StripeConnectSection />
         </React.Suspense>
       )}
+
+      {/* Bookkeeping handover. Sits under the invoicing identity because the
+          export's header carries the business name configured above. */}
+      {isPhotographer && <DatevExportSection />}
 
       {/* Billing — the tenant's subscription; never shown to clients */}
       {isPhotographer && (

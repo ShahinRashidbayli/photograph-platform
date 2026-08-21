@@ -484,3 +484,85 @@ export function StripeConnectSection() {
     </Card>
   );
 }
+
+/**
+ * DATEV Buchungsstapel export — the "your Steuerberater gets the export in one
+ * click" promise the product is sold on.
+ *
+ * <p>The exporter has been complete on the backend for a while
+ * ({@code GET /api/invoices/export.datev.csv}: EXTF format 21, version 700,
+ * windows-1252, CRLF) with nothing in the UI reaching it — and the storno
+ * confirmation dialog already told photographers their cancelled invoices
+ * "stay in the DATEV export", describing a file they had no way to obtain.
+ *
+ * <p>A plain link, not a fetch: the endpoint streams the file and sets its own
+ * Content-Disposition filename, and the session cookie rides along on a
+ * same-origin navigation. Buffering it through JS would only lose the filename.
+ */
+export function DatevExportSection() {
+  const c = useColors();
+  const { t } = useTranslation();
+
+  // Bookkeeping is done per fiscal year, and the year you export is almost
+  // always the current one or the one just closed.
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const [year, setYear] = useState(String(currentYear));
+
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <section aria-labelledby="settings-datev">
+        <SectionHeading id="settings-datev" title={t('settings.datev.title')}>
+          {t('settings.datev.description')}
+        </SectionHeading>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 140 }}>
+            <Field label={t('settings.datev.year')}>
+              {(props) => (
+                <Select {...props} value={year} onChange={(e) => setYear(e.target.value)}>
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+          <a
+            href={`/api/invoices/export.datev.csv?year=${year}`}
+            download
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 16px',
+              borderRadius: 8,
+              border: `1px solid ${c.border}`,
+              background: c.surfaceAlt,
+              color: c.text,
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              marginBottom: 2,
+            }}
+          >
+            {t('settings.datev.download')}
+          </a>
+        </div>
+
+        {/*
+          Not a disclaimer for its own sake. DatevInvoiceExporter posts against
+          SKR03 placeholder accounts (debtor 10000, revenue 8400 / 8337) and
+          says in its own javadoc that a real deployment needs its Steuerberater
+          to confirm or replace them. Shipping a one-click export without
+          saying so would hand someone a file they'd file as correct.
+        */}
+        <Alert tone="warning" style={{ marginTop: 16 }}>
+          {t('settings.datev.accountsNotice')}
+        </Alert>
+      </section>
+    </Card>
+  );
+}

@@ -138,4 +138,11 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.stripe.refresh': 'Status aktualisieren',
   'settings.stripe.statusError': 'Dein Auszahlungsstatus konnte nicht geladen werden.',
   'settings.stripe.onboardingError': 'Stripe-Einrichtung konnte nicht geöffnet werden.',
+  'settings.datev.title': 'DATEV-Export',
+  'settings.datev.description':
+    'Übergeben Sie Ihrem Steuerberater einen DATEV-Buchungsstapel (EXTF) aller Rechnungen eines Geschäftsjahres. Stornierte Rechnungen und ihre Stornobelege sind enthalten, wie von der GoBD gefordert.',
+  'settings.datev.year': 'Geschäftsjahr',
+  'settings.datev.download': 'CSV herunterladen',
+  'settings.datev.accountsNotice':
+    'Der Export verwendet SKR03-Standardkonten (Debitor 10000, Erlöse 8400 bzw. 8337 bei Kleinunternehmern). Lassen Sie Ihren Steuerberater vor dem Import prüfen, ob diese zu Ihrem Kontenrahmen passen — die Struktur stimmt, die Kontenzuordnung ist seine Entscheidung.',
 };

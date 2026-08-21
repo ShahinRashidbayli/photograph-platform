@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { parseApiDate } from '@/lib/date';
+import { useTranslation } from '@/lib/i18n';
 import type { PublicGalleryPayload, DeliveryPhoto } from './page';
 
 /**
@@ -19,6 +19,7 @@ export default function GalleryView({
   subdomain: string;
   token: string;
 }) {
+  const { format } = useTranslation();
   const [active, setActive] = useState<DeliveryPhoto | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
 
@@ -88,13 +89,13 @@ export default function GalleryView({
     };
   }, [active]);
 
-  const shot = data.shootDate
-    ? parseApiDate(data.shootDate).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : null;
+  // Formatted through the app's i18n layer, not `toLocaleDateString(undefined)`.
+  // `undefined` means "whatever locale this runtime defaults to", which is not
+  // the same on both sides of an SSR render: Node produced "November 20, 2026"
+  // while a Turkish browser produced "20 Kasım 2026", and React threw away the
+  // server tree and re-rendered on the client. `format` is pinned to the source
+  // locale until after mount for exactly this reason, so both sides agree.
+  const shot = data.shootDate ? format.dayMonthYearLong(data.shootDate) : null;
 
   return (
     <div style={styles.page}>

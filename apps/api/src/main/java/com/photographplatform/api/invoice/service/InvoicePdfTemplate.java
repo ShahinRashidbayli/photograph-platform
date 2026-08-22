@@ -41,7 +41,11 @@ public final class InvoicePdfTemplate {
 
         String stornoNotice = stornoTarget != null
             ? "<p class=\"notice\">Storno-Rechnung zu Rechnung <strong>" + esc(stornoTarget.getInvoiceNumber())
-                + "</strong> vom " + stornoTarget.getIssuedAt().format(DATE) + ".</p>"
+                + "</strong> vom "
+                // Through InvoiceDate, like every other invoice date: citing
+                // the original from its raw timestamp let a storno claim a
+                // different date than the invoice it cancels prints on itself.
+                + InvoiceDate.of(stornoTarget.getIssuedAt()).format(DATE) + ".</p>"
             : "";
 
         String kleinunternehmerNotice = invoice.getTaxMode() == TaxMode.KLEINUNTERNEHMER

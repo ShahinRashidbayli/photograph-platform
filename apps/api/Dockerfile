@@ -28,10 +28,16 @@ RUN mvn -B -q clean package -DskipTests
 # ─────────────────────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
-# curl is for the healthcheck; fontconfig + ttf-dejavu are NOT optional — the
-# invoice PDF renderer (openhtmltopdf) and the thumbnail pipeline both run
-# through java.awt, which aborts on a headless image with no fontconfig.
-# Without them, invoice PDFs fail at runtime and nowhere else.
+# curl is for the healthcheck.
+#
+# fontconfig + ttf-dejavu are for java.awt, which the gallery watermark draws
+# through: WatermarkRenderer asks for a SANS_SERIF font and calls drawString,
+# and on a headless image with no fontconfig that fails at runtime and nowhere
+# else. The thumbnail path shares the same AWT initialisation.
+#
+# The invoice PDF no longer depends on them — it embeds its own font from the
+# classpath (see InvoicePdfRenderer), precisely so the rendered document
+# cannot vary with the base image's font set.
 RUN apk add --no-cache curl fontconfig ttf-dejavu
 
 # Never run the app as root.

@@ -53,6 +53,21 @@ class InvoiceDateTest {
             .isEqualTo(LocalDate.of(2026, 9, 1));
     }
 
+    /**
+     * The storno notice cites the invoice it cancels ("Storno-Rechnung zu
+     * Rechnung X vom …"). It read the original's raw timestamp, so a
+     * cancellation could print a different date than the invoice it cancels
+     * shows on itself — two documents contradicting each other inside one GoBD
+     * record set.
+     */
+    @Test
+    void datesTheCancelledInvoiceTheSameWayThatInvoiceDatesItself() {
+        OffsetDateTime original = OffsetDateTime.parse("2026-08-22T00:43:37+04:00");
+
+        assertThat(InvoiceDate.of(original))
+            .isEqualTo(InvoiceDate.of(original.withOffsetSameInstant(ZoneOffset.UTC)));
+    }
+
     /** Winter: Berlin is CET (+01:00), so the same reasoning holds with one hour. */
     @Test
     void handlesTheWinterOffsetToo() {

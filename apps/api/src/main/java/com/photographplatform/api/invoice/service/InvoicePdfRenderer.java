@@ -1,7 +1,6 @@
 package com.photographplatform.api.invoice.service;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import com.openhtmltopdf.util.XRRuntimeException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,7 +74,7 @@ public class InvoicePdfRenderer {
         try {
             return new ClassPathResource(path).getInputStream();
         } catch (IOException e) {
-            throw new XRRuntimeException("Invoice font " + path + " is missing from the jar", e);
+            throw new IllegalStateException("Invoice font " + path + " is missing from the jar", e);
         }
     }
 

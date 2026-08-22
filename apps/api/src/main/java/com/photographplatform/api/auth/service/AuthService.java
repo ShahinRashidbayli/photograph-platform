@@ -12,14 +12,17 @@ import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.billing.config.BillingProperties;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -58,6 +61,8 @@ public class AuthService {
     private final AuditService auditService;
     private final EmailVerificationService emailVerificationService;
     private final AvatarUrlResolver avatarUrlResolver;
+    private final BillingProperties billingProperties;
+    private final Clock clock;
     private final long refreshTokenExpiryMs;
 
     /**
@@ -77,6 +82,8 @@ public class AuthService {
         AuditService auditService,
         EmailVerificationService emailVerificationService,
         AvatarUrlResolver avatarUrlResolver,
+        BillingProperties billingProperties,
+        Clock clock,
         @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs
     ) {
         this.tenantRepository = tenantRepository;
@@ -88,6 +95,8 @@ public class AuthService {
         this.auditService = auditService;
         this.emailVerificationService = emailVerificationService;
         this.avatarUrlResolver = avatarUrlResolver;
+        this.billingProperties = billingProperties;
+        this.clock = clock;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
         this.dummyBcryptHash = passwordEncoder.encode(
             "timing-equalization-placeholder-" + UUID.randomUUID());
@@ -117,11 +126,21 @@ public class AuthService {
         Tenant tenant;
         try {
             Tenant fresh = new Tenant(normalizedSubdomain, normalizedEmail);
-            // Honour the plan chosen on the pricing page; the entity already
-            // defaults to STARTER when the signup came from elsewhere.
+            // The plan picked on the pricing page selects which tier the trial
+            // runs on — every tier is free for the trial window, so trusting
+            // the client here still grants nothing it would not otherwise get.
+            // What changed is that the grant is now time-boxed: without the
+            // trial deadline below, a POST of plan=STUDIO bought Studio
+            // forever, for free. RegisterRequest's javadoc called that out as
+            // the thing to fix "the moment plan gates or billing land".
+            //
+            // After the trial the plan comes from the Stripe subscription, not
+            // from here — see BillingService.
             if (req.plan() != null && !req.plan().isBlank()) {
-                fresh.setPlan(req.plan());
+                fresh.setPlan(Plan.from(req.plan()));
             }
+            fresh.setTrialEndsAt(
+                OffsetDateTime.now(clock).plusDays(billingProperties.getTrialDays()));
             tenant = tenantRepository.save(fresh);
         } catch (DataIntegrityViolationException ex) {
             // Race: two registrations sharing the same subdomain or email.

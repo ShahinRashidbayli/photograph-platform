@@ -46,3 +46,31 @@ app:
     secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=  # pragma: allowlist secret
     access-token-expiry-ms: 86400000
     refresh-token-expiry-ms: 2592000000
+  # Mirrors app.plans in src/main/resources/application.yml. Required, not
+  # optional: EntitlementProperties refuses to start with a tier missing, so
+  # omitting this here fails every @SpringBootTest at context load rather than
+  # at a gate — which is the drift this file's header warns about, arriving
+  # immediately instead of silently.
+  plans:
+    tiers:
+      starter:
+        gallery-retention-days: 60
+        seats: 1
+        fair-use-storage-gb: 50
+        capabilities: []
+      pro:
+        gallery-retention-days: 365
+        seats: 1
+        fair-use-storage-gb: 250
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+      studio:
+        gallery-retention-days: 730
+        seats: 3
+        fair-use-storage-gb: 1024
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+          - ANALYTICS
+          - WHITE_LABEL_BRANDING

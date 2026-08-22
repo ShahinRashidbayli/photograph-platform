@@ -1,5 +1,6 @@
 package com.photographplatform.api.auth.controller;
 
+import com.photographplatform.api.common.security.AllowedWhenReadOnly;
 import com.photographplatform.api.auth.dto.AuthResponse;
 import com.photographplatform.api.auth.dto.AvatarPresignResponse;
 import com.photographplatform.api.auth.dto.AuthResult;
@@ -38,6 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
+// Session management must survive the read-only lock: a photographer who
+// cannot log in cannot see why they are locked out, and cannot reach the
+// billing screen that ends it.
+@AllowedWhenReadOnly
 public class AuthController {
 
     private final AuthService authService;

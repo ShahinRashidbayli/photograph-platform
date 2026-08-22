@@ -1,5 +1,6 @@
 package com.photographplatform.api.invoice.service;
 
+import com.photographplatform.api.common.util.BusinessZone;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -33,8 +34,12 @@ public final class InvoiceDate {
 
     /**
      * Handles CET/CEST automatically, which a fixed UTC+1 offset would not.
+     *
+     * <p>Now shared with the rest of the product via {@link BusinessZone} —
+     * gallery retention and trial expiry count days on the same calendar, and
+     * a second copy of this constant is exactly the thing that drifts.
      */
-    public static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Berlin");
+    public static final ZoneId BUSINESS_ZONE = BusinessZone.ID;
 
     private InvoiceDate() {
     }

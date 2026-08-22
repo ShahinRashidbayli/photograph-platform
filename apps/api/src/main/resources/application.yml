@@ -198,6 +198,43 @@ app:
     # true for the local MinIO container, false for Cloudflare R2. A mismatch
     # signs every presigned URL for the wrong host — see R2Properties#pathStyle.
     path-style: ${R2_PATH_STYLE:false}
+  # The plan → capabilities table (PRICING.md §6.3). One source of truth, read
+  # by the API's gates and served to the frontend at GET /api/entitlements so
+  # the two can never disagree about what a tier includes.
+  #
+  # Configuration rather than constants because PRICING.md is explicit that its
+  # tiers are still a DRAFT — a retention window or a seat count has to be
+  # changeable without a recompile. The commission rate is the one entitlement
+  # NOT here: it stays at app.stripe.commission below, where it is validated
+  # and where infra/.env.example already documents it. EntitlementService folds
+  # it into the same object so callers still read one thing.
+  plans:
+    tiers:
+      starter:
+        gallery-retention-days: ${PLAN_STARTER_RETENTION_DAYS:60}
+        seats: 1
+        fair-use-storage-gb: 50
+        capabilities: []
+      pro:
+        gallery-retention-days: ${PLAN_PRO_RETENTION_DAYS:365}
+        seats: 1
+        fair-use-storage-gb: 250
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+      studio:
+        gallery-retention-days: ${PLAN_STUDIO_RETENTION_DAYS:730}
+        seats: 3
+        fair-use-storage-gb: 1024
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+          - ANALYTICS
+          - WHITE_LABEL_BRANDING
+  # Fotolio's own subscription with the photographer (V20). Distinct from
+  # app.stripe below, which moves the photographer's clients' money.
+  billing:
+    trial-days: ${BILLING_TRIAL_DAYS:14}
   stripe:
     # Blank (not a placeholder like r2.endpoint above) is deliberate here:
     # StripeConfig's @ConditionalOnProperty requires a non-empty value, so the

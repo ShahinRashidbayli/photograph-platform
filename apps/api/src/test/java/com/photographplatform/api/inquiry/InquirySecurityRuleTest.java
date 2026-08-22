@@ -1,5 +1,7 @@
 package com.photographplatform.api.inquiry;
 
+import com.photographplatform.api.entitlement.service.EntitlementService;
+import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.config.SecurityConfig;
 import com.photographplatform.api.common.security.JwtAuthFilter;
@@ -91,6 +93,19 @@ class InquirySecurityRuleTest {
     }
 
     // ── the customer's own surface ────────────────────────────────────────────
+
+    /**
+     * WriteAccessInterceptor sits in the real chain these slices run through,
+     * so its collaborators have to exist. Mocked rather than configured: this
+     * test is about the role boundary, and a mocked requireWritable() is inert,
+     * which keeps the read-only lock from quietly becoming the thing under
+     * test. The lock has its own coverage in WriteAccessInterceptorTest.
+     */
+    @MockitoBean
+    private TenantRepository tenantRepository;
+
+    @MockitoBean
+    private EntitlementService entitlementService;
 
     @Test
     void customerCanSubmitAnInquiry() throws Exception {

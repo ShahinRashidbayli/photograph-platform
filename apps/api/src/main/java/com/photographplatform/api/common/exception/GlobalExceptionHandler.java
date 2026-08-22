@@ -42,6 +42,32 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    /**
+     * The tenant's plan does not include this feature. 402 + a structured
+     * {@code code} so the frontend renders an upgrade prompt naming the tier,
+     * not a generic "Forbidden" — see PlanUpgradeRequiredException.
+     */
+    @ExceptionHandler(PlanUpgradeRequiredException.class)
+    public ResponseEntity<Map<String, String>> handlePlanUpgradeRequired(PlanUpgradeRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(Map.of(
+            ERROR_KEY, ex.getMessage(),
+            "code", "PLAN_UPGRADE_REQUIRED",
+            "capability", ex.getCapability().name(),
+            "requiredPlan", ex.getRequiredPlan().name()
+        ));
+    }
+
+    /**
+     * Trial expired or subscription lapsed: reads still work, writes do not.
+     */
+    @ExceptionHandler(AccountReadOnlyException.class)
+    public ResponseEntity<Map<String, String>> handleAccountReadOnly(AccountReadOnlyException ex) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(Map.of(
+            ERROR_KEY, ex.getMessage(),
+            "code", "ACCOUNT_READ_ONLY"
+        ));
+    }
+
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(ERROR_KEY, ex.getMessage()));

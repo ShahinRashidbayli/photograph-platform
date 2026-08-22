@@ -82,6 +82,23 @@ public class Tenant {
     @Column(name = "stripe_onboarded_at")
     private OffsetDateTime stripeOnboardedAt;
 
+    // ── Fotolio's own subscription — the photographer pays US (V20) ──
+    // Separate from the Connect columns above in every sense: those decide
+    // whether this photographer can take money from their clients, these
+    // decide whether they may keep using the product at all.
+
+    @Column(name = "stripe_customer_id", length = 255)
+    private String stripeCustomerId;
+
+    @Column(name = "stripe_subscription_id", length = 255)
+    private String stripeSubscriptionId;
+
+    @Column(name = "subscription_status", nullable = false, length = 30)
+    private String subscriptionStatus = SubscriptionStatus.TRIALING.name();
+
+    @Column(name = "current_period_end")
+    private OffsetDateTime currentPeriodEnd;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -118,6 +135,19 @@ public class Tenant {
         return plan;
     }
 
+    /**
+     * The plan as a type rather than a string. Every branch on a tier goes
+     * through this — see {@link Plan#from(String)} for why an unreadable value
+     * degrades to STARTER instead of failing or defaulting generously.
+     */
+    public Plan plan() {
+        return Plan.from(plan);
+    }
+
+    public void setPlan(Plan plan) {
+        this.plan = plan.name();
+    }
+
     public void setPlan(String plan) {
         this.plan = plan;
     }
@@ -128,10 +158,6 @@ public class Tenant {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-
-    public OffsetDateTime getTrialEndsAt() {
-        return trialEndsAt;
     }
 
     public void setTrialEndsAt(OffsetDateTime trialEndsAt) {
@@ -261,6 +287,60 @@ public class Tenant {
     /** True when this tenant can accept a card/SEPA charge right now. */
     public boolean canAcceptStripePayments() {
         return stripeAccountId != null && !stripeAccountId.isBlank() && stripeChargesEnabled;
+    }
+
+    public String getStripeCustomerId() {
+        return stripeCustomerId;
+    }
+
+    public void setStripeCustomerId(String stripeCustomerId) {
+        this.stripeCustomerId = stripeCustomerId;
+    }
+
+    public String getStripeSubscriptionId() {
+        return stripeSubscriptionId;
+    }
+
+    public SubscriptionStatus getSubscriptionStatus() {
+        return SubscriptionStatus.from(subscriptionStatus);
+    }
+
+    public OffsetDateTime getCurrentPeriodEnd() {
+        return currentPeriodEnd;
+    }
+
+    public OffsetDateTime getTrialEndsAt() {
+        return trialEndsAt;
+    }
+
+    /**
+     * Copies subscription state from Stripe in one call.
+     *
+     * <p>Grouped for the same reason as {@link #applyStripeCapabilities}:
+     * status, subscription id and period end are three facets of one remote
+     * object, and writing one without the others produces a local mirror that
+     * never existed at Stripe — the kind of split state that later reads as
+     * "active subscription that ended last month".
+     */
+    public void applySubscription(
+        String subscriptionId, SubscriptionStatus status, OffsetDateTime periodEnd) {
+        this.stripeSubscriptionId = subscriptionId;
+        this.subscriptionStatus = status.name();
+        this.currentPeriodEnd = periodEnd;
+    }
+
+    /** True while the advertised 14-day trial is still running. */
+    public boolean isTrialActive(OffsetDateTime now) {
+        return trialEndsAt != null && trialEndsAt.isAfter(now);
+    }
+
+    /**
+     * True when a paid subscription currently entitles this tenant, ignoring
+     * the trial. See {@link SubscriptionStatus#grantsAccess()} for why
+     * PAST_DUE still counts.
+     */
+    public boolean hasActiveSubscription() {
+        return getSubscriptionStatus().grantsAccess();
     }
 
     /**

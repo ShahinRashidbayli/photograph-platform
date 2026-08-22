@@ -1,5 +1,6 @@
 package com.photographplatform.api.auth.controller;
 
+import com.photographplatform.api.common.security.AllowedWhenReadOnly;
 import com.photographplatform.api.auth.dto.AuthResponse;
 import com.photographplatform.api.auth.dto.AuthResult;
 import com.photographplatform.api.auth.dto.CustomerMagicLinkRequest;
@@ -28,6 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/auth/customer")
+// Clients are not the party being billed — their magic-link login keeps
+// working regardless of the photographer's subscription state.
+@AllowedWhenReadOnly
 public class CustomerAuthController {
 
     private final CustomerAuthService service;

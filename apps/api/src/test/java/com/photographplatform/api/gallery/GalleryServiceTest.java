@@ -1,5 +1,16 @@
 package com.photographplatform.api.gallery;
 
+import com.photographplatform.api.entitlement.domain.Capability;
+import com.photographplatform.api.entitlement.domain.Entitlements;
+import com.photographplatform.api.entitlement.domain.TenantAccess;
+import com.photographplatform.api.entitlement.service.EntitlementService;
+import com.photographplatform.api.gallery.dto.PublicGalleryResponse;
+import com.photographplatform.api.tenant.domain.Plan;
+import com.photographplatform.api.tenant.domain.SubscriptionStatus;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.EnumSet;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.config.TenantContext;
@@ -45,12 +56,16 @@ class GalleryServiceTest {
     private static final UUID ACTOR_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
     private static final String IP = "203.0.113.11";
+    private static final Clock FIXED_CLOCK =
+        Clock.fixed(Instant.parse("2026-08-22T10:00:00Z"), ZoneOffset.UTC);
+    private static final OffsetDateTime NOW = OffsetDateTime.now(FIXED_CLOCK);
 
     private GalleryRepository galleryRepository;
     private DeliveryPhotoRepository deliveryPhotoRepository;
     private BookingRepository bookingRepository;
     private AuditService auditService;
     private DeliveryPhotoProcessor photoProcessor;
+    private EntitlementService entitlementService;
     private GalleryService galleryService;
 
     @BeforeEach
@@ -60,10 +75,18 @@ class GalleryServiceTest {
         bookingRepository = mock(BookingRepository.class);
         auditService = mock(AuditService.class);
         photoProcessor = mock(DeliveryPhotoProcessor.class);
+        // Retention now comes from the plan, so create() asks for it. Starter's
+        // 60 days keeps these assertions readable; the retention rules
+        // themselves are covered in GalleryRetentionIT.
+        entitlementService = mock(EntitlementService.class);
+        when(entitlementService.accessForCurrentTenant()).thenReturn(new TenantAccess(
+            new Entitlements(Plan.STARTER, EnumSet.noneOf(Capability.class), 60, 1, 200, 0L),
+            true, null, null, SubscriptionStatus.TRIALING));
 
         galleryService = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
-            Optional.<R2StorageService>empty(), auditService, photoProcessor);
+            Optional.<R2StorageService>empty(), auditService, photoProcessor,
+            entitlementService, FIXED_CLOCK);
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -82,7 +105,7 @@ class GalleryServiceTest {
         when(bookingRepository.existsById(bookingId)).thenReturn(false);
 
         assertThatThrownBy(() ->
-            galleryService.create(new CreateGalleryRequest(bookingId, null, true, false), IP))
+            galleryService.create(new CreateGalleryRequest(bookingId, true, false), IP))
             .isInstanceOf(NotFoundException.class);
 
         verify(galleryRepository, never()).save(any());
@@ -92,10 +115,10 @@ class GalleryServiceTest {
     void createPersistsAndAudits() {
         UUID bookingId = UUID.randomUUID();
         when(bookingRepository.existsById(bookingId)).thenReturn(true);
-        when(galleryRepository.save(any())).thenReturn(new Gallery(bookingId, null, true, false));
+        when(galleryRepository.save(any())).thenReturn(new Gallery(bookingId, NOW, 60, true, false));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        assertThat(galleryService.create(new CreateGalleryRequest(bookingId, null, true, false), IP))
+        assertThat(galleryService.create(new CreateGalleryRequest(bookingId, true, false), IP))
             .isNotNull();
 
         verify(galleryRepository).save(any());
@@ -109,7 +132,7 @@ class GalleryServiceTest {
         when(galleryRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-            galleryService.update(id, new UpdateGalleryRequest(null, false, null), IP))
+            galleryService.update(id, new UpdateGalleryRequest(false, null), IP))
             .isInstanceOf(NotFoundException.class);
 
         verify(galleryRepository, never()).save(any());
@@ -118,11 +141,11 @@ class GalleryServiceTest {
     @Test
     void updateAppliesFieldsAndAudits() {
         UUID id = UUID.randomUUID();
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        galleryService.update(id, new UpdateGalleryRequest(null, false, true), IP);
+        galleryService.update(id, new UpdateGalleryRequest(false, true), IP);
 
         assertThat(gallery.getDownloadEnabled()).isFalse();
         assertThat(gallery.getWatermarkEnabled()).isTrue();
@@ -162,14 +185,30 @@ class GalleryServiceTest {
             .isInstanceOf(NotFoundException.class);
     }
 
+    /**
+     * Changed deliberately with ADR-001: an expired gallery now answers with a
+     * tombstone rather than a 404.
+     *
+     * <p>The old reasoning was that a 404 stops an anonymous visitor probing
+     * token validity. That trade does not apply here — the URL carries a
+     * 64-character capability secret, so anyone who can read this response
+     * already held the link, and a bare 404 just reads as a broken one and
+     * becomes a support ticket for the photographer (ADR-001 §5).
+     */
     @Test
-    void publicViewTreatsExpiredGalleryAsNotFound() {
+    void publicViewOfAnExpiredGalleryReturnsATombstoneWithNoPhotos() {
         Gallery expired = new Gallery(
-            UUID.randomUUID(), OffsetDateTime.now().minusDays(1), true, false);
+            UUID.randomUUID(), NOW.minusDays(61), 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(expired));
+        when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        assertThatThrownBy(() -> galleryService.getPublicByToken("tok", "Anna"))
-            .isInstanceOf(NotFoundException.class);
+        PublicGalleryResponse response = galleryService.getPublicByToken("tok", "Anna");
+
+        assertThat(response.expired()).isTrue();
+        assertThat(response.photos()).isEmpty();
+        assertThat(response.expiresAt()).isEqualTo(NOW.minusDays(1));
+        // Nothing that would help someone browse it anyway.
+        assertThat(response.downloadEnabled()).isFalse();
 
         // No view registered on an expired gallery — it must look like it never existed.
         verify(galleryRepository, never()).save(any());
@@ -180,11 +219,11 @@ class GalleryServiceTest {
     @Test
     void switchingWatermarkOnBackfillsPhotosUploadedBeforeTheChange() {
         UUID id = UUID.randomUUID();
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        galleryService.update(id, new UpdateGalleryRequest(null, null, true), IP);
+        galleryService.update(id, new UpdateGalleryRequest(null, true), IP);
 
         // Otherwise the setting would silently apply only to future uploads.
         verify(photoProcessor).backfillWatermarks(id, TENANT_ID.toString());
@@ -193,11 +232,11 @@ class GalleryServiceTest {
     @Test
     void reSavingAnAlreadyWatermarkedGalleryDoesNotReprocess() {
         UUID id = UUID.randomUUID();
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, true);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
         when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        galleryService.update(id, new UpdateGalleryRequest(null, false, true), IP);
+        galleryService.update(id, new UpdateGalleryRequest(false, true), IP);
 
         verify(photoProcessor, never()).backfillWatermarks(any(), any());
     }
@@ -205,11 +244,11 @@ class GalleryServiceTest {
     @Test
     void switchingWatermarkOffDoesNotBackfill() {
         UUID id = UUID.randomUUID();
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, true);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
         when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
-        galleryService.update(id, new UpdateGalleryRequest(null, null, false), IP);
+        galleryService.update(id, new UpdateGalleryRequest(null, false), IP);
 
         verify(photoProcessor, never()).backfillWatermarks(any(), any());
     }
@@ -221,7 +260,7 @@ class GalleryServiceTest {
      */
     @Test
     void watermarkedGalleryWithholdsPhotosThatHaveNoDerivativeYet() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, true);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
@@ -242,7 +281,7 @@ class GalleryServiceTest {
 
     @Test
     void unwatermarkedGalleryServesEveryPhoto() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
         when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(
@@ -259,7 +298,7 @@ class GalleryServiceTest {
         R2StorageService r2 = mock(R2StorageService.class);
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
-            Optional.of(r2), auditService, photoProcessor);
+            Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK);
 
         UUID photoId = UUID.randomUUID();
         DeliveryPhoto photo = new DeliveryPhoto(UUID.randomUUID(), "t/g/a.jpg", "a.jpg");
@@ -294,7 +333,7 @@ class GalleryServiceTest {
 
     @Test
     void downloadIsNotFoundWhenTheGalleryHasDownloadsDisabled() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, false, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, false, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
 
         // 404 rather than 403: a distinguishable response would confirm to an
@@ -306,7 +345,7 @@ class GalleryServiceTest {
     @Test
     void downloadIsNotFoundWhenTheGalleryHasExpired() {
         Gallery expired = new Gallery(
-            UUID.randomUUID(), OffsetDateTime.now().minusDays(1), true, false);
+            UUID.randomUUID(), NOW.minusDays(61), 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(expired));
 
         assertThatThrownBy(() -> galleryService.prepareDownload("tok"))
@@ -315,7 +354,7 @@ class GalleryServiceTest {
 
     @Test
     void downloadOfAWatermarkedGalleryShipsTheMarkedCopiesOnly() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, true);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
 
@@ -338,7 +377,7 @@ class GalleryServiceTest {
 
     @Test
     void downloadDeDuplicatesCollidingCameraFilenames() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
         when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(
@@ -355,7 +394,7 @@ class GalleryServiceTest {
 
     @Test
     void downloadStripsPathSeparatorsFromUploadedFilenames() {
-        Gallery gallery = new Gallery(UUID.randomUUID(), null, true, false);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
         when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(

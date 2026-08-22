@@ -51,6 +51,8 @@ export const galleries = {
   'galleries.detail.uploadError': 'Some photos could not be uploaded. Please try again.',
 
   'galleries.update.error': 'Could not update the gallery.',
+  'galleries.extend.error':
+    'Could not extend the gallery. If its photos have already been deleted, they cannot be restored.',
   'galleries.delete.error': 'Could not delete the gallery.',
 
   'galleries.create.title': 'New gallery',
@@ -59,6 +61,19 @@ export const galleries = {
   'galleries.create.submit': 'Create gallery',
   'galleries.create.submitting': 'Creating…',
   'galleries.create.error': 'Could not create the gallery. Please try again.',
+
+  // Tombstone shown when a delivered gallery has passed its retention
+  // window (ADR-001). Client-facing: the recipient never chose a
+  // language in our UI, so this follows the same locale as the rest of
+  // the public gallery.
+  'gallery.expired.title': 'This gallery has expired',
+  'gallery.expired.body':
+    'The photos in this gallery were available until {date} and have since been removed.',
+  'gallery.expired.bodyNoDate': 'The photos in this gallery have since been removed.',
+  'gallery.expired.contact':
+    'Please contact {photographer} directly — they can restore the gallery on request.',
+  'gallery.expired.note':
+    'Fotolio is a delivery platform, not a long-term archive. Galleries stay online for a limited time depending on the photographer\u2019s plan.',
 } as const;
 
 export type EnGalleries = typeof galleries;

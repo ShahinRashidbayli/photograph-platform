@@ -1,12 +1,18 @@
 # 001 — Gallery retention and automatic deletion
 
-**Status:** Accepted (2026-07-17) · **Not implemented.**
+**Status:** Accepted (2026-07-17) · **Implemented (2026-08-22).**
 **Related:** `docs/PRICING.md` §4b (the commercial side), `docs/ROADMAP.md`
 
-> **If you are here to build the expiry job, read §4 first.** Those four
+> **If you are here to change the expiry job, read §4 first.** Those four
 > requirements are the point of this ADR. Deleting a client's wedding photos is
 > the most destructive thing this product will ever do, and the failure lands on
 > the photographer's reputation — not ours.
+>
+> All four now exist — see §4 for where each one lives. **The destructive phase
+> is still off by default** (`app.retention.purge-enabled`, `RETENTION_PURGE_ENABLED`):
+> §4.4 makes the AGB wording a precondition for the first deletion, and an
+> environment that has not confirmed its own terms should expire and warn
+> without ever purging.
 
 ---
 
@@ -72,25 +78,67 @@ one, which is what makes 60 days the thing that sells Pro's year.
 ## 4. Requirements — non-negotiable before any gallery is deleted
 
 Deletion is irreversible and its blast radius is someone else's wedding photos.
-**None of these exist yet. The expiry job must not ship without them.**
+**All four are implemented; the destructive phase stays off until §4.4 is
+signed off.**
 
-1. **Reminder emails to the client** at roughly day 45 / 55 / 59.
+1. **Reminder emails to the client** — ✅ `GalleryExpiryNotificationService`,
+   driven by `GalleryRetentionService#sendDueReminders`.
    The dashboard countdown is *not* sufficient: a client who never opens the
    dashboard sees nothing at all, and photos then vanish silently. The client —
    not only the photographer — must be warned.
 
-2. **The photographer can extend a gallery.**
+   Expressed as **days before expiry (15 / 5 / 1)** rather than the days
+   45/55/59 written above. Those numbers only make sense for a 60-day window;
+   on Pro's year "day 45" would be a reminder ten months early. Sent in German,
+   to the client — they never picked a language in our UI.
+
+   Idempotent through `gallery_expiry_reminders(gallery_id, days_before)`
+   UNIQUE: a re-run, or two instances overlapping past a lease, cannot email a
+   client twice in one morning about their wedding photos expiring. After
+   downtime only the *most urgent* unsent threshold is sent, and the ones it
+   overtook are recorded so a stale warning can never fire later.
+
+2. **The photographer can extend a gallery** — ✅ `POST /api/galleries/{id}/extend`.
    Without it, every missed window becomes a support ticket we are unable to
    resolve, because the data is already gone.
 
-3. **Grace period: soft-delete first, hard-delete later.**
+   Grants one full plan-sized window measured from *now*, and works on an
+   already-EXPIRED gallery — that recovery path is the entire point of the
+   grace period. It refuses only once the bytes are gone (409). It is
+   deliberately not a settable `expiresAt`: that field used to be on the PATCH
+   body, which let the browser decide how long a gallery lived.
+
+3. **Grace period: soft-delete first, hard-delete later** — ✅ `expiry_state`
+   ACTIVE → EXPIRED → PURGED, with `purge_after = soft_deleted_at + 30 days`.
    Mark expired and revoke access, then remove bytes after a further margin. An
    irreversible destructive job needs room for *our own* bugs — a bad query that
    expires the wrong tenant must be recoverable.
 
-4. **AGB states "delivery platform, not archive"** before the first deletion.
+   Belt and braces on top: the purge phase **refuses a gallery whose client was
+   never warned** and logs it as an error, because a gallery reaching deletion
+   with no reminder row means the reminder phase did not run — which is exactly
+   the silent vanishing §4.1 forbids.
+
+4. **AGB states "delivery platform, not archive"** — ✅ AGB Teil A §6a and
+   Datenschutzerklärung §6 (`apps/web/src/lib/legal-content.ts`), naming the
+   per-plan windows, the 30-day grace period, the client warnings and the
+   photographer's own backup duty.
    Legal sign-off is a launch blocker for destroying customer data, not a
-   detail. The AGB are currently placeholder drafts.
+   detail. **The text is drafted, not reviewed by a lawyer** — that review, not
+   the code, is what should gate flipping `RETENTION_PURGE_ENABLED` on.
+
+Additionally, as required below:
+
+- **Server-side** — retention comes from the tenant's plan via
+  `EntitlementService`; `CreateGalleryRequest` no longer has an `expiresAt`
+  field at all.
+- **Set on write** — `Gallery`'s constructor stamps `delivered_at`,
+  `retention_days` and `expires_at` together, so a later plan change cannot
+  rewrite the window a client was already promised.
+- **Idempotent and rate-limited** — every phase is guarded by a state
+  transition or a UNIQUE constraint, capped at `app.retention.max-per-run` per
+  tenant per run, and the whole sweep runs under a `JobLock` lease so two
+  replicas cannot purge concurrently.
 
 Additionally, when implementing:
 
@@ -103,9 +151,22 @@ Additionally, when implementing:
 
 ## 5. Open
 
-- What happens at the fair-use cap — block uploads, or bill overage?
-- Does an expired gallery leave a tombstone the client can see ("this gallery
-  expired on X — contact your photographer"), or a plain 404? A tombstone is
-  kinder and cuts support load, but leaks that the booking existed.
-- Do galleries on a downgraded plan get their retention shortened retroactively?
-  (Follows the grandfathering question in `PRICING.md` §7.8.)
+- What happens at the fair-use cap — block uploads, or bill overage? Still
+  open; the cap is configured (`app.plans.tiers.*.fair-use-storage-gb`) and
+  nothing enforces it yet.
+
+- ~~Tombstone or plain 404 for an expired gallery?~~ → **tombstone, 2026-08-22.**
+  The privacy objection does not survive contact with the URL: it carries a
+  64-character capability token, so anyone who can read the response already
+  held the private link and learns nothing new. A bare 404 reads as a broken
+  link and becomes a support ticket for the photographer instead of a request
+  to extend. See `ExpiredGalleryNotice` and `PublicGalleryResponse#expired`.
+  The ZIP endpoint still 404s — it streams bytes, so there is nothing kind to
+  return.
+
+- ~~Do galleries on a downgraded plan get their retention shortened
+  retroactively?~~ → **no, 2026-08-22.** Settled by §4's own "set `expires_at`
+  on write": the window is captured on the row at delivery, so a plan change
+  affects only galleries delivered afterwards. Shortening retroactively would
+  mean a downgrade could delete photos a client had already been promised a
+  date for.

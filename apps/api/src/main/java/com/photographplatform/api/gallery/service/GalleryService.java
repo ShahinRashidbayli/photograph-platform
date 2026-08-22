@@ -3,10 +3,13 @@ package com.photographplatform.api.gallery.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
+import com.photographplatform.api.gallery.domain.GalleryExpiryState;
 import com.photographplatform.api.gallery.dto.CreateGalleryRequest;
 import com.photographplatform.api.gallery.dto.DeliveryPhotoResponse;
 import com.photographplatform.api.gallery.dto.GalleryDownloadPlan;
@@ -21,6 +24,7 @@ import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadResponse;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.portfolio.service.ThumbnailService;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -51,19 +55,25 @@ public class GalleryService {
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
     private final DeliveryPhotoProcessor photoProcessor;
+    private final EntitlementService entitlementService;
+    private final Clock clock;
 
     public GalleryService(GalleryRepository galleryRepository,
                           DeliveryPhotoRepository deliveryPhotoRepository,
                           BookingRepository bookingRepository,
                           Optional<R2StorageService> storage,
                           AuditService auditService,
-                          DeliveryPhotoProcessor photoProcessor) {
+                          DeliveryPhotoProcessor photoProcessor,
+                          EntitlementService entitlementService,
+                          Clock clock) {
         this.galleryRepository = galleryRepository;
         this.deliveryPhotoRepository = deliveryPhotoRepository;
         this.bookingRepository = bookingRepository;
         this.storage = storage;
         this.auditService = auditService;
         this.photoProcessor = photoProcessor;
+        this.entitlementService = entitlementService;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -80,9 +90,18 @@ public class GalleryService {
         if (!bookingRepository.existsById(req.bookingId())) {
             throw new NotFoundException("Booking not found: " + req.bookingId());
         }
+        // Retention comes from the tenant's plan and nowhere else (ADR-001
+        // §4): it is one of the two things the tiers actually sell, so a
+        // client-supplied date would let any tenant grant itself Studio's two
+        // years. Captured onto the row now rather than resolved at read time,
+        // so a later plan change cannot rewrite the window a client was
+        // already promised.
+        int retentionDays = entitlementService.accessForCurrentTenant()
+            .entitlements().galleryRetentionDays();
         Gallery gallery = new Gallery(
             req.bookingId(),
-            req.expiresAt(),
+            OffsetDateTime.now(clock),
+            retentionDays,
             req.downloadEnabled() == null ? true : req.downloadEnabled(),
             req.watermarkEnabled() == null ? false : req.watermarkEnabled()
         );
@@ -96,9 +115,10 @@ public class GalleryService {
     public GalleryResponse update(UUID id, UpdateGalleryRequest req, String ipAddress) {
         Gallery gallery = galleryRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Gallery not found: " + id));
-        if (req.expiresAt() != null) {
-            gallery.setExpiresAt(req.expiresAt());
-        }
+        // Expiry is deliberately NOT settable here any more. It used to be,
+        // which meant the same PATCH that toggles downloads could hand a
+        // gallery any retention window the browser asked for. Extending is now
+        // its own operation with its own rules — see extend().
         if (req.downloadEnabled() != null) {
             gallery.setDownloadEnabled(req.downloadEnabled());
         }
@@ -119,6 +139,41 @@ public class GalleryService {
             String tenantId = TenantContext.getTenant();
             afterCommit(() -> photoProcessor.backfillWatermarks(id, tenantId));
         }
+        return toResponse(requireStats(id));
+    }
+
+    /**
+     * Grants one more full retention window (ADR-001 §4.2).
+     *
+     * <p>This is a non-negotiable half of being allowed to delete anything at
+     * all: "without it, every missed window becomes a support ticket we are
+     * unable to resolve, because the data is already gone."
+     *
+     * <p>Works on an already-expired gallery, which is the entire purpose of
+     * the grace period — the photographer who notices late is exactly the
+     * person this exists for. It refuses only once the bytes are actually
+     * gone, because there is then nothing left to bring back.
+     *
+     * <p>The new window is a full plan-sized window measured from now, not the
+     * remainder of the old one: restoring a gallery that lapsed three weeks
+     * ago into a window that has already passed would help nobody.
+     */
+    @Transactional
+    public GalleryResponse extend(UUID id, String ipAddress) {
+        Gallery gallery = galleryRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Gallery not found: " + id));
+
+        if (!gallery.canExtend()) {
+            throw new ConflictException(
+                "This gallery's photos have already been deleted and cannot be restored. "
+                    + "Upload them again to deliver a new gallery.");
+        }
+
+        int retentionDays = entitlementService.accessForCurrentTenant()
+            .entitlements().galleryRetentionDays();
+        gallery.extend(OffsetDateTime.now(clock), retentionDays);
+        galleryRepository.save(gallery);
+        audit("GALLERY_EXTENDED", id, ipAddress);
         return toResponse(requireStats(id));
     }
 
@@ -222,14 +277,9 @@ public class GalleryService {
      * filtered out by the storage layer.
      */
     private static List<String> derivativeKeys(DeliveryPhoto photo) {
-        List<String> keys = new ArrayList<>(4);
-        keys.add(photo.getR2Key());
-        keys.add(photo.getThumbnailKey());
-        if (photo.getWatermarkKey() != null) {
-            keys.add(photo.getWatermarkKey());
-            keys.add(ThumbnailService.thumbnailKeyFor(photo.getWatermarkKey()));
-        }
-        return keys;
+        // Shared with the retention purge — see DeliveryPhotoKeys for why this
+        // list must have exactly one definition.
+        return DeliveryPhotoKeys.of(photo);
     }
 
     // ── public: view by token ────────────────────────────────────────────────
@@ -246,9 +296,23 @@ public class GalleryService {
         Gallery gallery = galleryRepository.findByAccessToken(token)
             .orElseThrow(() -> new NotFoundException("Gallery not found"));
 
-        if (gallery.getExpiresAt() != null
-            && gallery.getExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new NotFoundException("Gallery not found");
+        if (!gallery.isReachable(OffsetDateTime.now(clock))) {
+            // A tombstone rather than a 404 (ADR-001 §5). The token in this URL
+            // is a 64-char capability secret, so whoever is reading this
+            // already had the link — explaining that the gallery expired on a
+            // given date leaks nothing and saves the photographer a support
+            // ticket about a "broken" link.
+            //
+            // Note this covers a gallery that is still ACTIVE but past its
+            // date: the sweep runs nightly, so for up to a day a lapsed
+            // gallery would otherwise still serve photos.
+            GalleryStatsView tombstone = requireStats(gallery.getId());
+            return PublicGalleryResponse.expired(
+                photographerName,
+                tombstone.getBookingName(),
+                tombstone.getEventType(),
+                tombstone.getShootDate(),
+                gallery.getExpiresAt());
         }
 
         galleryRepository.incrementViewCount(gallery.getId());
@@ -272,6 +336,7 @@ public class GalleryService {
             Boolean.TRUE.equals(gallery.getDownloadEnabled()),
             Boolean.TRUE.equals(gallery.getWatermarkEnabled()),
             gallery.getExpiresAt(),
+            false,
             photos
         );
     }
@@ -295,8 +360,10 @@ public class GalleryService {
         Gallery gallery = galleryRepository.findByAccessToken(token)
             .orElseThrow(() -> new NotFoundException("Gallery not found"));
 
-        if (gallery.getExpiresAt() != null
-            && gallery.getExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
+        if (!gallery.isReachable(OffsetDateTime.now(clock))) {
+            // Not-found rather than a tombstone here: this endpoint streams
+            // bytes, so there is nothing kind to return, and the existing
+            // reasoning below applies unchanged.
             throw new NotFoundException("Gallery not found");
         }
         if (!Boolean.TRUE.equals(gallery.getDownloadEnabled())) {
@@ -491,7 +558,12 @@ public class GalleryService {
             v.getExpiresAt() == null ? null : OffsetDateTime.ofInstant(v.getExpiresAt(), ZoneOffset.UTC),
             v.getAccessToken(),
             v.getViewCount(),
-            v.getCreatedAt() == null ? null : OffsetDateTime.ofInstant(v.getCreatedAt(), ZoneOffset.UTC)
+            v.getCreatedAt() == null ? null : OffsetDateTime.ofInstant(v.getCreatedAt(), ZoneOffset.UTC),
+            v.getExpiryState(),
+            v.getRetentionDays(),
+            v.getPurgeAfter() == null ? null : OffsetDateTime.ofInstant(v.getPurgeAfter(), ZoneOffset.UTC),
+            v.getExtensionCount(),
+            GalleryExpiryState.from(v.getExpiryState()) != GalleryExpiryState.PURGED
         );
     }
 

@@ -112,9 +112,9 @@ class RlsCrossTenantIsolationIT extends IntegrationTestBase {
         assertIsolated(leadRepository, tenantA, leadA, tenantB, leadB);
 
         UUID galleryA = as(tenantA, () -> galleryRepository.save(
-            withTenant(new Gallery(null, OffsetDateTime.now().plusDays(90), true, false), tenantA)).getId());
+            withTenant(new Gallery(null, OffsetDateTime.now(), 90, true, false), tenantA)).getId());
         UUID galleryB = as(tenantB, () -> galleryRepository.save(
-            withTenant(new Gallery(null, OffsetDateTime.now().plusDays(90), true, false), tenantB)).getId());
+            withTenant(new Gallery(null, OffsetDateTime.now(), 90, true, false), tenantB)).getId());
         assertIsolated(galleryRepository, tenantA, galleryA, tenantB, galleryB);
 
         UUID deliveryPhotoA = as(tenantA, () -> deliveryPhotoRepository.save(

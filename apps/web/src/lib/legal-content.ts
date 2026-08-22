@@ -235,6 +235,31 @@ export const DATENSCHUTZ: LegalDoc = {
           type: 'p',
           text: 'Wir speichern personenbezogene Daten nur so lange, wie es für die genannten Zwecke erforderlich ist oder gesetzliche Aufbewahrungsfristen es verlangen (z. B. bis zu 10 Jahre für steuerlich relevante Unterlagen nach GoBD). Danach werden die Daten gelöscht oder anonymisiert.',
         },
+        {
+          type: 'p',
+          text: 'Bilddateien in ausgelieferten Kundengalerien unterliegen einer festen, tarifabhängigen Speicherfrist und werden danach automatisch gelöscht — im Sinne der Datenminimierung nach Art. 5 Abs. 1 lit. c und e DSGVO. Die Galerie wird nach Ablauf der Frist zunächst deaktiviert; die Dateien werden 30 Tage später endgültig gelöscht.',
+        },
+        {
+          type: 'defs',
+          rows: [
+            {
+              k: 'Galerie Starter',
+              v: '60 Tage ab Bereitstellung, danach 30 Tage bis zur endgültigen Löschung',
+            },
+            {
+              k: 'Galerie Pro',
+              v: '12 Monate ab Bereitstellung, danach 30 Tage bis zur endgültigen Löschung',
+            },
+            {
+              k: 'Galerie Studio',
+              v: '24 Monate ab Bereitstellung, danach 30 Tage bis zur endgültigen Löschung',
+            },
+          ],
+        },
+        {
+          type: 'p',
+          text: 'Vor Ablauf werden Sie als Endkund:in automatisch per E-Mail informiert (15, 5 und 1 Tag vor Ablauf), damit Sie Ihre Fotos rechtzeitig herunterladen können. Ihr:e Fotograf:in kann die Galerie auf Wunsch verlängern.',
+        },
       ],
     },
     {
@@ -317,6 +342,7 @@ export const AGB: LegalDoc = {
             '§4 Preise & Zahlung: Es gelten die zum Zeitpunkt der Buchung angegebenen Preise. [Abrechnung/Stripe ergänzen, sobald Zahlungen aktiv sind.]',
             '§5 Pflichten der Nutzer:innen: Rechtmäßige Nutzung, keine Rechtsverletzung durch hochgeladene Inhalte, Geheimhaltung der Zugangsdaten.',
             '§6 Verfügbarkeit: Wir bemühen uns um hohe Verfügbarkeit, schulden aber keine ununterbrochene Erreichbarkeit. [Ggf. SLA festlegen.]',
+            '§6a Galerien sind eine Auslieferungs-, keine Archivlösung: Fotolio speichert ausgelieferte Kundengalerien nur für eine tarifabhängige Dauer ab dem Zeitpunkt der Bereitstellung — Starter 60 Tage, Pro 12 Monate, Studio 24 Monate. Nach Ablauf dieser Frist wird die Galerie automatisch deaktiviert und die enthaltenen Dateien werden nach einer weiteren Frist von 30 Tagen endgültig und unwiederbringlich gelöscht. Fotolio ist ausdrücklich KEIN Backup und KEIN Langzeitarchiv: Fotograf:innen sind verpflichtet, ihre Originaldateien eigenständig zu sichern. Vor Ablauf werden die Endkund:innen automatisch per E-Mail benachrichtigt (15, 5 und 1 Tag vor Ablauf); Fotograf:innen können eine Galerie jederzeit — auch nach Ablauf innerhalb der 30-tägigen Frist — um eine weitere volle Tarif-Laufzeit verlängern. Ein Anspruch auf Wiederherstellung endgültig gelöschter Daten besteht nicht.',
             '§7 Haftung: Haftung nach den gesetzlichen Vorschriften; Beschränkung auf Vorsatz und grobe Fahrlässigkeit, soweit gesetzlich zulässig. [Juristisch prüfen.]',
             '§8 Laufzeit & Kündigung: Der Vertrag ist jederzeit kündbar. [Fristen/Modalitäten festlegen.]',
             '§9 Datenschutz: Es gilt die Datenschutzerklärung.',

@@ -49,6 +49,8 @@ export const galleries: Record<keyof EnGalleries, string> = {
     'Einige Fotos konnten nicht hochgeladen werden. Bitte versuche es erneut.',
 
   'galleries.update.error': 'Die Galerie konnte nicht aktualisiert werden.',
+  'galleries.extend.error':
+    'Galerie konnte nicht verlängert werden. Wenn die Fotos bereits gelöscht wurden, können sie nicht wiederhergestellt werden.',
   'galleries.delete.error': 'Die Galerie konnte nicht gelöscht werden.',
 
   'galleries.create.title': 'Neue Galerie',
@@ -57,4 +59,17 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.create.submit': 'Galerie erstellen',
   'galleries.create.submitting': 'Wird erstellt…',
   'galleries.create.error': 'Die Galerie konnte nicht erstellt werden. Bitte versuche es erneut.',
+
+  // Tombstone shown when a delivered gallery has passed its retention
+  // window (ADR-001). Client-facing: the recipient never chose a
+  // language in our UI, so this follows the same locale as the rest of
+  // the public gallery.
+  'gallery.expired.title': 'Diese Galerie ist abgelaufen',
+  'gallery.expired.body':
+    'Die Fotos aus dieser Galerie standen bis zum {date} online und wurden inzwischen entfernt.',
+  'gallery.expired.bodyNoDate': 'Die Fotos aus dieser Galerie wurden inzwischen entfernt.',
+  'gallery.expired.contact':
+    'Wende dich bitte direkt an {photographer} — die Galerie kann auf Wunsch wieder freigeschaltet werden.',
+  'gallery.expired.note':
+    'Fotolio ist eine Auslieferungsplattform und kein Langzeitarchiv. Galerien bleiben je nach Tarif der Fotograf:in eine begrenzte Zeit online.',
 };

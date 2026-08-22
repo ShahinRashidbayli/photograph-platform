@@ -106,6 +106,7 @@ public abstract class IntegrationTestBase {
      */
     private static final String CLEANUP_SQL = """
         TRUNCATE payments, processed_stripe_events, invoice_line_items, invoices, invoice_counters;
+        DELETE FROM gallery_expiry_reminders;
         DELETE FROM delivery_photos;
         DELETE FROM galleries;
         DELETE FROM bookings;
@@ -118,6 +119,7 @@ public abstract class IntegrationTestBase {
         DELETE FROM refresh_tokens;
         DELETE FROM users;
         DELETE FROM tenants;
+        DELETE FROM scheduled_job_locks;
         """;
 
     @BeforeEach

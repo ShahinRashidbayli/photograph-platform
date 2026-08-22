@@ -28,15 +28,17 @@ The three plan names exist end to end, but **nothing enforces them**.
 | Layer | Reality |
 |---|---|
 | Database | `tenants.plan VARCHAR(20) NOT NULL DEFAULT 'STARTER'`, `CHECK (plan IN ('STARTER','PRO','STUDIO'))` |
-| Backend | `Tenant.plan` is still a plain `String` (not an enum), and most reads (`AuthService` ×2, `CustomerAuthService`, `PortfolioController`) only copy it into a response DTO. **One place now branches on it:** `PaymentProperties.Commission` maps the plan to a commission rate, which `PaymentService` charges as Stripe's `application_fee_amount` (§4). That is a *price* branch, not an entitlement one — no feature is gated by plan anywhere. |
+| Backend | **Superseded 2026-08-22.** `Plan` is an enum, and `EntitlementService` is the single place that maps a plan to what it grants — retention window, seats, capabilities and the commission rate. Gates throw (`PlanUpgradeRequiredException` → 402) rather than returning booleans, and `WriteAccessInterceptor` covers every mutating endpoint by default. |
 | Frontend | Rendered as a badge in the sidebar and Settings. Never used to gate a feature. |
 | Landing | `PRICING` array in `apps/web/src/app/page.tsx` — €19 / €39 / €79 (yearly €16 / €32 / €65) |
-| Billing (ours) | **Does not exist.** No Stripe subscription, no trial expiry. The copy promises a 14-day trial; nothing happens when it ends. |
+| Billing (ours) | **Partly built.** The 14-day trial is now real: registration stamps `trial_ends_at`, and an expired trial with no subscription puts the account into a read-only lock (§7.7). Still missing the half that collects money — no Stripe subscription, so nothing can end the lock by paying. |
 | Billing (theirs) | **Built.** Photographers issue §14 UStG invoices per booking, clients pay them by card / SEPA / bank transfer, and the DATEV export covers the year. Money moves on Stripe Connect (Express) — direct charges on the photographer's own connected account, with our commission taken off the top. |
 
-**Consequence: a STARTER tenant can use every feature of PRO and STUDIO today.**
-The plans are decoration everywhere except the commission rate, which is the
-one thing a plan actually changes.
+~~**Consequence: a STARTER tenant can use every feature of PRO and STUDIO
+today.**~~ No longer true as of 2026-08-22 for anything that has been built:
+retention is enforced per plan, and the capability gates exist and are wired.
+It remains trivially true for the features that do not exist yet (Instagram
+automation, contracts, analytics, seats) — nothing gates what nothing does.
 
 ### What the landing page sells vs. what is built
 
@@ -51,17 +53,17 @@ Stripe Connect Express; the two rows below moved to ✅ and the landing page's
 | Starter | Online bookings | ✅ |
 | Starter | Client management | ✅ |
 | Starter | Stripe deposits* | ✅ card + SEPA on Connect Express, with the 2% commission (§4) |
-| Starter | Galleries online 60 days | ❌ "soon" — `expires_at` exists but nothing sets or enforces it (§4b) |
+| Starter | Galleries online 60 days | ✅ shipped 2026-08-22 — set at delivery from the plan, warned, expired and purged by the retention job (ADR-001) |
 | Pro | Everything in Starter | — |
 | Pro | Instagram DM automation | ❌ "soon" — the anchor we now sell (§7.5) |
 | Pro | 0% commission | ✅ `app.stripe.commission.pro-bps: 0` — the fee is simply not sent |
 | Pro | Contracts & e-sign | ❌ "soon" |
-| Pro | Galleries online 1 year | ❌ "soon" (§4b) |
+| Pro | Galleries online 1 year | ✅ shipped 2026-08-22 (ADR-001) |
 | Studio | Everything in Pro | — |
 | Studio | Up to 3 photographers | ❌ no multi-user support exists |
 | Studio | Analytics & reports | ❌ `/reports` and `/revenue` are stubs |
 | Studio | White-label branding | ❌ |
-| Studio | Galleries online 2 years | ❌ "soon" (§4b) |
+| Studio | Galleries online 2 years | ✅ shipped 2026-08-22 (ADR-001) |
 
 **Pro's 0% commission is now the only built difference from Starter.** It is
 also the one §4 called the real conversion trigger, so the tier is no longer
@@ -282,16 +284,22 @@ Deliberately, more features are **not** the next step:
    page confirms it — previously all three cards landed on the same page and
    every signup silently became STARTER.
 2. **Answer the rest of §7 and freeze this document.**
-3. **Entitlement layer.** One place that maps `plan → capabilities`, read by
-   both API and UI. Today no such concept exists; without it every gate becomes
-   an ad-hoc `if (plan === 'PRO')` scattered across the codebase. Note the
-   commission means the *rate* is an entitlement too, not just booleans.
+3. ~~**Entitlement layer.**~~ ✅ **Done 2026-08-22.** `EntitlementService` maps
+   `plan → capabilities` in one place, serves the same resolved object to the
+   UI at `GET /api/entitlements`, and gates server-side by throwing rather than
+   returning a boolean a caller can forget to check. The commission rate is
+   folded in as an entitlement, as this line asked; it stays *configured* under
+   `app.stripe.commission` where the deploy docs already point at it.
 4. **Stripe Connect onboarding.** Express accounts, KYC, `account.updated`
    webhooks, and the "finish payout setup" state in the UI. This is the
    prerequisite for any payment at all — see §4.
 5. **Payments with `application_fee_amount`** derived from the tenant's plan.
-6. **Billing.** Stripe subscription, trial expiry, plan changes, proration.
-   Note the 14-day trial is currently advertised with no expiry logic at all.
+6. **Billing.** Stripe subscription, plan changes, proration — **still open.**
+   Trial expiry itself is done (2026-08-22): registration stamps
+   `trial_ends_at`, and `WriteAccessInterceptor` puts a lapsed account into the
+   read-only state §7.7 now specifies. What is missing is the part that takes
+   money: there is still no Stripe subscription, so nothing can move a tenant
+   out of the read-only state by paying.
 
 Enforcement must be server-side. A UI-only gate is a suggestion, not a limit —
 and with a commission the stakes are money, not just a locked screen: the fee
@@ -323,10 +331,18 @@ Struck-through items are decided; they stay for the reasoning trail.
 6. **Are the prices right for the German market?** €19/mo = €228/yr. A part-time
    photographer shooting 10–15 times a year may not clear that bar; is Starter
    meant for them at all, or is there a free/€9 tier below it?
-7. **What happens when the trial ends?** Downgrade to Starter, read-only lock,
-   or suspend? Undefined today.
-8. **Do existing tenants get grandfathered** when gates land? Everyone is on
-   `STARTER` by default today while using everything.
+7. ~~**What happens when the trial ends?**~~ → **read-only lock, 2026-08-22.**
+   Writes stop; reads, delivered galleries and *client payments* keep working.
+   Suspending would also cut off a couple holding a gallery link who are not
+   party to the photographer's billing, and blocking client payments would stop
+   money coming in from the very account we are trying to collect from.
+8. ~~**Do existing tenants get grandfathered** when gates land?~~ → **yes,
+   generously, 2026-08-22.** V20 gives every existing tenant a full 14-day trial
+   measured from the migration rather than from their signup, and V22 gives
+   every existing gallery a full retention window measured from the migration
+   rather than from its delivery. Backdating either would have locked working
+   accounts out — or deleted live galleries — on deploy day, against a deadline
+   nobody was ever shown.
 9. **Should a photographer's plan be public?** `GET /api/public/portfolio/{subdomain}`
    returns `plan` inside `PhotographerPublic`, so anyone can see which tier a
    photographer pays for. Nothing in the frontend reads it. Either it was a
@@ -334,9 +350,11 @@ Struck-through items are decided; they stay for the reasoning trail.
    information and should leave the DTO.
 10. **What happens at the fair-use cap?** Block uploads, or bill overage? Only
     affects outliers, but undefined.
-11. **Gallery retention needs a retention policy of its own** (§4b): reminder
-    emails, photographer-side extend, and a soft-delete grace period are all
-    unbuilt, and 60 days is aggressive for a wedding without them.
+11. ~~**Gallery retention needs a retention policy of its own**~~ → **built
+    2026-08-22.** Reminder emails to the client (15/5/1 days before), a
+    photographer-side extend that also recovers an already-expired gallery, and
+    a 30-day soft-delete grace period — see ADR-001 §4. The destructive phase
+    remains off by default pending legal review of the AGB wording.
 
 ---
 

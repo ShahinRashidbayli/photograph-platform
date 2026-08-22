@@ -73,6 +73,20 @@ public class GalleryController {
         return ResponseEntity.ok(galleryService.update(id, request, ClientIp.from(http)));
     }
 
+    /**
+     * Extends a gallery by one plan-sized retention window (ADR-001 §4.2).
+     *
+     * <p>Its own endpoint rather than a field on PATCH: the photographer picks
+     * *that it should live longer*, not *how long*, because the window is what
+     * the plan sells. It also has to work on a gallery that already lapsed,
+     * which is a recovery action, not a settings edit.
+     */
+    @PostMapping("/galleries/{id}/extend")
+    public ResponseEntity<GalleryResponse> extend(
+        @PathVariable UUID id, HttpServletRequest http) {
+        return ResponseEntity.ok(galleryService.extend(id, ClientIp.from(http)));
+    }
+
     @DeleteMapping("/galleries/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id, HttpServletRequest http) {
         galleryService.delete(id, ClientIp.from(http));

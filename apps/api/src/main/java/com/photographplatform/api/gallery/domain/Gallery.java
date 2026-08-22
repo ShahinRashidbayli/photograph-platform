@@ -39,6 +39,32 @@ public class Gallery {
     @Column(name = "view_count", nullable = false)
     private Integer viewCount = 0;
 
+    // ── retention (ADR-001) ────────────────────────────────────────────────
+
+    @Column(name = "delivered_at")
+    private OffsetDateTime deliveredAt;
+
+    @Column(name = "retention_days")
+    private Integer retentionDays;
+
+    @Column(name = "expiry_state", nullable = false, length = 20)
+    private String expiryState = GalleryExpiryState.ACTIVE.name();
+
+    @Column(name = "soft_deleted_at")
+    private OffsetDateTime softDeletedAt;
+
+    @Column(name = "purge_after")
+    private OffsetDateTime purgeAfter;
+
+    @Column(name = "purged_at")
+    private OffsetDateTime purgedAt;
+
+    @Column(name = "extended_at")
+    private OffsetDateTime extendedAt;
+
+    @Column(name = "extension_count", nullable = false)
+    private Integer extensionCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -46,14 +72,29 @@ public class Gallery {
     protected Gallery() {
     }
 
-    public Gallery(UUID bookingId, OffsetDateTime expiresAt,
+    /**
+     * A gallery is delivered the moment it is created: the access token is
+     * live immediately, so this is the point ADR-001 §2 means by "delivered",
+     * and retention starts counting here.
+     *
+     * <p>{@code expiresAt} is derived from {@code retentionDays}, never passed
+     * in. ADR-001 §4 is explicit — "enforce server-side; a client-supplied
+     * value must never decide it" — and retention is what the plans actually
+     * sell, so accepting a date from the browser would let any tenant grant
+     * itself Studio's two years.
+     */
+    public Gallery(UUID bookingId, OffsetDateTime deliveredAt, int retentionDays,
                    boolean downloadEnabled, boolean watermarkEnabled) {
         this.bookingId = bookingId;
         this.accessToken = generateToken();
-        this.expiresAt = expiresAt;
+        this.deliveredAt = deliveredAt;
+        this.retentionDays = retentionDays;
+        this.expiresAt = deliveredAt.plusDays(retentionDays);
         this.downloadEnabled = downloadEnabled;
         this.watermarkEnabled = watermarkEnabled;
         this.viewCount = 0;
+        this.extensionCount = 0;
+        this.expiryState = GalleryExpiryState.ACTIVE.name();
     }
 
     /**
@@ -118,4 +159,99 @@ public class Gallery {
         this.watermarkEnabled = watermarkEnabled;
     }
 
+
+    // ── retention behaviour (ADR-001) ──────────────────────────────────────
+
+    public OffsetDateTime getDeliveredAt() {
+        return deliveredAt;
+    }
+
+    public Integer getRetentionDays() {
+        return retentionDays;
+    }
+
+    public GalleryExpiryState getExpiryState() {
+        return GalleryExpiryState.from(expiryState);
+    }
+
+    public OffsetDateTime getSoftDeletedAt() {
+        return softDeletedAt;
+    }
+
+    public OffsetDateTime getPurgeAfter() {
+        return purgeAfter;
+    }
+
+    public OffsetDateTime getPurgedAt() {
+        return purgedAt;
+    }
+
+    public OffsetDateTime getExtendedAt() {
+        return extendedAt;
+    }
+
+    public Integer getExtensionCount() {
+        return extensionCount;
+    }
+
+    /**
+     * True when a client holding the link may still see the photos.
+     *
+     * <p>Checks the state AND the date. The state alone is not enough: a
+     * gallery is only moved to EXPIRED by a job that runs on a schedule, so
+     * between the moment it expires and the moment the sweep reaches it, it is
+     * still ACTIVE with a date in the past. Trusting the state there would
+     * serve photos past the window the plan sold — for up to a day.
+     */
+    public boolean isReachable(OffsetDateTime now) {
+        return getExpiryState() == GalleryExpiryState.ACTIVE
+            && (expiresAt == null || expiresAt.isAfter(now));
+    }
+
+    /**
+     * Revokes access but keeps the bytes (ADR-001 §4.3).
+     *
+     * <p>The grace period before {@code purgeAfter} is margin for our own
+     * mistakes, not the customer's: if a bad query expires the wrong tenant,
+     * this is the window in which that is still fixable.
+     */
+    public void markExpired(OffsetDateTime now, int graceDays) {
+        this.expiryState = GalleryExpiryState.EXPIRED.name();
+        this.softDeletedAt = now;
+        this.purgeAfter = now.plusDays(graceDays);
+    }
+
+    /** Bytes are gone; the row stays as a tombstone. */
+    public void markPurged(OffsetDateTime now) {
+        this.expiryState = GalleryExpiryState.PURGED.name();
+        this.purgedAt = now;
+    }
+
+    /**
+     * Grants one more full retention window, measured from now (ADR-001 §4.2).
+     *
+     * <p>Deliberately works on an EXPIRED gallery too. That is the entire
+     * value of the grace period: without recovery here, every missed window
+     * becomes a support ticket nobody can resolve because the data is already
+     * gone. A PURGED gallery cannot be revived — there is nothing left to
+     * point at — and {@link #canExtend()} is what callers check first.
+     *
+     * <p>Measured from now rather than from the old expiry so that extending a
+     * gallery that lapsed three weeks ago actually gives the client time to
+     * download, instead of restoring it into a window that has already passed.
+     */
+    public void extend(OffsetDateTime now, int retentionDays) {
+        this.expiryState = GalleryExpiryState.ACTIVE.name();
+        this.retentionDays = retentionDays;
+        this.expiresAt = now.plusDays(retentionDays);
+        this.softDeletedAt = null;
+        this.purgeAfter = null;
+        this.extendedAt = now;
+        this.extensionCount = (this.extensionCount == null ? 0 : this.extensionCount) + 1;
+    }
+
+    /** Purged galleries have no bytes left to bring back. */
+    public boolean canExtend() {
+        return getExpiryState() != GalleryExpiryState.PURGED;
+    }
 }

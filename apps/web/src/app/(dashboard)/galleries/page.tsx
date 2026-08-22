@@ -24,6 +24,14 @@ interface Gallery {
   expiresAt: string | null;
   accessToken: string;
   viewCount: number;
+  // Retention (ADR-001). expiryState distinguishes "still live" from "expired
+  // but recoverable" from "photos deleted" — a countdown alone cannot say
+  // whether Extend will still bring anything back.
+  expiryState: 'ACTIVE' | 'EXPIRED' | 'PURGED';
+  retentionDays: number | null;
+  purgeAfter: string | null;
+  extensionCount: number;
+  canExtend: boolean;
 }
 
 interface BookingOption {
@@ -409,6 +417,7 @@ function GalleryDetail({
   colors,
   busy,
   onPatch,
+  onExtend,
   onDelete,
   onUpload,
   onPhotosChanged,
@@ -419,6 +428,7 @@ function GalleryDetail({
   colors: AppColors;
   busy: boolean;
   onPatch: (_id: string, _body: Record<string, unknown>) => void;
+  onExtend: (_id: string) => void;
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
   onPhotosChanged: () => void;
@@ -489,17 +499,13 @@ function GalleryDetail({
 
   const shootDate = formatMonthDayYear(gallery.shootDate);
 
-  // Extend from the later of "now" and the current expiry, so extending an
-  // already-expired gallery gives a fresh 30-day window rather than a date in
-  // the past.
-  function extend30() {
+  // The window is the plan's, not a number this screen picks. It used to
+  // PATCH an arbitrary expiresAt, which meant the browser decided how long a
+  // gallery lived — retention is one of the two things the tiers actually
+  // sell, so the server derives it now (ADR-001 §4).
+  function extendGallery() {
     if (!gallery) return;
-    const base =
-      gallery.expiresAt && new Date(gallery.expiresAt) > new Date()
-        ? new Date(gallery.expiresAt)
-        : new Date();
-    base.setDate(base.getDate() + 30);
-    onPatch(gallery.id, { expiresAt: base.toISOString() });
+    onExtend(gallery.id);
   }
 
   return (
@@ -651,7 +657,7 @@ function GalleryDetail({
                     {expiryText(days, t, tPlural)}
                   </span>
                   <button
-                    onClick={extend30}
+                    onClick={extendGallery}
                     disabled={busy}
                     style={{
                       ...styles.actionButton,
@@ -916,6 +922,23 @@ export default function GalleriesPage() {
       setGalleries((prev) => prev.map((g) => (g.id === id ? data : g)));
     } catch {
       setError({ key: 'galleries.update.error' });
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  /**
+   * Grants one more full plan-sized window (ADR-001 §4.2). Works on a gallery
+   * that already lapsed — that recovery path is precisely why the grace period
+   * exists — and 409s once the photos have actually been deleted.
+   */
+  const extendGallery = useCallback(async (id: string) => {
+    setBusyId(id);
+    try {
+      const { data } = await api.post<Gallery>(`/api/galleries/${id}/extend`, {});
+      setGalleries((prev) => prev.map((g) => (g.id === id ? data : g)));
+    } catch {
+      setError({ key: 'galleries.extend.error' });
     } finally {
       setBusyId(null);
     }
@@ -1248,6 +1271,7 @@ export default function GalleriesPage() {
             colors={colors}
             busy={busyId !== null && busyId === selectedGallery?.id}
             onPatch={patchGallery}
+            onExtend={extendGallery}
             onDelete={deleteGallery}
             onUpload={uploadPhotos}
             onPhotosChanged={loadGalleries}

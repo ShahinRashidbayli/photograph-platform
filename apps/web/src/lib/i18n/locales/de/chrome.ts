@@ -62,4 +62,11 @@ export const chrome: Record<keyof EnChrome, string> = {
   'verify.toastDefault':
     'Bitte bestätigen Sie Ihre E-Mail-Adresse, bevor Sie diese Aktion ausführen.',
   'verify.dismiss': 'Schließen',
+
+  // Nur-Lesen-Sperre / Ende der Testphase, im Dashboard-Rahmen.
+  'account.locked.fallback':
+    'Dein Konto ist im Nur-Lesen-Modus. Wähle einen Tarif, um wieder Buchungen, Galerien und Rechnungen anzulegen.',
+  'account.trialEndingSoon':
+    'Deine Testphase endet in {days} Tagen ({date}). Wähle einen Tarif, um weiter Buchungen, Galerien und Rechnungen anzulegen.',
+  'account.choosePlan': 'Tarif wählen',
 };

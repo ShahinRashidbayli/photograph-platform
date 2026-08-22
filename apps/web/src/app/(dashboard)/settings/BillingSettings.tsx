@@ -566,3 +566,270 @@ export function DatevExportSection() {
     </Card>
   );
 }
+
+// ── Subscription (what the photographer pays US) ────────────────────────────
+
+interface BillingStatus {
+  plan: 'STARTER' | 'PRO' | 'STUDIO';
+  subscriptionStatus:
+    | 'NONE'
+    | 'TRIALING'
+    | 'ACTIVE'
+    | 'PAST_DUE'
+    | 'CANCELED'
+    | 'INCOMPLETE'
+    | 'UNPAID';
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  subscriptionConfigured: boolean;
+  manageable: boolean;
+  writable: boolean;
+  lockReason: string | null;
+}
+
+const PLANS: readonly BillingStatus['plan'][] = ['STARTER', 'PRO', 'STUDIO'] as const;
+
+/**
+ * The subscription the photographer holds with Fotolio.
+ *
+ * <p>Distinct from {@link StripeConnectSection} above, which is about the
+ * photographer being paid by *their* clients. These two are the easiest pair
+ * in the product to confuse, which is why they carry different headings and
+ * never share a status line: "payouts ready" and "subscription active" answer
+ * completely different questions, and reading one as the other means either
+ * believing you can take money when you cannot, or believing you are paying
+ * when you are not.
+ *
+ * <p>Everything here has to work while the account is read-only — that is the
+ * state this screen exists to get someone out of.
+ */
+export function SubscriptionSection() {
+  const { t, format } = useTranslation();
+  const c = useColors();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const billingParam = searchParams.get('billing');
+
+  const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [yearly, setYearly] = useState(false);
+  const [error, setError] = useState<AsyncError | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const { data } = await api.get<BillingStatus>('/api/billing');
+      setStatus(data);
+    } catch (err) {
+      setError(asyncError(err, 'settings.subscription.loadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handledRedirect = useRef(false);
+
+  useEffect(() => {
+    if (handledRedirect.current) {
+      return;
+    }
+    if (billingParam) {
+      // Returning from Stripe. Strip the parameter so a refresh does not
+      // re-trigger this, then re-read: the subscription webhook is
+      // authoritative but can land after the redirect, so the first read may
+      // still say "trialing". That is why the success case polls below.
+      handledRedirect.current = true;
+      router.replace('/settings');
+    }
+    void load();
+  }, [billingParam, load, router]);
+
+  /**
+   * After a successful checkout the webhook usually arrives within a second or
+   * two, but not always before the browser gets back here. Re-reading a few
+   * times turns "your plan is still Starter" — which reads as a failed payment
+   * — into a brief pause.
+   */
+  useEffect(() => {
+    if (billingParam !== 'success' || !status) return undefined;
+    if (status.subscriptionStatus === 'ACTIVE') return undefined;
+
+    const timer = setTimeout(() => void load(), 2000);
+    return () => clearTimeout(timer);
+  }, [billingParam, status, load]);
+
+  const subscribe = useCallback(
+    async (plan: BillingStatus['plan']) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const { data } = await api.post<{ url: string }>('/api/billing/checkout', {
+          plan,
+          interval: yearly ? 'YEARLY' : 'MONTHLY',
+        });
+        globalThis.location.href = data.url;
+      } catch (err) {
+        setError(asyncError(err, 'settings.subscription.checkoutError'));
+        setBusy(false);
+      }
+    },
+    [yearly]
+  );
+
+  const manage = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await api.post<{ url: string }>('/api/billing/portal');
+      globalThis.location.href = data.url;
+    } catch (err) {
+      setError(asyncError(err, 'settings.subscription.portalError'));
+      setBusy(false);
+    }
+  }, []);
+
+  const state = (() => {
+    if (!status) return { tone: c.neutral, label: t('settings.subscription.loading'), detail: '' };
+    if (!status.writable) {
+      return {
+        tone: c.danger,
+        label: t('settings.subscription.locked'),
+        // The server's own sentence, so the banner cannot drift from what the
+        // API is actually enforcing.
+        detail: status.lockReason ?? t('settings.subscription.lockedDetail'),
+      };
+    }
+    switch (status.subscriptionStatus) {
+      case 'ACTIVE':
+        return {
+          tone: c.success,
+          label: t('settings.subscription.active'),
+          detail: status.currentPeriodEnd
+            ? t('settings.subscription.renewsOn', {
+                date: format.dayMonthYearLong(status.currentPeriodEnd),
+              })
+            : '',
+        };
+      case 'PAST_DUE':
+        return {
+          tone: c.warning,
+          label: t('settings.subscription.pastDue'),
+          detail: t('settings.subscription.pastDueDetail'),
+        };
+      case 'TRIALING':
+      default:
+        return {
+          tone: c.warning,
+          label: t('settings.subscription.trial'),
+          detail: status.trialEndsAt
+            ? t('settings.subscription.trialEndsOn', {
+                date: format.dayMonthYearLong(status.trialEndsAt),
+              })
+            : '',
+        };
+    }
+  })();
+
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <section aria-labelledby="settings-subscription">
+        <SectionHeading id="settings-subscription" title={t('settings.subscription.title')}>
+          {t('settings.subscription.subtitle')}
+        </SectionHeading>
+
+        {error && (
+          <Alert tone="danger" style={{ marginBottom: 16 }}>
+            {asyncErrorText(error, t)}
+          </Alert>
+        )}
+
+        {!loading && status && (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '12px',
+                justifyContent: 'space-between',
+                marginBottom: 18,
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      padding: '4px 12px',
+                      borderRadius: '999px',
+                      background: c.primaryBg,
+                      color: c.primaryText,
+                      border: `1px solid ${c.primaryBorder}`,
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {status.plan}
+                  </span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: state.tone }}>
+                    {state.label}
+                  </span>
+                </div>
+                {state.detail && (
+                  <div style={{ fontSize: '0.85rem', color: c.textMuted, lineHeight: 1.5 }}>
+                    {state.detail}
+                  </div>
+                )}
+              </div>
+
+              {status.manageable && (
+                <Button variant="secondary" onClick={manage} disabled={busy}>
+                  {t('settings.subscription.manage')}
+                </Button>
+              )}
+            </div>
+
+            {status.subscriptionConfigured ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <label style={{ fontSize: '0.85rem', color: c.textMuted }}>
+                    <input
+                      type="checkbox"
+                      checked={yearly}
+                      onChange={(e) => setYearly(e.target.checked)}
+                      style={{ marginRight: 8 }}
+                    />
+                    {t('settings.subscription.yearly')}
+                  </label>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {PLANS.map((plan) => (
+                    <Button
+                      key={plan}
+                      variant={plan === status.plan ? 'secondary' : 'primary'}
+                      onClick={() => subscribe(plan)}
+                      disabled={busy}
+                    >
+                      {plan === status.plan && status.subscriptionStatus === 'ACTIVE'
+                        ? t('settings.subscription.currentPlan', { plan })
+                        : t('settings.subscription.choose', { plan })}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              // No Stripe prices on this deployment. Say so rather than showing
+              // buttons that would 409 — a dead button reads as a bug.
+              <div style={{ fontSize: '0.88rem', color: c.textMuted, lineHeight: 1.55 }}>
+                {t('settings.subscription.unavailable')}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </Card>
+  );
+}

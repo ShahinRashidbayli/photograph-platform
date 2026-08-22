@@ -100,6 +100,14 @@ public class SecurityConfig {
                 // shares the tenant and must never read or rewrite it. The
                 // customer's own account settings live under /api/auth/me.
                 .requestMatchers("/api/settings/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+                // Fotolio's own subscription — what the photographer pays US.
+                // Tenant-wide and strictly the account owner's business: a
+                // CUSTOMER shares the tenant, so without this rule a client
+                // could read their photographer's plan and billing state, or
+                // open a Stripe portal session against their customer record.
+                // (Their own invoices are a different thing entirely and live
+                // under /api/invoices.)
+                .requestMatchers("/api/billing/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
                 // Recording a manual (bank-transfer) payment is the photographer
                 // taking their own word for money having arrived — never a
                 // customer action. Declared before the broader payments matcher

@@ -39,6 +39,34 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.plan.note':
     'Das ist dein eigenes Abonnement für die Plattform. Rechnungen an deine Kunden liegen bei der jeweiligen Buchung; was du ihnen berechnen kannst, stellst du unten unter „Online-Zahlungen“ ein.',
 
+  // Fotolios eigenes Abo. Bewusst anders benannt als die Connect-/Auszahlungs-
+  // Texte weiter oben: die beiden werden am leichtesten verwechselt.
+  'settings.subscription.title': 'Dein Fotolio-Abo',
+  'settings.subscription.subtitle':
+    'Was du an Fotolio zahlst. Getrennt von den Auszahlungen oben — das ist, wie deine Kund:innen dich bezahlen.',
+  'settings.subscription.loading': 'Wird geladen…',
+  'settings.subscription.trial': 'Testphase',
+  'settings.subscription.trialEndsOn': 'Deine Testphase läuft bis zum {date}.',
+  'settings.subscription.active': 'Aktiv',
+  'settings.subscription.renewsOn': 'Verlängert sich am {date}.',
+  'settings.subscription.pastDue': 'Zahlung fehlgeschlagen',
+  'settings.subscription.pastDueDetail':
+    'Deine letzte Zahlung ist fehlgeschlagen. Dein Konto bleibt nutzbar, während Stripe es erneut versucht — bitte aktualisiere deine Karte.',
+  'settings.subscription.locked': 'Nur-Lesen',
+  'settings.subscription.lockedDetail':
+    'Wähle einen Tarif, um wieder Buchungen, Galerien und Rechnungen anzulegen. Alles Bestehende bleibt verfügbar.',
+  'settings.subscription.manage': 'Abo verwalten',
+  'settings.subscription.choose': '{plan} wählen',
+  'settings.subscription.currentPlan': '{plan} (aktuell)',
+  'settings.subscription.yearly': 'Jährlich zahlen (2 Monate gratis)',
+  'settings.subscription.unavailable':
+    'Abonnements sind auf dieser Installation noch nicht aktiviert. Dein Konto bleibt nutzbar; wende dich an den Support.',
+  'settings.subscription.loadError': 'Abo konnte nicht geladen werden.',
+  'settings.subscription.checkoutError':
+    'Checkout konnte nicht geöffnet werden. Bitte erneut versuchen.',
+  'settings.subscription.portalError':
+    'Abo-Portal konnte nicht geöffnet werden. Bitte erneut versuchen.',
+
   'settings.danger.title': 'Gefahrenzone',
   'settings.danger.subtitle': 'Unwiderrufliche Aktionen. Bitte mit Bedacht fortfahren.',
   'settings.danger.deleteAccount': 'Konto löschen',

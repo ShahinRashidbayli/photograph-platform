@@ -9,7 +9,12 @@ import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
-import { BillingProfileSection, DatevExportSection, StripeConnectSection } from './BillingSettings';
+import {
+  BillingProfileSection,
+  DatevExportSection,
+  StripeConnectSection,
+  SubscriptionSection,
+} from './BillingSettings';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export default function SettingsPage() {
@@ -462,68 +467,12 @@ export default function SettingsPage() {
           export's header carries the business name configured above. */}
       {isPhotographer && <DatevExportSection />}
 
-      {/* Billing — the tenant's subscription; never shown to clients */}
-      {isPhotographer && (
-        <section style={section} aria-labelledby="settings-billing">
-          <h2
-            id="settings-billing"
-            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
-          >
-            {t('settings.plan.title')}
-          </h2>
-          <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
-            {t('settings.plan.subtitle')}
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-            }}
-          >
-            <div>
-              <div
-                style={{ fontSize: '0.9rem', fontWeight: 600, color: c.text, marginBottom: '4px' }}
-              >
-                {t('settings.plan.current')}
-              </div>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  padding: '4px 12px',
-                  borderRadius: '999px',
-                  background: c.primaryBg,
-                  color: c.primaryText,
-                  border: `1px solid ${c.primaryBorder}`,
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {user?.tenant?.plan ?? 'Starter'}
-              </span>
-            </div>
-            <button
-              style={{
-                padding: '9px 20px',
-                background: c.surface,
-                color: c.text,
-                border: `1px solid ${c.border}`,
-                borderRadius: '10px',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              {t('settings.plan.upgrade')}
-            </button>
-          </div>
-          <div style={{ height: '1px', background: c.divider, margin: '20px 0' }} />
-          <div style={{ fontSize: '0.88rem', color: c.textMuted }}>{t('settings.plan.note')}</div>
-        </section>
-      )}
+      {/* The subscription the photographer holds with Fotolio. Replaces a
+          hard-coded plan badge whose "Upgrade plan" button did nothing at all:
+          the plan came from the JWT's tenant claim, so it could not reflect a
+          subscription, and there was no checkout behind the button. Never
+          shown to clients — the API refuses them too (SecurityConfig). */}
+      {isPhotographer && <SubscriptionSection />}
 
       {/* Danger zone */}
       <section

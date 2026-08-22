@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
+import { AccountLockNotice } from '@/components/AccountLockNotice';
 
 // Nav grouped into sections so the sidebar mirrors the mental model:
 // daily-work pages first, content-management after it. Each group renders with
@@ -716,6 +717,11 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                 rather than being duplicated per route. */}
             <Suspense fallback={null}>
               <PaymentReturnNotice />
+              {/* Renders nothing unless the account is locked or its
+                  trial is nearly up. Mounted in the shell rather than
+                  per page because the lock applies to every write in
+                  the app, so any page is where someone will hit it. */}
+              <AccountLockNotice />
             </Suspense>
             {accessDenied ? (
               <div

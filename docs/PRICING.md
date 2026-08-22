@@ -31,7 +31,7 @@ The three plan names exist end to end, but **nothing enforces them**.
 | Backend | **Superseded 2026-08-22.** `Plan` is an enum, and `EntitlementService` is the single place that maps a plan to what it grants — retention window, seats, capabilities and the commission rate. Gates throw (`PlanUpgradeRequiredException` → 402) rather than returning booleans, and `WriteAccessInterceptor` covers every mutating endpoint by default. |
 | Frontend | Rendered as a badge in the sidebar and Settings. Never used to gate a feature. |
 | Landing | `PRICING` array in `apps/web/src/app/page.tsx` — €19 / €39 / €79 (yearly €16 / €32 / €65) |
-| Billing (ours) | **Partly built.** The 14-day trial is now real: registration stamps `trial_ends_at`, and an expired trial with no subscription puts the account into a read-only lock (§7.7). Still missing the half that collects money — no Stripe subscription, so nothing can end the lock by paying. |
+| Billing (ours) | **Built 2026-08-22.** 14-day trial stamped at registration, read-only lock when it lapses (§7.7), Stripe Checkout to subscribe and Stripe's hosted portal to manage. The tenant's plan comes from the price on the confirmed subscription. Needs Stripe price ids and a second webhook endpoint configured before it can sell anything. |
 | Billing (theirs) | **Built.** Photographers issue §14 UStG invoices per booking, clients pay them by card / SEPA / bank transfer, and the DATEV export covers the year. Money moves on Stripe Connect (Express) — direct charges on the photographer's own connected account, with our commission taken off the top. |
 
 ~~**Consequence: a STARTER tenant can use every feature of PRO and STUDIO
@@ -294,12 +294,21 @@ Deliberately, more features are **not** the next step:
    webhooks, and the "finish payout setup" state in the UI. This is the
    prerequisite for any payment at all — see §4.
 5. **Payments with `application_fee_amount`** derived from the tenant's plan.
-6. **Billing.** Stripe subscription, plan changes, proration — **still open.**
-   Trial expiry itself is done (2026-08-22): registration stamps
-   `trial_ends_at`, and `WriteAccessInterceptor` puts a lapsed account into the
-   read-only state §7.7 now specifies. What is missing is the part that takes
-   money: there is still no Stripe subscription, so nothing can move a tenant
-   out of the read-only state by paying.
+6. ~~**Billing.**~~ ✅ **Done 2026-08-22.** Stripe Checkout (subscription mode)
+   for the initial purchase, Stripe's hosted billing portal for everything
+   after it — card changes, invoices, plan switches, proration and cancellation
+   are Stripe's regulated surface, and every screen we did not build is a
+   screen that cannot disagree with what Stripe actually charged.
+
+   The plan is written by the subscription webhook from the price on the
+   confirmed subscription, and nowhere else — an abandoned checkout upgrades
+   nobody. Subscribing mid-trial passes the remaining trial to Stripe as
+   `trial_end`, so nobody pays twice for the same fortnight.
+
+   **Operationally this needs its own Stripe webhook endpoint and its own
+   signing secret** (`/api/public/webhooks/stripe/billing`), separate from the
+   Connect one — see `infra/.env.example`. Price ids are all-six-or-none: the
+   app refuses to boot half-configured.
 
 Enforcement must be server-side. A UI-only gate is a suggestion, not a limit —
 and with a commission the stakes are money, not just a locked screen: the fee

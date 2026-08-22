@@ -5,6 +5,7 @@ import com.photographplatform.api.tenant.domain.Plan;
 import jakarta.annotation.PostConstruct;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -59,25 +60,32 @@ public class EntitlementProperties {
      * than at boot on ours. A half-configured entitlement table is also the one
      * failure mode that can silently *grant* access, so it must never boot.
      */
+    /**
+     * Note every {@code toLowerCase} below passes {@link Locale#ROOT}. These
+     * strings name config keys, and under Turkish locale rules 'I' lowercases
+     * to dotless 'ı' — so the message would point at {@code app.plans.tiers.studıo},
+     * a key that does not exist and cannot be searched for. The same hazard is
+     * documented on {@code BookingStatus#parse}.
+     */
     @PostConstruct
     public void validate() {
         for (Plan plan : Plan.values()) {
             PlanConfig config = tiers.get(plan);
             if (config == null) {
                 throw new IllegalStateException(
-                    "app.plans.tiers is missing '" + plan.name().toLowerCase() + "'. Every plan in the "
+                    "app.plans.tiers is missing '" + plan.name().toLowerCase(Locale.ROOT) + "'. Every plan in the "
                         + "tenants.plan CHECK constraint needs an entitlement row, or tenants on that "
                         + "plan fail at their first gate instead of at boot.");
             }
             if (config.getGalleryRetentionDays() <= 0) {
                 throw new IllegalStateException(
-                    "app.plans.tiers." + plan.name().toLowerCase() + ".gallery-retention-days must be "
+                    "app.plans.tiers." + plan.name().toLowerCase(Locale.ROOT) + ".gallery-retention-days must be "
                         + "positive — a zero or negative window would expire galleries the moment they "
                         + "are delivered (ADR-001 §2).");
             }
             if (config.getSeats() <= 0) {
                 throw new IllegalStateException(
-                    "app.plans.tiers." + plan.name().toLowerCase() + ".seats must be at least 1 — the "
+                    "app.plans.tiers." + plan.name().toLowerCase(Locale.ROOT) + ".seats must be at least 1 — the "
                         + "owner's own login occupies a seat.");
             }
         }

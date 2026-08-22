@@ -57,6 +57,13 @@ export const chrome = {
   'verify.toastTitle': 'Verify your email',
   'verify.toastDefault': 'Please verify your email before performing this action.',
   'verify.dismiss': 'Dismiss',
+
+  // Read-only lock / trial countdown, shown in the dashboard shell.
+  'account.locked.fallback':
+    'Your account is read-only. Choose a plan to continue creating bookings, galleries and invoices.',
+  'account.trialEndingSoon':
+    'Your free trial ends in {days} days ({date}). Choose a plan to keep creating bookings, galleries and invoices.',
+  'account.choosePlan': 'Choose a plan',
 } as const;
 
 export type EnChrome = typeof chrome;

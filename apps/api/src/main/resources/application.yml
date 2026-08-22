@@ -235,6 +235,24 @@ app:
   # app.stripe below, which moves the photographer's clients' money.
   billing:
     trial-days: ${BILLING_TRIAL_DAYS:14}
+    # Its own signing secret, from its own Stripe webhook endpoint. Sharing
+    # app.stripe.webhook-secret would mean rotating one silently breaks the
+    # other, with money on both sides.
+    webhook-secret: ${STRIPE_BILLING_WEBHOOK_SECRET:}
+    # Stripe price ids per plan. All six or none: BillingProperties refuses to
+    # boot half-configured, because a partial table means some plans cannot be
+    # bought and some subscriptions cannot be mapped back to a tier — which
+    # would leave a paying customer on STARTER with no trace of why.
+    prices:
+      starter:
+        monthly: ${STRIPE_PRICE_STARTER_MONTHLY:}
+        yearly: ${STRIPE_PRICE_STARTER_YEARLY:}
+      pro:
+        monthly: ${STRIPE_PRICE_PRO_MONTHLY:}
+        yearly: ${STRIPE_PRICE_PRO_YEARLY:}
+      studio:
+        monthly: ${STRIPE_PRICE_STUDIO_MONTHLY:}
+        yearly: ${STRIPE_PRICE_STUDIO_YEARLY:}
   # Gallery retention (ADR-001). The most destructive job in the product, so
   # the irreversible phase is opt-in per environment: a staging database
   # restored from a production dump would otherwise start deleting real

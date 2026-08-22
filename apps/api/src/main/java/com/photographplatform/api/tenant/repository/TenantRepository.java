@@ -19,4 +19,14 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
      * tenants} is one of the tables V11 deliberately left outside RLS.
      */
     Optional<Tenant> findByStripeAccountId(String stripeAccountId);
+
+    /**
+     * Resolves the tenant behind one of OUR Stripe customers — the platform
+     * account's subscription billing, not Connect. Used as the fallback path in
+     * {@code BillingWebhookService} when a subscription arrives without the
+     * {@code tenant_id} metadata we stamp on it: a subscription created from
+     * the Stripe dashboard by hand has no metadata, and refusing to recognise
+     * it would leave a paying customer locked out.
+     */
+    Optional<Tenant> findByStripeCustomerId(String stripeCustomerId);
 }

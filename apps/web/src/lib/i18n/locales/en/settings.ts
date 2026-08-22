@@ -37,6 +37,34 @@ export const settings = {
   'settings.plan.note':
     'This is your own subscription to the platform. Invoices you send to clients live on each booking; what you can charge them for is set under Online payments below.',
 
+  // Fotolio's own subscription. Kept verbally distinct from the Stripe Connect
+  // ("payouts") strings above: those two are the easiest pair in the product to
+  // confuse, and reading one as the other means either believing you can take
+  // money when you cannot, or believing you are paying when you are not.
+  'settings.subscription.title': 'Your Fotolio subscription',
+  'settings.subscription.subtitle':
+    'What you pay Fotolio. Separate from payouts above, which is how your clients pay you.',
+  'settings.subscription.loading': 'Loading…',
+  'settings.subscription.trial': 'Free trial',
+  'settings.subscription.trialEndsOn': 'Your trial runs until {date}.',
+  'settings.subscription.active': 'Active',
+  'settings.subscription.renewsOn': 'Renews on {date}.',
+  'settings.subscription.pastDue': 'Payment failed',
+  'settings.subscription.pastDueDetail':
+    'Your last payment did not go through. Your account keeps working while Stripe retries — update your card to avoid interruption.',
+  'settings.subscription.locked': 'Read-only',
+  'settings.subscription.lockedDetail':
+    'Choose a plan to start creating bookings, galleries and invoices again. Everything you already have stays available.',
+  'settings.subscription.manage': 'Manage billing',
+  'settings.subscription.choose': 'Choose {plan}',
+  'settings.subscription.currentPlan': '{plan} (current)',
+  'settings.subscription.yearly': 'Pay yearly (2 months free)',
+  'settings.subscription.unavailable':
+    'Subscriptions are not enabled on this deployment yet. Your account keeps working; contact support to arrange billing.',
+  'settings.subscription.loadError': 'Could not load your subscription.',
+  'settings.subscription.checkoutError': 'Could not open the checkout. Please try again.',
+  'settings.subscription.portalError': 'Could not open the billing portal. Please try again.',
+
   'settings.danger.title': 'Danger zone',
   'settings.danger.subtitle': 'Irreversible actions. Please proceed with caution.',
   'settings.danger.deleteAccount': 'Delete account',

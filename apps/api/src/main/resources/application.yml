@@ -131,6 +131,29 @@ management:
 
 server:
   port: 8080
+  # Hand X-Forwarded-* to Tomcat's RemoteIpValve instead of reading it in
+  # application code. The valve walks the header from the RIGHT, discarding
+  # hops that match internal-proxies below, and stops at the first address
+  # that isn't ours — so it lands on the peer our own proxy actually saw.
+  #
+  # This is the whole security property. A proxy APPENDS the peer it saw, so a
+  # client-supplied value stays to the left of every real hop and is never
+  # reached. ClientIp used to take the LEFTMOST entry, which is precisely the
+  # attacker-controlled one: every IP rate limit, the login lockout and the
+  # audit trail's ip_address were selectable by sending a header.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Which hops count as ours. The default covers the RFC1918 / loopback
+      # ranges, which is right for Railway (its edge reaches the container over
+      # the private network) and for local development, where there is no proxy
+      # and the socket address is used unchanged.
+      #
+      # Override when a proxy sits in front on a PUBLIC address — Cloudflare in
+      # front of Railway, say — or its address will be treated as the client
+      # and every request will appear to come from the CDN. Only ever list hops
+      # you operate: an address trusted here can assert any client IP it likes.
+      internal-proxies: ${TRUSTED_PROXY_IPS:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]{1}\.\d{1,3}\.\d{1,3}|172\.2[0-9]{1}\.\d{1,3}\.\d{1,3}|172\.3[0-1]{1}\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1}
   compression:
     # List endpoints return highly repetitive JSON (bookings, leads, photos
     # with long presigned R2 URLs — those alone are ~500 bytes each and
@@ -198,6 +221,13 @@ app:
     # true for the local MinIO container, false for Cloudflare R2. A mismatch
     # signs every presigned URL for the wrong host — see R2Properties#pathStyle.
     path-style: ${R2_PATH_STYLE:false}
+    # Ceilings on a single pre-signed upload. These are enforced by signing
+    # Content-Length into the URL, so they bind object storage itself rather
+    # than depending on the client to respect them — see
+    # R2StorageService#generateUploadUrl. Raising them raises what one account
+    # can write into the shared bucket in one request.
+    max-upload-bytes: ${R2_MAX_UPLOAD_BYTES:52428800}
+    max-avatar-bytes: ${R2_MAX_AVATAR_BYTES:5242880}
   # The plan → capabilities table (PRICING.md §6.3). One source of truth, read
   # by the API's gates and served to the frontend at GET /api/entitlements so
   # the two can never disagree about what a tier includes.

@@ -195,7 +195,9 @@ public class AuthController {
      * browser can upload the avatar directly to R2, and a view URL to store
      * in the profile after the upload succeeds.
      * <p>
-     * Accepts an optional {@code contentType} query param (default {@code image/jpeg}).
+     * Accepts an optional {@code contentType} query param (default {@code image/jpeg})
+     * and a required {@code fileSizeBytes}, which is signed into the upload URL
+     * so the PUT is bounded — see {@code R2StorageService#generateUploadUrl}.
      * After uploading, the client should {@code PATCH /api/auth/me} with
      * {@code {"avatarUrl": "<viewUrl>"}}.  The view URL is a pre-signed GET
      * URL that refreshes on the next call, so callers should not cache it.
@@ -203,10 +205,11 @@ public class AuthController {
     @PostMapping("/me/avatar/presign")
     public ResponseEntity<AvatarPresignResponse> presignAvatar(
         @AuthenticationPrincipal String userId,
-        @RequestParam(defaultValue = "image/jpeg") String contentType
+        @RequestParam(defaultValue = "image/jpeg") String contentType,
+        @RequestParam long fileSizeBytes
     ) {
         requireUserId(userId);
-        return ResponseEntity.ok(avatarService.presign(contentType));
+        return ResponseEntity.ok(avatarService.presign(contentType, fileSizeBytes));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.PasswordResetTokenRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
@@ -14,12 +13,13 @@ import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import com.photographplatform.api.common.security.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,8 +70,10 @@ public class PasswordResetService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
-    private final StringRedisTemplate redis;
+    private final RateLimiter rateLimiter;
+    private final Clock clock;
     private final AuditService auditService;
+    private final SessionRevocation sessionRevocation;
     private final String webBaseUrl;
 
     public PasswordResetService(
@@ -80,8 +82,10 @@ public class PasswordResetService {
         RefreshTokenRepository refreshTokenRepository,
         PasswordEncoder passwordEncoder,
         EmailService emailService,
-        StringRedisTemplate redis,
+        RateLimiter rateLimiter,
+        Clock clock,
         AuditService auditService,
+        SessionRevocation sessionRevocation,
         @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
     ) {
         this.userRepository = userRepository;
@@ -89,8 +93,10 @@ public class PasswordResetService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
-        this.redis = redis;
+        this.rateLimiter = rateLimiter;
+        this.clock = clock;
         this.auditService = auditService;
+        this.sessionRevocation = sessionRevocation;
         this.webBaseUrl = webBaseUrl;
     }
 
@@ -116,7 +122,11 @@ public class PasswordResetService {
             enforceRateLimit("pwreset:req:ip:" + ipAddress, MAX_PER_IP_PER_HOUR);
         }
 
-        User user = userRepository.findByEmail(normalizedEmail).orElse(null);
+        // Staff only — same reasoning as login: no tenant is supplied, so the
+        // address has to resolve to one account, and only staff accounts have a
+        // password to reset. The passwordless-customer branch below still stands
+        // for a staff row that somehow has no hash.
+        User user = userRepository.findStaffByEmail(normalizedEmail).orElse(null);
         if (user == null) {
             LOG.info("Password reset requested for unknown address");
             return;
@@ -128,13 +138,13 @@ public class PasswordResetService {
             return;
         }
 
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
 
         String rawToken = TokenUtils.generateSecureToken();
         tokenRepository.save(new PasswordResetToken(
             user.getId(),
             TokenUtils.sha256(rawToken),
-            OffsetDateTime.now().plus(TOKEN_TTL)
+            OffsetDateTime.now(clock).plus(TOKEN_TTL)
         ));
         sendResetEmail(user, rawToken);
 
@@ -175,18 +185,24 @@ public class PasswordResetService {
         // Clicking a link sent to the address proves ownership of it — the same
         // reasoning that lets a magic-link login verify an email.
         if (!user.isEmailVerified()) {
-            user.setEmailVerifiedAt(OffsetDateTime.now());
+            user.setEmailVerifiedAt(OffsetDateTime.now(clock));
         }
         userRepository.save(user);
 
         token.markUsed();
         tokenRepository.save(token);
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
 
         // The whole point of a reset is usually that someone else may be inside
         // the account. Changing the password while leaving their refresh token
         // alive would change nothing for them.
         refreshTokenRepository.invalidateAllForUser(user.getId());
+
+        // Nor would it, while leaving their ACCESS token alive — and that was
+        // the real hole: the refresh token died here but the attacker's access
+        // token kept working for up to a day after the victim changed their
+        // password, with nothing in the product able to eject them.
+        sessionRevocation.revokeAllFor(user.getId());
 
         tryAudit("PASSWORD_RESET_COMPLETED", user, ipAddress);
     }
@@ -194,14 +210,8 @@ public class PasswordResetService {
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private void enforceRateLimit(String key, int max) {
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, RATE_WINDOW);
-        }
-        if (count != null && count > max) {
-            throw new TooManyRequestsException(
-                "Too many reset requests. Please try again later.");
-        }
+        rateLimiter.check(key, max, RATE_WINDOW,
+            "Too many reset requests. Please try again later.");
     }
 
     private void sendResetEmail(User user, String rawToken) {
@@ -228,13 +238,10 @@ public class PasswordResetService {
         }
     }
 
+    /** Kept as a local shape only because every call here is about a user. */
     private void tryAudit(String action, User user, String ipAddress) {
-        try {
-            auditService.log(action, "USER", user.getId(),
-                user.getTenantId(), user.getId(), ipAddress);
-        } catch (RuntimeException ex) {
-            LOG.warn("Audit log failed for {} on {}", action, user.getId(), ex);
-        }
+        auditService.logQuietly(
+            action, "USER", user.getId(), user.getTenantId(), user.getId(), ipAddress);
     }
 
 }

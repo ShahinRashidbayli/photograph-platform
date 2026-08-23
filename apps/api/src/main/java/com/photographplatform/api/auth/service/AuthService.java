@@ -14,9 +14,9 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.billing.config.BillingProperties;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -35,7 +35,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AuthService {
@@ -58,12 +60,17 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final StringRedisTemplate redis;
+    private final RateLimiter rateLimiter;
     private final AuditService auditService;
     private final EmailVerificationService emailVerificationService;
     private final AvatarUrlResolver avatarUrlResolver;
+    private final SessionRevocation sessionRevocation;
     private final BillingProperties billingProperties;
     private final Clock clock;
     private final long refreshTokenExpiryMs;
+    /** See {@link #login} for why that method drives transactions by hand. */
+    private final TransactionTemplate readOnlyTransaction;
+    private final TransactionTemplate writeTransaction;
 
     /**
      * BCrypt hash computed once at startup over a value that never matches any real
@@ -79,11 +86,14 @@ public class AuthService {
         JwtService jwtService,
         PasswordEncoder passwordEncoder,
         StringRedisTemplate redis,
+        RateLimiter rateLimiter,
         AuditService auditService,
         EmailVerificationService emailVerificationService,
         AvatarUrlResolver avatarUrlResolver,
+        SessionRevocation sessionRevocation,
         BillingProperties billingProperties,
         Clock clock,
+        PlatformTransactionManager transactionManager,
         @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs
     ) {
         this.tenantRepository = tenantRepository;
@@ -92,12 +102,17 @@ public class AuthService {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.redis = redis;
+        this.rateLimiter = rateLimiter;
         this.auditService = auditService;
         this.emailVerificationService = emailVerificationService;
         this.avatarUrlResolver = avatarUrlResolver;
+        this.sessionRevocation = sessionRevocation;
         this.billingProperties = billingProperties;
         this.clock = clock;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
+        this.readOnlyTransaction = new TransactionTemplate(transactionManager);
+        this.readOnlyTransaction.setReadOnly(true);
+        this.writeTransaction = new TransactionTemplate(transactionManager);
         this.dummyBcryptHash = passwordEncoder.encode(
             "timing-equalization-placeholder-" + UUID.randomUUID());
     }
@@ -119,7 +134,13 @@ public class AuthService {
         if (tenantRepository.existsBySubdomain(normalizedSubdomain)) {
             throw new ConflictException("Subdomain already taken");
         }
-        if (userRepository.existsByEmail(normalizedEmail)) {
+        // Staff-scoped, not global: having been someone else's client must not
+        // bar you from opening your own studio, and that person is exactly who
+        // signs up. The DB backs this with uq_users_staff_email, so the race
+        // between this check and the insert below lands in the
+        // DataIntegrityViolationException handler rather than creating a second
+        // account.
+        if (userRepository.existsStaffByEmail(normalizedEmail)) {
             throw new ConflictException("Email already in use");
         }
 
@@ -164,7 +185,7 @@ public class AuthService {
         // but mail-delivery failures are swallowed inside the service.
         emailVerificationService.issueAndSend(user);
 
-        tryAudit("USER_REGISTERED", "USER", user.getId(),
+        auditService.logQuietly("USER_REGISTERED", "USER", user.getId(),
             tenant.getId(), user.getId(), ipAddress);
 
         return buildAuthResult(user, tenant);
@@ -172,7 +193,24 @@ public class AuthService {
 
     // ── Login ─────────────────────────────────────────────────────────────────
 
-    @Transactional
+    /**
+     * Deliberately not {@code @Transactional} as a whole.
+     *
+     * <p>BCrypt at cost 12 is ~250ms of CPU by design — that cost is the point
+     * of the algorithm. Inside a transaction it is also ~250ms holding one of
+     * the ten connections in the pool, because Hibernate acquires on the first
+     * statement and releases at commit. The lookup below comes first, so every
+     * login (and every <em>failed</em> login, which runs the same hash against a
+     * dummy to equalise timing) pinned a connection for the whole hash.
+     *
+     * <p>At that rate a burst of failed sign-ins exhausts the pool and takes
+     * down endpoints that have nothing to do with authentication — a cheap
+     * denial of service that costs the attacker one HTTP request each.
+     *
+     * <p>So the work is split: read, hash outside any transaction, then write.
+     * The two short transactions cost one extra connection acquisition and
+     * remove the long hold entirely.
+     */
     public AuthResult login(LoginRequest req, String ipAddress) {
         String normalizedEmail = Normalize.email(req.email());
         String emailLockKey = "login:lock:email:" + normalizedEmail;
@@ -185,11 +223,20 @@ public class AuthService {
             throw new UnauthorizedException("Invalid credentials");
         }
 
-        Optional<User> userOpt = userRepository.findByEmail(normalizedEmail);
+        // Staff only. This endpoint takes an email and a password with no tenant
+        // hint, so the address must resolve to exactly one account — which is
+        // true for PHOTOGRAPHER/ADMIN (uq_users_staff_email) and deliberately
+        // untrue for customers, who may hold one row per photographer they hire.
+        // Customers are passwordless anyway, so none could authenticate here.
+        // Short read transaction; the connection goes back to the pool before
+        // the expensive part starts.
+        Optional<User> userOpt = readOnlyTransaction.execute(
+            status -> userRepository.findStaffByEmail(normalizedEmail));
 
-        // Equalize timing by always running BCrypt — even if the email is unknown.
+        // Outside any transaction. Still always runs — hashing only when the
+        // address exists would make response time an account-existence oracle.
         boolean passwordValid;
-        if (userOpt.isPresent() && userOpt.get().getPasswordHash() != null) {
+        if (userOpt != null && userOpt.isPresent() && userOpt.get().getPasswordHash() != null) {
             passwordValid = passwordEncoder.matches(req.password(), userOpt.get().getPasswordHash());
         } else {
             passwordEncoder.matches(req.password(), dummyBcryptHash);
@@ -205,17 +252,25 @@ public class AuthService {
         // Success — clear the email-bound counter (IP counter naturally expires)
         redis.delete(emailFailKey);
 
-        User user = userOpt.orElseThrow();
-        Tenant tenant = tenantRepository.findById(user.getTenantId())
-            .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+        UUID userId = userOpt.orElseThrow().getId();
 
-        user.setLastLoginAt(OffsetDateTime.now());
-        userRepository.save(user);
+        // Re-read inside the write transaction: the instance above is detached,
+        // and buildAuthResult persists a refresh token that must commit with the
+        // last-login stamp.
+        return writeTransaction.execute(status -> {
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+            Tenant tenant = tenantRepository.findById(user.getTenantId())
+                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
-        tryAudit("USER_LOGIN", "USER", user.getId(),
-            tenant.getId(), user.getId(), ipAddress);
+            user.setLastLoginAt(OffsetDateTime.now(clock));
+            userRepository.save(user);
 
-        return buildAuthResult(user, tenant);
+            auditService.logQuietly("USER_LOGIN", "USER", user.getId(),
+                tenant.getId(), user.getId(), ipAddress);
+
+            return buildAuthResult(user, tenant);
+        });
     }
 
     // ── Refresh ───────────────────────────────────────────────────────────────
@@ -229,7 +284,7 @@ public class AuthService {
         RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
             .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
-        if (stored.isUsed() || stored.getExpiresAt().isBefore(OffsetDateTime.now())) {
+        if (stored.isUsed() || stored.getExpiresAt().isBefore(OffsetDateTime.now(clock))) {
             // Reuse / expiry detected — invalidate the entire family for safety.
             refreshTokenRepository.invalidateAllForUser(stored.getUserId());
             throw new UnauthorizedException("Refresh token reuse detected");
@@ -248,12 +303,21 @@ public class AuthService {
 
     // ── Logout ────────────────────────────────────────────────────────────────
 
+    /**
+     * Ends the session on both halves of it.
+     *
+     * <p>Invalidating the refresh token alone left the access token working for
+     * the rest of its 24 hours, because a JWT carries its own authority and the
+     * filter had nothing to check it against. "Sign out" therefore did not sign
+     * anyone out until their token happened to expire.
+     */
     @Transactional
     public void logout(UUID userId) {
         if (userId == null) {
             return; // idempotent
         }
         refreshTokenRepository.invalidateAllForUser(userId);
+        sessionRevocation.revokeAllFor(userId);
     }
 
     // ── Me ────────────────────────────────────────────────────────────────────
@@ -352,7 +416,7 @@ public class AuthService {
             user.getId(),
             tenant.getId(),
             refreshHash,
-            OffsetDateTime.now().plus(Duration.ofMillis(refreshTokenExpiryMs))
+            OffsetDateTime.now(clock).plus(Duration.ofMillis(refreshTokenExpiryMs))
         ));
 
         AuthResponse response = new AuthResponse(
@@ -367,11 +431,13 @@ public class AuthService {
         return new AuthResult(response, accessToken, rawRefresh);
     }
 
+    /**
+     * Not a plain limiter: on reaching the threshold it writes a separate lock
+     * key that refuses even correct credentials for the lockout period, which
+     * is why it needs the running count rather than a yes/no.
+     */
     private void registerLoginFailure(String countKey, String lockKey, int max) {
-        Long count = redis.opsForValue().increment(countKey);
-        if (count != null && count == 1) {
-            redis.expire(countKey, LOGIN_LOCKOUT_DURATION);
-        }
+        Long count = rateLimiter.hit(countKey, LOGIN_LOCKOUT_DURATION);
         if (count != null && count >= max) {
             redis.opsForValue().set(lockKey, "1", LOGIN_LOCKOUT_DURATION);
         }
@@ -381,15 +447,8 @@ public class AuthService {
         if (ipAddress == null || ipAddress.isBlank()) {
             return;
         }
-        String key = "register:rate:" + ipAddress;
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, REGISTER_WINDOW);
-        }
-        if (count != null && count > REGISTER_MAX_PER_IP_PER_HOUR) {
-            throw new TooManyRequestsException(
-                "Too many registration attempts. Please try again later.");
-        }
+        rateLimiter.check("register:rate:" + ipAddress, REGISTER_MAX_PER_IP_PER_HOUR,
+            REGISTER_WINDOW, "Too many registration attempts. Please try again later.");
     }
 
     /**
@@ -397,14 +456,6 @@ public class AuthService {
      * The {@link AuditService} is {@code @Async}, but exceptions thrown when
      * scheduling the task or by the logger itself should still be swallowed.
      */
-    private void tryAudit(String action, String entityType, UUID entityId,
-                          UUID tenantId, UUID actorId, String ipAddress) {
-        try {
-            auditService.log(action, entityType, entityId, tenantId, actorId, ipAddress);
-        } catch (RuntimeException ex) {
-            LOG.warn("Audit log failed for {} on {}", action, entityId, ex);
-        }
-    }
 
 
 }

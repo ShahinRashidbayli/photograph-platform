@@ -50,8 +50,18 @@ api.interceptors.response.use(
       throw error;
     }
 
-    // Skip refresh loop for auth endpoints themselves
-    if (original.url?.includes('/api/auth/')) {
+    // Endpoints that must never trigger a refresh, because refreshing is
+    // either meaningless or recursive there. Deliberately an exact list and
+    // not an `/api/auth/` prefix: `/api/auth/me` runs on every page load and
+    // is the single most likely place to meet an expired token, so excluding
+    // the whole prefix meant the one call that should refresh never did.
+    const NO_REFRESH = [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/auth/refresh',
+      '/api/auth/logout',
+    ];
+    if (NO_REFRESH.some((path) => original.url?.startsWith(path))) {
       throw error;
     }
 

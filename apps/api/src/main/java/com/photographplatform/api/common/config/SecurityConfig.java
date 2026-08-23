@@ -1,6 +1,7 @@
 package com.photographplatform.api.common.config;
 
 import com.photographplatform.api.common.security.JwtAuthFilter;
+import com.photographplatform.api.common.security.RestAuthEntryPoints;
 import com.photographplatform.api.common.security.TenantContextFilter;
 import com.photographplatform.api.common.util.TokenUtils;
 import jakarta.servlet.FilterChain;
@@ -37,16 +38,25 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final TenantContextFilter tenantContextFilter;
+    private final RestAuthEntryPoints authEntryPoints;
     private final List<String> allowedOrigins;
+    private final boolean cookieSecure;
+    private final String cookieSameSite;
 
     public SecurityConfig(
         JwtAuthFilter jwtAuthFilter,
         TenantContextFilter tenantContextFilter,
-        @Value("${app.cors.allowed-origins}") List<String> allowedOrigins
+        RestAuthEntryPoints authEntryPoints,
+        @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
+        @Value("${app.cookie.secure:false}") boolean cookieSecure,
+        @Value("${app.cookie.same-site:Lax}") String cookieSameSite
     ) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.tenantContextFilter = tenantContextFilter;
+        this.authEntryPoints = authEntryPoints;
         this.allowedOrigins = allowedOrigins;
+        this.cookieSecure = cookieSecure;
+        this.cookieSameSite = cookieSameSite;
     }
 
     @Bean
@@ -66,6 +76,13 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Without this, a chain with no httpBasic/formLogin defaults to
+            // Http403ForbiddenEntryPoint and answers 403 for an expired token —
+            // which the frontend interceptor does not refresh on, so refresh
+            // never ran at all. See RestAuthEntryPoints for the full account.
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authEntryPoints.authenticationEntryPoint())
+                .accessDeniedHandler(authEntryPoints.accessDeniedHandler()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/public/**", "/actuator/health", "/error").permitAll()
                 // Portfolio management (upload, complete, publish, delete, owner
@@ -144,7 +161,9 @@ public class SecurityConfig {
             // absent and verifies it against the X-XSRF-TOKEN header on mutating
             // requests. Auth-independent, so its position in the chain does not
             // matter — placed first so a rejected request never touches app code.
-            .addFilterBefore(new StatelessCsrfFilter(), UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(
+                new StatelessCsrfFilter(cookieSecure, cookieSameSite),
+                UsernamePasswordAuthenticationFilter.class)
             .build();
     }
 
@@ -165,6 +184,21 @@ public class SecurityConfig {
      * desynchronise it.
      */
     private static final class StatelessCsrfFilter extends OncePerRequestFilter {
+
+        /**
+         * The same {@code app.cookie.*} settings {@code AuthCookieWriter} applies
+         * to the auth cookies. They used to be hardcoded here — so in an HTTPS
+         * deployment the auth cookies carried {@code Secure} and this one did
+         * not, which is exactly the kind of split that survives a review because
+         * each file looks fine on its own.
+         */
+        private final boolean secure;
+        private final String sameSite;
+
+        private StatelessCsrfFilter(boolean secure, String sameSite) {
+            this.secure = secure;
+            this.sameSite = sameSite;
+        }
 
         private static final String COOKIE_NAME = "XSRF-TOKEN";
         private static final String HEADER_NAME = "X-XSRF-TOKEN";
@@ -200,8 +234,11 @@ public class SecurityConfig {
                 cookieToken = TokenUtils.generateSecureToken();
                 ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, cookieToken)
                     .path("/")
+                    // Readable by script on purpose — the client has to echo it
+                    // back in the header for double-submit to mean anything.
                     .httpOnly(false)
-                    .sameSite("Lax")
+                    .secure(secure)
+                    .sameSite(sameSite)
                     .build();
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
             }

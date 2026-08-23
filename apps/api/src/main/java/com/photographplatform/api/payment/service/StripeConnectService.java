@@ -2,7 +2,6 @@ package com.photographplatform.api.payment.service;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UpstreamServiceException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.payment.config.PaymentProperties;
@@ -73,7 +72,7 @@ public class StripeConnectService {
 
     @Transactional(readOnly = true)
     public StripeConnectStatusResponse getStatus() {
-        return toStatus(requireTenant(SecurityUtils.requireCurrentTenantId()));
+        return toStatus(tenantRepository.require(SecurityUtils.requireCurrentTenantId()));
     }
 
     /**
@@ -120,30 +119,46 @@ public class StripeConnectService {
      * it can arrive after the redirect, and a settings page that still says
      * "not connected" right after a successful onboarding reads as a failure.
      */
-    @Transactional
     public StripeConnectStatusResponse refreshStatus(String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
-        Tenant tenant = requireTenant(tenantId);
-        if (tenant.getStripeAccountId() == null) {
-            return toStatus(tenant);
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+
+        String accountId = transactionTemplate.execute(
+            status -> tenantRepository.require(tenantId).getStripeAccountId());
+        if (accountId == null) {
+            return transactionTemplate.execute(status -> toStatus(tenantRepository.require(tenantId)));
         }
+
+        // Outside any transaction, for the reason createOnboardingLink above
+        // spells out and this method used to ignore: a @Transactional around
+        // this call held a pooled connection for the entire Stripe round-trip.
+        // The pool is ten deep and shared with every other request in the
+        // product, so a slow Stripe turned "the settings page is sluggish" into
+        // "the whole API is down".
+        Account account;
         try {
-            Account account = requireStripe().accounts().retrieve(tenant.getStripeAccountId());
+            account = requireStripe().accounts().retrieve(accountId);
+        } catch (StripeException ex) {
+            LOG.error("Could not refresh Stripe account {} for tenant {}", accountId, tenantId, ex);
+            throw new UpstreamServiceException("stripe",
+                "Stripe didn't answer just now, so this page may be showing stale details. "
+                    + "Please try again in a moment.", ex);
+        }
+
+        // Re-read rather than reusing the instance from the first transaction:
+        // that one is detached, and the webhook may have updated the row while
+        // we were waiting on Stripe.
+        return transactionTemplate.execute(status -> {
+            Tenant tenant = tenantRepository.require(tenantId);
             boolean wasEnabled = tenant.isStripeChargesEnabled();
             applyCapabilities(tenant, account);
             tenantRepository.save(tenant);
             if (!wasEnabled && tenant.isStripeChargesEnabled()) {
                 auditService.log("STRIPE_CONNECT_ENABLED", "TENANT", tenantId, tenantId,
-                    SecurityUtils.requireCurrentUserId(), ipAddress);
+                    actorId, ipAddress);
             }
-        } catch (StripeException ex) {
-            LOG.error("Could not refresh Stripe account {} for tenant {}",
-                tenant.getStripeAccountId(), tenantId, ex);
-            throw new UpstreamServiceException("stripe",
-                "Stripe didn't answer just now, so this page may be showing stale details. "
-                    + "Please try again in a moment.", ex);
-        }
-        return toStatus(tenant);
+            return toStatus(tenant);
+        });
     }
 
     /**
@@ -180,7 +195,7 @@ public class StripeConnectService {
     }
 
     private String ensureAccount(UUID tenantId, UUID actorId, String ipAddress) {
-        Tenant tenant = requireTenant(tenantId);
+        Tenant tenant = tenantRepository.require(tenantId);
         if (tenant.getStripeAccountId() != null && !tenant.getStripeAccountId().isBlank()) {
             return tenant.getStripeAccountId();
         }
@@ -241,11 +256,6 @@ public class StripeConnectService {
             tenant.getPlan(),
             commissionBpsFor(tenant)
         );
-    }
-
-    private Tenant requireTenant(UUID tenantId) {
-        return tenantRepository.findById(tenantId)
-            .orElseThrow(() -> new NotFoundException("Tenant not found"));
     }
 
     private StripeClient requireStripe() {

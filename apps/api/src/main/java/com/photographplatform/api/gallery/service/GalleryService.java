@@ -2,9 +2,12 @@ package com.photographplatform.api.gallery.service;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.media.ImageUploadType;
+import com.photographplatform.api.common.media.UploadLimits;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
@@ -22,9 +25,12 @@ import com.photographplatform.api.gallery.repository.GalleryRepository.GallerySt
 import com.photographplatform.api.portfolio.dto.CompleteUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadRequest;
 import com.photographplatform.api.portfolio.dto.InitiateUploadResponse;
+import com.photographplatform.api.portfolio.config.R2Properties;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.portfolio.service.ThumbnailService;
+import com.photographplatform.api.common.security.RateLimiter;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -57,6 +63,12 @@ public class GalleryService {
     private final DeliveryPhotoProcessor photoProcessor;
     private final EntitlementService entitlementService;
     private final Clock clock;
+    private final RateLimiter rateLimiter;
+    private final R2Properties r2Properties;
+
+    /** See {@link #prepareDownload} — the ZIP is the costliest thing we serve. */
+    private static final int DOWNLOAD_MAX_PER_DAY = 20;
+    private static final Duration DOWNLOAD_WINDOW = Duration.ofDays(1);
 
     public GalleryService(GalleryRepository galleryRepository,
                           DeliveryPhotoRepository deliveryPhotoRepository,
@@ -65,7 +77,9 @@ public class GalleryService {
                           AuditService auditService,
                           DeliveryPhotoProcessor photoProcessor,
                           EntitlementService entitlementService,
-                          Clock clock) {
+                          Clock clock,
+                          RateLimiter rateLimiter,
+                          R2Properties r2Properties) {
         this.galleryRepository = galleryRepository;
         this.deliveryPhotoRepository = deliveryPhotoRepository;
         this.bookingRepository = bookingRepository;
@@ -74,11 +88,13 @@ public class GalleryService {
         this.photoProcessor = photoProcessor;
         this.entitlementService = entitlementService;
         this.clock = clock;
+        this.rateLimiter = rateLimiter;
+        this.r2Properties = r2Properties;
     }
 
     @Transactional(readOnly = true)
     public List<GalleryResponse> listAll() {
-        return galleryRepository.findAllWithStats().stream()
+        return galleryRepository.findAllWithStats(QueryLimits.LIST).stream()
             .map(GalleryService::toResponse)
             .toList();
     }
@@ -192,7 +208,7 @@ public class GalleryService {
         if (!galleryRepository.existsById(galleryId)) {
             throw new NotFoundException("Gallery not found: " + galleryId);
         }
-        return deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(galleryId)
+        return deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(galleryId, QueryLimits.LIST)
             .stream()
             .map(this::toPhotoResponse)
             .toList();
@@ -200,32 +216,44 @@ public class GalleryService {
 
     // ── owner: upload ──────────────────────────────────────────────────────
 
+    /**
+     * Mints a pre-signed PUT for one delivered photo. Same contract as the
+     * portfolio's: the accepted type and the exact size are decided here and
+     * signed into the URL, because once it is handed out the browser uploads
+     * straight to R2 and nothing downstream can refuse what arrives.
+     */
     @Transactional
     public InitiateUploadResponse initiatePhotoUpload(UUID galleryId, InitiateUploadRequest req) {
         if (!galleryRepository.existsById(galleryId)) {
             throw new NotFoundException("Gallery not found: " + galleryId);
         }
+        ImageUploadType type = ImageUploadType.resolve(req.contentType(), req.filename());
+        long sizeBytes = UploadLimits.requireWithin(
+            req.fileSizeBytes(), r2Properties.getMaxUploadBytes(), "Photo");
+
         String tenantId = TenantContext.getTenant();
-        String extension = extractExtension(req.filename());
-        String r2Key = tenantId + "/galleries/" + galleryId + "/" + UUID.randomUUID() + extension;
+        String r2Key =
+            tenantId + "/galleries/" + galleryId + "/" + UUID.randomUUID() + type.extension();
 
         DeliveryPhoto photo = new DeliveryPhoto(galleryId, r2Key, req.filename());
         photo.setTenantId(SecurityUtils.requireCurrentTenantId());
+        // See PhotoService#initiateUpload: the signed Content-Length makes this
+        // the size the object can have, rather than the size the client says it
+        // had once the upload is already done.
+        photo.setFileSizeBytes(sizeBytes);
         photo = deliveryPhotoRepository.save(photo);
 
         String uploadUrl = storage
             .orElseThrow(() -> new IllegalStateException("R2 storage not configured"))
-            .generateUploadUrl(r2Key, req.contentType());
-        return new InitiateUploadResponse(photo.getId(), r2Key, uploadUrl);
+            .generateUploadUrl(r2Key, type.contentType(), sizeBytes);
+        return new InitiateUploadResponse(photo.getId(), r2Key, uploadUrl, type.contentType());
     }
 
+    /** File size is fixed at initiate-time — see {@code PhotoService#completeUpload}. */
     @Transactional
     public DeliveryPhotoResponse completePhotoUpload(UUID photoId, CompleteUploadRequest req) {
         DeliveryPhoto photo = deliveryPhotoRepository.findById(photoId)
             .orElseThrow(() -> new NotFoundException("Photo not found: " + photoId));
-        if (req.fileSizeBytes() != null) {
-            photo.setFileSizeBytes(req.fileSizeBytes());
-        }
         if (req.width() != null) {
             photo.setWidth(req.width());
         }
@@ -322,7 +350,7 @@ public class GalleryService {
         GalleryStatsView stats = requireStats(gallery.getId());
         boolean watermarked = Boolean.TRUE.equals(gallery.getWatermarkEnabled());
         List<DeliveryPhotoResponse> photos =
-            deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId())
+            deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId(), QueryLimits.LIST)
                 .stream()
                 .map(p -> watermarked ? toWatermarkedResponse(p) : toPhotoResponse(p))
                 .filter(Objects::nonNull)
@@ -360,6 +388,22 @@ public class GalleryService {
         Gallery gallery = galleryRepository.findByAccessToken(token)
             .orElseThrow(() -> new NotFoundException("Gallery not found"));
 
+        // Rate-limited per gallery, not per IP: the token IS the identity here
+        // — the endpoint is unauthenticated and the recipients are a couple and
+        // their family, on whatever networks they happen to be on.
+        //
+        // A whole-gallery ZIP is the most expensive response this product
+        // produces: several gigabytes read out of object storage, streamed with
+        // no async timeout (see spring.mvc.async.request-timeout) and holding a
+        // request thread for its whole duration. Anyone holding the link can
+        // start another one before the last has finished, and every restart
+        // bills the full egress again. Twenty a day is far more than a real
+        // client needs and far less than an accident or a leaked link costs.
+        rateLimiter.check(
+            "gallery:zip:" + gallery.getId(), DOWNLOAD_MAX_PER_DAY, DOWNLOAD_WINDOW,
+            "This gallery has been downloaded several times today. "
+                + "Please try again tomorrow, or contact your photographer.");
+
         if (!gallery.isReachable(OffsetDateTime.now(clock))) {
             // Not-found rather than a tombstone here: this endpoint streams
             // bytes, so there is nothing kind to return, and the existing
@@ -376,7 +420,7 @@ public class GalleryService {
         Set<String> usedNames = new HashSet<>();
         List<GalleryDownloadPlan.Entry> entries = new ArrayList<>();
         for (DeliveryPhoto photo
-                : deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId())) {
+                : deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId(), QueryLimits.LIST)) {
             // Same rule as the on-screen gallery: a watermarked delivery never
             // falls back to the original, so an unprocessed photo is omitted
             // rather than handed over clean.

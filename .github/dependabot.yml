@@ -1,0 +1,76 @@
+# Dependency updates and, more importantly, vulnerability alerts.
+#
+# Nothing in this repository was watching either. CI ran format, lint, test,
+# build and docker — five jobs, none of which look at what the dependencies
+# actually are. At the time this was added `npm audit` reported two HIGH
+# advisories (next, and sharp via libvips) that had been sitting in the tree
+# unnoticed, and the Spring Boot parent was pinned to a line past its OSS
+# support window, which fixes the versions of Tomcat, Spring Security,
+# Hibernate and Jackson along with it.
+#
+# Dependabot covers the part CI cannot cheaply do: it knows about advisories
+# published after the build last ran.
+
+version: 2
+updates:
+  # ── Java / Maven ──────────────────────────────────────────────────────────
+  - package-ecosystem: maven
+    directory: /apps/api
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, java]
+    groups:
+      # One PR for the whole Spring ecosystem. These versions are chosen
+      # together by the Boot BOM, so splitting them produces PRs that each
+      # look wrong on their own and cannot be reviewed independently.
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+      # Patch and minor bumps of everything else, batched — individually they
+      # are noise, and a weekly batch is something a person will actually read.
+      minor-and-patch:
+        update-types: [minor, patch]
+        exclude-patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+
+  # ── Frontend / npm ────────────────────────────────────────────────────────
+  # Root directory: this is an npm-workspaces monorepo with a single lockfile
+  # at the top, so that is the only tree Dependabot can resolve.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+    groups:
+      # Next pulls React and its own eslint config in lockstep; upgrading one
+      # without the others produces a tree that does not build.
+      next:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      minor-and-patch:
+        update-types: [minor, patch]
+        exclude-patterns:
+          - "next"
+          - "eslint-config-next"
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+
+  # ── The workflows themselves ──────────────────────────────────────────────
+  # Actions are code that runs with repository credentials. A pinned action
+  # going unmaintained is a supply-chain problem, not a housekeeping one.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]

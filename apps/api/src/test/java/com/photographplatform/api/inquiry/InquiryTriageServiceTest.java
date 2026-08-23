@@ -20,7 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.photographplatform.api.common.security.RateLimiter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -64,10 +64,11 @@ class InquiryTriageServiceTest {
         auditService = mock(AuditService.class);
         TenantRepository tenantRepository = mock(TenantRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        RateLimiter rateLimiter = mock(RateLimiter.class);
 
         service = new InquiryRequestService(inquiryRepository, userRepository, tenantRepository,
-            auditService, eventPublisher, redis, bookingService, emailService);
+            auditService, eventPublisher, rateLimiter, bookingService, emailService,
+            java.time.Clock.systemUTC());
 
         customer = mock(User.class);
         when(customer.getFullName()).thenReturn("Maria Kellner");

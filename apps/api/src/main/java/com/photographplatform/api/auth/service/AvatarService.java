@@ -2,7 +2,9 @@ package com.photographplatform.api.auth.service;
 
 import com.photographplatform.api.auth.dto.AvatarPresignResponse;
 import com.photographplatform.api.common.config.TenantContext;
-import com.photographplatform.api.common.util.Normalize;
+import com.photographplatform.api.common.media.ImageUploadType;
+import com.photographplatform.api.common.media.UploadLimits;
+import com.photographplatform.api.portfolio.config.R2Properties;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,53 +22,47 @@ import org.springframework.stereotype.Service;
 @Service
 public class AvatarService {
 
-    private static final String DEFAULT_CONTENT_TYPE = "image/jpeg";
-
     private final Optional<R2StorageService> storage;
+    private final R2Properties props;
 
-    public AvatarService(Optional<R2StorageService> storage) {
+    public AvatarService(Optional<R2StorageService> storage, R2Properties props) {
         this.storage = storage;
+        this.props = props;
     }
 
     /**
-     * @param contentType the image type the browser is about to upload;
-     *                    anything unrecognised is named {@code .jpg}, since the
-     *                    extension is only a convenience for humans browsing
-     *                    the bucket — the pre-signed PUT pins the real content
-     *                    type
+     * @param contentType   the image type the browser is about to upload.
+     *                      Checked against {@link ImageUploadType}'s whitelist
+     *                      rather than passed through: this value is pinned into
+     *                      the pre-signed URL and becomes what object storage
+     *                      serves the bytes as, so an unchecked one would let
+     *                      any account publish an HTML page from the bucket.
+     * @param fileSizeBytes the file's exact size, signed into the URL so the
+     *                      upload cannot exceed it
      * @return the upload URL, a view URL, and the object key the caller must
      *         persist via {@code PATCH /api/auth/me}. The view URL expires (see
      *         {@code app.r2.presigned-expiry-minutes}), so only the key is safe
      *         to store.
      */
-    public AvatarPresignResponse presign(String contentType) {
+    public AvatarPresignResponse presign(String contentType, long fileSizeBytes) {
         R2StorageService r2 = storage.orElseThrow(() -> new IllegalStateException(
             "R2 storage is not configured. Please contact support."));
 
-        String resolvedType = contentType == null || contentType.isBlank()
-            ? DEFAULT_CONTENT_TYPE
-            : contentType;
+        // No filename to fall back on here — the endpoint takes a type and
+        // nothing else — so an unrecognised type is simply refused rather than
+        // quietly renamed .jpg, which is what this used to do.
+        ImageUploadType type = ImageUploadType.resolve(contentType, null);
+        long sizeBytes = UploadLimits.requireWithin(
+            fileSizeBytes, props.getMaxAvatarBytes(), "Profile photo");
+
         String key = "avatars/" + TenantContext.getTenant() + "/" + UUID.randomUUID()
-            + extensionFor(resolvedType);
+            + type.extension();
 
         return new AvatarPresignResponse(
-            r2.generateUploadUrl(key, resolvedType),
+            r2.generateUploadUrl(key, type.contentType(), sizeBytes),
             r2.generateDownloadUrl(key),
-            key
+            key,
+            type.contentType()
         );
-    }
-
-    private static String extensionFor(String contentType) {
-        String normalized = Normalize.lower(contentType);
-        if (normalized == null) {
-            return ".jpg";
-        }
-        if (normalized.contains("png")) {
-            return ".png";
-        }
-        if (normalized.contains("webp")) {
-            return ".webp";
-        }
-        return ".jpg";
     }
 }

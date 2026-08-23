@@ -90,7 +90,7 @@ class R2StorageServiceIT {
 
         // 1. The API hands out an upload URL; the "browser" PUTs to it with no
         //    credentials of its own.
-        String uploadUrl = storage.generateUploadUrl(key, "text/plain");
+        String uploadUrl = storage.generateUploadUrl(key, "text/plain", payload.length);
         int uploadStatus = put(uploadUrl, "text/plain", payload);
         assertThat(uploadStatus)
             .as("presigned PUT must be accepted — a 403 here means the URL was "
@@ -103,6 +103,35 @@ class R2StorageServiceIT {
         // 3. And the view URL the gallery embeds resolves anonymously.
         String downloadUrl = storage.generateDownloadUrl(key);
         assertThat(get(downloadUrl)).isEqualTo(payload);
+    }
+
+    /**
+     * The size limit has to hold at the storage layer, not in our own
+     * bookkeeping, because the bytes never pass through this application: the
+     * browser talks to R2 directly and the API only ever hands out a URL. So
+     * the question this test answers is whether {@code contentLength} on the
+     * presign really becomes part of the signature — if the SDK were to leave
+     * {@code Content-Length} out of {@code X-Amz-SignedHeaders}, presigning
+     * would still succeed, every upload would still work, and the limit would
+     * be decorative. That failure is invisible without a real S3 on the other
+     * end of the socket.
+     */
+    @Test
+    void presignedUploadRefusesABodyLargerThanTheSignedLength() throws IOException {
+        String key = "tenant-a/photos/oversized.txt";
+        byte[] allowed = new byte[64];
+        byte[] oversized = new byte[65];
+
+        String uploadUrl = storage.generateUploadUrl(key, "text/plain", allowed.length);
+
+        assertThat(put(uploadUrl, "text/plain", oversized))
+            .as("a body longer than the signed Content-Length must be rejected, "
+                + "or a pre-signed PUT is an unbounded write capability")
+            .isEqualTo(403);
+
+        assertThat(put(uploadUrl, "text/plain", allowed))
+            .as("the size that was signed for must still upload")
+            .isEqualTo(200);
     }
 
     @Test

@@ -31,7 +31,13 @@ const PUBLIC_PATHS = [
   '/p/',
   '/r/',
   '/g/',
-  '/customer/',
+  // Only the customer's *sign-in* flow, not the whole customer area. This used
+  // to be '/customer/', which opened every page beneath it: the dashboard
+  // rendered for a signed-out visitor and then failed every API call behind it,
+  // which reads as a broken app rather than as "please sign in". The API was
+  // never at risk — it gates these itself — but the gate here exists so nobody
+  // sees a shell they have no data for.
+  '/customer/auth/',
   '/impressum',
   '/datenschutz',
   '/agb',

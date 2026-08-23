@@ -1,10 +1,12 @@
 package com.photographplatform.api.common.security;
 
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -40,13 +42,29 @@ public class WriteAccessInterceptor implements HandlerInterceptor {
 
     private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
+    /**
+     * How long a pass is trusted before the tenant is re-read.
+     *
+     * <p>This is the window in which a newly lapsed account can still write —
+     * see {@link GateCache} for why only the passing direction is cached, and
+     * why a minute of it is a billing lag rather than a hole. A minute also
+     * keeps the saving where it belongs: a photographer working through a
+     * shoot list issues dozens of writes in that time, and they now cost one
+     * tenant read between them instead of one each.
+     */
+    private static final Duration PASS_TTL = Duration.ofMinutes(1);
+
     private final TenantRepository tenantRepository;
     private final EntitlementService entitlementService;
+    private final GateCache gateCache;
 
     public WriteAccessInterceptor(
-        TenantRepository tenantRepository, EntitlementService entitlementService) {
+        TenantRepository tenantRepository,
+        EntitlementService entitlementService,
+        GateCache gateCache) {
         this.tenantRepository = tenantRepository;
         this.entitlementService = entitlementService;
+        this.gateCache = gateCache;
     }
 
     @Override
@@ -73,12 +91,20 @@ public class WriteAccessInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        // A pass recorded in the last minute stands in for the read below. Only
+        // passes are cached, so a locked account still takes the full path
+        // every time and unlocks the instant it pays — see GateCache.
+        if (gateCache.isSatisfied(GateCache.WRITABLE, tenantId)) {
+            return true;
+        }
+
         Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
         if (tenant == null) {
             return true;
         }
         // Throws AccountReadOnlyException → 402 with code ACCOUNT_READ_ONLY.
         entitlementService.requireWritable(tenant);
+        gateCache.remember(GateCache.WRITABLE, tenantId, PASS_TTL);
         return true;
     }
 

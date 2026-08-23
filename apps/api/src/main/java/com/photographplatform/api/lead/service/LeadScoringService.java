@@ -1,5 +1,6 @@
 package com.photographplatform.api.lead.service;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class LeadScoringService {
 
+    /**
+     * Scoring turns "how far away is the event" into a number, so its answer
+     * moves with the calendar. Without an injectable clock the only way to
+     * cover a boundary — the day a lead drops from HIGH to MED — is to compute
+     * the expected value from {@code LocalDate.now(clock)} in the test too, which
+     * asserts the implementation against itself.
+     */
+    private final Clock clock;
+
+    public LeadScoringService(Clock clock) {
+        this.clock = clock;
+    }
+
     /** Component scores on a 0–100 scale, surfaced as breakdown bars. */
     public record ScoreBreakdown(int budget, int type, int time) {}
 
@@ -53,7 +67,7 @@ public class LeadScoringService {
         if (eventDate == null) {
             time = 50; // no date supplied — assume neutral
         } else {
-            long days = ChronoUnit.DAYS.between(LocalDate.now(), eventDate);
+            long days = ChronoUnit.DAYS.between(LocalDate.now(clock), eventDate);
             if (days < 0) {
                 time = 10;
             } else if (days < 30) {

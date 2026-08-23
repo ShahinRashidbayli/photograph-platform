@@ -9,9 +9,9 @@ import com.photographplatform.api.auth.dto.AuthResult;
 import com.photographplatform.api.auth.repository.MagicLinkTokenRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
@@ -20,13 +20,12 @@ import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,7 +70,8 @@ public class CustomerAuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtService jwtService;
     private final EmailService emailService;
-    private final StringRedisTemplate redis;
+    private final RateLimiter rateLimiter;
+    private final Clock clock;
     private final AuditService auditService;
     private final AvatarUrlResolver avatarUrlResolver;
     private final String webBaseUrl;
@@ -84,7 +84,8 @@ public class CustomerAuthService {
         RefreshTokenRepository refreshTokenRepository,
         JwtService jwtService,
         EmailService emailService,
-        StringRedisTemplate redis,
+        RateLimiter rateLimiter,
+        Clock clock,
         AuditService auditService,
         AvatarUrlResolver avatarUrlResolver,
         @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl,
@@ -96,7 +97,8 @@ public class CustomerAuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.jwtService = jwtService;
         this.emailService = emailService;
-        this.redis = redis;
+        this.rateLimiter = rateLimiter;
+        this.clock = clock;
         this.auditService = auditService;
         this.avatarUrlResolver = avatarUrlResolver;
         this.webBaseUrl = webBaseUrl;
@@ -146,17 +148,17 @@ public class CustomerAuthService {
         }
 
         // Invalidate any older unused tokens before issuing a fresh one.
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
 
         String rawToken = TokenUtils.generateSecureToken();
         tokenRepository.save(new MagicLinkToken(
             user.getId(),
             TokenUtils.sha256(rawToken),
-            OffsetDateTime.now().plus(TOKEN_TTL)
+            OffsetDateTime.now(clock).plus(TOKEN_TTL)
         ));
         sendMagicLinkEmail(user, rawToken);
 
-        tryAudit("CUSTOMER_MAGIC_LINK_REQUESTED", "USER", user.getId(),
+        auditService.logQuietly("CUSTOMER_MAGIC_LINK_REQUESTED", "USER", user.getId(),
             tenant.getId(), user.getId(), ipAddress);
     }
 
@@ -194,15 +196,15 @@ public class CustomerAuthService {
         token.markUsed();
         tokenRepository.save(token);
         // Belt-and-braces: kill any other outstanding tokens too.
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
 
         if (!user.isEmailVerified()) {
-            user.setEmailVerifiedAt(OffsetDateTime.now());
+            user.setEmailVerifiedAt(OffsetDateTime.now(clock));
         }
-        user.setLastLoginAt(OffsetDateTime.now());
+        user.setLastLoginAt(OffsetDateTime.now(clock));
         userRepository.save(user);
 
-        tryAudit("CUSTOMER_LOGIN", "USER", user.getId(),
+        auditService.logQuietly("CUSTOMER_LOGIN", "USER", user.getId(),
             tenant.getId(), user.getId(), ipAddress);
 
         return buildAuthResult(user, tenant);
@@ -228,7 +230,7 @@ public class CustomerAuthService {
             user.getId(),
             tenant.getId(),
             TokenUtils.sha256(rawRefresh),
-            OffsetDateTime.now().plus(Duration.ofMillis(refreshTokenExpiryMs))
+            OffsetDateTime.now(clock).plus(Duration.ofMillis(refreshTokenExpiryMs))
         ));
         AuthResponse response = new AuthResponse(
             user.getId(),
@@ -266,23 +268,9 @@ public class CustomerAuthService {
     }
 
     private void enforceRateLimit(String key, int max) {
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, REQUEST_WINDOW);
-        }
-        if (count != null && count > max) {
-            throw new TooManyRequestsException(
-                "Too many login attempts. Please try again later.");
-        }
+        rateLimiter.check(key, max, REQUEST_WINDOW,
+            "Too many login attempts. Please try again later.");
     }
 
-    private void tryAudit(String action, String entityType, UUID entityId,
-                          UUID tenantId, UUID actorId, String ipAddress) {
-        try {
-            auditService.log(action, entityType, entityId, tenantId, actorId, ipAddress);
-        } catch (RuntimeException ex) {
-            LOG.warn("Audit log failed for {} on {}", action, entityId, ex);
-        }
-    }
 
 }

@@ -126,12 +126,19 @@ class AuthControllerIT extends IntegrationTestBase {
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
+    /**
+     * 422, matching what bean validation already answered for a malformed
+     * subdomain. A reserved name and a syntactically invalid one are the same
+     * rejection to a caller; which layer caught it is our business, not theirs.
+     * The {@code code} still separates them ({@code INVALID_REQUEST} here,
+     * {@code VALIDATION_FAILED} from the annotation).
+     */
     @Test
-    void reservedSubdomainReturns400() {
+    void reservedSubdomainIsRejectedAsUnprocessable() {
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Sneaky", "sneaky@test.com", TEST_PASSWORD,
                 "admin", "PHOTOGRAPHER", "STARTER"), String.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @Test

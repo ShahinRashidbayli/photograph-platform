@@ -3,6 +3,7 @@ package com.photographplatform.api.gallery.repository;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -12,7 +13,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface DeliveryPhotoRepository extends JpaRepository<DeliveryPhoto, UUID> {
 
-    List<DeliveryPhoto> findByGalleryIdOrderBySortOrderAsc(UUID galleryId);
+    List<DeliveryPhoto> findByGalleryIdOrderBySortOrderAsc(UUID galleryId, Limit limit);
 
     /**
      * Photos in a gallery that have no watermarked derivative yet — the work

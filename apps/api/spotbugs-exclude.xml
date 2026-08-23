@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclusions.
+
+  Kept deliberately short. Every entry here is a place where SpotBugs is right
+  about the general case and wrong about this one, with the reason written
+  down — an exclusion file nobody can justify line by line is just a way of
+  turning the tool off slowly.
+-->
+<FindBugsFilter>
+
+    <!--
+      JPA entities and Spring components are constructed by a framework, which
+      SpotBugs cannot see. It therefore reports every injected collaborator as
+      possibly-null and every mutable field as unwritten.
+    -->
+    <Match>
+        <Bug pattern="UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"/>
+        <Package name="~com\.photographplatform\.api\..*\.domain"/>
+    </Match>
+
+    <!--
+      Entities expose OffsetDateTime and UUID, which are immutable, but
+      SpotBugs treats any returned object reference as potential exposure of
+      internal state. The types it actually cares about (arrays, Date) are not
+      used here.
+    -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+</FindBugsFilter>

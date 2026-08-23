@@ -14,6 +14,7 @@ import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Optional;
@@ -70,6 +71,7 @@ public class StripeWebhookService {
     private final StripeConnectService connectService;
     private final AuditService auditService;
     private final String webhookSecret;
+    private final Clock clock;
     private final TransactionTemplate freshTransaction;
 
     public StripeWebhookService(
@@ -78,13 +80,15 @@ public class StripeWebhookService {
         StripeConnectService connectService,
         AuditService auditService,
         PaymentProperties paymentProperties,
-        PlatformTransactionManager transactionManager
+        PlatformTransactionManager transactionManager,
+        Clock clock
     ) {
         this.paymentRepository = paymentRepository;
         this.processedEventRepository = processedEventRepository;
         this.connectService = connectService;
         this.auditService = auditService;
         this.webhookSecret = paymentProperties.getWebhookSecret();
+        this.clock = clock;
         this.freshTransaction = new TransactionTemplate(transactionManager);
     }
 
@@ -240,8 +244,12 @@ public class StripeWebhookService {
         // principle, and a webhook endpoint shared across connected accounts
         // receives all of theirs, so refuse to settle a row whose account
         // doesn't match the one Stripe stamped on the event.
-        if (payment.getStripeAccountId() != null
-            && !Objects.equals(payment.getStripeAccountId(), connectedAccountId)) {
+        //
+        // Checked unconditionally. It used to be skipped when the row carried
+        // no account id, which every row does today — so the guard was a
+        // guard with an exemption nobody could name a reason for, and a single
+        // future code path writing a null would have silently reopened it.
+        if (!Objects.equals(payment.getStripeAccountId(), connectedAccountId)) {
             LOG.warn("PaymentIntent {} arrived for account {} but payment {} belongs to {} — skipping",
                 intent.getId(), connectedAccountId, payment.getId(), payment.getStripeAccountId());
             return;
@@ -250,8 +258,9 @@ public class StripeWebhookService {
         // on — anything else never reaches this method.
         switch (eventType) {
             case "payment_intent.succeeded" -> {
+                reconcileAmount(payment, intent);
                 payment.setStatus(PaymentStatus.SUCCEEDED);
-                payment.setConfirmedAt(OffsetDateTime.now());
+                payment.setConfirmedAt(OffsetDateTime.now(clock));
             }
             case "payment_intent.payment_failed" -> payment.setStatus(PaymentStatus.FAILED);
             case "payment_intent.canceled" -> payment.setStatus(PaymentStatus.CANCELED);
@@ -260,6 +269,37 @@ public class StripeWebhookService {
         paymentRepository.save(payment);
         auditService.log("PAYMENT_" + payment.getStatus(), "PAYMENT", payment.getId(),
             UUID.fromString(tenantIdStr), payment.getConfirmedByUserId(), "stripe-webhook");
+    }
+
+    /**
+     * Records what Stripe says actually arrived, not what we asked for.
+     *
+     * <p>The row's {@code amount_cents} is our <em>request</em> — the balance
+     * outstanding when the intent was created. Settling it as SUCCEEDED without
+     * looking at {@code amount_received} treats the two as the same number, and
+     * {@code PaymentService.outstandingCents} then sums the requested amounts
+     * to decide an invoice is paid. Any gap between them books money that never
+     * landed: the invoice reads settled, the DATEV export claims the revenue,
+     * and the only place the truth exists is the Stripe dashboard.
+     *
+     * <p>They do diverge in practice — a partial capture, an amount edited in
+     * the dashboard, a currency-conversion difference on a connected account.
+     * None are common; all are silent, which is what makes them worth a branch.
+     *
+     * <p>The received amount wins, and the discrepancy is logged loudly enough
+     * to be found later. Refusing the event instead would be worse: the money
+     * has moved either way, and a payment stuck PENDING forever is not a safer
+     * answer than one recorded at the amount that actually arrived.
+     */
+    private void reconcileAmount(Payment payment, PaymentIntent intent) {
+        Long received = intent.getAmountReceived();
+        if (received == null || received.intValue() == payment.getAmountCents()) {
+            return;
+        }
+        LOG.warn("PaymentIntent {} settled {} cents but payment {} was created for {} — "
+                + "recording the amount Stripe reports as received",
+            intent.getId(), received, payment.getId(), payment.getAmountCents());
+        payment.correctAmountToReceived(received.intValue());
     }
 
     private boolean isPaymentIntentEvent(String type) {

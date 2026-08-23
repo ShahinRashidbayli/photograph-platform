@@ -3,15 +3,20 @@ package com.photographplatform.api.portfolio;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.common.config.ClockConfig;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.SecurityConfig;
 import com.photographplatform.api.common.security.JwtAuthFilter;
+import com.photographplatform.api.common.security.TokenRevocationCheck;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.common.security.RestAuthEntryPoints;
 import com.photographplatform.api.common.security.TenantContextFilter;
 import com.photographplatform.api.portfolio.controller.PortfolioController;
 import com.photographplatform.api.portfolio.service.PhotoService;
 import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -25,6 +30,7 @@ import static com.photographplatform.api.common.CsrfTestSupport.xsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Fast (no-Docker) verification of the {@code /api/portfolio/**} authorization
@@ -37,7 +43,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Postgres schema is {@code PortfolioAuthorizationIT}.
  */
 @WebMvcTest(PortfolioController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, TenantContextFilter.class, JwtService.class})
+@Import({
+    SecurityConfig.class, RestAuthEntryPoints.class, ClockConfig.class,
+    JwtAuthFilter.class, TenantContextFilter.class, JwtService.class
+})
 class PortfolioSecurityRuleTest {
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -112,4 +121,29 @@ class PortfolioSecurityRuleTest {
         mvc.perform(get("/api/portfolio/photos"))
             .andExpect(status().is4xxClientError());
     }
+
+    /**
+     * Both gates consult this before their repository read, so the slice needs
+     * it to exist. A mock reports every gate as unrecorded, which sends each
+     * request down the same full path it took before the cache existed — the
+     * behaviour these tests were written against.
+     */
+    @MockitoBean
+    private GateCache gateCache;
+
+
+    /**
+     * JwtAuthFilter now asks whether each token has been revoked since it was
+     * issued. These tests are about the role boundary and assume a live
+     * session, so the answer is always "still valid" — revocation itself is
+     * covered by JwtAuthFilterTest.
+     */
+    @MockitoBean
+    private TokenRevocationCheck tokenRevocationCheck;
+
+    @BeforeEach
+    void assumeALiveSession() {
+        when(tokenRevocationCheck.isTokenStillValid(any(), any())).thenReturn(true);
+    }
+
 }

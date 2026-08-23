@@ -2,6 +2,7 @@ package com.photographplatform.api.billing;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.billing.config.BillingProperties;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.billing.service.BillingWebhookService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.payment.repository.ProcessedStripeEventRepository;
@@ -61,7 +62,7 @@ class BillingWebhookServiceTest {
         properties.setPrices(prices());
 
         service = new BillingWebhookService(
-            tenantRepository, processedEvents, properties, auditService);
+            tenantRepository, processedEvents, properties, auditService, mock(GateCache.class));
 
         tenant = new Tenant("anna-foto", "anna@example.de");
         tenantId = UUID.randomUUID();
@@ -182,7 +183,7 @@ class BillingWebhookServiceTest {
         BillingProperties noSecret = new BillingProperties();
         noSecret.setPrices(prices());
         BillingWebhookService unconfigured = new BillingWebhookService(
-            tenantRepository, processedEvents, noSecret, auditService);
+            tenantRepository, processedEvents, noSecret, auditService, mock(GateCache.class));
 
         assertThatThrownBy(() -> unconfigured.handle("{}", "t=1,v1=abc"))
             .isInstanceOf(IllegalStateException.class);

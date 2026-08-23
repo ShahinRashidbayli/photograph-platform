@@ -56,6 +56,13 @@ interface InitiateUploadResponse {
   photoId: string;
   r2Key: string;
   uploadUrl: string;
+  /**
+   * The type the URL was signed with — not necessarily the one we asked for,
+   * since the API canonicalises it and resolves an unknown type from the
+   * filename. Content-Type is a signed header on the presigned PUT, so sending
+   * anything else fails the signature check.
+   */
+  contentType: string;
 }
 
 /** Whole days until a date, or null when there's no expiry set. */
@@ -967,12 +974,20 @@ export default function GalleriesPage() {
       for (const file of Array.from(files)) {
         const { data: init } = await api.post<InitiateUploadResponse>(
           `/api/galleries/${galleryId}/photos/initiate-upload`,
-          { filename: file.name, contentType: file.type || 'application/octet-stream' }
+          // The size is required: the API signs it into the URL as
+          // Content-Length, which is what bounds the upload, and it is the size
+          // recorded against the photo — so it is not sent again at complete.
+          {
+            filename: file.name,
+            contentType: file.type || 'application/octet-stream',
+            fileSizeBytes: file.size,
+          }
         );
         const put = await fetch(init.uploadUrl, {
           method: 'PUT',
           body: file,
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          // The type the API signed, not our own guess — see above.
+          headers: { 'Content-Type': init.contentType },
         });
         // `fetch` only rejects on a network failure — a 403 (expired presign),
         // 400 or 5xx from R2 resolves normally. Without this check the code
@@ -984,9 +999,7 @@ export default function GalleriesPage() {
         if (!put.ok) {
           throw new Error(`Storage rejected the upload (HTTP ${put.status})`);
         }
-        await api.post(`/api/galleries/photos/${init.photoId}/complete`, {
-          fileSizeBytes: file.size,
-        });
+        await api.post(`/api/galleries/photos/${init.photoId}/complete`, {});
       }
       // Re-read so photoCount reflects the new uploads.
       const { data } = await api.get<Gallery[]>('/api/galleries');

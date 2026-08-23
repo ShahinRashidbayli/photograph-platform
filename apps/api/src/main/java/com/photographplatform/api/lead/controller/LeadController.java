@@ -3,8 +3,8 @@ package com.photographplatform.api.lead.controller;
 import com.photographplatform.api.audit.dto.AuditLogResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.ClientIp;
+import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
 import com.photographplatform.api.lead.domain.LeadStatus;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,18 +48,18 @@ public class LeadController {
     private final LeadConversionService leadConversionService;
     private final LeadReportingService leadReportingService;
     private final PublicTenantResolver tenantResolver;
-    private final StringRedisTemplate redisTemplate;
+    private final RateLimiter rateLimiter;
 
     public LeadController(LeadService leadService,
                           LeadConversionService leadConversionService,
                           LeadReportingService leadReportingService,
                           PublicTenantResolver tenantResolver,
-                          StringRedisTemplate redisTemplate) {
+                          RateLimiter rateLimiter) {
         this.leadService = leadService;
         this.leadConversionService = leadConversionService;
         this.leadReportingService = leadReportingService;
         this.tenantResolver = tenantResolver;
-        this.redisTemplate = redisTemplate;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/public/leads/{subdomain}")
@@ -243,20 +242,16 @@ public class LeadController {
         return ResponseEntity.ok(leads);
     }
 
+    /**
+     * Kept here rather than pushed into {@code LeadService} on purpose: it must
+     * run before the tenant lookup, so an abusive caller costs no database work
+     * at all. What moved is the dependency — this used to reach for
+     * {@code StringRedisTemplate} directly, which is the part a controller had
+     * no business knowing about.
+     */
     private void checkRateLimit(String ipAddress) {
-        String key = "lead:rate:" + ipAddress;
-        Long count = redisTemplate.opsForValue().increment(key);
-
-        if (count != null) {
-            if (count == 1) {
-                redisTemplate.expire(key, RATE_LIMIT_WINDOW);
-            }
-            if (count > RATE_LIMIT_MAX_REQUESTS) {
-                throw new TooManyRequestsException(
-                    "Too many requests. Maximum " + RATE_LIMIT_MAX_REQUESTS +
-                    " requests allowed per " + RATE_LIMIT_WINDOW.toMinutes() + " minutes."
-                );
-            }
-        }
+        rateLimiter.check("lead:rate:" + ipAddress, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW,
+            "Too many requests. Maximum " + RATE_LIMIT_MAX_REQUESTS
+                + " requests allowed per " + RATE_LIMIT_WINDOW.toMinutes() + " minutes.");
     }
 }

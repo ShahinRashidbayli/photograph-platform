@@ -58,7 +58,14 @@ public class PublicTenantResolver {
     @Transactional(readOnly = true)
     public PublicPhotographer requirePhotographer(String subdomain) {
         Tenant tenant = requireBySubdomain(subdomain);
-        User owner = userRepository.findByEmail(tenant.getOwnerEmail()).orElse(null);
+        // Scoped to this tenant, which we already have. The global lookup this
+        // replaces asked a question it had no business asking — "who anywhere
+        // uses this address" — and threw the moment the answer was more than
+        // one, taking down the photographer's entire public portfolio and every
+        // gallery link on it.
+        User owner = userRepository
+            .findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
+            .orElse(null);
         String displayName = owner != null && owner.getFullName() != null
             ? owner.getFullName()
             : tenant.getSubdomain();

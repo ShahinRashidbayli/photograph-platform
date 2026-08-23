@@ -5,11 +5,15 @@ import com.photographplatform.api.billing.controller.BillingController;
 import com.photographplatform.api.billing.dto.BillingStatusResponse;
 import com.photographplatform.api.billing.dto.CheckoutSessionResponse;
 import com.photographplatform.api.billing.service.BillingService;
+import com.photographplatform.api.common.config.ClockConfig;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.SecurityConfig;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.AccountReadOnlyException;
 import com.photographplatform.api.common.security.JwtAuthFilter;
+import com.photographplatform.api.common.security.TokenRevocationCheck;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.common.security.RestAuthEntryPoints;
 import com.photographplatform.api.common.security.TenantContextFilter;
 import com.photographplatform.api.common.security.WriteAccessInterceptor;
 import com.photographplatform.api.entitlement.config.EntitlementProperties;
@@ -30,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -64,7 +69,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * portal session against their customer record.
  */
 @WebMvcTest(BillingController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, TenantContextFilter.class, JwtService.class})
+@Import({
+    SecurityConfig.class, RestAuthEntryPoints.class, ClockConfig.class,
+    JwtAuthFilter.class, TenantContextFilter.class, JwtService.class
+})
 class BillingSecurityRuleTest {
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -237,8 +245,13 @@ class BillingSecurityRuleTest {
         }
         props.setTiers(tiers);
 
-        return new WriteAccessInterceptor(repository, new EntitlementService(
-            props, new PaymentProperties(), repository, Clock.fixed(now, ZoneOffset.UTC)));
+        // A mocked cache reports nothing recorded, so this interceptor always
+        // runs the real check — which is the point of these tests.
+        return new WriteAccessInterceptor(
+            repository,
+            new EntitlementService(
+                props, new PaymentProperties(), repository, Clock.fixed(now, ZoneOffset.UTC)),
+            mock(GateCache.class));
     }
 
     private static BillingStatusResponse stubStatus() {
@@ -246,4 +259,29 @@ class BillingSecurityRuleTest {
             "STARTER", "TRIALING", OffsetDateTime.now().plusDays(7), null,
             true, false, true, null);
     }
+
+    /**
+     * Both gates consult this before their repository read, so the slice needs
+     * it to exist. A mock reports every gate as unrecorded, which sends each
+     * request down the same full path it took before the cache existed — the
+     * behaviour these tests were written against.
+     */
+    @MockitoBean
+    private GateCache gateCache;
+
+
+    /**
+     * JwtAuthFilter now asks whether each token has been revoked since it was
+     * issued. These tests are about the role boundary and assume a live
+     * session, so the answer is always "still valid" — revocation itself is
+     * covered by JwtAuthFilterTest.
+     */
+    @MockitoBean
+    private TokenRevocationCheck tokenRevocationCheck;
+
+    @BeforeEach
+    void assumeALiveSession() {
+        when(tokenRevocationCheck.isTokenStillValid(any(), any())).thenReturn(true);
+    }
+
 }

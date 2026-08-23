@@ -1,11 +1,25 @@
 package com.photographplatform.api.tenant.repository;
 
+import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.tenant.domain.Tenant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TenantRepository extends JpaRepository<Tenant, UUID> {
+
+    /**
+     * The tenant, or a 404.
+     *
+     * <p>Three services carried a byte-identical private {@code requireTenant}.
+     * That is not just repetition — it is three places where the exception type
+     * or the message could drift apart without anything noticing, on a lookup
+     * every one of them does on nearly every call.
+     */
+    default Tenant require(UUID tenantId) {
+        return findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant not found"));
+    }
     boolean existsBySubdomain(String subdomain);
 
     Optional<Tenant> findBySubdomain(String subdomain);

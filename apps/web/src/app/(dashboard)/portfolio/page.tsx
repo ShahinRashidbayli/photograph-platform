@@ -32,6 +32,12 @@ interface InitiateUploadResponse {
   photoId: string;
   r2Key: string;
   uploadUrl: string;
+  /**
+   * The type the URL was signed with — not necessarily the one we asked for,
+   * since the API canonicalises it. Content-Type is a signed header on the
+   * presigned PUT, so sending anything else fails the signature check.
+   */
+  contentType: string;
 }
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
@@ -145,11 +151,14 @@ export default function PortfolioAdminPage() {
       );
       const { data: init } = await api.post<InitiateUploadResponse>(
         '/api/portfolio/photos/initiate-upload',
-        { filename: file.name, contentType: file.type }
+        // The size is required: the API signs it into the URL as Content-Length,
+        // which is what bounds the upload. It is also the size recorded against
+        // the photo, so it is no longer sent again at complete-time.
+        { filename: file.name, contentType: file.type, fileSizeBytes: file.size }
       );
 
       // Step 2 — direct PUT to R2
-      await fetchPutWithProgress(init.uploadUrl, file, (pct) => {
+      await fetchPutWithProgress(init.uploadUrl, file, init.contentType, (pct) => {
         setPending((prev) =>
           prev.map((p) => (p.id === id ? { ...p, progress: 5 + pct * 0.9 } : p))
         );
@@ -157,7 +166,6 @@ export default function PortfolioAdminPage() {
 
       // Step 3 — complete
       await api.post(`/api/portfolio/photos/${init.photoId}/complete`, {
-        fileSizeBytes: file.size,
         width: dims?.width ?? null,
         height: dims?.height ?? null,
       });
@@ -1261,12 +1269,14 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
 function fetchPutWithProgress(
   url: string,
   file: File,
+  contentType: string,
   onProgress: (_pct: number) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', file.type);
+    // The type the API signed, not `file.type` — see InitiateUploadResponse.
+    xhr.setRequestHeader('Content-Type', contentType);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         onProgress((e.loaded / e.total) * 100);

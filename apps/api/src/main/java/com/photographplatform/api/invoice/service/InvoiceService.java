@@ -23,6 +23,7 @@ import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.io.OutputStream;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -55,6 +56,7 @@ public class InvoiceService {
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
     private final InvoicePdfRenderer pdfRenderer;
+    private final Clock clock;
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
     private final DatevInvoiceExporter datevExporter;
@@ -71,7 +73,8 @@ public class InvoiceService {
         Optional<R2StorageService> storage,
         AuditService auditService,
         DatevInvoiceExporter datevExporter,
-        PaymentRepository paymentRepository
+        PaymentRepository paymentRepository,
+        Clock clock
     ) {
         this.invoiceRepository = invoiceRepository;
         this.lineItemRepository = lineItemRepository;
@@ -84,6 +87,7 @@ public class InvoiceService {
         this.auditService = auditService;
         this.datevExporter = datevExporter;
         this.paymentRepository = paymentRepository;
+        this.clock = clock;
     }
 
     @Transactional
@@ -137,7 +141,8 @@ public class InvoiceService {
             totals.subtotalCents(),
             totals.taxCents(),
             totals.totalCents(),
-            null
+            null,
+            OffsetDateTime.now(clock)
         );
 
         List<InvoiceLineItem> lineItems = buildLineItems(tenantId, invoice.getId(), totals);
@@ -206,7 +211,8 @@ public class InvoiceService {
             -original.getSubtotalCents(),
             -original.getTaxCents(),
             -original.getTotalCents(),
-            original.getId()
+            original.getId(),
+            OffsetDateTime.now(clock)
         );
 
         List<InvoiceLineItem> stornoLines = originalLines.stream()

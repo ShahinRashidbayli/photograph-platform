@@ -32,7 +32,11 @@ public class InvoicePdfRenderer {
     public Rendered render(String html) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
-        builder.useFastMode();
+        // useFastMode() used to be called here. In openhtmltopdf 1.1.73 the
+        // method body is `return this;` — the fast renderer became the only
+        // renderer and the switch was emptied out, so the call did nothing but
+        // suggest a decision was being made. Removed rather than kept as
+        // documentation of a setting that no longer exists.
         embedFonts(builder);
         builder.withHtmlContent(html, null);
         builder.toStream(out);

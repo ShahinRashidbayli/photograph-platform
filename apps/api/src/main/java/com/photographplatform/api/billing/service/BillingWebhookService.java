@@ -2,6 +2,7 @@ package com.photographplatform.api.billing.service;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.billing.config.BillingProperties;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.payment.repository.ProcessedStripeEventRepository;
 import com.photographplatform.api.tenant.domain.Plan;
@@ -64,16 +65,19 @@ public class BillingWebhookService {
     private final ProcessedStripeEventRepository processedEventRepository;
     private final BillingProperties properties;
     private final AuditService auditService;
+    private final GateCache gateCache;
 
     public BillingWebhookService(
         TenantRepository tenantRepository,
         ProcessedStripeEventRepository processedEventRepository,
         BillingProperties properties,
-        AuditService auditService) {
+        AuditService auditService,
+        GateCache gateCache) {
         this.tenantRepository = tenantRepository;
         this.processedEventRepository = processedEventRepository;
         this.properties = properties;
         this.auditService = auditService;
+        this.gateCache = gateCache;
     }
 
     /**
@@ -153,6 +157,11 @@ public class BillingWebhookService {
 
         tenant.applySubscription(subscription.getId(), status, currentPeriodEnd(subscription));
         tenantRepository.save(tenant);
+        // This event is the one thing that closes the write gate on a schedule
+        // nobody chose — a card fails, and the account should stop growing now
+        // rather than when WriteAccessInterceptor's cached pass happens to
+        // lapse. Deferred to after commit so the re-read cannot see the old row.
+        gateCache.forgetAfterCommit(GateCache.WRITABLE, tenant.getId());
 
         auditService.log("SUBSCRIPTION_" + status, "TENANT", tenant.getId(), tenant.getId(),
             null, "stripe-webhook");

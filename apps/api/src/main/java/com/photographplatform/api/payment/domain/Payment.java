@@ -38,7 +38,22 @@ public class Payment {
     @Column(nullable = false, length = 20)
     private String status = PaymentStatus.PENDING.name();
 
-    @Column(name = "amount_cents", nullable = false, updatable = false)
+    /**
+     * Updatable, by exactly one writer: {@link #correctAmountToReceived}.
+     *
+     * <p>This was {@code updatable = false}, which read as immutability but was
+     * not enforced anywhere — {@code V14__payments.sql} says outright that a
+     * payment row is "operational state tracking whether it's been collected",
+     * not a GoBD document, and deliberately carries no immutability trigger
+     * (unlike {@code invoices}, which does). So the flag protected nothing; it
+     * only meant Hibernate silently dropped the correction from the UPDATE and
+     * the settlement webhook appeared to reconcile amounts while changing
+     * nothing at all.
+     *
+     * <p>A silently ignored write on the money path is worse than no write: it
+     * looks handled in code review and in the logs.
+     */
+    @Column(name = "amount_cents", nullable = false)
     private Integer amountCents;
 
     @Column(nullable = false, updatable = false, length = 3)
@@ -136,6 +151,22 @@ public class Payment {
 
     public Integer getAmountCents() {
         return amountCents;
+    }
+
+    /**
+     * Corrects the amount to what Stripe reports as actually received.
+     *
+     * <p>Deliberately named for the one thing that may do it, rather than being
+     * a plain setter: until settlement the amount is our <em>request</em> (the
+     * balance outstanding when the intent was minted) and nothing should be
+     * rewriting it. The only authority on what really arrived is the settlement
+     * webhook, and it needs to say so — a partial capture recorded at the
+     * requested amount marks an invoice paid for money that never landed.
+     *
+     * @see com.photographplatform.api.payment.service.StripeWebhookService
+     */
+    public void correctAmountToReceived(int receivedCents) {
+        this.amountCents = receivedCents;
     }
 
     public String getCurrency() {

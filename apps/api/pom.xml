@@ -20,6 +20,17 @@
 
     <properties>
         <java.version>21</java.version>
+        <!--
+          Stated explicitly rather than left to whatever the parent infers.
+
+          Developers here run newer JDKs than the build targets — the surefire
+          argLine below already carries a ByteBuddy workaround for exactly that.
+          `release` (unlike `source`/`target`) compiles against the JDK 21 API
+          *signatures*, so calling something that only exists in 25 fails on the
+          laptop that introduced it rather than in CI, or worse, at runtime in a
+          container running the 21 JRE the Dockerfile pins.
+        -->
+        <maven.compiler.release>21</maven.compiler.release>
         <checkstyle.version>10.18.1</checkstyle.version>
         <!-- Override the Testcontainers version pinned by the Spring Boot 3.4.x
              BOM (1.20.6). That release ships an older docker-java that talks a
@@ -27,6 +38,27 @@
              answers /info with HTTP 400). 1.21.x bundles a docker-java that
              negotiates the API version, restoring compatibility. -->
         <testcontainers.version>1.21.4</testcontainers.version>
+        <!--
+          Coverage floor, measured from a full `mvn verify` (418 tests,
+          Testcontainers suites included) rather than chosen as a target:
+          LINE 64.10%, BRANCH 47.46%. Each floor sits about a point below that,
+          so an ordinary refactor does not fail the build but a real regression
+          does.
+
+          Raise these when a run clears a higher number with room to spare.
+          Never lower them to make a build pass — that converts the one signal
+          here into decoration.
+        -->
+        <jacoco.line.minimum>0.63</jacoco.line.minimum>
+        <jacoco.branch.minimum>0.46</jacoco.branch.minimum>
+        <!--
+          Empty default so surefire's argLine below still resolves when JaCoCo
+          does not run (`-Djacoco.skip=true`, or any goal that skips
+          prepare-agent). Without a default, Maven leaves the literal
+          "${jacocoArgLine}" on the command line and every test JVM fails to
+          start with "Unrecognized option".
+        -->
+        <jacocoArgLine></jacocoArgLine>
     </properties>
 
     <dependencies>
@@ -138,6 +170,17 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- ArchUnit — the layering rules, as a test rather than as a habit.
+             The dependency directions in this codebase are already clean; what
+             was missing is anything that keeps them that way. See
+             ArchitectureTest for what is enforced and what is merely frozen. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.3.0</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- AWS SDK v2 — S3 client (used for Cloudflare R2) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
@@ -209,7 +252,21 @@
                       targets 21). Without it, every @MockBean test errors with
                       "Java N is not supported".
                     -->
-                    <argLine>-DDOCKER_API_VERSION=1.47 -Dnet.bytebuddy.experimental=true</argLine>
+                    <!--
+                      @{jacocoArgLine} carries the -javaagent that JaCoCo's
+                      prepare-agent writes (into that property rather than
+                      `argLine`, so this explicit config does not clobber it —
+                      see the jacoco plugin above).
+
+                      @{...} and not ${...}: Maven interpolates ${...} when the
+                      POM is read, which is BEFORE prepare-agent has run, so it
+                      would freeze the empty default and the agent would never
+                      attach. @{...} is surefire's own late-evaluation syntax,
+                      resolved when the test JVM is forked. Both spellings
+                      "work" in the sense that the build passes — one of them
+                      just silently measures nothing.
+                    -->
+                    <argLine>@{jacocoArgLine} -DDOCKER_API_VERSION=1.47 -Dnet.bytebuddy.experimental=true</argLine>
                     <!--
                       Surefire's built-in defaults (Test*/*Test/*Tests/*TestCase)
                       do NOT include *IT.java — that pattern is Failsafe's
@@ -230,6 +287,133 @@
                         <include>**/*IT.java</include>
                     </includes>
                 </configuration>
+            </plugin>
+
+            <!--
+              JaCoCo — coverage, measured rather than assumed.
+
+              Nothing measured it before, so "the API is well tested" and "the
+              API is undertested" were equally unfalsifiable claims. The suite
+              is in fact substantial (400 tests against a real Postgres), which
+              is exactly why a floor is worth having: what needs defending is
+              the level already reached.
+
+              The thresholds below are deliberately set at TODAY'S measured
+              numbers, rounded down. They are a ratchet, not an aspiration — a
+              target nobody currently meets gets skipped with -Djacoco.skip
+              within a week. Raise them when a run comfortably clears them.
+
+              Line coverage rather than branch as the primary gate: branch
+              coverage on a codebase this full of null-guards and Optional
+              chains punishes defensive code, which is not the behaviour to
+              encourage on a payments path.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <configuration>
+                    <excludes>
+                        <!-- Generated accessors and the boot entry point carry
+                             no logic worth covering, and including them makes
+                             the number drift with entity size rather than with
+                             how well the code is tested. -->
+                        <exclude>**/PhotographPlatformApplication.class</exclude>
+                        <exclude>**/dto/**</exclude>
+                        <exclude>**/config/**Properties.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <!--
+                              Write the agent flag to our OWN property rather
+                              than the default `argLine`.
+
+                              Surefire below sets an explicit <argLine> for the
+                              Docker API version and ByteBuddy. A plugin-level
+                              <argLine> beats the `argLine` *property*, so the
+                              default wiring silently loses the agent: the build
+                              stays green, the report step logs "missing
+                              execution data file", and coverage reads as
+                              nothing rather than as an error. A measurement
+                              tool that quietly measures nothing is worse than
+                              no tool, because the build still looks configured.
+                            -->
+                            <propertyName>jacocoArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-floor</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.branch.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+              SpotBugs — the class of mistake review reliably misses.
+
+              Checkstyle (below) covers naming, spacing and imports. Useful, and
+              orthogonal to this: it has no opinion about a null dereference, a
+              stream left unclosed, an equals without hashCode, or a switch
+              falling through. Those were unchecked entirely.
+
+              Threshold Medium, effort Max: Low floods the report with
+              stylistic findings that compete with the real ones, and this is
+              bound to `verify` where a noisy gate gets skipped.
+            -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.8.6.4</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Medium</threshold>
+                    <includeTests>false</includeTests>
+                    <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>analyse</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Checkstyle -->

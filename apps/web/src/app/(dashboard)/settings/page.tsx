@@ -96,7 +96,17 @@ export default function SettingsPage() {
         uploadUrl: string;
         viewUrl: string;
         r2Key: string;
-      }>(`/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}`);
+        // The type the URL was signed with, which may differ from what we asked
+        // for (the API canonicalises image/jpg to image/jpeg). Content-Type is
+        // a signed header on the presigned PUT, so the upload below must send
+        // this value rather than our own.
+        contentType: string;
+      }>(
+        `/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}` +
+          // Signed into the URL as Content-Length, which is what stops a
+          // presigned PUT from being an unbounded write.
+          `&fileSizeBytes=${file.size}`
+      );
 
       if (!presign.uploadUrl || !presign.r2Key) {
         throw new Error(t('settings.account.storageUnavailable'));
@@ -104,7 +114,7 @@ export default function SettingsPage() {
 
       const uploadRes = await fetch(presign.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': contentType },
+        headers: { 'Content-Type': presign.contentType },
         body: file,
       });
       if (!uploadRes.ok) throw new Error(t('settings.account.uploadFailed'));

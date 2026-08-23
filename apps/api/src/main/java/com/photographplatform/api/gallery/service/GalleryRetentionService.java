@@ -13,6 +13,7 @@ import com.photographplatform.api.gallery.repository.GalleryRepository;
 import com.photographplatform.api.notification.service.GalleryExpiryNotificationService;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
+import com.photographplatform.api.common.repository.QueryLimits;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -212,7 +213,7 @@ public class GalleryRetentionService {
 
     private void purgeOne(Tenant tenant, Gallery gallery) {
         List<DeliveryPhoto> photos =
-            deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId());
+            deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(gallery.getId(), QueryLimits.LIST);
 
         List<String> keys = photos.stream()
             .flatMap(photo -> DeliveryPhotoKeys.of(photo).stream())

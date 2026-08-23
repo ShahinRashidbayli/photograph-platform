@@ -13,7 +13,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-public class JwtService {
+/*
+ * Final because the constructor validates the signing key and throws. A
+ * throwing constructor on a subclassable type leaves a partially built object
+ * that a crafted subclass can still get hold of — irrelevant in practice here,
+ * and free to close.
+ */
+public final class JwtService {
 
     private final SecretKey key;
     private final long accessTokenExpiryMs;

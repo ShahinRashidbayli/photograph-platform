@@ -271,6 +271,56 @@ class PaymentServiceIT extends IntegrationTestBase {
     }
 
     /**
+     * The row's amount is what we <em>asked</em> Stripe for. What settles the
+     * invoice has to be what Stripe says actually arrived.
+     *
+     * <p>Marking the row SUCCEEDED at the requested amount treats the two as
+     * interchangeable, and {@code outstandingCents} sums requested amounts to
+     * decide an invoice is paid — so a partial capture, or an amount edited in
+     * the Stripe dashboard, books revenue that never landed. The invoice reads
+     * settled, the DATEV export agrees, and only the Stripe dashboard disagrees.
+     */
+    @Test
+    void webhookRecordsTheAmountStripeActuallyCollectedNotTheAmountRequested() {
+        TestFixture fx = createTenantAndInvoice();
+        String intentId = "pi_test_" + UUID.randomUUID();
+        asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, intentId);
+            return null;
+        });
+
+        int actuallyCollected = fx.totalCents() - 2500;
+        String payload = paymentIntentPayloadWithAmountReceived(
+            intentId, fx.tenantId(), fx.invoiceId(), fx.totalCents(), actuallyCollected);
+        webhookService.handle(payload, signStripePayload(payload, WEBHOOK_SECRET));
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments().get(0).status()).isEqualTo("SUCCEEDED");
+        assertThat(summary.paidCents()).isEqualTo(actuallyCollected);
+        // The point of the whole thing: the invoice is not settled.
+        assertThat(summary.outstandingCents()).isEqualTo(2500);
+    }
+
+    /** The ordinary case must not be disturbed by the correction above. */
+    @Test
+    void webhookLeavesTheAmountAloneWhenStripeCollectedTheFullRequest() {
+        TestFixture fx = createTenantAndInvoice();
+        String intentId = "pi_test_" + UUID.randomUUID();
+        asUser(fx, () -> {
+            recordPendingStripePaymentForTest(fx, intentId);
+            return null;
+        });
+
+        String payload = paymentIntentPayloadWithAmountReceived(
+            intentId, fx.tenantId(), fx.invoiceId(), fx.totalCents(), fx.totalCents());
+        webhookService.handle(payload, signStripePayload(payload, WEBHOOK_SECRET));
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.paidCents()).isEqualTo(fx.totalCents());
+        assertThat(summary.outstandingCents()).isZero();
+    }
+
+    /**
      * The claim in the idempotency ledger is a one-way door, so it must only be
      * kept when the event is genuinely finished with. A settlement event whose
      * payment row isn't visible yet is not finished with: it fails, and the
@@ -451,6 +501,41 @@ class PaymentServiceIT extends IntegrationTestBase {
             fx.tenantId(), fx.invoiceId(), PaymentMethod.CARD, fx.totalCents(),
             stripePaymentIntentId, connectedAccountId, 0);
         paymentRepositoryField.save(payment);
+    }
+
+    /**
+     * A settled intent that reports {@code amount_received} separately from
+     * {@code amount} — which is how Stripe describes a partial capture, and the
+     * field the other payloads here omit entirely.
+     */
+    private String paymentIntentPayloadWithAmountReceived(
+        String paymentIntentId, UUID tenantId, UUID invoiceId, int amount, int amountReceived) {
+        long now = Instant.now().getEpochSecond();
+        return """
+            {
+              "id": "evt_test_%s",
+              "object": "event",
+              "api_version": "2024-06-20",
+              "created": %d,
+              "type": "payment_intent.succeeded",
+              "data": {
+                "object": {
+                  "id": "%s",
+                  "object": "payment_intent",
+                  "amount": %d,
+                  "amount_received": %d,
+                  "currency": "eur",
+                  "status": "succeeded",
+                  "metadata": {
+                    "tenant_id": "%s",
+                    "invoice_id": "%s"
+                  }
+                }
+              }
+            }
+            """.formatted(
+                UUID.randomUUID(), now, paymentIntentId, amount, amountReceived,
+                tenantId, invoiceId);
     }
 
     private String paymentIntentSucceededPayload(String paymentIntentId, UUID tenantId, UUID invoiceId) {

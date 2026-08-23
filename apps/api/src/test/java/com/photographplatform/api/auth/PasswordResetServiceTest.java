@@ -7,11 +7,16 @@ import com.photographplatform.api.auth.repository.PasswordResetTokenRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.auth.service.PasswordResetService;
+import com.photographplatform.api.auth.service.SessionRevocation;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.service.EmailService;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,15 +27,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,21 +58,27 @@ class PasswordResetServiceTest {
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private EmailService emailService;
-    @Mock private StringRedisTemplate redis;
+    @Mock private RateLimiter rateLimiter;
     @Mock private AuditService auditService;
-    @Mock private ValueOperations<String, String> valueOps;
+    @Mock private SessionRevocation sessionRevocation;
+
+    /**
+     * Fixed, so token TTLs are assertable rather than "roughly an hour from
+     * whenever the suite happened to run".
+     */
+    private static final Clock FIXED_CLOCK =
+        Clock.fixed(Instant.parse("2026-03-01T12:00:00Z"), ZoneOffset.UTC);
 
     private PasswordResetService service;
 
     @BeforeEach
     void setUp() {
-        when(redis.opsForValue()).thenReturn(valueOps);
-        when(valueOps.increment(anyString())).thenReturn(1L);
         when(passwordEncoder.encode(anyString())).thenReturn("bcrypt-of-new-password");
 
         service = new PasswordResetService(
             userRepository, tokenRepository, refreshTokenRepository, passwordEncoder,
-            emailService, redis, auditService, "https://app.fotolio.de");
+            emailService, rateLimiter, FIXED_CLOCK, auditService, sessionRevocation,
+            "https://app.fotolio.de");
     }
 
     private static User photographer() {
@@ -93,7 +104,7 @@ class PasswordResetServiceTest {
         // Built before the when(...) below: photographer() stubs its own mock,
         // and Mockito rejects a stubbing started inside an unfinished one.
         User user = photographer();
-        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(userRepository.findStaffByEmail(EMAIL)).thenReturn(Optional.of(user));
 
         service.requestReset(EMAIL, "1.2.3.4");
 
@@ -115,7 +126,7 @@ class PasswordResetServiceTest {
     void refusesToMintAPasswordForACustomer() {
         User customer = mock(User.class);
         when(customer.getPasswordHash()).thenReturn(null);
-        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(customer));
+        when(userRepository.findStaffByEmail(EMAIL)).thenReturn(Optional.of(customer));
 
         service.requestReset(EMAIL, "1.2.3.4");
 
@@ -127,7 +138,7 @@ class PasswordResetServiceTest {
     @Test
     @DisplayName("an unknown address is not an account-existence oracle")
     void unknownEmailIsSilent() {
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findStaffByEmail(anyString())).thenReturn(Optional.empty());
 
         assertThatCode(() -> service.requestReset("nobody@example.com", "1.2.3.4"))
             .doesNotThrowAnyException();
@@ -139,13 +150,18 @@ class PasswordResetServiceTest {
     @Test
     @DisplayName("request is rate-limited")
     void rateLimitIsEnforced() {
-        when(valueOps.increment(anyString())).thenReturn(99L);
+        // The counting itself now lives in RateLimiter and is tested there.
+        // What this asserts is the thing only this service can get wrong:
+        // that it consults the limiter, and does so before touching the
+        // database.
+        doThrow(new TooManyRequestsException("Too many reset requests."))
+            .when(rateLimiter).check(anyString(), anyInt(), any(), anyString());
 
         assertThatThrownBy(() -> service.requestReset(EMAIL, "1.2.3.4"))
             .isInstanceOf(TooManyRequestsException.class);
 
         // Rejected before any database work — an attacker can't probe at speed.
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(userRepository, never()).findStaffByEmail(anyString());
     }
 
     // ── reset ─────────────────────────────────────────────────────────────────

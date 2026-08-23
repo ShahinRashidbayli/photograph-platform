@@ -29,6 +29,7 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCreateParams;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -76,6 +77,7 @@ public class PaymentService {
     private final String publishableKey;
     private final PaymentProperties.Commission commission;
     private final AuditService auditService;
+    private final Clock clock;
 
     public PaymentService(
         PaymentRepository paymentRepository,
@@ -85,7 +87,8 @@ public class PaymentService {
         TenantRepository tenantRepository,
         Optional<StripeClient> stripeClient,
         PaymentProperties paymentProperties,
-        AuditService auditService
+        AuditService auditService,
+        Clock clock
     ) {
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
@@ -96,6 +99,7 @@ public class PaymentService {
         this.publishableKey = paymentProperties.getPublishableKey();
         this.commission = paymentProperties.getCommission();
         this.auditService = auditService;
+        this.clock = clock;
     }
 
     /**
@@ -193,6 +197,14 @@ public class PaymentService {
             }
         }
 
+        // Pulled out and asserted rather than dereferenced inline: Invoice
+        // implements Persistable<UUID>, whose getId() is nullable for the
+        // transient case. This one came out of a locked SELECT, so it has an id
+        // — saying so once is clearer than SpotBugs pointing at the metadata
+        // line and clearer than a defensive branch that can never run.
+        UUID persistedInvoiceId =
+            Objects.requireNonNull(invoice.getId(), "a persisted invoice has an id");
+
         long applicationFee = commission.feeCents(outstanding, tenant.getPlan());
 
         PaymentIntent intent;
@@ -204,7 +216,7 @@ public class PaymentService {
                 .setReceiptEmail(invoice.getBuyerEmail())
                 .setDescription("Rechnung " + invoice.getInvoiceNumber())
                 .putMetadata("tenant_id", tenantId.toString())
-                .putMetadata("invoice_id", invoice.getId().toString())
+                .putMetadata("invoice_id", persistedInvoiceId.toString())
                 .putMetadata("invoice_number", invoice.getInvoiceNumber());
             // Omitted entirely rather than sent as 0 on the plans that pay no
             // commission — Stripe treats a present application_fee_amount as
@@ -263,7 +275,7 @@ public class PaymentService {
         Payment payment = new Payment(tenantId, invoice.getId(), PaymentMethod.UEBERWEISUNG, amount, null);
         payment.setStatus(PaymentStatus.SUCCEEDED);
         payment.setConfirmedByUserId(actorId);
-        payment.setConfirmedAt(OffsetDateTime.now());
+        payment.setConfirmedAt(OffsetDateTime.now(clock));
         paymentRepository.save(payment);
 
         auditService.log("PAYMENT_RECORDED_MANUAL", "PAYMENT", payment.getId(), tenantId, actorId, ipAddress);

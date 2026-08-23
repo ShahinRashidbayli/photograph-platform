@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -60,7 +61,7 @@ public interface GalleryRepository extends JpaRepository<Gallery, UUID> {
         LEFT JOIN bookings b ON b.id = g.booking_id
         ORDER BY g.created_at DESC
         """, nativeQuery = true)
-    List<GalleryStatsView> findAllWithStats();
+    List<GalleryStatsView> findAllWithStats(Limit limit);
 
     /** Same projection as {@link #findAllWithStats()} for a single gallery. */
     @Query(value = """

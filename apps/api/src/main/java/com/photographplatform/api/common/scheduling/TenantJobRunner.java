@@ -3,10 +3,12 @@ package com.photographplatform.api.common.scheduling;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
-import java.util.List;
 import java.util.function.ToIntFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -30,6 +32,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TenantJobRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(TenantJobRunner.class);
+
+    /**
+     * Tenants held in memory at once. Small on purpose: the per-tenant work
+     * below dominates the runtime by orders of magnitude, so there is nothing
+     * to win by fetching more, and the point of the change is that this number
+     * stays fixed however many tenants the platform has.
+     */
+    private static final int PAGE_SIZE = 100;
+
+    /**
+     * Oldest first, and <em>not</em> by id.
+     *
+     * <p>Paging is only coherent if the ordering is stable across the whole
+     * sweep — a row that moves between pages is either visited twice or skipped
+     * entirely. Tenant ids are {@code gen_random_uuid()}, so a tenant signing up
+     * mid-sweep lands at a random position and pushes everything after it down
+     * by one, skipping whichever tenant was on the page boundary. Ordered by
+     * creation time, a new tenant can only ever append past the end, where at
+     * worst it is picked up by tonight's sweep instead of tomorrow's. The id is
+     * the tie-break, because {@code created_at} is not unique.
+     */
+    private static final Sort PAGE_ORDER = Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
 
     private final TenantRepository tenantRepository;
     private final TransactionTemplate perTenantTransaction;
@@ -55,32 +79,46 @@ public class TenantJobRunner {
      * @param work returns how many items it processed, for the job's log line
      */
     public Result forEachTenant(String jobName, ToIntFunction<Tenant> work) {
-        // Read with no tenant bound — `tenants` is one of the tables V11
-        // deliberately left outside RLS, so this is the one query that can see
-        // across tenants.
-        List<Tenant> tenants = tenantRepository.findAll();
+        int visited = 0;
         int processed = 0;
         int failed = 0;
 
-        for (Tenant tenant : tenants) {
-            try {
-                TenantContext.setTenant(tenant.getId().toString());
-                Integer count = perTenantTransaction.execute(status -> work.applyAsInt(tenant));
-                processed += count == null ? 0 : count;
-            } catch (RuntimeException ex) {
-                failed++;
-                LOG.error("Job '{}' failed for tenant {} ({}): {}",
-                    jobName, tenant.getSubdomain(), tenant.getId(), ex.getMessage(), ex);
-            } finally {
-                // Not optional. The scheduler's threads are pooled and reused
-                // across jobs, so a binding left behind here would silently
-                // become the next job's tenant — RLS would happily serve one
-                // tenant's rows to work intended for another.
-                TenantContext.clear();
-            }
-        }
+        // Read with no tenant bound — `tenants` is one of the tables V11
+        // deliberately left outside RLS, so this is the one query that can see
+        // across tenants. It is also, for the same reason, the one query with
+        // nothing to bound it: findAll() materialised every tenant on the
+        // platform into the heap, three times a night (this runs once per
+        // retention phase), to do work that only ever looks at one of them at a
+        // time. A page at a time costs the same number of rows in total and a
+        // fixed amount of memory.
+        Page<Tenant> page;
+        int pageNumber = 0;
+        do {
+            page = tenantRepository.findAll(PageRequest.of(pageNumber, PAGE_SIZE, PAGE_ORDER));
 
-        return new Result(tenants.size(), processed, failed);
+            for (Tenant tenant : page.getContent()) {
+                visited++;
+                try {
+                    TenantContext.setTenant(tenant.getId().toString());
+                    Integer count = perTenantTransaction.execute(status -> work.applyAsInt(tenant));
+                    processed += count == null ? 0 : count;
+                } catch (RuntimeException ex) {
+                    failed++;
+                    LOG.error("Job '{}' failed for tenant {} ({}): {}",
+                        jobName, tenant.getSubdomain(), tenant.getId(), ex.getMessage(), ex);
+                } finally {
+                    // Not optional. The scheduler's threads are pooled and reused
+                    // across jobs, so a binding left behind here would silently
+                    // become the next job's tenant — RLS would happily serve one
+                    // tenant's rows to work intended for another. Clearing here
+                    // also means the next page is fetched unbound, as it must be.
+                    TenantContext.clear();
+                }
+            }
+            pageNumber++;
+        } while (page.hasNext());
+
+        return new Result(visited, processed, failed);
     }
 
     /**

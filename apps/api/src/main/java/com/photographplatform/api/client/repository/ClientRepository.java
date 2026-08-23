@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,7 +39,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
         FROM clients c
         ORDER BY c.created_at DESC
         """, nativeQuery = true)
-    List<ClientStatsView> findAllWithStats();
+    List<ClientStatsView> findAllWithStats(Limit limit);
 
     /**
      * The same projection for a single client.

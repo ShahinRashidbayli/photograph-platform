@@ -6,12 +6,17 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.controller.BookingController;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.common.config.ClockConfig;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.SecurityConfig;
 import com.photographplatform.api.common.security.JwtAuthFilter;
+import com.photographplatform.api.common.security.TokenRevocationCheck;
 import com.photographplatform.api.common.security.JwtService;
+import com.photographplatform.api.common.security.RestAuthEntryPoints;
 import com.photographplatform.api.common.security.TenantContextFilter;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -43,7 +48,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * customer's own bookings endpoint must stay reachable.
  */
 @WebMvcTest(BookingController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, TenantContextFilter.class, JwtService.class})
+@Import({
+    SecurityConfig.class, RestAuthEntryPoints.class, ClockConfig.class,
+    JwtAuthFilter.class, TenantContextFilter.class, JwtService.class
+})
 class BookingSecurityRuleTest {
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -156,4 +164,29 @@ class BookingSecurityRuleTest {
                 .with(xsrf()))
             .andExpect(status().isUnprocessableEntity());
     }
+
+    /**
+     * Both gates consult this before their repository read, so the slice needs
+     * it to exist. A mock reports every gate as unrecorded, which sends each
+     * request down the same full path it took before the cache existed — the
+     * behaviour these tests were written against.
+     */
+    @MockitoBean
+    private GateCache gateCache;
+
+
+    /**
+     * JwtAuthFilter now asks whether each token has been revoked since it was
+     * issued. These tests are about the role boundary and assume a live
+     * session, so the answer is always "still valid" — revocation itself is
+     * covered by JwtAuthFilterTest.
+     */
+    @MockitoBean
+    private TokenRevocationCheck tokenRevocationCheck;
+
+    @BeforeEach
+    void assumeALiveSession() {
+        when(tokenRevocationCheck.isTokenStillValid(any(), any())).thenReturn(true);
+    }
+
 }

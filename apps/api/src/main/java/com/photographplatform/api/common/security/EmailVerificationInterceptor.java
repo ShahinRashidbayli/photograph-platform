@@ -2,9 +2,11 @@ package com.photographplatform.api.common.security;
 
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.exception.EmailNotVerifiedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -26,13 +28,29 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * the JWT itself would avoid even that single hit, but invalidates whenever
  * the user verifies (until the token rotates), so a one-row read is the
  * simpler trade-off here.
+ *
+ * <p>That read is now skipped for a user already seen verified, via
+ * {@link GateCache}. This gate is the easiest of the three to cache safely
+ * because verification is <em>monotonic</em>: {@code emailVerifiedAt} is only
+ * ever set to a timestamp, never back to null, so a cached pass cannot become
+ * wrong — it can only become redundant. The TTL below is therefore about
+ * bounding a stale entry for a user row that has since been deleted, not about
+ * the flag itself changing back.
  */
 @Component
 public class EmailVerificationInterceptor implements HandlerInterceptor {
 
     private static final Logger LOG = LoggerFactory.getLogger(EmailVerificationInterceptor.class);
 
+    /**
+     * Long, because the fact being cached cannot reverse — see the class note
+     * on monotonicity. It is a bound on how long a deleted user's pass lingers,
+     * nothing more.
+     */
+    private static final Duration PASS_TTL = Duration.ofHours(1);
+
     private final UserRepository userRepository;
+    private final GateCache gateCache;
     /**
      * Master switch for the {@link RequiresVerifiedEmail} gate. Defaults to
      * {@code true} (production-safe). Set {@code app.email.verification-enforced=false}
@@ -52,9 +70,11 @@ public class EmailVerificationInterceptor implements HandlerInterceptor {
 
     public EmailVerificationInterceptor(
         UserRepository userRepository,
+        GateCache gateCache,
         @Value("${app.email.verification-enforced:true}") boolean verificationEnforced
     ) {
         this.userRepository = userRepository;
+        this.gateCache = gateCache;
         this.verificationEnforced = verificationEnforced;
     }
 
@@ -95,6 +115,11 @@ public class EmailVerificationInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        // Verified once is verified for good, so a recorded pass is enough.
+        if (gateCache.isSatisfied(GateCache.EMAIL_VERIFIED, userId)) {
+            return true;
+        }
+
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             return true;
@@ -103,6 +128,7 @@ public class EmailVerificationInterceptor implements HandlerInterceptor {
             throw new EmailNotVerifiedException(
                 "Please verify your email address before performing this action.");
         }
+        gateCache.remember(GateCache.EMAIL_VERIFIED, userId, PASS_TTL);
         return true;
     }
 }

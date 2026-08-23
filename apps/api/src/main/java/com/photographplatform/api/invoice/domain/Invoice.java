@@ -197,7 +197,8 @@ public class Invoice implements Persistable<UUID> {
         Integer subtotalCents,
         Integer taxCents,
         Integer totalCents,
-        UUID stornoOfId
+        UUID stornoOfId,
+        OffsetDateTime issuedAt
     ) {
         this.id = UUID.randomUUID();
         this.tenantId = tenantId;
@@ -227,7 +228,13 @@ public class Invoice implements Persistable<UUID> {
         this.taxCents = taxCents;
         this.totalCents = totalCents;
         this.stornoOfId = stornoOfId;
-        this.issuedAt = OffsetDateTime.now();
+        // Taken from the caller rather than read here, so the one instant an
+        // invoice is stamped with comes from the application's injected clock.
+        // The printed date was already correct either way — InvoiceDate derives
+        // it in the business timezone — but the year that drives invoice
+        // numbering could not be pinned in a test without waiting for a real
+        // new year.
+        this.issuedAt = issuedAt;
         this.createdAt = this.issuedAt;
     }
 

@@ -105,6 +105,63 @@
         <!-- Miscellaneous -->
         <module name="UpperEll"/>
         <module name="ArrayTypeStyle"/>
+        <!--
+          Correctness checks, as distinct from the formatting ones above.
+
+          Everything before this point is naming, spacing and imports — useful,
+          and with no opinion about a switch that falls through or an equals()
+          that NPEs on a null literal. That whole class of check was missing;
+          SpotBugs (see pom.xml) covers the deeper cases, these cover the ones
+          visible in the syntax tree and are much faster to run.
+        -->
+        <module name="MissingSwitchDefault"/>
+        <module name="FallThrough"/>
+        <module name="EqualsAvoidNull"/>
+        <module name="DefaultComesLast"/>
+        <module name="IllegalCatch">
+            <!-- Catching Throwable or Error swallows OutOfMemoryError and
+                 ThreadDeath, which are not recoverable and must not be
+                 absorbed by application code. RuntimeException is fine and
+                 used deliberately in the best-effort paths here. -->
+            <property name="illegalClassNames" value="java.lang.Throwable, java.lang.Error"/>
+        </module>
+
+        <!--
+          Size and complexity ceilings, set just above the current worst rather
+          than at an ideal. A limit nobody meets today produces a wall of
+          violations on day one and gets switched off; one set at today's high
+          water mark stops things getting worse and can be tightened as the
+          large classes are broken up. Same ratchet as the coverage floor.
+        -->
+        <module name="MethodLength">
+            <!-- Current worst is createStripePaymentIntent at 132 lines, most
+                 of which is the double-charge reasoning it carries in
+                 comments. Set just above it. -->
+            <property name="max" value="135"/>
+        </module>
+        <module name="CyclomaticComplexity">
+            <!-- Current worst is 19 (inquiry scoring, a flat table of
+                 conditions). Above that, and worth tightening as the two
+                 offenders are broken up. -->
+            <property name="max" value="20"/>
+        </module>
+
+        <!--
+          NPathComplexity is deliberately NOT enabled.
+
+          It multiplies rather than adds, so a method with ten independent
+          null-guards scores 1024 while being entirely readable. This codebase
+          is full of exactly that shape — defensive checks on optional fields,
+          each two lines long — and the measured values (13,824 in
+          LeadService; 2,940 in inquiry scoring) reflect that rather than
+          anything anyone would call complex on reading it.
+
+          Setting a ceiling above those numbers would enforce nothing;
+          setting one below would flag code whose defensiveness is the point
+          and push people to nest the guards instead. CyclomaticComplexity
+          above measures the same methods and gives an actionable answer.
+        -->
+
         <module name="Indentation">
             <property name="basicOffset" value="4"/>
             <property name="braceAdjustment" value="0"/>

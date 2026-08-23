@@ -93,11 +93,16 @@ class PortfolioAuthorizationIT extends IntegrationTestBase {
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    /**
+     * 401 exactly, not "some 4xx". The looser assertion this replaces was
+     * satisfied by the 403 that {@code Http403ForbiddenEntryPoint} used to
+     * return, which is how a bug that killed token refresh for every user
+     * survived a green suite. See {@code AuthBoundaryIT} for the full boundary.
+     */
     @Test
     void unauthenticatedIsDeniedFromPortfolioManagement() {
         ResponseEntity<String> resp = rest.getForEntity(PHOTOS_ENDPOINT, String.class);
-        assertThat(resp.getStatusCode().is4xxClientError()).isTrue();
-        assertThat(resp.getStatusCode().is2xxSuccessful()).isFalse();
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     /** Registers a photographer and returns the tenant UUID carried in its JWT. */

@@ -6,7 +6,6 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.service.BookingService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.HtmlEscape;
@@ -22,6 +21,7 @@ import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -30,13 +30,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.photographplatform.api.common.security.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,26 +73,29 @@ public class InquiryRequestService {
     private final TenantRepository tenantRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
-    private final StringRedisTemplate redis;
+    private final RateLimiter rateLimiter;
     private final BookingService bookingService;
     private final EmailService emailService;
+    private final Clock clock;
 
     public InquiryRequestService(InquiryRequestRepository inquiryRepository,
                                  UserRepository userRepository,
                                  TenantRepository tenantRepository,
                                  AuditService auditService,
                                  ApplicationEventPublisher eventPublisher,
-                                 StringRedisTemplate redis,
+                                 RateLimiter rateLimiter,
                                  BookingService bookingService,
-                                 EmailService emailService) {
+                                 EmailService emailService,
+                                 Clock clock) {
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
-        this.redis = redis;
+        this.rateLimiter = rateLimiter;
         this.bookingService = bookingService;
         this.emailService = emailService;
+        this.clock = clock;
     }
 
     /**
@@ -115,7 +118,8 @@ public class InquiryRequestService {
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
 
-        String score = calculateScore(req.budgetRange(), req.eventType(), req.proposedDate());
+        String score = calculateScore(
+            req.budgetRange(), req.eventType(), req.proposedDate(), LocalDate.now(clock));
 
         InquiryRequest inquiry = new InquiryRequest(
             customerId,
@@ -195,7 +199,7 @@ public class InquiryRequestService {
         UUID actorId = SecurityUtils.requireCurrentUserId();
 
         String target = targetStatus == null ? "" : Normalize.upper(targetStatus);
-        if (!target.equals("ACCEPTED") && !target.equals("REJECTED")) {
+        if (!"ACCEPTED".equals(target) && !"REJECTED".equals(target)) {
             throw new ConflictException("Unsupported status transition: " + targetStatus);
         }
 
@@ -212,7 +216,7 @@ public class InquiryRequestService {
         User customer = userRepository.findById(inquiry.getCustomerId())
             .orElseThrow(() -> new NotFoundException("Customer not found for inquiry: " + id));
 
-        boolean accepted = target.equals("ACCEPTED");
+        boolean accepted = "ACCEPTED".equals(target);
         if (accepted) {
             bookingService.createFromInquiry(inquiry, customer, ipAddress);
             inquiry.setStatus("BOOKING_CREATED");
@@ -254,7 +258,16 @@ public class InquiryRequestService {
      * {@code LeadService} uses, so the two intake paths stay legible side by
      * side even though their enum vocabularies differ.
      */
-    static String calculateScore(String budgetRange, String eventType, LocalDate proposedDate) {
+    /**
+     * Scoring takes {@code today} rather than reading the clock, because the
+     * time component is "how far out is this event" and that answer moves
+     * daily. As a parameter the whole thing stays a pure function: a test can
+     * pin the boundary between MED and HIGH at an exact date instead of
+     * deriving its expectation from the same {@code now()} the implementation
+     * uses, which asserts the code against itself and passes either way.
+     */
+    static String calculateScore(
+        String budgetRange, String eventType, LocalDate proposedDate, LocalDate today) {
         int budget = switch (budgetRange == null ? "" : budgetRange) {
             case "OVER_2000" -> 100;
             case "1000_2000" -> 90;
@@ -272,7 +285,7 @@ public class InquiryRequestService {
         if (proposedDate == null) {
             time = 50;
         } else {
-            long days = ChronoUnit.DAYS.between(LocalDate.now(), proposedDate);
+            long days = ChronoUnit.DAYS.between(today, proposedDate);
             if (days < 0) {
                 time = 10;
             } else if (days < 30) {
@@ -297,16 +310,9 @@ public class InquiryRequestService {
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private void enforceRateLimit(UUID customerId) {
-        String key = "inquiry:rate:" + customerId;
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, RATE_WINDOW);
-        }
-        if (count != null && count > MAX_PER_CUSTOMER_PER_HOUR) {
-            throw new TooManyRequestsException(
-                "You've sent several requests recently. Please give your photographer "
-                    + "a moment to reply before sending another.");
-        }
+        rateLimiter.check("inquiry:rate:" + customerId, MAX_PER_CUSTOMER_PER_HOUR, RATE_WINDOW,
+            "You've sent several requests recently. Please give your photographer "
+                + "a moment to reply before sending another.");
     }
 
     /**

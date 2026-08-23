@@ -1,5 +1,6 @@
 package com.photographplatform.api.gallery;
 
+import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.domain.Booking;
@@ -159,7 +160,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         assertThat(after.isReachable(NOW_AT)).isFalse();
         // The whole point of soft-delete: the bytes are still there.
         assertThat(asTenant(fx, () -> deliveryPhotoRepository
-            .findByGalleryIdOrderBySortOrderAsc(galleryId))).hasSize(1);
+            .findByGalleryIdOrderBySortOrderAsc(galleryId, QueryLimits.LIST))).hasSize(1);
         verifyNoInteractions(storage);
     }
 
@@ -209,7 +210,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         assertThat(purged).isEqualTo(1);
         verify(storage).deleteObjects(any());
         assertThat(asTenant(fx, () -> deliveryPhotoRepository
-            .findByGalleryIdOrderBySortOrderAsc(galleryId))).isEmpty();
+            .findByGalleryIdOrderBySortOrderAsc(galleryId, QueryLimits.LIST))).isEmpty();
 
         Gallery tombstone = load(fx, galleryId);
         assertThat(tombstone.getExpiryState()).isEqualTo(GalleryExpiryState.PURGED);
@@ -247,7 +248,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         assertThat(load(fx, galleryId).getExpiryState()).isEqualTo(GalleryExpiryState.EXPIRED);
         verifyNoInteractions(storage);
         assertThat(asTenant(fx, () -> deliveryPhotoRepository
-            .findByGalleryIdOrderBySortOrderAsc(galleryId))).hasSize(1);
+            .findByGalleryIdOrderBySortOrderAsc(galleryId, QueryLimits.LIST))).hasSize(1);
     }
 
     // ── recovery (ADR-001 §4.2) ─────────────────────────────────────────

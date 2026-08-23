@@ -278,7 +278,11 @@ public class DeliveryPhotoProcessor {
         if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
             return tenant.getBusinessName();
         }
-        String ownerName = userRepository.findByEmail(tenant.getOwnerEmail())
+        // Tenant-scoped: we are already inside one tenant, and a global lookup
+        // by address threw as soon as any other tenant had a customer with the
+        // same one — which would have failed watermarking for a whole gallery.
+        String ownerName = userRepository
+            .findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
             .map(u -> u.getFullName())
             .orElse(null);
         return ownerName != null && !ownerName.isBlank() ? ownerName : tenant.getSubdomain();

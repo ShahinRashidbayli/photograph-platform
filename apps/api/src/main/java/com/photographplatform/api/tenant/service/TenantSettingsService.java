@@ -1,7 +1,6 @@
 package com.photographplatform.api.tenant.service;
 
 import com.photographplatform.api.audit.service.AuditService;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -34,14 +33,14 @@ public class TenantSettingsService {
 
     @Transactional(readOnly = true)
     public BillingProfileResponse getBillingProfile() {
-        return toResponse(requireTenant(SecurityUtils.requireCurrentTenantId()));
+        return toResponse(tenantRepository.require(SecurityUtils.requireCurrentTenantId()));
     }
 
     @Transactional
     public BillingProfileResponse updateBillingProfile(BillingProfileRequest req, String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        Tenant tenant = requireTenant(tenantId);
+        Tenant tenant = tenantRepository.require(tenantId);
 
         String taxId = Normalize.trimToNull(req.taxId());
         String vatId = Normalize.trimToNull(req.vatId());
@@ -72,11 +71,6 @@ public class TenantSettingsService {
         auditService.log("TENANT_BILLING_PROFILE_UPDATED", "TENANT", tenantId, tenantId, actorId, ipAddress);
 
         return toResponse(tenant);
-    }
-
-    private Tenant requireTenant(UUID tenantId) {
-        return tenantRepository.findById(tenantId)
-            .orElseThrow(() -> new NotFoundException("Tenant not found"));
     }
 
     private BillingProfileResponse toResponse(Tenant tenant) {

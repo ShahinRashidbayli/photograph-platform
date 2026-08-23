@@ -143,7 +143,49 @@ jobs:
       - name: Run Jest tests
         run: npm run test --workspace=apps/web -- --passWithNoTests
 
-  # ── 5. BUILD ───────────────────────────────────────────────
+  # ── 5. AUDIT — dependency vulnerabilities ──────────────────
+  # Five jobs used to run here and none of them looked at what the
+  # dependencies were. `npm audit` reported two HIGH advisories that had been
+  # in the tree for some time with nothing to surface them; a green pipeline
+  # said nothing about that either way.
+  #
+  # This gates on HIGH and above only. A build that fails on every `low` in a
+  # 600-package dev tree gets bypassed within a week, and a gate people bypass
+  # is worse than no gate — it also teaches them to ignore the real ones.
+  #
+  # Java has no equivalent step on purpose: OWASP Dependency-Check needs an NVD
+  # API key and several minutes of NVD downloads, which makes it flaky as a
+  # required check. It runs on its own schedule instead — see
+  # .github/workflows/security-audit.yml — with Dependabot covering advisories
+  # published between runs.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ⚠️ REPORTING ONLY, AND THIS IS TEMPORARY.
+      #
+      # This step fails today. The tree carries two HIGH advisories — next, and
+      # sharp via libvips — and clearing them needs next@16, a semver-major
+      # upgrade that is its own piece of work.
+      #
+      # Merging it as a required check would therefore block every pull request
+      # from the moment it lands, on a problem unrelated to whatever is being
+      # merged. That is how a security gate gets deleted rather than satisfied.
+      # So it reports for now, visibly, and the job is not silently absent.
+      #
+      # REMOVE continue-on-error once the Next upgrade lands. A reporting-only
+      # audit that nobody ever promotes is just a slower way of having no audit.
+      - name: npm audit (high and above)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  # ── 6. BUILD ───────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -185,7 +227,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
 
-  # ── 6. DOCKER IMAGES ───────────────────────────────────────
+  # ── 7. DOCKER IMAGES ───────────────────────────────────────
   # Builds both deployment images without pushing them. The `build` job above
   # compiles the same source with Maven and Next directly, which is NOT the
   # same check: it never exercises the Dockerfiles, so a broken base image, a

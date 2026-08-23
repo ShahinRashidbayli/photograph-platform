@@ -6,6 +6,7 @@ import com.photographplatform.api.client.dto.ClientResponse;
 import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.client.repository.ClientRepository.ClientStatsView;
+import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
@@ -42,7 +43,7 @@ public class ClientService {
 
     @Transactional(readOnly = true)
     public List<ClientResponse> list() {
-        return clientRepository.findAllWithStats().stream()
+        return clientRepository.findAllWithStats(QueryLimits.LIST).stream()
             .map(ClientService::toResponse)
             .toList();
     }

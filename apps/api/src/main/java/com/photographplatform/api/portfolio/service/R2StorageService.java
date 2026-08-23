@@ -36,15 +36,39 @@ public class R2StorageService {
     /**
      * Generates a pre-signed PUT URL allowing the client to upload directly to R2.
      *
-     * @param r2Key       object key inside the bucket (e.g. "tenantId/photos/uuid.jpg")
-     * @param contentType MIME type declared by the uploader
+     * <h2>Why the length is a parameter and not optional</h2>
+     * A pre-signed PUT is a bearer capability to write one object, and by
+     * default it is unbounded — the holder can push a terabyte through it. This
+     * signature used to take only the key and the type, so nothing in the
+     * system limited how much any one account could store; the per-plan
+     * fair-use figure is advertised to the frontend and enforced nowhere.
+     *
+     * <p>Setting {@code contentLength} puts {@code Content-Length} among the
+     * headers SigV4 signs, which changes it from something the client reports
+     * afterwards into a term of the signature: an upload whose actual body
+     * length differs from the signed value is rejected by object storage with a
+     * signature error, before any bytes are stored. The caller must therefore
+     * have decided the size up front — which is why {@code InitiateUploadRequest}
+     * requires it and why the size persisted against the photo is taken from
+     * there rather than from a second, unverifiable claim at complete-time.
+     *
+     * <p>It is a required parameter rather than an overload precisely because
+     * an unbounded variant left reachable is the bug: the next upload path
+     * added would silently get the old behaviour.
+     *
+     * @param r2Key         object key inside the bucket (e.g. "tenantId/photos/uuid.jpg")
+     * @param contentType   MIME type the object will be stored and served with; callers
+     *                      must resolve this through {@code ImageUploadType} rather than
+     *                      passing a client-supplied string through
+     * @param contentLength exact size in bytes the upload is permitted to be
      * @return pre-signed URL string
      */
-    public String generateUploadUrl(String r2Key, String contentType) {
+    public String generateUploadUrl(String r2Key, String contentType, long contentLength) {
         PutObjectRequest putRequest = PutObjectRequest.builder()
             .bucket(props.getBucket())
             .key(r2Key)
             .contentType(contentType)
+            .contentLength(contentLength)
             .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()

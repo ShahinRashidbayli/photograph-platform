@@ -41,6 +41,15 @@ public class User {
     @Column(name = "email_verified_at")
     private OffsetDateTime emailVerifiedAt;
 
+    /**
+     * Access tokens issued before this instant are refused.
+     *
+     * <p>The only way to revoke a JWT this application issues — see
+     * {@code SessionRevocation}. NULL means nothing has been revoked.
+     */
+    @Column(name = "tokens_valid_after")
+    private OffsetDateTime tokensValidAfter;
+
     protected User() {
     }
 
@@ -105,6 +114,14 @@ public class User {
 
     public void setLastLoginAt(OffsetDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public OffsetDateTime getTokensValidAfter() {
+        return tokensValidAfter;
+    }
+
+    public void setTokensValidAfter(OffsetDateTime tokensValidAfter) {
+        this.tokensValidAfter = tokensValidAfter;
     }
 
     public OffsetDateTime getEmailVerifiedAt() {

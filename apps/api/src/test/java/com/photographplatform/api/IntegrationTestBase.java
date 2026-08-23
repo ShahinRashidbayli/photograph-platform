@@ -2,6 +2,9 @@ package com.photographplatform.api;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,6 +131,32 @@ public abstract class IntegrationTestBase {
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              Statement stmt = conn.createStatement()) {
             stmt.execute(CLEANUP_SQL);
+        }
+    }
+
+    /**
+     * Counts rows as the container superuser, so the query sees every tenant.
+     *
+     * <p>Needed because the application role is bound to one tenant per
+     * transaction by RLS — which is exactly why a cross-tenant duplicate can
+     * exist for a long time without any application query noticing it. A test
+     * asserting on that shape has to look from outside the isolation boundary.
+     *
+     * @param sql a query returning a single numeric column
+     */
+    protected long countAcrossTenants(String sql, Object... params) {
+        try (Connection conn = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Cross-tenant count failed: " + sql, e);
         }
     }
 

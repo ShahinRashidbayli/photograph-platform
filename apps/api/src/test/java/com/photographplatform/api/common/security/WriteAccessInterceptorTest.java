@@ -1,5 +1,6 @@
 package com.photographplatform.api.common.security;
 
+import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.AccountReadOnlyException;
 import com.photographplatform.api.entitlement.config.EntitlementProperties;
@@ -33,7 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -52,6 +56,7 @@ class WriteAccessInterceptorTest {
     private static final UUID TENANT_ID = UUID.randomUUID();
 
     private TenantRepository tenantRepository;
+    private GateCache gateCache;
     private WriteAccessInterceptor interceptor;
     private Tenant tenant;
 
@@ -70,7 +75,10 @@ class WriteAccessInterceptorTest {
         EntitlementService entitlements = new EntitlementService(
             props, new PaymentProperties(), tenantRepository,
             Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
-        interceptor = new WriteAccessInterceptor(tenantRepository, entitlements);
+        // Default: nothing cached, so every test below exercises the real
+        // check unless it says otherwise.
+        gateCache = mock(GateCache.class);
+        interceptor = new WriteAccessInterceptor(tenantRepository, entitlements, gateCache);
 
         tenant = new Tenant("anna-foto", "anna@example.de");
         // Expired trial, no subscription — the locked state.
@@ -166,6 +174,61 @@ class WriteAccessInterceptorTest {
 
         assertThatThrownBy(() -> preHandle("POST", handler))
             .isInstanceOf(AccountReadOnlyException.class);
+    }
+
+    // ── the cached pass ─────────────────────────────────────────────────
+
+    /**
+     * The whole point of the cache: a tenant seen writable recently costs no
+     * database read at all.
+     */
+    @Test
+    void aRecentPassSkipsTheTenantRead() {
+        authenticateAs("PHOTOGRAPHER");
+        when(gateCache.isSatisfied(GateCache.WRITABLE, TENANT_ID)).thenReturn(true);
+
+        assertThat(preHandle("POST", new Object())).isTrue();
+
+        verify(tenantRepository, never()).findById(any());
+    }
+
+    @Test
+    void aPassIsRememberedSoTheNextWriteIsFree() {
+        authenticateAs("PHOTOGRAPHER");
+        tenant.setTrialEndsAt(NOW.plusDays(3));
+
+        assertThat(preHandle("POST", new Object())).isTrue();
+
+        verify(gateCache).remember(eq(GateCache.WRITABLE), eq(TENANT_ID), any());
+    }
+
+    /**
+     * The asymmetry the design rests on. If a refusal were ever cached, the
+     * photographer who has just paid would stay locked out until it lapsed —
+     * and the endpoint that takes their money is a POST.
+     */
+    @Test
+    void aRefusalIsNeverCached() {
+        authenticateAs("PHOTOGRAPHER");
+
+        assertThatThrownBy(() -> preHandle("POST", new Object()))
+            .isInstanceOf(AccountReadOnlyException.class);
+
+        verify(gateCache, never()).remember(any(), any(), any());
+    }
+
+    /**
+     * A cached pass must not resurrect an account whose exemption or role
+     * checks would have let it through anyway — but more importantly, the cache
+     * is consulted only after those cheaper checks, so an unauthenticated
+     * request never touches Redis either.
+     */
+    @Test
+    void theCacheIsNotConsultedForRequestsThatWereNeverGated() {
+        assertThat(preHandle("POST", new Object())).isTrue();
+        assertThat(preHandle("GET", new Object())).isTrue();
+
+        verify(gateCache, never()).isSatisfied(any(), any());
     }
 
     private Method exemptMethod() throws NoSuchMethodException {

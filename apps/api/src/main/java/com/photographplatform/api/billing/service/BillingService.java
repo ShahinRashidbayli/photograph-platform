@@ -7,7 +7,6 @@ import com.photographplatform.api.billing.dto.BillingStatusResponse;
 import com.photographplatform.api.billing.dto.CheckoutSessionResponse;
 import com.photographplatform.api.billing.dto.StartCheckoutRequest;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UpstreamServiceException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.entitlement.domain.TenantAccess;
@@ -28,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -94,7 +94,7 @@ public class BillingService {
 
     @Transactional(readOnly = true)
     public BillingStatusResponse getStatus() {
-        Tenant tenant = requireTenant(SecurityUtils.requireCurrentTenantId());
+        Tenant tenant = tenantRepository.require(SecurityUtils.requireCurrentTenantId());
         TenantAccess access = entitlementService.accessFor(tenant);
         return new BillingStatusResponse(
             tenant.plan().name(),
@@ -128,8 +128,11 @@ public class BillingService {
             "Subscriptions are not available on this deployment — no Stripe price is configured for "
                 + plan + " " + interval + "."));
 
-        String customerId = transactionTemplate.execute(
-            status -> ensureCustomer(tenantId, actorId, ipAddress));
+        // Not wrapped in a transaction here: ensureCustomer drives its own short
+        // ones around the Stripe call. Wrapping it would join them into one
+        // outer transaction (TransactionTemplate defaults to REQUIRED) and put
+        // the remote call straight back inside it.
+        String customerId = ensureCustomer(tenantId, actorId, ipAddress);
 
         try {
             com.stripe.model.checkout.Session session = requireStripe().checkout().sessions().create(
@@ -154,7 +157,7 @@ public class BillingService {
 
         // Someone who subscribes mid-trial keeps the days they were promised
         // rather than paying twice for the same fortnight.
-        Tenant tenant = requireTenant(tenantId);
+        Tenant tenant = tenantRepository.require(tenantId);
         OffsetDateTime trialEndsAt = tenant.getTrialEndsAt();
         OffsetDateTime now = OffsetDateTime.now(clock);
         if (trialEndsAt != null && trialEndsAt.isAfter(now.plus(MIN_STRIPE_TRIAL))) {
@@ -186,22 +189,30 @@ public class BillingService {
      * current for free, and every screen we did not build is a screen that
      * cannot disagree with what Stripe actually charged.
      */
-    @Transactional(readOnly = true)
     public CheckoutSessionResponse openPortal() {
-        Tenant tenant = requireTenant(SecurityUtils.requireCurrentTenantId());
-        if (tenant.getStripeCustomerId() == null) {
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+
+        // Read, then release the connection. This was @Transactional(readOnly)
+        // wrapped around the Stripe call — a pooled connection held for a
+        // remote round-trip, out of a pool of ten shared with every other
+        // request. Reading one column does not need a transaction that outlives
+        // the network.
+        String customerId = transactionTemplate.execute(
+            status -> tenantRepository.require(tenantId).getStripeCustomerId());
+
+        if (customerId == null) {
             throw new ConflictException(
                 "There is no subscription to manage yet. Choose a plan first.");
         }
         try {
             Session session = requireStripe().billingPortal().sessions().create(
                 SessionCreateParams.builder()
-                    .setCustomer(tenant.getStripeCustomerId())
+                    .setCustomer(customerId)
                     .setReturnUrl(webBaseUrl + "/settings?billing=portal")
                     .build());
             return new CheckoutSessionResponse(session.getUrl());
         } catch (StripeException ex) {
-            LOG.error("Could not open the Stripe billing portal for tenant {}", tenant.getId(), ex);
+            LOG.error("Could not open the Stripe billing portal for tenant {}", tenantId, ex);
             throw new UpstreamServiceException("stripe",
                 "Stripe couldn't open the billing portal just now. Please try again in a moment.", ex);
         }
@@ -212,37 +223,75 @@ public class BillingService {
      *
      * <p>Idempotent by the stored id: a second checkout reuses the customer, so
      * one photographer keeps one billing history.
+     *
+     * <p>Split into read → remote call → write, so the {@code customers.create}
+     * round-trip does not run inside a transaction. The javadoc on
+     * {@link #startCheckout} already argued that the <em>session</em> call must
+     * stay outside one; the customer call is the same call in the same method
+     * and was inside, which is the kind of half-applied rule this codebase has
+     * a few of.
      */
     private String ensureCustomer(UUID tenantId, UUID actorId, String ipAddress) {
-        Tenant tenant = requireTenant(tenantId);
-        if (tenant.getStripeCustomerId() != null && !tenant.getStripeCustomerId().isBlank()) {
-            return tenant.getStripeCustomerId();
+        String existing = transactionTemplate.execute(
+            status -> tenantRepository.require(tenantId).getStripeCustomerId());
+        if (existing != null && !existing.isBlank()) {
+            return existing;
         }
+
+        // requireNonNull, not a null check with a fallback: execute() is
+        // declared @Nullable because a callback MAY return null, and this one
+        // cannot. Asserting that is honest; writing a branch for a state that
+        // cannot occur would be dead code pretending to be defensive.
+        CustomerIdentity identity = Objects.requireNonNull(transactionTemplate.execute(status -> {
+            Tenant tenant = tenantRepository.require(tenantId);
+            return new CustomerIdentity(
+                tenant.getOwnerEmail(),
+                tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()
+                    ? tenant.getBusinessName()
+                    : tenant.getSubdomain(),
+                tenant.getSubdomain());
+        }), "the transaction callback always returns an identity");
+
+        Customer customer;
         try {
-            Customer customer = requireStripe().customers().create(
+            customer = requireStripe().customers().create(
                 CustomerCreateParams.builder()
-                    .setEmail(tenant.getOwnerEmail())
-                    .setName(tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()
-                        ? tenant.getBusinessName()
-                        : tenant.getSubdomain())
+                    .setEmail(identity.email())
+                    .setName(identity.name())
                     .putAllMetadata(Map.of(
                         "tenant_id", tenantId.toString(),
-                        "subdomain", tenant.getSubdomain()))
+                        "subdomain", identity.subdomain()))
                     .build());
-            tenant.setStripeCustomerId(customer.getId());
-            tenantRepository.save(tenant);
-            auditService.log("BILLING_CUSTOMER_CREATED", "TENANT", tenantId, tenantId, actorId, ipAddress);
-            return customer.getId();
         } catch (StripeException ex) {
             LOG.error("Could not create a Stripe customer for tenant {}", tenantId, ex);
             throw new UpstreamServiceException("stripe",
                 "Stripe couldn't start the checkout just now. Please try again in a moment.", ex);
         }
+
+        return transactionTemplate.execute(status -> {
+            Tenant tenant = tenantRepository.require(tenantId);
+            // Another checkout may have finished while we were at Stripe. Its
+            // customer wins — one photographer must keep one billing history,
+            // and uq_tenants_stripe_customer would reject the second write
+            // anyway. The customer we just created is then orphaned at Stripe,
+            // which is harmless (no subscription is ever attached to it) and
+            // strictly better than splitting the history across two records.
+            String raced = tenant.getStripeCustomerId();
+            if (raced != null && !raced.isBlank()) {
+                LOG.info("Discarding Stripe customer {} for tenant {}; {} was stored first",
+                    customer.getId(), tenantId, raced);
+                return raced;
+            }
+            tenant.setStripeCustomerId(customer.getId());
+            tenantRepository.save(tenant);
+            auditService.log(
+                "BILLING_CUSTOMER_CREATED", "TENANT", tenantId, tenantId, actorId, ipAddress);
+            return customer.getId();
+        });
     }
 
-    private Tenant requireTenant(UUID tenantId) {
-        return tenantRepository.findById(tenantId)
-            .orElseThrow(() -> new NotFoundException("Tenant not found"));
+    /** The tenant fields the Stripe customer is built from, read once. */
+    private record CustomerIdentity(String email, String name, String subdomain) {
     }
 
     private StripeClient requireStripe() {

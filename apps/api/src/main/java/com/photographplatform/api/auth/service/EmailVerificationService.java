@@ -5,20 +5,20 @@ import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.EmailVerificationTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.ConflictException;
-import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.TokenUtils;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import com.photographplatform.api.common.security.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,20 +48,23 @@ public class EmailVerificationService {
     private final EmailVerificationTokenRepository tokenRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final StringRedisTemplate redis;
+    private final RateLimiter rateLimiter;
+    private final Clock clock;
     private final String webBaseUrl;
 
     public EmailVerificationService(
         EmailVerificationTokenRepository tokenRepository,
         UserRepository userRepository,
         EmailService emailService,
-        StringRedisTemplate redis,
+        RateLimiter rateLimiter,
+        Clock clock,
         @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
     ) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
-        this.redis = redis;
+        this.rateLimiter = rateLimiter;
+        this.clock = clock;
         this.webBaseUrl = webBaseUrl;
     }
 
@@ -80,7 +83,7 @@ public class EmailVerificationService {
         tokenRepository.save(new EmailVerificationToken(
             user.getId(),
             TokenUtils.sha256(rawToken),
-            OffsetDateTime.now().plus(TOKEN_TTL)
+            OffsetDateTime.now(clock).plus(TOKEN_TTL)
         ));
         sendVerificationEmail(user, rawToken);
     }
@@ -112,13 +115,13 @@ public class EmailVerificationService {
             return;
         }
 
-        user.setEmailVerifiedAt(OffsetDateTime.now());
+        user.setEmailVerifiedAt(OffsetDateTime.now(clock));
         userRepository.save(user);
 
         token.markUsed();
         tokenRepository.save(token);
         // Invalidate any other outstanding tokens for the same user.
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
     }
 
     /**
@@ -144,21 +147,15 @@ public class EmailVerificationService {
         // Invalidate old tokens before issuing a fresh one — prevents an
         // attacker who phished an earlier link from using it after the user
         // notices and requests a new email.
-        tokenRepository.invalidateAllForUser(userId, OffsetDateTime.now());
+        tokenRepository.invalidateAllForUser(userId, OffsetDateTime.now(clock));
         issueAndSend(user);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private void enforceResendRateLimit(String key, int max) {
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, RESEND_WINDOW);
-        }
-        if (count != null && count > max) {
-            throw new TooManyRequestsException(
-                "Too many verification emails requested. Please try again later.");
-        }
+        rateLimiter.check(key, max, RESEND_WINDOW,
+            "Too many verification emails requested. Please try again later.");
     }
 
     private void sendVerificationEmail(User user, String rawToken) {

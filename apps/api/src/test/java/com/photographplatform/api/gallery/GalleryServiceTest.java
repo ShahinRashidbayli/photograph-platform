@@ -1,5 +1,6 @@
 package com.photographplatform.api.gallery;
 
+import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.entitlement.domain.Capability;
 import com.photographplatform.api.entitlement.domain.Entitlements;
 import com.photographplatform.api.entitlement.domain.TenantAccess;
@@ -24,6 +25,7 @@ import com.photographplatform.api.gallery.repository.GalleryRepository.GallerySt
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.service.DeliveryPhotoProcessor;
 import com.photographplatform.api.gallery.service.GalleryService;
+import com.photographplatform.api.portfolio.config.R2Properties;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -66,6 +68,8 @@ class GalleryServiceTest {
     private AuditService auditService;
     private DeliveryPhotoProcessor photoProcessor;
     private EntitlementService entitlementService;
+    /** Permissive by default — the download quota has its own test. */
+    private RateLimiter rateLimiter;
     private GalleryService galleryService;
 
     @BeforeEach
@@ -83,10 +87,12 @@ class GalleryServiceTest {
             new Entitlements(Plan.STARTER, EnumSet.noneOf(Capability.class), 60, 1, 200, 0L),
             true, null, null, SubscriptionStatus.TRIALING));
 
+        rateLimiter = mock(RateLimiter.class);
+
         galleryService = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.<R2StorageService>empty(), auditService, photoProcessor,
-            entitlementService, FIXED_CLOCK);
+            entitlementService, FIXED_CLOCK, rateLimiter, new R2Properties());
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -268,7 +274,7 @@ class GalleryServiceTest {
         processed.setWatermarkKey("t/g/wm_a.jpg");
         DeliveryPhoto stillProcessing = new DeliveryPhoto(gallery.getId(), "t/g/b.jpg", "b.jpg");
 
-        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any()))
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any()))
             .thenReturn(List.of(processed, stillProcessing));
 
         var response = galleryService.getPublicByToken("tok", "Anna");
@@ -284,7 +290,7 @@ class GalleryServiceTest {
         Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
-        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any())).thenReturn(List.of(
             new DeliveryPhoto(gallery.getId(), "t/g/a.jpg", "a.jpg"),
             new DeliveryPhoto(gallery.getId(), "t/g/b.jpg", "b.jpg")));
 
@@ -298,7 +304,8 @@ class GalleryServiceTest {
         R2StorageService r2 = mock(R2StorageService.class);
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
-            Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK);
+            Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
+            rateLimiter, new R2Properties());
 
         UUID photoId = UUID.randomUUID();
         DeliveryPhoto photo = new DeliveryPhoto(UUID.randomUUID(), "t/g/a.jpg", "a.jpg");
@@ -361,7 +368,7 @@ class GalleryServiceTest {
         DeliveryPhoto processed = new DeliveryPhoto(gallery.getId(), "t/g/a.png", "shot.png");
         processed.setWatermarkKey("t/g/wm_a.jpg");
         DeliveryPhoto stillProcessing = new DeliveryPhoto(gallery.getId(), "t/g/b.jpg", "b.jpg");
-        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any()))
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any()))
             .thenReturn(List.of(processed, stillProcessing));
 
         var plan = galleryService.prepareDownload("tok");
@@ -380,7 +387,7 @@ class GalleryServiceTest {
         Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
-        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any())).thenReturn(List.of(
             new DeliveryPhoto(gallery.getId(), "t/g/a.jpg", "IMG_0001.JPG"),
             new DeliveryPhoto(gallery.getId(), "t/g/b.jpg", "IMG_0001.JPG"),
             new DeliveryPhoto(gallery.getId(), "t/g/c.jpg", "IMG_0001.JPG")));
@@ -397,7 +404,7 @@ class GalleryServiceTest {
         Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findByAccessToken("tok")).thenReturn(Optional.of(gallery));
         when(galleryRepository.findStatsById(any())).thenReturn(Optional.of(mock(GalleryStatsView.class)));
-        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any())).thenReturn(List.of(
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any())).thenReturn(List.of(
             new DeliveryPhoto(gallery.getId(), "t/g/a.jpg", "../../../etc/passwd.jpg")));
 
         var plan = galleryService.prepareDownload("tok");

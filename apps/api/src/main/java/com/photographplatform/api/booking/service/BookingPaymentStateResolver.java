@@ -5,6 +5,7 @@ import com.photographplatform.api.invoice.domain.Invoice;
 import com.photographplatform.api.invoice.domain.InvoiceStatus;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.repository.PaymentRepository;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.HashMap;
@@ -36,10 +37,13 @@ public class BookingPaymentStateResolver {
 
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
+    private final Clock clock;
 
-    public BookingPaymentStateResolver(InvoiceRepository invoiceRepository, PaymentRepository paymentRepository) {
+    public BookingPaymentStateResolver(
+        InvoiceRepository invoiceRepository, PaymentRepository paymentRepository, Clock clock) {
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
+        this.clock = clock;
     }
 
     public record Summary(BookingPaymentState state, int invoicedCents, int paidCents) {
@@ -130,6 +134,6 @@ public class BookingPaymentStateResolver {
      * its own payment window.
      */
     private boolean isPastDue(Invoice invoice) {
-        return invoice.getIssuedAt().plusDays(DEFAULT_DUE_DAYS).isBefore(OffsetDateTime.now());
+        return invoice.getIssuedAt().plusDays(DEFAULT_DUE_DAYS).isBefore(OffsetDateTime.now(clock));
     }
 }

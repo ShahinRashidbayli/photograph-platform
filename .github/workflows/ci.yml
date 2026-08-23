@@ -115,9 +115,32 @@ jobs:
           key: maven-${{ hashFiles('apps/api/pom.xml') }}
           restore-keys: maven-
 
-      - name: Run JUnit tests
+      # `verify`, not `test`. The JaCoCo coverage floor and the SpotBugs
+      # analysis are both bound to the verify phase, and `mvn test` stops one
+      # phase short of them — so for as long as this said `test`, both gates
+      # were fully configured in the POM and ran nowhere. A check that exists
+      # only in configuration is indistinguishable from no check, except that
+      # it looks reassuring in review.
+      #
+      # This job already pays for the expensive part (the Testcontainers
+      # suites), so the two gates cost seconds on top rather than a second
+      # Maven run.
+      - name: Run JUnit tests, coverage floor and SpotBugs
         working-directory: apps/api
-        run: mvn -B test
+        run: mvn -B verify
+
+      # Uploaded whether or not the gates passed: a coverage failure is a
+      # number, and the report is the only thing that says which lines moved.
+      - name: Upload coverage and SpotBugs reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-analysis-reports
+          path: |
+            apps/api/target/site/jacoco/
+            apps/api/target/spotbugsXml.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
   # ── 4. TEST — WEB ──────────────────────────────────────────
   test-web:

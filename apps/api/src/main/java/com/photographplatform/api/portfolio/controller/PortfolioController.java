@@ -87,7 +87,7 @@ public class PortfolioController {
     ) {
         CompleteUploadRequest body = request != null
             ? request
-            : new CompleteUploadRequest(null, null, null);
+            : new CompleteUploadRequest(null, null);
         PhotoResponse photo = photoService.completeUpload(id, body);
         return ResponseEntity.ok(photo);
     }

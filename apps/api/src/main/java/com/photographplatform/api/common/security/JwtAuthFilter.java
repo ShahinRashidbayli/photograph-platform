@@ -84,10 +84,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      * token did not come from here.
      */
     private boolean isRevoked(Claims claims) {
+        String subject = claims.getSubject();
+        if (subject == null) {
+            return true;
+        }
         UUID userId;
         try {
-            userId = UUID.fromString(claims.getSubject());
-        } catch (IllegalArgumentException | NullPointerException ex) {
+            userId = UUID.fromString(subject);
+        } catch (IllegalArgumentException ex) {
             return true;
         }
         Date issuedAt = claims.getIssuedAt();

@@ -84,7 +84,13 @@ public class GateCache {
      */
     public boolean isSatisfied(String gate, UUID subject) {
         try {
-            return redis.hasKey(key(gate, subject));
+            // Boolean, not boolean: hasKey answers null when the command was
+            // queued rather than executed (inside a pipeline or a MULTI). We
+            // never call it that way, but unboxing it directly would turn that
+            // into a NullPointerException on the hot path of every gated
+            // request — and "I don't know" is already a case this method has an
+            // answer for.
+            return Boolean.TRUE.equals(redis.hasKey(key(gate, subject)));
         } catch (RuntimeException ex) {
             LOG.debug("Gate cache unavailable for '{}' — falling through to the real check", gate, ex);
             return false;

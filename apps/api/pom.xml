@@ -39,9 +39,9 @@
              negotiates the API version, restoring compatibility. -->
         <testcontainers.version>1.21.4</testcontainers.version>
         <!--
-          Coverage floor, measured from a full `mvn verify` (418 tests,
+          Coverage floor, measured from a full `mvn verify` (452 tests,
           Testcontainers suites included) rather than chosen as a target:
-          LINE 64.10%, BRANCH 47.46%. Each floor sits about a point below that,
+          LINE 64.72%, BRANCH 48.57%. Each floor sits a point or two below that,
           so an ordinary refactor does not fail the build but a real regression
           does.
 
@@ -59,6 +59,8 @@
           start with "Unrecognized option".
         -->
         <jacocoArgLine></jacocoArgLine>
+        <!-- See the spotbugs-maven-plugin dependency block for why this is pinned. -->
+        <asm.version>9.10.1</asm.version>
     </properties>
 
     <dependencies>
@@ -398,7 +400,50 @@
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.8.6.4</version>
+                <version>4.9.3.0</version>
+                <dependencies>
+                    <!--
+                      SpotBugs reads the class files of whatever JDK it runs on,
+                      including java.lang.Object, and refuses a major version its
+                      bundled ASM does not know. Developers here run newer JDKs
+                      than the build targets (see maven.compiler.release above),
+                      so on a JDK 26 laptop the shipped ASM fails with
+                      "Unsupported class file major version 70" before analysing
+                      a single line of our code — the build breaks on the
+                      toolchain rather than on the code, which is the fastest way
+                      to teach people to skip it.
+
+                      ASM tracks new class file versions well ahead of the
+                      analysers that embed it, so overriding it here keeps the
+                      gate usable locally without waiting for a SpotBugs release.
+                      Drop this block once the bundled ASM is new enough.
+                    -->
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-analysis</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-commons</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-tree</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-util</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <effort>Max</effort>
                     <threshold>Medium</threshold>

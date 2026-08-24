@@ -240,6 +240,37 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       minWidth: 0,
     },
 
+    // ── Panel metrics ─────────────────────────────────────────────────────
+    // Value first, label under it, hairlines between — deliberately *not* the
+    // shared StatStrip. That component is a bordered band that opens a page;
+    // dropped inside a card it reads as a second card, and its label-above
+    // order buries the figure. Here the numbers sit directly on the panel.
+    metricsRow: {
+      display: 'flex',
+      alignItems: 'stretch',
+      flexShrink: 0,
+    },
+    metric: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      padding: '0 20px',
+      minWidth: 0,
+    },
+    metricValue: {
+      fontSize: '24px',
+      fontWeight: 800,
+      letterSpacing: '-0.02em',
+      lineHeight: 1.1,
+      color: c.text,
+    },
+    metricLabel: {
+      fontSize: '12px',
+      fontWeight: 500,
+      color: c.textMuted,
+      lineHeight: 1.2,
+    },
+
     // ── Overview band: the figures and the expiry countdown, side by side ──
     // One row rather than two blocks, because "how much is in here" and "how
     // long is it live for" are read together when deciding whether to extend.
@@ -255,6 +286,11 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     expiryBlock: {
       flex: '1 1 240px',
       minWidth: 0,
+      // Continues the hairline rhythm the metrics beside it set, so the whole
+      // band reads as one row of related facts rather than two components
+      // that happen to be adjacent.
+      borderLeft: `1px solid ${c.border}`,
+      paddingLeft: '20px',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
@@ -346,13 +382,15 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       flexDirection: 'column',
       gap: '12px',
     },
+    // A heading, not an eyebrow. Uppercase 11px muted text is a *label* for a
+    // value beside it; used as a section title it makes every section look
+    // like fine print above the thing that matters.
     sectionTitle: {
-      fontSize: '11px',
+      fontSize: '15px',
       fontWeight: 700,
-      textTransform: 'uppercase',
-      letterSpacing: '0.05em',
-      marginBottom: '4px',
-      color: c.textMuted,
+      letterSpacing: '-0.01em',
+      marginBottom: '10px',
+      color: c.text,
     },
 
     expiryBadge: {
@@ -427,15 +465,18 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       fontFamily: 'monospace',
       fontSize: '12px',
       color: c.text,
-      wordBreak: 'break-all',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
       lineHeight: '1.5',
+      display: 'flex',
+      alignItems: 'center',
     },
 
     // ── delivered-photo grid ────────────────────────────────────────────────
     photoGrid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
-      gap: '8px',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+      gap: '10px',
     },
     photoCell: {
       position: 'relative',

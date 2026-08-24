@@ -204,6 +204,18 @@ const IconUpload = () => (
     <line x1="12" y1="3" x2="12" y2="15" />
   </svg>
 );
+/**
+ * A 64-character access token, shortened for display.
+ *
+ * Shown whole it wrapped onto a second line of hex nobody reads, which made
+ * the link block the tallest thing in the sharing section. Enough of each end
+ * survives to tell two galleries apart; the button copies the real URL, so
+ * nothing depends on this string being complete.
+ */
+function truncateToken(token: string): string {
+  return token.length <= 20 ? token : `${token.slice(0, 8)}…${token.slice(-7)}`;
+}
+
 const IconDownload = () => (
   <svg
     width="16"
@@ -517,7 +529,7 @@ function GalleryDetail({
     gallery && subdomain ? `${window.location.origin}/g/${subdomain}/${gallery.accessToken}` : null;
   const shareDisplay =
     gallery && subdomain
-      ? `${window.location.host}/g/${subdomain}/${gallery.accessToken}`
+      ? `${window.location.host}/g/${subdomain}/${truncateToken(gallery.accessToken)}`
       : t('galleries.detail.linkUnavailable');
 
   /**
@@ -668,14 +680,23 @@ function GalleryDetail({
         {/* Figures and countdown on one line: how much is in the gallery and
             how long it stays up are read together when deciding to extend. */}
         <div style={styles.overviewRow}>
-          <StatStrip
-            variant="inline"
-            aria-label={gallery.bookingName}
-            items={[
-              { label: t('galleries.detail.photos'), value: String(gallery.photoCount) },
-              { label: t('galleries.detail.views'), value: String(gallery.viewCount) },
-            ]}
-          />
+          <div style={styles.metricsRow}>
+            {[
+              { label: t('galleries.detail.photos'), value: gallery.photoCount },
+              { label: t('galleries.detail.views'), value: gallery.viewCount },
+            ].map((m, i) => (
+              <div
+                key={m.label}
+                style={{
+                  ...styles.metric,
+                  ...(i === 0 ? { paddingLeft: 0 } : { borderLeft: `1px solid ${colors.border}` }),
+                }}
+              >
+                <span style={styles.metricValue}>{m.value}</span>
+                <span style={styles.metricLabel}>{m.label}</span>
+              </div>
+            ))}
+          </div>
 
           <div style={styles.expiryBlock}>
             <div style={styles.expiryHeadRow}>

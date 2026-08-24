@@ -108,7 +108,9 @@ FROM seed_target s, (VALUES
 INSERT INTO clients (id, tenant_id, email, full_name, phone, notes, tags, source,
                      total_bookings, total_spent_cents, last_booking_date, created_at)
 SELECT c.id, s.tenant_id, c.email, c.name, c.phone, c.notes, c.tags, c.source,
-       c.total_bookings, c.spent, c.last_booking, now() - c.age
+       -- Placeholders: the UPDATE after the bookings insert derives the real
+       -- figures from the rows that actually exist.
+       0, 0, NULL, now() - c.age
 FROM seed_target s, (VALUES
     ('22222222-0000-4000-a000-000000000001'::uuid, 'maria.kellner@web.de', 'Maria Kellner', '+49 170 1234567',
      'Zweite Hochzeit in der Familie — Schwester heiratet 2027, Kontakt halten.',
@@ -203,8 +205,61 @@ FROM seed_target s, (VALUES
      'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 240, TIME '09:30',
      'Business', 'Bürogebäude Ruhrallee, Essen', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'COMPLETED', NULL, INTERVAL '260 days')
+    ,
+    -- Deeper history, so the repeat clients genuinely have the totals the
+    -- directory shows them with. Without these, every client topped out at two
+    -- bookings and "Repeat" was a filter with nothing distinctive behind it.
+    ('33333333-0000-4000-a00d-00000000000d'::uuid, '22222222-0000-4000-a000-000000000001'::uuid,
+     'Maria Kellner', 'maria.kellner@web.de', CURRENT_DATE - 620, TIME '14:00',
+     'Verlobung', 'Baldeneysee, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
+     39000, 0, 'COMPLETED', 'Verlobungsshooting — daraus wurde die Hochzeit.', INTERVAL '650 days'),
+    ('33333333-0000-4000-a00e-00000000000e'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+     'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 760, TIME '15:30',
+     'Familie', 'Stadtwald, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
+     39000, 0, 'COMPLETED', NULL, INTERVAL '790 days'),
+    ('33333333-0000-4000-a00f-00000000000f'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+     'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 1120, TIME '15:30',
+     'Familie', 'Botanischer Garten, Bochum', '11111111-0000-4000-a000-000000000004'::uuid,
+     39000, 0, 'COMPLETED', 'Erstes Shooting — seitdem jedes Jahr.', INTERVAL '1150 days'),
+    ('33333333-0000-4000-a010-000000000010'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+     'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 480, TIME '10:00',
+     'Business', 'Messe Essen', '11111111-0000-4000-a000-000000000005'::uuid,
+     29000, 0, 'COMPLETED', 'Messestand, zwei Tage.', INTERVAL '500 days'),
+    ('33333333-0000-4000-a011-000000000011'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+     'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 700, TIME '09:00',
+     'Business', 'Bürogebäude Ruhrallee, Essen', '11111111-0000-4000-a000-000000000005'::uuid,
+     29000, 0, 'COMPLETED', NULL, INTERVAL '720 days')
 ) AS b(id, client_id, name, email, event_date, event_time, event_type, location,
        package_id, total, deposit, status, notes, age);
+
+-- ── Client statistics ───────────────────────────────────────────────────────
+-- Derived from the bookings above rather than typed in beside them. Hand-
+-- written totals drifted from the rows they claimed to summarise the moment
+-- the booking list changed — the directory said "5 bookings" over a client
+-- whose detail panel listed two, which reads as an application bug rather
+-- than as bad demo data.
+--
+-- Cancelled and declined bookings are excluded from the count: neither was a
+-- session this client had. Spend counts COMPLETED only, because the column is
+-- shown as *lifetime revenue* and a confirmed booking six weeks out is not
+-- revenue yet.
+UPDATE clients c
+SET total_bookings = stats.booking_count,
+    total_spent_cents = stats.completed_cents,
+    last_booking_date = stats.last_event
+FROM (
+    SELECT b.client_id,
+           count(*) FILTER (WHERE b.status NOT IN ('CANCELLED', 'DECLINED')) AS booking_count,
+           COALESCE(SUM(b.total_amount_cents) FILTER (WHERE b.status = 'COMPLETED'), 0)
+             AS completed_cents,
+           max(b.event_date) FILTER (WHERE b.status NOT IN ('CANCELLED', 'DECLINED'))
+             AS last_event
+    FROM bookings b
+    WHERE b.client_id IS NOT NULL
+    GROUP BY b.client_id
+) AS stats
+WHERE c.id = stats.client_id
+  AND c.tenant_id = (SELECT tenant_id FROM seed_target);
 
 -- ── Leads ───────────────────────────────────────────────────────────────────
 -- Every status × a spread of scores, so the inbox, the badge count and the

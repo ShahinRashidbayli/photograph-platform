@@ -521,11 +521,21 @@ public class AuthService {
         if (!Boolean.TRUE.equals(redis.hasKey(lockKey))) {
             return null;
         }
-        Long seconds = redis.getExpire(lockKey, TimeUnit.SECONDS);
-        if (seconds == null || seconds <= 0) {
+        try {
+            Long seconds = redis.getExpire(lockKey, TimeUnit.SECONDS);
+            if (seconds == null || seconds <= 0) {
+                return LOGIN_LOCKOUT_DURATION;
+            }
+            return Duration.ofSeconds(seconds);
+        } catch (RuntimeException ex) {
+            // Reading the TTL is a second round trip, so Redis can go away
+            // between it and the check above. The lock is already established
+            // at that point; failing here would turn a 429 that tells the user
+            // when to come back into a 500 that tells them nothing. Same
+            // answer as an unreadable TTL: report the full window.
+            LOG.warn("Could not read the remaining lockout for '{}'", lockKey, ex);
             return LOGIN_LOCKOUT_DURATION;
         }
-        return Duration.ofSeconds(seconds);
     }
 
     /** The longer of two possibly-null lockouts, or null when both are null. */

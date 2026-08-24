@@ -293,6 +293,26 @@ class AuthControllerIT extends IntegrationTestBase {
             SubdomainAvailabilityResponse.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    /**
+     * Reading the TTL is a second round trip, so Redis can disappear between
+     * the existence check and it. The lock still stands; answering 500 would
+     * replace a message that says when to come back with one that says
+     * nothing.
+     */
+    @Test
+    void lockSurvivesRedisFailingOnTheTtlRead() {
+        String lockKey = "login:lock:email:flaky@test.com";
+        when(redisTemplate.hasKey(lockKey)).thenReturn(true);
+        when(redisTemplate.getExpire(lockKey, TimeUnit.SECONDS))
+            .thenThrow(new org.springframework.dao.QueryTimeoutException("redis gone"));
+
+        ResponseEntity<String> resp = rest.postForEntity("/api/auth/login",
+            new LoginRequest("flaky@test.com", TEST_PASSWORD), String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(resp.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("900");
+    }
+
     /** Marks an address as locked out, with the TTL Redis would report. */
     private void lockEmail(String email, Long remainingSeconds) {
         String lockKey = "login:lock:email:" + email;

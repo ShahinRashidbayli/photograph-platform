@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { space } from '@/lib/design-tokens';
+import { getStatStripStyles } from '@/components/StatStrip';
 import type { getBookingsColors } from './bookings.styles';
 
 /**
@@ -19,6 +20,7 @@ export function BookingsSkeleton({
   colors: ReturnType<typeof getBookingsColors>;
   label: string;
 }>) {
+  const stripStyles = getStatStripStyles(colors.isDark ? 'dark' : 'light');
   const block = (w: string | number, h: number, extra: React.CSSProperties = {}) => (
     <div
       className="bk-shimmer"
@@ -57,13 +59,21 @@ export function BookingsSkeleton({
         {block(140, 36)}
       </header>
 
-      <div className="bk-stat-strip" style={styles.statStrip}>
+      {/* Same measurements as the real strip, from the same factory — a
+          skeleton that guesses at them is what makes the swap to data jump. */}
+      <div
+        className="stat-strip"
+        style={{
+          ...stripStyles.strip,
+          ['--stat-strip-border' as string]: colors.border,
+        }}
+      >
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="bk-stat-item"
+            className="stat-strip-item"
             style={{
-              ...styles.statStripItem,
+              ...stripStyles.item,
               ...(i > 0 ? { borderLeft: `1px solid ${colors.border}` } : {}),
             }}
           >

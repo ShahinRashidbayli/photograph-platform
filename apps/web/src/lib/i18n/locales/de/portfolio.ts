@@ -6,6 +6,10 @@ export const portfolio: Record<keyof EnPortfolio, string> = {
   'portfolio.subtitle':
     'Lade Fotos hoch, veröffentliche sie und kuratiere, was Besucher auf deiner öffentlichen Seite sehen.',
 
+  'portfolio.stat.total': 'Fotos insgesamt',
+  'portfolio.stat.published': 'Veröffentlicht',
+  'portfolio.stat.draft': 'Entwurf',
+
   'portfolio.upload.button': 'Fotos hochladen',
   'portfolio.upload.dropHint': 'JPG, PNG oder WebP hier ablegen — oder',
   'portfolio.upload.dropHintTail': 'oben nutzen. Max. 25 MB pro Datei.',

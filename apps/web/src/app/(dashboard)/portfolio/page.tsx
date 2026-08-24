@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
+import { StatStrip } from '@/components/StatStrip';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
@@ -262,7 +263,26 @@ export default function PortfolioAdminPage() {
     >
       <Header colors={colors} onUploadClick={() => fileInputRef.current?.click()} />
 
-      <StatRow colors={colors} stats={stats} />
+      {/* The figures are coloured rather than iconed: published and draft are
+          the same kind of number, and the tint is what separates them. */}
+      <div style={{ marginBottom: 24 }}>
+        <StatStrip
+          aria-label={t('portfolio.title')}
+          items={[
+            { label: t('portfolio.stat.total'), value: String(stats.total) },
+            {
+              label: t('portfolio.stat.published'),
+              value: String(stats.published),
+              valueColor: colors.successText,
+            },
+            {
+              label: t('portfolio.stat.draft'),
+              value: String(stats.draft),
+              valueColor: colors.warningText,
+            },
+          ]}
+        />
+      </div>
 
       <input
         ref={fileInputRef}
@@ -416,59 +436,6 @@ function Header({ colors, onUploadClick }: { colors: ColorTokens; onUploadClick:
         </svg>
         Upload photos
       </button>
-    </div>
-  );
-}
-
-function StatRow({
-  colors,
-  stats,
-}: {
-  colors: ColorTokens;
-  stats: { total: number; published: number; draft: number };
-}) {
-  const card = (label: string, value: number, accent: string) => (
-    <div
-      style={{
-        padding: '14px 16px',
-        background: colors.cardBg,
-        borderRadius: 14,
-        border: `1px solid ${colors.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-      }}
-    >
-      <span
-        style={{
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: colors.subText,
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: accent }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 16,
-        marginBottom: 24,
-      }}
-    >
-      {card('Total photos', stats.total, colors.text)}
-      {card('Published', stats.published, colors.successText)}
-      {card('Draft', stats.draft, colors.warningText)}
     </div>
   );
 }

@@ -36,7 +36,7 @@ import { CustomerBookingDetail } from './CustomerBookingDetail';
 import { BookingDetail } from './BookingDetail';
 import { BookingListItem } from './BookingListItem';
 import { BookingsSkeleton } from './BookingsSkeleton';
-import { StatStrip } from './BookingsStatStrip';
+import { StatStrip } from '@/components/StatStrip';
 
 // The calendar bundles FullCalendar (~100KB+) and is photographer-only, shown
 // only in "calendar" view — load it on demand so it's never in the bookings
@@ -478,15 +478,6 @@ function BookingsView() {
           .bk-container { grid-template-columns: 1fr !important; }
           .bk-list-panel, .bk-detail-panel { max-height: none !important; }
         }
-        /* The metrics strip stacks below its 3-up width; the hairline that
-           divides the segments has to flip from vertical to horizontal. */
-        @media (max-width: 720px) {
-          .bk-stat-strip { grid-template-columns: 1fr !important; }
-          .bk-stat-item + .bk-stat-item {
-            border-left: none !important;
-            border-top: 1px solid ${colors.border} !important;
-          }
-        }
         @media (max-width: 600px) {
           .bk-info-grid { grid-template-columns: 1fr !important; }
           .bk-form-row { grid-template-columns: 1fr !important; }
@@ -589,8 +580,6 @@ function BookingsView() {
           framed in personal terms (never "revenue"). Kept to a slim band so
           the list + detail work area starts near the top of the page. */}
       <StatStrip
-        styles={styles}
-        colors={colors}
         items={
           isPhotographer
             ? [

@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { Client } from '@/types/api';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { whatsappHref } from '@/lib/helpers';
+import { StatStrip } from '@/components/StatStrip';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { getClientsColors, getClientsStyles, type ClientsTheme } from './clients.styles';
 
@@ -68,103 +69,10 @@ const ICONS = {
       <path d="m3 7 9 6 9-6" />
     </svg>
   ),
-  arrowRight: (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
-    </svg>
-  ),
-  users: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ),
-  calendar: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <path d="M16 2v4M8 2v4M3 10h18" />
-    </svg>
-  ),
-  euro: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M4 10h12M4 14h9" />
-      <path d="M19 5a7 7 0 1 0 0 14" />
-    </svg>
-  ),
 };
 
 type Styles = Record<string, React.CSSProperties>;
 type ColorTokens = ReturnType<typeof getClientsColors>;
-
-function StatCard({
-  label,
-  value,
-  hint,
-  icon,
-  iconBg,
-  iconColor,
-  s,
-}: Readonly<{
-  label: string;
-  value: number | string;
-  hint: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  s: Styles;
-}>) {
-  return (
-    <div style={s.statCard}>
-      <div style={s.statTopRow}>
-        <span style={s.statLabel}>{label}</span>
-        <span style={{ ...s.statIcon, background: iconBg, color: iconColor }}>{icon}</span>
-      </div>
-      <div style={s.statValueRow}>
-        <span style={s.statValue}>{value}</span>
-        <span style={s.statHint}>{hint}</span>
-      </div>
-    </div>
-  );
-}
 
 function ClientListItem({
   client,
@@ -571,35 +479,26 @@ function ClientsView() {
         </div>
       </div>
 
-      <div style={s.summaryRow}>
-        <StatCard
-          label={t('clients.stat.total')}
-          value={stats.total}
-          hint={t('clients.stat.totalHint', { amount: format.eur(stats.totalRevenueCents) })}
-          icon={ICONS.users}
-          iconBg={c.primaryBg}
-          iconColor={c.primaryStrong}
-          s={s}
-        />
-        <StatCard
-          label={t('bookings.stat.active')}
-          value={stats.active}
-          hint={t('clients.stat.activeHint')}
-          icon={ICONS.calendar}
-          iconBg={c.primaryBg}
-          iconColor={c.primaryStrong}
-          s={s}
-        />
-        <StatCard
-          label={t('clients.stat.avgSpend')}
-          value={format.eur(stats.avgSpendCents)}
-          hint={t('clients.stat.avgSpendHint')}
-          icon={ICONS.euro}
-          iconBg={c.primaryBg}
-          iconColor={c.primaryStrong}
-          s={s}
-        />
-      </div>
+      <StatStrip
+        aria-label={t('clients.title')}
+        items={[
+          {
+            label: t('clients.stat.total'),
+            value: String(stats.total),
+            trend: t('clients.stat.totalHint', { amount: format.eur(stats.totalRevenueCents) }),
+          },
+          {
+            label: t('bookings.stat.active'),
+            value: String(stats.active),
+            trend: t('clients.stat.activeHint'),
+          },
+          {
+            label: t('clients.stat.avgSpend'),
+            value: format.eur(stats.avgSpendCents),
+            trend: t('clients.stat.avgSpendHint'),
+          },
+        ]}
+      />
 
       {loadFailed ? (
         <div style={{ ...s.listPanel, maxHeight: 'none' }}>

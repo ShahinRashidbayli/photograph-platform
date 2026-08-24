@@ -78,6 +78,25 @@ body {
   }
 }
 
+/* ── Headline stat strip ───────────────────────────────────────────────
+ * The band of headline numbers above bookings, clients and portfolio. Laid
+ * out with inline styles in `components/StatStrip.tsx`; only the breakpoint
+ * lives here, because inline styles cannot express one.
+ *
+ * Below the 3-up width the segments stack, so the hairline that divides them
+ * has to flip from vertical to horizontal. Its colour arrives as the
+ * `--stat-strip-border` custom property the component sets, which keeps the
+ * theme's border token the single source of truth for both orientations. */
+@media (max-width: 720px) {
+  .stat-strip {
+    grid-template-columns: 1fr !important;
+  }
+  .stat-strip-item + .stat-strip-item {
+    border-left: none !important;
+    border-top: 1px solid var(--stat-strip-border) !important;
+  }
+}
+
 /* ── Landing page ──────────────────────────────────────────────────────
  * The landing page is a client component styled with inline styles, so its
  * responsive breakpoints and hover transitions live here (inline styles

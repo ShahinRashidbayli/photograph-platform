@@ -42,6 +42,10 @@ const PHOTOGRAPHER: AuthUser = {
  */
 function failOnReactKeyWarnings() {
   const seen: string[] = [];
+  // Captured before the spy replaces it, and called through below so a real
+  // React problem still reaches the terminal instead of being swallowed by
+  // the very helper that is meant to surface one.
+  // eslint-disable-next-line no-console
   const original = console.error;
   jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
     const text = args.map(String).join(' ');

@@ -9,6 +9,10 @@ export const portfolio = {
   'portfolio.title': 'Portfolio',
   'portfolio.subtitle': 'Upload, publish, and curate the photos visitors see on your public page.',
 
+  'portfolio.stat.total': 'Total photos',
+  'portfolio.stat.published': 'Published',
+  'portfolio.stat.draft': 'Draft',
+
   'portfolio.upload.button': 'Upload photos',
   'portfolio.upload.dropHint': 'Drop JPG, PNG, or WebP here — or use',
   'portfolio.upload.dropHintTail': 'above. Max 25 MB per file.',

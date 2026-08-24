@@ -2,6 +2,7 @@
 
 import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { UserAvatar } from '@/components/UserAvatar';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import api from '@/lib/api';
@@ -39,7 +40,6 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [avatarBroken, setAvatarBroken] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seed the inputs only when the user *identity* changes (i.e. loads on
@@ -128,7 +128,6 @@ export default function SettingsPage() {
         avatarUrl: presign.r2Key,
       });
       setUser(updated);
-      setAvatarBroken(false);
     } catch (err) {
       const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data
         ?.error;
@@ -226,56 +225,20 @@ export default function SettingsPage() {
           }}
         >
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            {user?.avatarUrl && !avatarBroken ? (
-              <div
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  border: `3px solid ${c.primary}`,
-                  boxShadow: `0 4px 12px rgba(0,0,0,0.15)`,
-                }}
-              >
-                {/* Plain <img>, like every other remote image in this app.
-                    next/image refuses any host absent from images.remotePatterns
-                    in next.config — which is an empty array — so as soon as a
-                    user actually had an avatar it threw "Invalid src prop ...
-                    hostname is not configured" and took the settings page with
-                    it. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={user.avatarUrl}
-                  alt="Profile photo"
-                  width={96}
-                  height={96}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  // A stored object key is re-signed per response, but an old
-                  // row may still hold an expired URL — fall back to the
-                  // initials placeholder rather than a broken-image icon.
-                  onError={() => setAvatarBroken(true)}
-                />
-              </div>
-            ) : (
-              <div
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: '50%',
-                  background: c.primaryBg,
-                  border: `3px solid ${c.primary}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '2.4rem',
-                  color: c.primaryText,
-                  fontWeight: 700,
-                  boxShadow: `0 4px 12px rgba(0,0,0,0.15)`,
-                }}
-              >
-                {user?.fullName?.[0]?.toUpperCase() ?? '?'}
-              </div>
-            )}
+            {/* Same component as the sidebar and the header, so a photo that
+                shows here shows there too — which it did not, for exactly as
+                long as this screen had its own copy of the markup. */}
+            <UserAvatar
+              name={user?.fullName ?? user?.email ?? '?'}
+              src={user?.avatarUrl}
+              size={96}
+              background={c.primaryBg}
+              color={c.primaryText}
+              style={{
+                border: `3px solid ${c.primary}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}
+            />
             {avatarUploading && (
               <div
                 style={{

@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
+import { UserAvatar } from '@/components/UserAvatar';
 import { AccountLockNotice } from '@/components/AccountLockNotice';
 
 // Nav grouped into sections so the sidebar mirrors the mental model:
@@ -234,13 +235,6 @@ const CLIENT_NAV: NavGroup[] = [
     ],
   },
 ];
-
-function getInitials(name: string) {
-  const trimmed = (name ?? '').trim();
-  if (!trimmed) return 'U';
-  const parts = trimmed.split(/\s+/);
-  return (parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '');
-}
 
 type NavItem = NavLeaf;
 
@@ -642,24 +636,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 aria-label={t('nav.aria.profile')}
               >
-                <span
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    background: theme === 'light' ? '#6366F1' : '#818CF8',
-                    color: '#fff',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: '0.72rem',
-                    flexShrink: 0,
-                  }}
-                  aria-hidden
-                >
-                  {getInitials(user.fullName ?? user.email ?? 'U')}
-                </span>
+                <UserAvatar
+                  name={user.fullName ?? user.email ?? 'U'}
+                  src={user.avatarUrl}
+                  size={32}
+                  background={theme === 'light' ? '#6366F1' : '#818CF8'}
+                  color="#fff"
+                />
                 <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                   <div
                     style={{
@@ -1051,7 +1034,13 @@ function Header({
             }}
             title={user?.fullName ?? 'User'}
           >
-            {getInitials(user?.fullName ?? 'TU')}
+            <UserAvatar
+              name={user?.fullName ?? user?.email ?? 'U'}
+              src={user?.avatarUrl}
+              size={36}
+              background="transparent"
+              color="#fff"
+            />
           </button>
 
           {menuOpen && (

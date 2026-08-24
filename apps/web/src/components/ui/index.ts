@@ -35,4 +35,5 @@ export { Badge, type BadgeProps } from './Badge';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Note } from './Note';
 export { Modal, ModalHeader, type ModalProps } from './Modal';
+export { Toggle, type ToggleProps } from './Toggle';
 export { useColors, RADIUS, type Colors } from './tokens';

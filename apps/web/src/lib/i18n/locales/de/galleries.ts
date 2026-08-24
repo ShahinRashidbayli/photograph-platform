@@ -46,9 +46,27 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.detail.copied': 'Kopiert!',
   'galleries.detail.copyManually': 'Strg/⌘+C drücken',
   'galleries.detail.upload': 'Hochladen',
+  'galleries.detail.viewGallery': 'Galerie ansehen',
   'galleries.detail.uploading': 'Wird hochgeladen…',
   'galleries.detail.uploadError':
     'Einige Fotos konnten nicht hochgeladen werden. Bitte versuche es erneut.',
+  'galleries.detail.photosLoading': 'Fotos werden geladen…',
+  'galleries.detail.photosEmpty':
+    'Noch keine Fotos — laden Sie die Lieferung hoch, um diese Galerie zu füllen.',
+  'galleries.detail.sharing': 'Freigabe',
+  'galleries.detail.downloadLabel': 'Download erlauben',
+  'galleries.detail.downloadOn': 'Ihre Kundschaft kann die Originaldateien speichern',
+  'galleries.detail.downloadOff': 'Aus — nur ansehen, keine Originale',
+  'galleries.detail.watermarkOn': 'An — Fotos werden mit Ihrem Logo gezeigt',
+  'galleries.detail.watermarkOff': 'Aus — Fotos werden ohne Logo gezeigt',
+  'galleries.detail.expiresOn': 'Läuft ab am {date}',
+  'galleries.detail.neverExpires': 'Kein Ablaufdatum',
+  'galleries.detail.extend': '+30 Tage',
+  'galleries.detail.addPhotos': 'Hinzufügen',
+  'galleries.detail.viewAll': 'alle ansehen',
+  'galleries.detail.statusActive': 'Aktiv',
+  'galleries.detail.statusExpired': 'Abgelaufen',
+  'galleries.detail.statusPurged': 'Gelöscht',
 
   'galleries.update.error': 'Die Galerie konnte nicht aktualisiert werden.',
   'galleries.extend.error':

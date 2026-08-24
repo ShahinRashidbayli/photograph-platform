@@ -8,6 +8,8 @@ import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { StatStrip } from '@/components/StatStrip';
+import { Badge, Toggle } from '@/components/ui';
+import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
 
 type AppColors = ReturnType<typeof getGalleriesColors>;
@@ -202,6 +204,40 @@ const IconUpload = () => (
     <line x1="12" y1="3" x2="12" y2="15" />
   </svg>
 );
+const IconDownload = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const IconDroplet = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 2.7 6.8 8.2a7.3 7.3 0 1 0 10.4 0Z" />
+  </svg>
+);
+
 const IconTrash = () => (
   <svg
     width="14"
@@ -312,12 +348,15 @@ function GalleryPhotos({
   styles,
   colors,
   onDeleted,
+  onAdd,
 }: Readonly<{
   galleryId: string;
   photoCount: number;
   styles: AppStyles;
   colors: AppColors;
   onDeleted: () => void;
+  /** Opens the file picker. Renders the trailing tile in the grid. */
+  onAdd: () => void;
 }>) {
   const { t } = useTranslation();
   const [photos, setPhotos] = useState<DeliveryPhoto[]>([]);
@@ -366,14 +405,30 @@ function GalleryPhotos({
     }
   }
 
+  const addTile = (
+    <button type="button" style={styles.addTile} onClick={onAdd}>
+      <IconPlus />
+      {t('galleries.detail.addPhotos')}
+    </button>
+  );
+
   if (loading) {
-    return <div style={{ color: colors.textMuted, fontSize: '0.85rem' }}>Loading photos…</div>;
-  }
-  if (photos.length === 0) {
     return (
       <div style={{ color: colors.textMuted, fontSize: '0.85rem' }}>
-        No photos yet — upload the delivery above.
+        {t('galleries.detail.photosLoading')}
       </div>
+    );
+  }
+  // The empty state still shows the tile — "there is nothing here" and "here
+  // is how to fix that" belong in the same place.
+  if (photos.length === 0) {
+    return (
+      <>
+        <div style={{ color: colors.textMuted, fontSize: '0.85rem', marginBottom: 10 }}>
+          {t('galleries.detail.photosEmpty')}
+        </div>
+        <div style={styles.photoGrid}>{addTile}</div>
+      </>
     );
   }
 
@@ -413,6 +468,7 @@ function GalleryPhotos({
             </button>
           </div>
         ))}
+        {addTile}
       </div>
     </>
   );
@@ -506,6 +562,33 @@ function GalleryDetail({
         : styles.expiryActive;
 
   const shootDate = formatMonthDayYear(gallery.shootDate);
+  const avatarPalette = pickAvatarColor(gallery.id, colors.isDark);
+
+  const statusLabel = {
+    ACTIVE: t('galleries.detail.statusActive'),
+    EXPIRED: t('galleries.detail.statusExpired'),
+    PURGED: t('galleries.detail.statusPurged'),
+  }[gallery.expiryState];
+
+  const statusTone =
+    gallery.expiryState === 'ACTIVE'
+      ? { fg: colors.successText, bg: colors.successBg }
+      : { fg: colors.dangerText, bg: colors.dangerBg };
+
+  /**
+   * How much of the retention window is left, 0–1, or null when there is no
+   * window to show.
+   *
+   * `retentionDays` is the plan's, so the bar is measured against what this
+   * tenant actually bought rather than a number this screen invented. Without
+   * both halves — a gallery with no expiry, or one whose plan window is
+   * unknown — there is no proportion to draw and the bar is omitted rather
+   * than rendered full.
+   */
+  const expiryFraction =
+    days === null || gallery.retentionDays === null || gallery.retentionDays <= 0
+      ? null
+      : Math.max(0, Math.min(1, days / gallery.retentionDays));
 
   // The window is the plan's, not a number this screen picks. It used to
   // PATCH an arbitrary expiresAt, which meant the browser decided how long a
@@ -519,10 +602,30 @@ function GalleryDetail({
   return (
     <>
       <div style={styles.detailHeader}>
-        <div>
-          <div style={styles.detailTitle}>{gallery.bookingName}</div>
-          <div style={styles.detailSubtitle}>
-            {gallery.eventType} · Shot on {shootDate}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {/* The client's initials, the same mark the bookings and clients
+              lists use for the same person — so a gallery is recognisably
+              *theirs* rather than a row of settings with a name on top. */}
+          <span
+            style={{
+              ...styles.detailAvatar,
+              background: avatarPalette.bg,
+              color: avatarPalette.fg,
+            }}
+            aria-hidden
+          >
+            {getInitials(gallery.bookingName)}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={styles.detailTitleRow}>
+              <div style={styles.detailTitle}>{gallery.bookingName}</div>
+              <Badge tone={statusTone.fg} background={statusTone.bg}>
+                {statusLabel}
+              </Badge>
+            </div>
+            <div style={styles.detailSubtitle}>
+              {gallery.eventType} · {shootDate}
+            </div>
           </div>
         </div>
         <div style={styles.detailActions}>
@@ -555,154 +658,144 @@ function GalleryDetail({
                 textDecoration: 'none',
               }}
             >
-              <IconEye /> View gallery
+              <IconEye /> {t('galleries.detail.viewGallery')}
             </a>
           )}
         </div>
       </div>
 
       <div style={styles.detailBody}>
-        <div style={styles.statsGrid}>
-          <div style={styles.statBox}>
-            <div style={styles.statBoxLabel}>{t('galleries.detail.photos')}</div>
-            <div style={styles.statBoxValue}>{gallery.photoCount}</div>
-          </div>
-          <div style={styles.statBox}>
-            <div style={styles.statBoxLabel}>{t('galleries.detail.views')}</div>
-            <div style={styles.statBoxValue}>{gallery.viewCount}</div>
-          </div>
-          <div style={styles.statBox}>
-            <div style={styles.statBoxLabel}>{t('galleries.detail.daysLeft')}</div>
-            <div style={styles.statBoxValue}>{days === null ? '∞' : days < 0 ? '—' : days}</div>
+        {/* Figures and countdown on one line: how much is in the gallery and
+            how long it stays up are read together when deciding to extend. */}
+        <div style={styles.overviewRow}>
+          <StatStrip
+            variant="inline"
+            aria-label={gallery.bookingName}
+            items={[
+              { label: t('galleries.detail.photos'), value: String(gallery.photoCount) },
+              { label: t('galleries.detail.views'), value: String(gallery.viewCount) },
+            ]}
+          />
+
+          <div style={styles.expiryBlock}>
+            <div style={styles.expiryHeadRow}>
+              <span style={styles.expiryDate}>
+                {gallery.expiresAt
+                  ? t('galleries.detail.expiresOn', {
+                      date: formatMonthDayYear(gallery.expiresAt),
+                    })
+                  : t('galleries.detail.neverExpires')}
+              </span>
+              <span style={{ ...styles.expiryBadge, ...expiryBadgeStyle }}>
+                {expiryText(days, t, tPlural)}
+              </span>
+            </div>
+            {/* Only drawn when there is a window to draw — an unlimited
+                gallery has no proportion to show, and a full-width bar would
+                claim otherwise. */}
+            {expiryFraction !== null && (
+              <div style={styles.expiryTrack}>
+                <div
+                  style={{
+                    ...styles.expiryFill,
+                    width: `${expiryFraction * 100}%`,
+                    background: kind === 'expired' ? colors.dangerText : colors.successText,
+                  }}
+                />
+              </div>
+            )}
+            {gallery.canExtend && (
+              <button
+                onClick={extendGallery}
+                disabled={busy}
+                style={{
+                  ...styles.actionButton,
+                  ...styles.actionButtonOutline,
+                  alignSelf: 'flex-start',
+                  padding: '5px 12px',
+                  fontSize: '0.75rem',
+                }}
+              >
+                {t('galleries.detail.extend')}
+              </button>
+            )}
           </div>
         </div>
 
         <div style={styles.section}>
-          <div style={styles.sectionTitle}>{t('galleries.detail.photos')}</div>
+          <div style={styles.sectionHeadRow}>
+            <div style={{ ...styles.sectionTitle, marginBottom: 0 }}>
+              {t('galleries.detail.photos')}
+            </div>
+            <span style={styles.sectionCount}>{gallery.photoCount}</span>
+          </div>
           <GalleryPhotos
             galleryId={gallery.id}
             photoCount={gallery.photoCount}
             styles={styles}
             colors={colors}
             onDeleted={onPhotosChanged}
+            onAdd={() => fileRef.current?.click()}
           />
         </div>
 
         <div style={styles.section}>
-          <div style={styles.sectionTitle}>{t('galleries.detail.accessInfo')}</div>
-          <div style={styles.infoGrid}>
-            <div style={styles.infoRow}>
-              <span style={styles.infoLabel}>{t('galleries.detail.download')}</span>
-              <button
-                onClick={() => onPatch(gallery.id, { downloadEnabled: !gallery.downloadEnabled })}
+          <div style={styles.sectionTitle}>{t('galleries.detail.sharing')}</div>
+          {/* Switches, not the words "Enabled"/"Disabled" wired to a click.
+              These are the two things a photographer changes before sending a
+              gallery, and as text they read as a status the app was reporting
+              rather than a control. */}
+          <div style={styles.toggleList}>
+            <Toggle
+              checked={gallery.downloadEnabled}
+              onChange={(next) => onPatch(gallery.id, { downloadEnabled: next })}
+              disabled={busy}
+              icon={<IconDownload />}
+              label={t('galleries.detail.downloadLabel')}
+              description={
+                gallery.downloadEnabled
+                  ? t('galleries.detail.downloadOn')
+                  : t('galleries.detail.downloadOff')
+              }
+            />
+            <div style={styles.toggleDivider}>
+              <Toggle
+                checked={gallery.watermarkEnabled}
+                onChange={(next) => onPatch(gallery.id, { watermarkEnabled: next })}
                 disabled={busy}
-                style={{
-                  ...styles.infoValue,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: gallery.downloadEnabled ? colors.successText : colors.textMuted,
-                }}
-              >
-                {gallery.downloadEnabled ? (
-                  <>
-                    <IconCheck /> Enabled
-                  </>
-                ) : (
-                  <>
-                    <IconX /> Disabled
-                  </>
-                )}
-              </button>
-            </div>
-            <div style={styles.infoRow}>
-              <span style={styles.infoLabel}>{t('galleries.detail.watermark')}</span>
-              <button
-                onClick={() => onPatch(gallery.id, { watermarkEnabled: !gallery.watermarkEnabled })}
-                disabled={busy}
-                style={{
-                  ...styles.infoValue,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: gallery.watermarkEnabled ? colors.successText : colors.textMuted,
-                }}
-              >
-                {gallery.watermarkEnabled ? (
-                  <>
-                    <IconCheck /> Enabled
-                  </>
-                ) : (
-                  <>
-                    <IconX /> Disabled
-                  </>
-                )}
-              </button>
-            </div>
-            <div style={{ ...styles.infoRow, borderBottom: 'none', paddingBottom: 0 }}>
-              <span style={styles.infoLabel}>{t('galleries.detail.expires')}</span>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-end',
-                  gap: '6px',
-                }}
-              >
-                <span style={styles.infoValue}>
-                  {gallery.expiresAt
-                    ? formatMonthDayYear(gallery.expiresAt)
-                    : t('galleries.expiry.none')}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ ...styles.expiryBadge, ...expiryBadgeStyle }}>
-                    {expiryText(days, t, tPlural)}
-                  </span>
-                  <button
-                    onClick={extendGallery}
-                    disabled={busy}
-                    style={{
-                      ...styles.actionButton,
-                      ...styles.actionButtonOutline,
-                      padding: '3px 9px',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    +30 days
-                  </button>
-                </div>
-              </div>
+                icon={<IconDroplet />}
+                label={t('galleries.detail.watermark')}
+                description={
+                  gallery.watermarkEnabled
+                    ? t('galleries.detail.watermarkOn')
+                    : t('galleries.detail.watermarkOff')
+                }
+              />
             </div>
           </div>
         </div>
 
         <div style={styles.section}>
           <div style={styles.sectionTitle}>{t('galleries.detail.linkTitle')}</div>
-          <div style={styles.codeBlock}>{shareDisplay}</div>
-          <button
-            style={{
-              ...styles.actionButton,
-              ...styles.actionButtonOutline,
-              width: '100%',
-              marginTop: '10px',
-              justifyContent: 'center',
-            }}
-            onClick={copyLink}
-            disabled={!shareUrl}
-          >
-            <IconCopy />{' '}
-            {copyState === 'copied'
-              ? t('galleries.detail.copied')
-              : copyState === 'failed'
-                ? t('galleries.detail.copyManually')
-                : t('galleries.detail.copyLink')}
-          </button>
+          <div style={styles.linkRow}>
+            <div style={{ ...styles.codeBlock, flex: 1, minWidth: 0 }}>{shareDisplay}</div>
+            <button
+              style={{
+                ...styles.actionButton,
+                ...styles.actionButtonOutline,
+                whiteSpace: 'nowrap',
+              }}
+              onClick={copyLink}
+              disabled={!shareUrl}
+            >
+              <IconCopy />{' '}
+              {copyState === 'copied'
+                ? t('galleries.detail.copied')
+                : copyState === 'failed'
+                  ? t('galleries.detail.copyManually')
+                  : t('galleries.detail.copyLink')}
+            </button>
+          </div>
         </div>
 
         <div style={styles.section}>

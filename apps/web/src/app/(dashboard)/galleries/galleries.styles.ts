@@ -220,6 +220,118 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       border: `1px solid ${c.primary}`,
       fontWeight: 700,
     },
+    // ── Detail header identity ────────────────────────────────────────────
+    detailAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: '50%',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '15px',
+      fontWeight: 700,
+      flexShrink: 0,
+    },
+    detailTitleRow: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      flexWrap: 'wrap',
+      minWidth: 0,
+    },
+
+    // ── Overview band: the figures and the expiry countdown, side by side ──
+    // One row rather than two blocks, because "how much is in here" and "how
+    // long is it live for" are read together when deciding whether to extend.
+    overviewRow: {
+      display: 'flex',
+      alignItems: 'stretch',
+      gap: '20px',
+      flexWrap: 'wrap',
+      paddingBottom: '18px',
+      borderBottom: `1px solid ${c.border}`,
+      marginBottom: '18px',
+    },
+    expiryBlock: {
+      flex: '1 1 240px',
+      minWidth: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      gap: '8px',
+    },
+    expiryHeadRow: {
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: '12px',
+    },
+    expiryDate: {
+      fontSize: '13px',
+      fontWeight: 600,
+      color: c.text,
+    },
+    // The bar makes the number concrete: "59 days" means nothing until you can
+    // see it against the window it came out of.
+    expiryTrack: {
+      height: 4,
+      borderRadius: 999,
+      background: c.neutralBg,
+      overflow: 'hidden',
+    },
+    expiryFill: {
+      height: '100%',
+      borderRadius: 999,
+      transition: 'width 0.3s ease',
+    },
+
+    // ── Sharing ───────────────────────────────────────────────────────────
+    toggleList: {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    toggleDivider: {
+      borderTop: `1px solid ${c.border}`,
+    },
+
+    // ── Photos ────────────────────────────────────────────────────────────
+    sectionHeadRow: {
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: '12px',
+      marginBottom: '10px',
+    },
+    sectionCount: {
+      fontSize: '12px',
+      color: c.textMuted,
+      fontWeight: 600,
+    },
+    // A dashed tile in the grid rather than only the header button: the place
+    // you notice you are short a photo is while looking at the photos.
+    addTile: {
+      border: `1px dashed ${c.border}`,
+      borderRadius: '10px',
+      background: 'transparent',
+      color: c.textMuted,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '4px',
+      fontSize: '11px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      aspectRatio: '1 / 1',
+    },
+
+    // ── Link ──────────────────────────────────────────────────────────────
+    linkRow: {
+      display: 'flex',
+      alignItems: 'stretch',
+      gap: '8px',
+    },
+
     detailBody: {
       flex: 1,
       overflowY: 'auto',
@@ -227,34 +339,6 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       display: 'flex',
       flexDirection: 'column',
       gap: '24px',
-    },
-
-    statsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '16px',
-    },
-    statBox: {
-      padding: '18px 16px',
-      background: c.surfaceAlt,
-      borderRadius: '12px',
-      border: `1px solid ${c.border}`,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-    },
-    statBoxLabel: {
-      fontSize: '11px',
-      fontWeight: 700,
-      textTransform: 'uppercase',
-      letterSpacing: '0.05em',
-      color: c.textMuted,
-    },
-    statBoxValue: {
-      fontSize: '22px',
-      fontWeight: 800,
-      letterSpacing: '-0.01em',
-      color: c.text,
     },
 
     section: {
@@ -269,31 +353,6 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       letterSpacing: '0.05em',
       marginBottom: '4px',
       color: c.textMuted,
-    },
-    infoGrid: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    },
-    infoRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingBottom: '16px',
-      borderBottom: `1px solid ${c.border}`,
-    },
-    infoLabel: {
-      fontSize: '12px',
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      letterSpacing: '0.03em',
-      color: c.textMuted,
-    },
-    infoValue: {
-      fontSize: '14px',
-      fontWeight: 600,
-      textAlign: 'right',
-      color: c.text,
     },
 
     expiryBadge: {

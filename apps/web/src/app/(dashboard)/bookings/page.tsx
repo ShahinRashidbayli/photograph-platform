@@ -580,6 +580,7 @@ function BookingsView() {
           framed in personal terms (never "revenue"). Kept to a slim band so
           the list + detail work area starts near the top of the page. */}
       <StatStrip
+        aria-label={t('bookings.title')}
         items={
           isPhotographer
             ? [

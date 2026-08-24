@@ -141,10 +141,14 @@ export function StatStrip({
         ...s.strip,
         gridTemplateColumns: `repeat(${items.length}, ${inline ? 'auto' : 'minmax(0, 1fr)'})`,
         // Handed to the stylesheet so the stacked-layout divider can be the
-        // right colour in both themes without a second source of truth.
-        ['--stat-strip-border' as string]: c.border,
+        // right colour in both themes without a second source of truth. Only
+        // the block variant stacks, so only it needs the property.
+        ...(inline ? {} : { ['--stat-strip-border' as string]: c.border }),
       }}
-      role="group"
+      // Grouped only when there is something to call the group. `role="group"`
+      // with no accessible name announces "group" and nothing else, which is
+      // worse than leaving the figures as plain content.
+      role={ariaLabel ? 'group' : undefined}
       aria-label={ariaLabel}
     >
       {items.map((item, index) => (

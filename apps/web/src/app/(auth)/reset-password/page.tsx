@@ -2,8 +2,10 @@
 
 import api from '@/lib/api';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
+import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { getColors } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
+import { useTranslation } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,16 +17,6 @@ import { getAuthStyles } from '../auth.styles';
 const MIN_LENGTH = 10;
 const HAS_LETTER_AND_DIGIT = /^(?=.*[A-Za-z])(?=.*\d).*$/;
 
-function passwordProblem(password: string): string | null {
-  if (password.length < MIN_LENGTH) {
-    return `Password must be at least ${MIN_LENGTH} characters.`;
-  }
-  if (!HAS_LETTER_AND_DIGIT.test(password)) {
-    return 'Password must contain at least one letter and one digit.';
-  }
-  return null;
-}
-
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,6 +25,7 @@ function ResetPasswordForm() {
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
   const s = getAuthStyles(theme);
+  const { t } = useTranslation();
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -41,16 +34,26 @@ function ResetPasswordForm() {
   const [done, setDone] = useState(false);
   const [focused, setFocused] = useState<'password' | 'confirm' | null>(null);
 
+  const passwordProblem = (): string | null => {
+    if (password.length < MIN_LENGTH) {
+      return t('reset.errorLength', { min: MIN_LENGTH });
+    }
+    if (!HAS_LETTER_AND_DIGIT.test(password)) {
+      return t('reset.errorComposition');
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const problem = passwordProblem(password);
+    const problem = passwordProblem();
     if (problem) {
       setError(problem);
       return;
     }
     if (password !== confirm) {
-      setError('The two passwords don’t match.');
+      setError(t('reset.errorMismatch'));
       return;
     }
 
@@ -64,38 +67,44 @@ function ResetPasswordForm() {
       // to say which, so the link is simply "no longer usable".
       const status = (err as { response?: { status?: number } })?.response?.status;
       setError(
-        status === 401
-          ? 'This reset link is no longer valid. Request a new one and try again.'
-          : extractApiError(err, 'Could not reset your password. Please try again.')
+        status === 401 ? t('reset.errorInvalidLink') : extractApiError(err, t('reset.errorGeneric'))
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const linkButton = (href: string, label: string) => (
+    <Link
+      href={href}
+      style={{
+        ...s.button,
+        ...s.buttonPrimary,
+        display: 'block',
+        textAlign: 'center',
+        textDecoration: 'none',
+        boxSizing: 'border-box',
+      }}
+    >
+      {label}
+    </Link>
+  );
+
   // A link without a token can't be acted on — say so rather than showing a form
   // that is guaranteed to fail on submit.
   if (!token) {
     return (
-      <AuthSplitLayout visualTitle="That link looks incomplete.">
-        <div style={s.header}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</div>
-          <h2 style={s.title}>Link is missing its token</h2>
-          <p style={s.subtitle}>Open the link straight from the email, or request a fresh one.</p>
-        </div>
-        <Link
-          href="/forgot-password"
-          style={{
-            ...s.button,
-            ...s.buttonPrimary,
-            display: 'block',
-            textAlign: 'center',
-            textDecoration: 'none',
-            boxSizing: 'border-box',
-          }}
+      <AuthSplitLayout
+        visualTitle={t('reset.missingVisualTitle')}
+        visualSubtitle={t('reset.missingVisualSubtitle')}
+      >
+        <AuthStatusCard
+          tone="error"
+          title={t('reset.missingTitle')}
+          message={t('reset.missingBody')}
         >
-          Request a new link
-        </Link>
+          {linkButton('/forgot-password', t('reset.requestNew'))}
+        </AuthStatusCard>
       </AuthSplitLayout>
     );
   }
@@ -103,27 +112,20 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <AuthSplitLayout
-        visualTitle="You're all set."
-        visualSubtitle="Sign in with your new password."
+        visualTitle={t('reset.doneVisualTitle')}
+        visualSubtitle={t('reset.doneVisualSubtitle')}
       >
-        <div style={s.header}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>✅</div>
-          <h2 style={s.title}>Password updated</h2>
-          {/* Worth stating plainly: the reset revoked every existing session, so
-              anyone who was signed in as them (including an intruder) is out. */}
-          <p style={s.subtitle}>
-            You&apos;ve been signed out everywhere else for safety. Sign in with your new password
-            to continue.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => router.push('/login')}
-          style={{ ...s.button, ...s.buttonPrimary }}
-        >
-          Go to sign in
-        </button>
+        {/* Worth stating plainly: the reset revoked every existing session, so
+            anyone who was signed in as them (including an intruder) is out. */}
+        <AuthStatusCard tone="success" title={t('reset.doneTitle')} message={t('reset.doneBody')}>
+          <button
+            type="button"
+            onClick={() => router.push('/login')}
+            style={{ ...s.button, ...s.buttonPrimary }}
+          >
+            {t('reset.goToSignIn')}
+          </button>
+        </AuthStatusCard>
       </AuthSplitLayout>
     );
   }
@@ -135,20 +137,24 @@ function ResetPasswordForm() {
 
   return (
     <AuthSplitLayout
-      visualTitle="Choose a new password."
-      visualSubtitle="Make it something only you would pick."
+      visualTitle={t('reset.visualTitle')}
+      visualSubtitle={t('reset.visualSubtitle')}
     >
       <div style={s.header}>
-        <h2 style={s.title}>Set a new password</h2>
-        <p style={s.subtitle}>At least {MIN_LENGTH} characters, with a letter and a digit.</p>
+        <h2 style={s.title}>{t('reset.title')}</h2>
+        <p style={s.subtitle}>{t('reset.subtitle', { min: MIN_LENGTH })}</p>
       </div>
 
-      {error && <div style={s.alertError}>{error}</div>}
+      {error && (
+        <div style={s.alertError} role="alert">
+          {error}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div style={s.formGroup}>
           <label style={s.label} htmlFor="reset-password">
-            New password
+            {t('reset.passwordLabel')}
           </label>
           <input
             id="reset-password"
@@ -166,7 +172,7 @@ function ResetPasswordForm() {
 
         <div style={s.formGroup}>
           <label style={s.label} htmlFor="reset-password-confirm">
-            Confirm new password
+            {t('reset.confirmLabel')}
           </label>
           <input
             id="reset-password-confirm"
@@ -192,13 +198,13 @@ function ResetPasswordForm() {
             if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimary);
           }}
         >
-          {loading ? 'Updating…' : 'Update password'}
+          {loading ? t('reset.submitLoading') : t('reset.submit')}
         </button>
       </form>
 
       <p style={{ ...s.centerText, color: colors.textSubtle }}>
         <Link href="/login" style={{ ...s.link, color: colors.textMuted }}>
-          Back to sign in
+          {t('reset.backToSignIn')}
         </Link>
       </p>
     </AuthSplitLayout>

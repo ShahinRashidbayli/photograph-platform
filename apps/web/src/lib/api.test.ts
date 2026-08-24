@@ -18,6 +18,14 @@ import { useAuthStore } from '@/store/authStore';
  * the endpoints that must never trigger one, because a refresh loop on the
  * refresh endpoint itself is the failure the exclusion list exists to prevent.
  */
+function stubLocation(pathname: string, search: string): void {
+  Object.defineProperty(globalThis, 'location', {
+    value: { href: '', pathname, search },
+    writable: true,
+    configurable: true,
+  });
+}
+
 describe('api response interceptor', () => {
   let mock: MockAdapter;
 
@@ -25,12 +33,10 @@ describe('api response interceptor', () => {
     mock = new MockAdapter(api);
     useAuthStore.setState({ user: null } as never);
     // jsdom refuses assignment to location.href otherwise, and the failure
-    // path under test ends in a redirect.
-    Object.defineProperty(globalThis, 'location', {
-      value: { href: '' },
-      writable: true,
-      configurable: true,
-    });
+    // path under test ends in a redirect. `pathname`/`search` are part of the
+    // stub because the redirect reads them to decide *which* sign-in to use and
+    // what to come back to.
+    stubLocation('/bookings', '?status=NEW');
   });
 
   afterEach(() => {
@@ -101,7 +107,37 @@ describe('api response interceptor', () => {
     mock.onPost('/api/auth/refresh').reply(401);
 
     await expect(api.get('/api/bookings')).rejects.toBeTruthy();
-    expect(globalThis.location.href).toBe('/login');
+    expect(useAuthStore.getState().user).toBeNull();
+    // Carries the page they were on, so signing back in returns them to it
+    // rather than to a dashboard.
+    expect(globalThis.location.href).toBe('/login?next=%2Fbookings%3Fstatus%3DNEW');
+  });
+
+  /**
+   * Clients are passwordless. Bouncing them to the photographer form handed
+   * them a password field they can never fill in, which reads as a lost
+   * account rather than the wrong door.
+   */
+  it('sends a client to the passwordless sign-in', async () => {
+    stubLocation('/customer/bookings', '');
+    mock.onGet('/api/bookings').reply(401);
+    mock.onPost('/api/auth/refresh').reply(401);
+
+    await expect(api.get('/api/bookings')).rejects.toBeTruthy();
+    expect(globalThis.location.href).toBe('/customer/auth/login?next=%2Fcustomer%2Fbookings');
+  });
+
+  /**
+   * On a sign-in screen the failing call is usually the one trying to sign the
+   * user in. Navigating would reload the form under whatever they just typed.
+   */
+  it('does not navigate when the user is already on a sign-in screen', async () => {
+    stubLocation('/login', '');
+    mock.onGet('/api/bookings').reply(401);
+    mock.onPost('/api/auth/refresh').reply(401);
+
+    await expect(api.get('/api/bookings')).rejects.toBeTruthy();
+    expect(globalThis.location.href).toBe('');
   });
 
   /**

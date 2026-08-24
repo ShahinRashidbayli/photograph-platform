@@ -9,6 +9,16 @@ export const common = {
   'theme.switchToDark': 'Switch to dark theme',
   'theme.switchToLight': 'Switch to light theme',
   'auth.emailPlaceholder': 'you@example.com',
+  'auth.showPassword': 'Show password',
+  'auth.hidePassword': 'Hide password',
+
+  // ── Waiting out a rate limit / lockout ────────────────────────────────────
+  // Interpolated into the messages that report a 429, so a refusal says how
+  // long to wait instead of leaving the user to guess and retry immediately.
+  'auth.retrySeconds_one': '{count} second',
+  'auth.retrySeconds_other': '{count} seconds',
+  'auth.retryMinutes_one': '{count} minute',
+  'auth.retryMinutes_other': '{count} minutes',
 
   'common.close': 'Close',
   'dateField.open': 'Choose date',

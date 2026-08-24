@@ -4,10 +4,14 @@ import api from '@/lib/api';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
+import { extractApiError } from '@/lib/helpers';
+import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
+import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
+import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useReducer, useState } from 'react';
 import { getAuthStyles } from '../../../(auth)/auth.styles';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,6 +44,11 @@ function deriveSubdomainFromHost(): string | null {
   return null;
 }
 
+// How long the resend button holds after a link goes out. The server allows 5
+// requests an hour; this stops someone burning that allowance on four clicks in
+// ten seconds and then being unable to ask again for an hour.
+const RESEND_COOLDOWN_SECONDS = 30;
+
 type FocusField = 'email' | 'subdomain' | 'fullName' | null;
 
 function CustomerLoginInner() {
@@ -50,6 +59,8 @@ function CustomerLoginInner() {
   const colors = getColors(theme);
   const s = getAuthStyles(theme);
   const { t } = useTranslation();
+  const retryWait = useRetryWait();
+  const waitText = useWaitText();
 
   const [email, setEmail] = useState('');
   const [subdomain, setSubdomain] = useState(initialSubdomain);
@@ -60,6 +71,19 @@ function CustomerLoginInner() {
   const [submitted, setSubmitted] = useState(false);
   const [resendBusy, setResendBusy] = useState(false);
   const [resendDone, setResendDone] = useState(false);
+  const [resendError, setResendError] = useState('');
+  /**
+   * When another link may be requested, as an absolute timestamp.
+   *
+   * A deadline rather than a counter that ticks down by one each second,
+   * because the very next thing this user does is switch to their email tab —
+   * and browsers throttle timers in background tabs to roughly one tick a
+   * minute. A decrementing counter simply stops there, so they come back to a
+   * button still claiming "Resend in 27 seconds" long after the wait is over.
+   * Recomputing from the clock is correct no matter how few ticks arrive.
+   */
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [, tick] = useReducer((n: number) => n + 1, 0);
   const [focused, setFocused] = useState<FocusField>(null);
 
   // Host-derived subdomain wins over the ?subdomain hint and is authoritative,
@@ -74,6 +98,19 @@ function CustomerLoginInner() {
       setSubdomainLocked(true);
     }
   }, []);
+
+  // Re-render twice a second while a cooldown is running, so the label counts
+  // down; the interval clears itself once the deadline passes.
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const id = window.setInterval(() => {
+      tick();
+      if (Date.now() >= cooldownUntil) window.clearInterval(id);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [cooldownUntil]);
+
+  const cooldown = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,11 +139,18 @@ function CustomerLoginInner() {
         fullName: fullName.trim() || null,
       });
       setSubmitted(true);
+      // The first link counts against the same limit as a resend, so the
+      // cooldown starts here too.
+      setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        t('customerLogin.errorSend');
-      setError(msg);
+      if (isRateLimited(err)) {
+        const wait = retryWait(err);
+        setError(
+          wait ? t('customerLogin.resendLimitedFor', { wait }) : t('customerLogin.resendLimited')
+        );
+      } else {
+        setError(extractApiError(err, t('customerLogin.errorSend')));
+      }
     } finally {
       setLoading(false);
     }
@@ -115,6 +159,7 @@ function CustomerLoginInner() {
   const handleResend = async () => {
     setResendBusy(true);
     setResendDone(false);
+    setResendError('');
     try {
       await api.post('/api/auth/customer/magic-link/request', {
         email: email.trim().toLowerCase(),
@@ -122,13 +167,32 @@ function CustomerLoginInner() {
         fullName: fullName.trim() || null,
       });
       setResendDone(true);
-    } catch {
-      // silent — same 204-always contract as the initial request
-      setResendDone(true);
+      setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+    } catch (err: unknown) {
+      // This used to report success on *every* failure, on the reasoning that
+      // the endpoint is 204-always. But that contract is about not revealing
+      // whether an address exists — it says nothing about rate limits or an
+      // outage, both of which reach here. So the button claimed "Sent! Check
+      // your inbox again." while nothing had been sent, and the user sat
+      // waiting for a mail that was never coming. Not revealing the account is
+      // still honoured: none of these messages depends on it.
+      if (isRateLimited(err)) {
+        const seconds = retryAfterSeconds(err);
+        const wait = retryWait(err);
+        setResendError(
+          wait ? t('customerLogin.resendLimitedFor', { wait }) : t('customerLogin.resendLimited')
+        );
+        // Hold the button for as long as the server says, not for our own guess.
+        if (seconds !== null) setCooldownUntil(Date.now() + seconds * 1000);
+      } else {
+        setResendError(extractApiError(err, t('customerLogin.resendError')));
+      }
     } finally {
       setResendBusy(false);
     }
   };
+
+  const resendDisabled = resendBusy || cooldown > 0;
 
   const inputStyle = (field: FocusField) => ({
     ...s.input,
@@ -137,7 +201,10 @@ function CustomerLoginInner() {
 
   return (
     <AuthSplitLayout
-      crossLink={{ href: '/login', label: t('customerLogin.photographerSignIn') }}
+      crossLink={{
+        href: withPreservedNext(PHOTOGRAPHER_LOGIN, `?${searchParams}`),
+        label: t('customerLogin.photographerSignIn'),
+      }}
       visualImage="/brand/auth-visual-client.jpg"
       visualTitle={t('customerLogin.visualTitle')}
       visualSubtitle={t('customerLogin.visualSubtitle')}
@@ -149,9 +216,13 @@ function CustomerLoginInner() {
             <p style={s.subtitle}>{t('customerLogin.subtitle')}</p>
           </div>
 
-          {error && <div style={s.alertError}>{error}</div>}
+          {error && (
+            <div style={s.alertError} role="alert">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div style={s.formGroup}>
               <label style={s.label} htmlFor="cust-email">
                 {t('customerLogin.emailLabel')}
@@ -166,6 +237,7 @@ function CustomerLoginInner() {
                 onFocus={() => setFocused('email')}
                 onBlur={() => setFocused(null)}
                 autoComplete="email"
+                autoFocus
               />
             </div>
 
@@ -283,22 +355,34 @@ function CustomerLoginInner() {
               ...s.button,
               ...s.buttonPrimary,
               marginTop: 16,
-              ...(resendBusy ? s.buttonDisabled : {}),
+              ...(resendDisabled ? s.buttonDisabled : {}),
             }}
-            disabled={resendBusy}
+            disabled={resendDisabled}
             onClick={handleResend}
             onMouseEnter={(e) => {
-              if (!resendBusy) Object.assign(e.currentTarget.style, s.buttonPrimaryHover);
+              if (!resendDisabled) Object.assign(e.currentTarget.style, s.buttonPrimaryHover);
             }}
             onMouseLeave={(e) => {
-              if (!resendBusy) Object.assign(e.currentTarget.style, s.buttonPrimary);
+              if (!resendDisabled) Object.assign(e.currentTarget.style, s.buttonPrimary);
             }}
           >
-            {resendBusy ? t('customerLogin.resendLoading') : t('customerLogin.resend')}
+            {resendBusy
+              ? t('customerLogin.resendLoading')
+              : cooldown > 0
+                ? t('customerLogin.resendIn', { wait: waitText(cooldown) })
+                : t('customerLogin.resend')}
           </button>
-          {resendDone && (
-            <div style={{ ...s.alertInfo, marginTop: 12 }}>{t('customerLogin.resendDone')}</div>
-          )}
+          {/*
+            One live region for both outcomes, so a screen reader hears the
+            result of pressing the button. `polite` — it must not interrupt.
+          */}
+          <div role="status" aria-live="polite">
+            {resendError ? (
+              <div style={{ ...s.alertError, marginTop: 12 }}>{resendError}</div>
+            ) : resendDone ? (
+              <div style={{ ...s.alertInfo, marginTop: 12 }}>{t('customerLogin.resendDone')}</div>
+            ) : null}
+          </div>
         </div>
       )}
     </AuthSplitLayout>

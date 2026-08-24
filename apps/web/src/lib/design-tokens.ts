@@ -94,10 +94,26 @@ export const radius = {
  * All three are system-font stacks (no webfont fetch), so there is no network
  * request, no layout shift and no license to manage.
  */
+/**
+ * The two families the app actually loads, plus a mono stack.
+ *
+ * `--font-inter` and `--font-cormorant` are defined by `next/font` in the root
+ * layout, which means they were downloaded on every page — and then used only
+ * by the dashboard and the public portfolio, which referenced the CSS variables
+ * directly. Everything reading these tokens (the landing page, every auth
+ * screen) got a pure system stack instead, so the same product rendered in
+ * different typefaces depending on which screen you were on, and the auth
+ * headings in particular resolved to Iowan on macOS, Palatino on Windows and
+ * Georgia on Android.
+ *
+ * Referencing the variables here makes the tokens describe what is actually
+ * loaded. The system fallbacks stay behind them for the first paint and for
+ * anything that renders outside the layout's variable scope.
+ */
 export const fonts = {
-  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  sans: 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   serif:
-    '"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif',
+    'var(--font-cormorant), "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif',
   mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace',
 } as const;
 

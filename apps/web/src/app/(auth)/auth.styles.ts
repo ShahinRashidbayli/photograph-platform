@@ -5,124 +5,18 @@ import { fonts, getColors, radius, fontSize, type Theme } from '@/lib/design-tok
  * register / magic-link screens share the dashboard's violet brand and its
  * light/dark theming instead of a stale hard-coded blue palette.
  *
- * `getAuthStyles(theme)` is the source of truth. `authStyles` is a static
- * light-mode snapshot kept for back-compat with pages that don't yet read the
- * theme store (verify-email, customer verify).
+ * `getAuthStyles(theme)` is the only entry point, deliberately. There used to
+ * be a second one — a `getAuthStyles('light')` snapshot "for pages that don't
+ * yet read the theme store" — and the two pages still on it (email
+ * confirmation, customer magic-link verify) rendered a white card to every
+ * dark-theme user who clicked a link in their inbox. A styles module that can
+ * be imported without a theme will eventually be, so it no longer can be.
  */
 export const getAuthStyles = (theme: Theme) => {
   const c = getColors(theme);
   const isDark = c.isDark;
 
   return {
-    page: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column' as const,
-      background: isDark
-        ? 'radial-gradient(circle at 50% -10%, rgba(99, 102, 241, 0.10), transparent 55%), #0A0A0C'
-        : 'linear-gradient(135deg, #F7F8FB 0%, #EEF2FF 100%)',
-      color: c.text,
-      fontFamily:
-        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    },
-    navbar: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '20px 32px',
-      borderBottom: `1px solid ${c.border}`,
-      background: isDark ? 'rgba(20, 20, 24, 0.72)' : 'rgba(255, 255, 255, 0.72)',
-      backdropFilter: 'blur(8px)',
-      WebkitBackdropFilter: 'blur(8px)',
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 100,
-    },
-    navBrand: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      fontSize: '1.1rem',
-      fontWeight: 700,
-      color: c.text,
-      textDecoration: 'none',
-      cursor: 'pointer',
-    },
-    navLogo: {
-      width: '32px',
-      height: '32px',
-      background: c.text,
-      borderRadius: '8px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: c.surface,
-      fontSize: '18px',
-      fontWeight: 700,
-    },
-    navRight: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '16px',
-    },
-    navButton: {
-      padding: '10px 20px',
-      fontSize: '0.9rem',
-      fontWeight: 600,
-      border: `1px solid ${c.border}`,
-      background: 'transparent',
-      borderRadius: radius.control,
-      cursor: 'pointer',
-      color: c.text,
-      textDecoration: 'none',
-      transition: 'all 0.2s',
-    },
-    navButtonPrimary: {
-      background: c.primarySolid,
-      color: '#FFFFFF',
-      border: 'none',
-      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.30)',
-    },
-    navButtonPrimaryHover: {
-      background: c.primarySolidHover,
-      transform: 'translateY(-1px)',
-      boxShadow: '0 6px 16px rgba(99, 102, 241, 0.38)',
-    },
-    // Round icon-only control (theme toggle) that matches the nav buttons.
-    themeToggle: {
-      width: '40px',
-      height: '40px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: `1px solid ${c.border}`,
-      background: 'transparent',
-      borderRadius: radius.pill,
-      cursor: 'pointer',
-      fontSize: '16px',
-      lineHeight: 1,
-      color: c.text,
-      transition: 'all 0.2s',
-    },
-
-    container: {
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px 24px',
-    },
-    content: {
-      width: '100%',
-      maxWidth: '440px',
-    },
-    card: {
-      background: c.surface,
-      border: `1px solid ${c.border}`,
-      borderRadius: radius.card,
-      padding: '40px 36px',
-      boxShadow: c.elevatedShadow,
-    },
     header: {
       marginBottom: '28px',
     },
@@ -142,42 +36,6 @@ export const getAuthStyles = (theme: Theme) => {
       color: c.textMuted,
       margin: 0,
       lineHeight: 1.5,
-    },
-
-    // Step indicators
-    stepIndicators: {
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '12px',
-      marginBottom: '24px',
-    },
-    stepCircle: {
-      width: '40px',
-      height: '40px',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '14px',
-      fontWeight: 600,
-      cursor: 'default',
-    },
-    stepActive: {
-      background: c.primarySolid,
-      color: '#FFFFFF',
-    },
-    stepDone: {
-      background: c.primarySolid,
-      color: '#FFFFFF',
-    },
-    stepNext: {
-      background: 'transparent',
-      border: `2px solid ${c.primary}`,
-      color: c.primaryText,
-    },
-    stepInactive: {
-      background: c.neutralBg,
-      color: c.textSubtle,
     },
 
     // Form groups
@@ -244,31 +102,11 @@ export const getAuthStyles = (theme: Theme) => {
       border: `1px solid ${c.border}`,
       color: c.text,
     },
-    buttonSecondaryHover: {
-      background: c.surfaceHover,
-    },
     buttonDisabled: {
       opacity: 0.5,
       cursor: 'not-allowed',
     },
 
-    // Alerts/Banners
-    alertSuccess: {
-      padding: '12px 14px',
-      borderRadius: radius.control,
-      fontSize: fontSize.base,
-      marginBottom: '16px',
-    },
-    alertSuccessPhotographer: {
-      background: c.primaryBg,
-      color: c.primaryText,
-      border: `1px solid ${c.primaryBorder}`,
-    },
-    alertSuccessClient: {
-      background: c.successBg,
-      color: c.successText,
-      border: `1px solid ${c.successBorder}`,
-    },
     alertInfo: {
       background: c.infoBg,
       color: c.infoText,
@@ -291,92 +129,6 @@ export const getAuthStyles = (theme: Theme) => {
       gap: '10px',
     },
 
-    // Role selection cards
-    roleCardContainer: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '18px',
-      marginBottom: '28px',
-    },
-    roleCard: {
-      padding: '20px',
-      border: '2px solid transparent',
-      borderRadius: radius.card,
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      textAlign: 'center' as const,
-      background: c.surface,
-    },
-    roleCardSelected: {
-      border: `2px solid ${c.primary}`,
-      boxShadow: `0 0 0 3px ${isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.14)'}`,
-    },
-    roleIcon: {
-      fontSize: '44px',
-      marginBottom: '14px',
-    },
-    roleLabel: {
-      fontSize: '18px',
-      fontWeight: 600,
-      color: c.text,
-      margin: '0 0 10px 0',
-    },
-    roleDescription: {
-      fontSize: '14px',
-      color: c.textMuted,
-      margin: 0,
-      lineHeight: '1.6',
-    },
-
-    // Badge
-    badge: {
-      display: 'inline-block',
-      padding: '4px 10px',
-      borderRadius: radius.control,
-      fontSize: fontSize.xs,
-      fontWeight: 600,
-      marginBottom: '12px',
-    },
-    badgePhotographer: {
-      background: c.primaryBg,
-      color: c.primaryText,
-    },
-    badgeClient: {
-      background: c.successBg,
-      color: c.successText,
-    },
-
-    // Checkbox (for session types)
-    checkboxContainer: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, 1fr)',
-      gap: '10px',
-      marginBottom: '16px',
-    },
-    checkboxLabel: {
-      display: 'flex',
-      alignItems: 'center',
-      padding: '10px 12px',
-      border: `1px solid ${c.border}`,
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: fontSize.base,
-      transition: 'all 0.2s',
-    },
-    checkboxLabelSelected: {
-      background: c.primaryBg,
-      border: `1px solid ${c.primary}`,
-      color: c.primaryText,
-      fontWeight: 500,
-    },
-    checkbox: {
-      width: '16px',
-      height: '16px',
-      marginRight: '8px',
-      cursor: 'pointer',
-      accentColor: c.primary,
-    },
-
     // Links & Footer text
     link: {
       color: c.primaryText,
@@ -384,9 +136,6 @@ export const getAuthStyles = (theme: Theme) => {
       fontWeight: 600,
       cursor: 'pointer',
       transition: 'color 0.2s',
-    },
-    linkHover: {
-      color: c.primaryStrong,
     },
     centerText: {
       textAlign: 'center' as const,
@@ -407,32 +156,5 @@ export const getAuthStyles = (theme: Theme) => {
       marginTop: '8px',
       marginBottom: '8px',
     },
-
-    // Success state
-    successIcon: {
-      fontSize: '48px',
-      textAlign: 'center' as const,
-      marginBottom: '16px',
-    },
-    successText: {
-      textAlign: 'center' as const,
-      fontSize: '14px',
-      color: c.textMuted,
-    },
-
-    // Button group (for nav buttons)
-    buttonGroup: {
-      display: 'flex',
-      gap: '12px',
-      marginTop: '24px',
-    },
-    buttonGroupItem: {
-      flex: 1,
-    },
   };
 };
-
-export type AuthStyles = ReturnType<typeof getAuthStyles>;
-
-/** Static light-mode snapshot for pages that don't read the theme store yet. */
-export const authStyles = getAuthStyles('light');

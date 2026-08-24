@@ -2,48 +2,40 @@
 
 import api from '@/lib/api';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
-import { getColors } from '@/lib/design-tokens';
+import { PasswordField } from '@/components/PasswordField';
+import { extractApiError } from '@/lib/helpers';
+import { isRateLimited } from '@/lib/rate-limit';
+import { useRetryWait } from '@/lib/useRetryWait';
 import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { safeRedirectPath } from '@/lib/safe-redirect';
-import { useState } from 'react';
+import { CLIENT_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import { useEffect, useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
-
-function EyeIcon({ off }: { off: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="10" cy="10" r="2.6" stroke="currentColor" strokeWidth="1.4" />
-      {off && (
-        <path d="M3.5 3.5l13 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      )}
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
   const theme = useThemeStore((st) => st.theme);
-  const colors = getColors(theme);
   const s = getAuthStyles(theme);
   const { t } = useTranslation();
+  const retryWait = useRetryWait();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
+  const [focused, setFocused] = useState(false);
+
+  // Read after mount rather than during render: this is a client component with
+  // no Suspense boundary, so `useSearchParams` would opt the whole route out of
+  // prerendering, and reading `window` in the render body would not match what
+  // the server produced.
+  const [search, setSearch] = useState('');
+  useEffect(() => setSearch(window.location.search), []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,38 +66,49 @@ export default function LoginPage() {
           : safeRedirectPath(window.location.search, window.location.origin);
       router.push(next ?? (isPhotographer ? '/dashboard' : '/bookings'));
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401) {
+      // A lockout gets its own message. The backend counts failed attempts
+      // against the submitted address whether or not an account exists, so
+      // naming the lockout leaks nothing — while folding it into "invalid
+      // password" told someone typing the correct password that it was wrong.
+      if (isRateLimited(err)) {
+        const wait = retryWait(err);
+        setError(wait ? t('login.errorLockedFor', { wait }) : t('login.errorLocked'));
+      } else if ((err as { response?: { status?: number } })?.response?.status === 401) {
         setError(t('login.errorInvalid'));
       } else {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          t('login.errorGeneric');
-        setError(msg);
+        setError(extractApiError(err, t('login.errorGeneric')));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle = (field: 'email' | 'password') => ({
-    ...s.input,
-    ...(focused === field ? s.inputFocus : {}),
-  });
-
   return (
     // Clients sign in via the "Client sign in" cross-link — they normally
     // arrive on their photographer's own subdomain, so the platform login
     // keeps that path low-emphasis rather than duplicating it here.
-    <AuthSplitLayout crossLink={{ href: '/customer/auth/login', label: t('login.crossLink') }}>
+    <AuthSplitLayout
+      visualTitle={t('login.visualTitle')}
+      visualSubtitle={t('login.visualSubtitle')}
+      crossLink={{
+        // Keep `?next=` across the switch: a client sent here by the middleware
+        // and correcting themselves should not lose the link that sent them.
+        href: withPreservedNext(CLIENT_LOGIN, search),
+        label: t('login.crossLink'),
+      }}
+    >
       <div style={s.header}>
         <h2 style={s.title}>{t('login.title')}</h2>
         <p style={s.subtitle}>{t('login.subtitle')}</p>
       </div>
 
-      {error && <div style={s.alertError}>{error}</div>}
+      {error && (
+        <div style={s.alertError} role="alert">
+          {error}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div style={s.formGroup}>
           <label style={s.label} htmlFor="login-email">
             {t('login.emailLabel')}
@@ -113,55 +116,24 @@ export default function LoginPage() {
           <input
             id="login-email"
             type="email"
-            style={inputStyle('email')}
+            style={{ ...s.input, ...(focused ? s.inputFocus : {}) }}
             placeholder={t('auth.emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onFocus={() => setFocused('email')}
-            onBlur={() => setFocused(null)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             autoComplete="email"
+            autoFocus
           />
         </div>
 
-        <div style={s.formGroup}>
-          <label style={s.label} htmlFor="login-password">
-            {t('login.passwordLabel')}
-          </label>
-          <div style={{ position: 'relative' }}>
-            <input
-              id="login-password"
-              type={showPassword ? 'text' : 'password'}
-              style={{ ...inputStyle('password'), paddingRight: 44 }}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={() => setFocused('password')}
-              onBlur={() => setFocused(null)}
-              autoComplete="current-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: colors.textSubtle,
-                padding: 6,
-              }}
-              aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
-            >
-              <EyeIcon off={showPassword} />
-            </button>
-          </div>
-        </div>
+        <PasswordField
+          id="login-password"
+          label={t('login.passwordLabel')}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
           <Link href="/forgot-password" style={{ ...s.link, fontSize: '0.85rem' }}>

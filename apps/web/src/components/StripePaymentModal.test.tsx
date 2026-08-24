@@ -84,7 +84,8 @@ function payment(overrides: Partial<Payment> = {}): Payment {
 
 function renderModal() {
   return renderWithProviders(
-    <StripePaymentModal invoice={invoice} outstandingCents={119_000} onClose={jest.fn()} />
+    <StripePaymentModal invoice={invoice} outstandingCents={119_000} onClose={jest.fn()} />,
+    { lang: 'en' }
   );
 }
 

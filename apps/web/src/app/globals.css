@@ -16,8 +16,23 @@ body {
  * so a small brand mark shows inside the form column instead. */
 .auth-split {
   min-height: 100vh;
+  /* `dvh` tracks the viewport as mobile browsers show and hide their chrome;
+     `vh` does not, so on a phone the panel is sized for a toolbar-less window
+     it never actually has. Declared second so browsers without `dvh` keep the
+     line above. */
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
+}
+
+/* The form column scrolls inside itself so the brand panel beside it stays put
+   on a short desktop window. */
+.auth-form-column {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-y: auto;
 }
 .auth-form-brand {
   display: none;
@@ -29,8 +44,37 @@ body {
   .auth-visual {
     display: none !important;
   }
+  /* Below the breakpoint there is no panel to hold still, so the column *is*
+     the page and must scroll with the document. Capping it at viewport height
+     put a long form (sign-up is six fields, a strength meter and a consent
+     row) inside a nested scroller — which fights the pull-to-refresh gesture,
+     hides the browser chrome's auto-hide, and strands the submit button below
+     an on-screen keyboard. */
+  .auth-form-column {
+    max-height: none;
+    min-height: 0;
+    overflow-y: visible;
+  }
   .auth-form-brand {
     display: flex !important;
+  }
+}
+
+/* Indeterminate spinner for the "resolving a token from an email link" screens.
+ * `currentColor` so it inherits the tone the status badge already sets, and a
+ * transparent top segment so the rotation is visible without a second colour. */
+.auth-spinner {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid currentColor;
+  border-top-color: transparent;
+  animation: auth-spin 0.7s linear infinite;
+}
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -433,6 +477,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A spinner that cannot spin still has to read as "busy", so it keeps its
+     shape and simply stops — hiding it would leave the screen looking idle. */
+  .auth-spinner {
+    animation: none;
+  }
   .landing-marquee {
     animation: none;
     width: auto;

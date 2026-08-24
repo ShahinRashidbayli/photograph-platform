@@ -65,7 +65,7 @@ describe('InvoicePayList', () => {
   it('offers payment for the outstanding amount', async () => {
     respond([invoice()]);
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByRole('button', { name: /Pay €1,190\.00/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Download PDF' })).toHaveAttribute(
@@ -77,7 +77,7 @@ describe('InvoicePayList', () => {
   it('shows a part payment against the total', async () => {
     respond([invoice({ paidCents: 30_000, outstandingCents: 89_000 })]);
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByText(/€300\.00 paid/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Pay €890\.00/ })).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe('InvoicePayList', () => {
   it('marks a settled invoice paid and drops the pay action', async () => {
     respond([invoice({ paidCents: 119_000, outstandingCents: 0 })]);
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByText('Paid')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pay/ })).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ describe('InvoicePayList', () => {
   it('never shows a row without the server’s own settlement figures', async () => {
     respond([invoice({ paidCents: 0, outstandingCents: 119_000 })]);
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByText(/Invoice 2026-0001/)).toBeInTheDocument();
     expect(screen.queryByText('Paid')).not.toBeInTheDocument();
@@ -132,7 +132,7 @@ describe('InvoicePayList', () => {
       invoice({ id: 'inv-3', invoiceNumber: '2026-0003' }),
     ]);
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByText(/Invoice 2026-0003/)).toBeInTheDocument();
     expect(screen.queryByText(/Invoice 2026-0001/)).not.toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('InvoicePayList', () => {
       invoice({ id: 'inv-2', invoiceNumber: '2026-0002', bookingId: 'bk-2' }),
     ]);
 
-    renderWithProviders(<InvoicePayList bookingId="bk-2" />);
+    renderWithProviders(<InvoicePayList bookingId="bk-2" />, { lang: 'en' });
 
     expect(await screen.findByText(/Invoice 2026-0002/)).toBeInTheDocument();
     expect(screen.queryByText(/Invoice 2026-0001/)).not.toBeInTheDocument();
@@ -154,7 +154,9 @@ describe('InvoicePayList', () => {
   it('explains the empty case in the booking’s own terms', async () => {
     respond([]);
 
-    renderWithProviders(<InvoicePayList bookingId="bk-1" emptyKey="invoices.emptyForBooking" />);
+    renderWithProviders(<InvoicePayList bookingId="bk-1" emptyKey="invoices.emptyForBooking" />, {
+      lang: 'en',
+    });
 
     expect(
       await screen.findByText(/hasn’t sent an invoice for this session yet/)
@@ -164,7 +166,7 @@ describe('InvoicePayList', () => {
   it('reports a failure to load rather than showing an empty list', async () => {
     mockedApi.get.mockRejectedValue(new Error('boom'));
 
-    renderWithProviders(<InvoicePayList />);
+    renderWithProviders(<InvoicePayList />, { lang: 'en' });
 
     expect(await screen.findByText(/couldn't load your invoices/i)).toBeInTheDocument();
   });

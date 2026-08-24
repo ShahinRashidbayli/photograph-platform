@@ -2,8 +2,12 @@
 
 import api from '@/lib/api';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
+import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { getColors } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
+import { useTranslation } from '@/lib/i18n';
+import { isRateLimited } from '@/lib/rate-limit';
+import { useRetryWait } from '@/lib/useRetryWait';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -13,6 +17,8 @@ export default function ForgotPasswordPage() {
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
   const s = getAuthStyles(theme);
+  const { t } = useTranslation();
+  const retryWait = useRetryWait();
 
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +30,7 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
-      setError('Enter the email address on your account.');
+      setError(t('forgot.errorRequired'));
       return;
     }
 
@@ -36,7 +42,12 @@ export default function ForgotPasswordPage() {
     } catch (err) {
       // The endpoint answers 204 whether or not the address exists, so the only
       // errors that can land here are real ones (rate limit, network, outage).
-      setError(extractApiError(err, 'Could not send the reset link. Please try again.'));
+      if (isRateLimited(err)) {
+        const wait = retryWait(err);
+        setError(wait ? t('forgot.errorRateLimitedFor', { wait }) : t('forgot.errorRateLimited'));
+      } else {
+        setError(extractApiError(err, t('forgot.errorSend')));
+      }
     } finally {
       setLoading(false);
     }
@@ -48,64 +59,61 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <AuthSplitLayout
-        visualTitle="Check your inbox."
-        visualSubtitle="The link is good for one hour."
+        visualTitle={t('forgot.sentVisualTitle')}
+        visualSubtitle={t('forgot.sentVisualSubtitle')}
       >
-        <div style={s.header}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📬</div>
-          <h2 style={s.title}>Check your email</h2>
-          <p style={s.subtitle}>
-            If an account exists for <strong>{email.trim().toLowerCase()}</strong>, we&apos;ve sent
-            it a link to choose a new password. It expires in an hour and can only be used once.
-          </p>
-        </div>
-
-        <div style={{ ...s.alertInfo, marginBottom: 24 }}>
-          Nothing arrived? Check your spam folder, then try again in a few minutes.
-        </div>
-
-        <Link
-          href="/login"
-          style={{
-            ...s.button,
-            ...s.buttonPrimary,
-            display: 'block',
-            textAlign: 'center',
-            textDecoration: 'none',
-            boxSizing: 'border-box',
-          }}
+        <AuthStatusCard
+          tone="success"
+          title={t('forgot.sentTitle')}
+          message={t('forgot.sentBody', { email: email.trim().toLowerCase() })}
         >
-          Back to sign in
-        </Link>
+          <div style={{ ...s.alertInfo, marginBottom: 0, textAlign: 'left' }}>
+            {t('forgot.sentHint')}
+          </div>
+          <Link
+            href="/login"
+            style={{
+              ...s.button,
+              ...s.buttonPrimary,
+              display: 'block',
+              textAlign: 'center',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+            }}
+          >
+            {t('forgot.backToSignIn')}
+          </Link>
+        </AuthStatusCard>
       </AuthSplitLayout>
     );
   }
 
   return (
     <AuthSplitLayout
-      visualTitle="Locked out? It happens."
-      visualSubtitle="We'll get you back into your studio in no time."
+      visualTitle={t('forgot.visualTitle')}
+      visualSubtitle={t('forgot.visualSubtitle')}
     >
       <div style={s.header}>
-        <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔑</div>
-        <h2 style={s.title}>Reset your password</h2>
-        <p style={s.subtitle}>
-          Enter your email address and we&apos;ll send you a link to choose a new password.
-        </p>
+        <h2 style={s.title}>{t('forgot.title')}</h2>
+        <p style={s.subtitle}>{t('forgot.subtitle')}</p>
       </div>
 
-      {error && <div style={s.alertError}>{error}</div>}
+      {error && (
+        <div style={s.alertError} role="alert">
+          {error}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div style={s.formGroup}>
           <label style={s.label} htmlFor="forgot-email">
-            Email address
+            {t('forgot.emailLabel')}
           </label>
           <input
             id="forgot-email"
             type="email"
             style={{ ...s.input, ...(focused ? s.inputFocus : {}) }}
-            placeholder="you@example.com"
+            placeholder={t('auth.emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onFocus={() => setFocused(true)}
@@ -126,19 +134,16 @@ export default function ForgotPasswordPage() {
             if (!loading) Object.assign(e.currentTarget.style, s.buttonPrimary);
           }}
         >
-          {loading ? 'Sending link…' : 'Send reset link'}
+          {loading ? t('forgot.submitLoading') : t('forgot.submit')}
         </button>
       </form>
 
-      <div style={{ ...s.alertInfo, marginTop: 24 }}>
-        Tip: if you&apos;re a client, you don&apos;t need a password — use your emailed magic link
-        to sign in.
-      </div>
+      <div style={{ ...s.alertInfo, marginTop: 24 }}>{t('forgot.clientTip')}</div>
 
       <p style={{ ...s.centerText, color: colors.textSubtle }}>
-        Remembered it?{' '}
+        {t('forgot.remembered')}{' '}
         <Link href="/login" style={{ ...s.link, color: colors.textMuted }}>
-          Back to sign in
+          {t('forgot.backToSignIn')}
         </Link>
       </p>
     </AuthSplitLayout>

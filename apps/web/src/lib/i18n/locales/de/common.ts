@@ -11,6 +11,14 @@ export const common: Record<keyof EnCommon, string> = {
   'theme.switchToDark': 'Zum dunklen Design wechseln',
   'theme.switchToLight': 'Zum hellen Design wechseln',
   'auth.emailPlaceholder': 'name@beispiel.de',
+  'auth.showPassword': 'Passwort anzeigen',
+  'auth.hidePassword': 'Passwort verbergen',
+
+  // ── Warten nach einer Sperre / einem Limit ────────────────────────────────
+  'auth.retrySeconds_one': '{count} Sekunde',
+  'auth.retrySeconds_other': '{count} Sekunden',
+  'auth.retryMinutes_one': '{count} Minute',
+  'auth.retryMinutes_other': '{count} Minuten',
 
   'common.close': 'Schließen',
   'dateField.open': 'Datum wählen',

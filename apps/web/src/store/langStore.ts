@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { DEFAULT_LOCALE } from '@/lib/i18n/config';
 
 /** Supported UI languages. German is the product's home market; English is the
  *  fallback and the source-of-truth dictionary. Add a code here + a matching
@@ -21,9 +22,10 @@ interface LangStore {
 export const useLangStore = create<LangStore>()(
   persist(
     (set, get) => ({
-      // English default keeps the current (untranslated) surfaces unchanged
-      // during the incremental rollout; switch to 'de' once coverage is broad.
-      lang: 'en',
+      // Must stay in step with `DEFAULT_LOCALE`, which the server render and
+      // the pre-mount client render both use — three places that disagree is a
+      // hydration mismatch. Typed against it so a change there fails here.
+      lang: DEFAULT_LOCALE,
       setLang: (lang) => set({ lang }),
       toggleLang: () => set({ lang: get().lang === 'de' ? 'en' : 'de' }),
     }),

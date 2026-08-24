@@ -3,7 +3,7 @@ import { Cormorant_Garamond, Inter } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '@/components/QueryProvider';
 import { HtmlLangSync } from '@/components/HtmlLangSync';
-import { SOURCE_LOCALE } from '@/lib/i18n/config';
+import { DEFAULT_LOCALE } from '@/lib/i18n/config';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
 const cormorant = Cormorant_Garamond({
@@ -47,7 +47,7 @@ const CLIENT_INIT = `(function(){try{var r=localStorage.getItem('theme-storage')
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang={SOURCE_LOCALE}
+      lang={DEFAULT_LOCALE}
       suppressHydrationWarning
       className={`${inter.variable} ${cormorant.variable}`}
     >

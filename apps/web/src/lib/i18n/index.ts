@@ -12,5 +12,12 @@
  */
 export { useTranslation, type PluralKey, type TranslateParams } from './useTranslation';
 export { getFormatters, type Formatters, type DateInput } from './format';
-export { LOCALES, SOURCE_LOCALE, INTL_LOCALE, isLocale, type Locale } from './config';
+export {
+  LOCALES,
+  SOURCE_LOCALE,
+  DEFAULT_LOCALE,
+  INTL_LOCALE,
+  isLocale,
+  type Locale,
+} from './config';
 export { dictionaries, en, type TranslationKey } from './locales';

@@ -1,30 +1,32 @@
 'use client';
 
 import api from '@/lib/api';
+import { AuthSplitLayout } from '@/components/AuthSplitLayout';
+import { AuthStatusCard, type AuthStatusTone } from '@/components/AuthStatusCard';
+import { extractApiError } from '@/lib/helpers';
+import { useTranslation } from '@/lib/i18n';
 import { AuthUser, useAuthStore } from '@/store/authStore';
-import { FotolioLogo } from '@/components/FotolioLogo';
+import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { authStyles } from '../../../(auth)/auth.styles';
-
-type Status = 'loading' | 'success' | 'error';
+import { getAuthStyles } from '../../../(auth)/auth.styles';
 
 function CustomerVerifyInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useAuthStore((s) => s.setUser);
   const token = searchParams.get('token');
+  const theme = useThemeStore((st) => st.theme);
+  const s = getAuthStyles(theme);
+  const { t } = useTranslation();
 
-  const [status, setStatus] = useState<Status>('loading');
-  const [message, setMessage] = useState('Signing you in…');
+  const [status, setStatus] = useState<AuthStatusTone>('loading');
+  const [apiMessage, setApiMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setMessage(
-        'This sign-in link is missing its token. Request a new one from your photographer.'
-      );
       return;
     }
     let cancelled = false;
@@ -37,7 +39,6 @@ function CustomerVerifyInner() {
         if (cancelled) return;
         setUser(user);
         setStatus('success');
-        setMessage('You are signed in. Redirecting to your bookings…');
         // replace, not push: drops the token-bearing /verify URL from history so
         // the single-use magic-link token can't resurface via Back or be leaked
         // through the referrer of a later navigation.
@@ -48,13 +49,8 @@ function CustomerVerifyInner() {
         redirectTimer = window.setTimeout(() => router.replace('/bookings'), 800);
       } catch (err: unknown) {
         if (cancelled) return;
-        const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error;
+        setApiMessage(extractApiError(err, ''));
         setStatus('error');
-        setMessage(
-          apiMessage ??
-            'This sign-in link is invalid or has expired. Request a new one from the sign-in page.'
-        );
       }
     })();
     return () => {
@@ -63,47 +59,43 @@ function CustomerVerifyInner() {
     };
   }, [token, setUser, router]);
 
-  const accent = status === 'success' ? '#10B981' : status === 'error' ? '#EF4444' : '#3B82F6';
+  const title = {
+    loading: t('customerVerify.loadingTitle'),
+    success: t('customerVerify.successTitle'),
+    error: t('customerVerify.errorTitle'),
+  }[status];
+
+  const message = (() => {
+    if (status === 'loading') return t('customerVerify.loadingBody');
+    if (status === 'success') return t('customerVerify.successBody');
+    if (!token) return t('customerVerify.errorMissingToken');
+    return apiMessage || t('customerVerify.errorInvalid');
+  })();
 
   return (
-    <div style={authStyles.page}>
-      <nav style={authStyles.navbar}>
-        <Link href="/" style={{ ...authStyles.navBrand, textDecoration: 'none' }}>
-          <FotolioLogo theme="light" showText={true} />
-        </Link>
-      </nav>
-
-      <div style={authStyles.container}>
-        <div style={authStyles.content}>
-          <div style={authStyles.card}>
-            <div style={authStyles.header}>
-              <h2 style={authStyles.title}>
-                {status === 'loading' && 'Signing you in'}
-                {status === 'success' && 'Welcome back'}
-                {status === 'error' && 'Sign-in failed'}
-              </h2>
-              <p style={{ ...authStyles.subtitle, color: accent }}>{message}</p>
-            </div>
-
-            {status === 'error' && (
-              <Link
-                href="/customer/auth/login"
-                style={{
-                  ...authStyles.button,
-                  ...authStyles.buttonPrimary,
-                  textDecoration: 'none',
-                  display: 'inline-block',
-                  textAlign: 'center',
-                  boxSizing: 'border-box',
-                }}
-              >
-                Request a new link
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthSplitLayout
+      visualImage="/brand/auth-visual-client.jpg"
+      visualTitle={t('customerVerify.visualTitle')}
+      visualSubtitle={t('customerVerify.visualSubtitle')}
+    >
+      <AuthStatusCard tone={status} title={title} message={message}>
+        {status === 'error' && (
+          <Link
+            href="/customer/auth/login"
+            style={{
+              ...s.button,
+              ...s.buttonPrimary,
+              display: 'block',
+              textAlign: 'center',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+            }}
+          >
+            {t('customerVerify.requestNew')}
+          </Link>
+        )}
+      </AuthStatusCard>
+    </AuthSplitLayout>
   );
 }
 

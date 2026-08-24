@@ -12,9 +12,19 @@ interface AuthSplitLayoutProps {
   children: ReactNode;
   /** Optional cross-link shown in the top-right of the form column. */
   crossLink?: { href: string; label: string };
-  /** Headline + supporting line rendered over the branded visual panel. */
-  visualTitle?: string;
-  visualSubtitle?: string;
+  /**
+   * Headline + supporting line rendered over the branded visual panel.
+   *
+   * Required, and deliberately so. These used to be optional with English
+   * defaults, and exactly one screen — the photographer sign-in — never passed
+   * them. So the one page whose visitor *is* a photographer greeted them with
+   * "Discover great photographers", copy written for a client browsing for one,
+   * and it stayed in English on a German-default product because a default is
+   * not a translation. An optional prop with a plausible-looking fallback hides
+   * the omission; a required one cannot.
+   */
+  visualTitle: string;
+  visualSubtitle: string;
   /**
    * Photo shown on the brand panel. Defaults to the photographer-facing craft
    * shot; the client sign-in passes a warmer, memory-focused image because its
@@ -33,8 +43,8 @@ const VISUAL_IMAGE = '/brand/auth-visual.jpg';
 export function AuthSplitLayout({
   children,
   crossLink,
-  visualTitle = 'Discover great photographers',
-  visualSubtitle = 'Book sessions, manage clients and deliver galleries — all in one studio.',
+  visualTitle,
+  visualSubtitle,
   visualImage = VISUAL_IMAGE,
   contentMaxWidth = 400,
 }: Readonly<AuthSplitLayoutProps>) {
@@ -59,10 +69,9 @@ export function AuthSplitLayout({
   return (
     <div
       className="auth-split"
-      style={{
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      }}
+      // The token, not a copy of it — this hard-coded stack was one of the
+      // places the auth screens diverged from the rest of the app.
+      style={{ fontFamily: fonts.sans }}
     >
       {/* ── Left: branded photography visual ─────────────────────────── */}
       <aside
@@ -171,6 +180,10 @@ export function AuthSplitLayout({
 
       {/* ── Right: form column ───────────────────────────────────────── */}
       <main
+        // Height and scrolling live in globals.css: they need `dvh` with a
+        // `vh` fallback and a breakpoint, and inline styles can express
+        // neither. See `.auth-form-column`.
+        className="auth-form-column"
         style={{
           position: 'relative',
           display: 'flex',
@@ -179,9 +192,6 @@ export function AuthSplitLayout({
           // effect above. Avoids a light flash before the dark theme rehydrates.
           background: 'transparent',
           color: c.text,
-          minHeight: '100vh',
-          maxHeight: '100vh',
-          overflowY: 'auto',
         }}
       >
         {/* Top bar: brand (mobile only) + theme toggle + cross-link */}

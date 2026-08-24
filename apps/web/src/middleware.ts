@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loginUrlFor } from '@/lib/login-redirect';
 
 // Routes accessible without an access_token cookie. Keep this list narrow:
 // every entry here bypasses the auth gate, so anything sensitive must NOT
@@ -103,12 +104,25 @@ export function middleware(request: NextRequest) {
   }
 
   if (!token) {
-    const loginUrl = new URL('/login', origin);
-    // Preserve the original destination so post-login can return to it.
-    if (pathname !== '/' && !pathname.startsWith('/login')) {
-      loginUrl.searchParams.set('next', pathname + search);
+    // An expired access token is not an ended session. Access tokens last 24
+    // hours, refresh tokens 30 days, and the axios interceptor renews the
+    // first from the second on the next request — but this gate only looked at
+    // the access token, so anyone returning after a day was bounced to the
+    // sign-in form despite holding a perfectly valid session. "Stay signed in
+    // for 30 days" did not work at all.
+    //
+    // The refresh token cannot be *validated* here: it is an opaque
+    // database-backed token and middleware has no database. So this trusts its
+    // presence only far enough to render the shell, and the interceptor
+    // decides: a good token refreshes silently, a stale one lands back here
+    // with both cookies cleared. Worst case is a brief shell before that
+    // redirect, which is a far better trade than signing out live sessions.
+    if (request.cookies.get('refresh_token')?.value) {
+      return NextResponse.next();
     }
-    return NextResponse.redirect(loginUrl);
+    // `loginUrlFor` picks between the photographer and client sign-ins and
+    // carries the blocked destination — see lib/login-redirect.ts.
+    return NextResponse.redirect(new URL(loginUrlFor(pathname, search), origin));
   }
 
   return NextResponse.next();

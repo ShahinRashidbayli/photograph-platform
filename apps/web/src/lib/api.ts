@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
+import { isLoginPath, loginUrlFor } from '@/lib/login-redirect';
 
 // All requests go to the same origin via the Next.js proxy rewrite.
 // HttpOnly cookies are sent automatically — no manual Authorization header needed.
@@ -96,12 +97,38 @@ api.interceptors.response.use(
       queue = [];
       waiting.forEach((entry) => entry.fail(refreshError));
       useAuthStore.getState().clearUser();
-      globalThis.location.href = '/login';
+      redirectToSignIn();
       throw refreshError;
     } finally {
       isRefreshing = false;
     }
   }
 );
+
+/**
+ * Send a user whose session could not be renewed to the right sign-in screen,
+ * with somewhere to come back to.
+ *
+ * This used to be `location.href = '/login'`, which got two things wrong. A
+ * client has no password, so the photographer form was a dead end for them —
+ * and the page they were on was thrown away, so signing back in dropped them on
+ * a dashboard instead of the booking they had open.
+ *
+ * Already on a sign-in screen: leave it alone. Navigating there again would
+ * reload the form under whatever the user is typing, and on `/login` itself the
+ * failing request is usually the one that is *about* to sign them in.
+ */
+function redirectToSignIn(): void {
+  if (typeof globalThis.location === 'undefined') return;
+
+  // Defaulted rather than assumed: a real browser always supplies these, but a
+  // throw here would happen inside the interceptor's catch and would replace
+  // the refresh failure the caller is waiting on with a TypeError.
+  const pathname = globalThis.location.pathname || '/';
+  const search = globalThis.location.search || '';
+  if (isLoginPath(pathname)) return;
+
+  globalThis.location.href = loginUrlFor(pathname, search);
+}
 
 export default api;

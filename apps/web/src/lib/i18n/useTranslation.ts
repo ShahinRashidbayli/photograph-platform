@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLangStore } from '@/store/langStore';
-import { INTL_LOCALE, SOURCE_LOCALE, type Locale } from './config';
+import { DEFAULT_LOCALE, INTL_LOCALE, type Locale } from './config';
 import { getFormatters, type Formatters } from './format';
 import { dictionaries, en, type TranslationKey } from './locales';
 
@@ -46,10 +46,12 @@ function interpolate(template: string, params?: TranslateParams): string {
  * the same locale.
  *
  * Hydration: the persisted language is read from localStorage on the client, so
- * a German-preferring visitor's store differs from the server-rendered default.
- * To avoid React text-mismatch errors we render the English default until after
- * mount, then switch to the persisted language. Users on the default (English)
- * see no flash; German users see a one-frame swap on translated surfaces only.
+ * a visitor who has switched language has a store that differs from what the
+ * server rendered. To avoid React text-mismatch errors we render
+ * `DEFAULT_LOCALE` — the same thing the server rendered — until after mount,
+ * then switch to the persisted language. Visitors on the default see no flash;
+ * only someone who has actively switched sees a one-frame swap, and only on
+ * translated surfaces.
  *
  * `t`, `tPlural` and `format` are all memoised on `lang` and must stay that
  * way: callers legitimately list them in useEffect/useCallback dependency
@@ -61,7 +63,7 @@ export function useTranslation() {
   useEffect(() => setMounted(true), []);
 
   const persisted = useLangStore((s) => s.lang);
-  const lang: Locale = mounted ? persisted : SOURCE_LOCALE;
+  const lang: Locale = mounted ? persisted : DEFAULT_LOCALE;
 
   const t = useCallback(
     (key: TranslationKey, params?: TranslateParams): string =>

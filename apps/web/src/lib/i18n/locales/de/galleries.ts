@@ -12,6 +12,8 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.stat.galleries': 'Galerien',
   'galleries.stat.totalPhotos': 'Fotos gesamt',
   'galleries.stat.available': 'verfügbar',
+  'galleries.stat.active_one': '{count} aktiv',
+  'galleries.stat.active_other': '{count} aktiv',
 
   'galleries.list.title': 'Galerien',
   'galleries.list.search': 'Galerien durchsuchen…',

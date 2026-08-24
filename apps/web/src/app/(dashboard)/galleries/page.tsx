@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
+import { StatStrip } from '@/components/StatStrip';
 import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
 
 type AppColors = ReturnType<typeof getGalleriesColors>;
@@ -886,7 +887,7 @@ function CreateGalleryModal({
 
 // ─── GalleriesPage ────────────────────────────────────────────────────────────
 export default function GalleriesPage() {
-  const { t } = useTranslation();
+  const { t, tPlural } = useTranslation();
   const { theme } = useThemeStore();
   const styles = useMemo(() => getGalleriesStyles(theme), [theme]);
   const colors = useMemo(() => getGalleriesColors(theme), [theme]);
@@ -1190,28 +1191,33 @@ export default function GalleriesPage() {
           <h1 style={styles.pageTitle}>{t('galleries.title')}</h1>
           <p style={styles.pageSubtitle}>{t('galleries.subtitle')}</p>
         </div>
+        {/* The figures stay in the header beside the button they belong with —
+            this page's two numbers are context for the action, not a headline
+            row of their own. Same band as bookings, clients and portfolio, in
+            its `inline` size; `stretch` on the row leaves it and the button
+            exactly the same height. */}
         <div style={styles.headerStats}>
-          <div style={styles.headerStatCard}>
-            <div style={styles.headerStatLabel}>{t('galleries.stat.galleries')}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-              <div style={styles.headerStatValue}>{stats.total}</div>
-              <div style={styles.headerStatChange}>{stats.active} active</div>
-            </div>
-          </div>
-          <div style={styles.headerStatCard}>
-            <div style={styles.headerStatLabel}>{t('galleries.stat.totalPhotos')}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-              <div style={styles.headerStatValue}>{stats.totalPhotos}</div>
-              <div style={styles.headerStatChange}>{t('galleries.stat.available')}</div>
-            </div>
-          </div>
+          <StatStrip
+            variant="inline"
+            aria-label={t('galleries.title')}
+            items={[
+              {
+                label: t('galleries.stat.galleries'),
+                value: String(stats.total),
+                trend: tPlural('galleries.stat.active', stats.active),
+              },
+              {
+                label: t('galleries.stat.totalPhotos'),
+                value: String(stats.totalPhotos),
+                trend: t('galleries.stat.available'),
+              },
+            ]}
+          />
           <button
-            // No `alignSelf` — the row stretches, so the button and the two
-            // figures beside it end up exactly the same height.
             style={{ ...styles.actionButton, ...styles.actionButtonPrimary }}
             onClick={() => setShowCreate(true)}
           >
-            <IconPlus /> New gallery
+            <IconPlus /> {t('galleries.create.title')}
           </button>
         </div>
       </header>

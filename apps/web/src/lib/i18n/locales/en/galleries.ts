@@ -16,6 +16,8 @@ export const galleries = {
   'galleries.stat.galleries': 'Galleries',
   'galleries.stat.totalPhotos': 'Total Photos',
   'galleries.stat.available': 'available',
+  'galleries.stat.active_one': '{count} active',
+  'galleries.stat.active_other': '{count} active',
 
   'galleries.list.title': 'Galleries',
   'galleries.list.search': 'Search galleries…',

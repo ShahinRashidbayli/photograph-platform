@@ -3,6 +3,7 @@ package com.photographplatform.api.common.security;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -80,7 +81,29 @@ public class RateLimiter {
     public void check(String key, int max, Duration window, String message) {
         Long count = increment(key, window);
         if (count != null && count > max) {
-            throw new TooManyRequestsException(message);
+            throw new TooManyRequestsException(message, remainingWindow(key, window));
+        }
+    }
+
+    /**
+     * How long is left on this bucket's window.
+     *
+     * <p>Attached to the refusal so the caller can be told when to come back
+     * rather than only that they were refused — see {@code TooManyRequestsException}.
+     * A key whose TTL cannot be read (Redis just dropped it, or the connection
+     * failed on this second call) reports the full window: overstating the wait
+     * is recoverable, while understating it earns the caller a second refusal.
+     */
+    private Duration remainingWindow(String key, Duration window) {
+        try {
+            Long seconds = redis.getExpire(key, TimeUnit.SECONDS);
+            if (seconds == null || seconds <= 0) {
+                return window;
+            }
+            return Duration.ofSeconds(seconds);
+        } catch (RuntimeException ex) {
+            LOG.warn("Could not read the remaining window for '{}'", key, ex);
+            return window;
         }
     }
 

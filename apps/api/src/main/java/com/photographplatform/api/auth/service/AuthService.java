@@ -8,12 +8,14 @@ import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
+import com.photographplatform.api.auth.dto.SubdomainAvailabilityResponse;
 import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.billing.config.BillingProperties;
 import com.photographplatform.api.common.exception.ConflictException;
+import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -27,6 +29,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +55,12 @@ public class AuthService {
     // Register rate limit
     private static final int REGISTER_MAX_PER_IP_PER_HOUR = 5;
     private static final Duration REGISTER_WINDOW = Duration.ofHours(1);
+
+    // Subdomain availability. Generous on purpose: the sign-up form calls this
+    // as the user types (debounced), so a limit tuned like the others would
+    // refuse an ordinary person filling in one field.
+    private static final int SUBDOMAIN_CHECK_MAX_PER_IP = 60;
+    private static final Duration SUBDOMAIN_CHECK_WINDOW = Duration.ofMinutes(1);
 
 
     private final TenantRepository tenantRepository;
@@ -218,9 +227,21 @@ public class AuthService {
         String ipLockKey = "login:lock:ip:" + ipAddress;
         String ipFailKey = "login:fail:ip:" + ipAddress;
 
-        if (Boolean.TRUE.equals(redis.hasKey(emailLockKey))
-            || Boolean.TRUE.equals(redis.hasKey(ipLockKey))) {
-            throw new UnauthorizedException("Invalid credentials");
+        // A lockout is answered as a lockout, not as "invalid credentials".
+        //
+        // It used to be the latter, which meant a locked-out user typing their
+        // correct password was told the password was wrong — for fifteen
+        // minutes, with nothing on screen suggesting a wait. That reads as a
+        // broken sign-in, and it is the single most common way a person
+        // concludes the product does not work.
+        //
+        // This leaks nothing: `registerLoginFailure` below counts failures
+        // against the submitted address whether or not an account exists, so
+        // the lock is a fact about the attempts, not about the account.
+        Duration lockedFor = longer(lockRemaining(emailLockKey), lockRemaining(ipLockKey));
+        if (lockedFor != null) {
+            throw new TooManyRequestsException(
+                "Too many failed sign-in attempts. Please wait before trying again.", lockedFor);
         }
 
         // Staff only. This endpoint takes an email and a password with no tenant
@@ -345,6 +366,49 @@ public class AuthService {
         Pattern.compile("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$");
 
     /**
+     * Can this subdomain be claimed right now?
+     *
+     * <p>Answers the sign-up form's one unknowable field while the user is
+     * still typing it, rather than after they have filled in the whole page.
+     * The checks and their order mirror {@link #register} exactly — a "yes"
+     * here that becomes a 409 there would be worse than not asking.
+     *
+     * <p>Advisory, never authoritative: two people can be told "available" for
+     * the same name a moment apart. {@code register} still holds the unique
+     * constraint, and the loser of that race gets the conflict it already
+     * handled.
+     *
+     * <p>Rate-limited per IP because this is an unauthenticated endpoint that
+     * runs a query, not because the answer is a secret — a tenant subdomain is
+     * a public hostname.
+     */
+    @Transactional(readOnly = true)
+    public SubdomainAvailabilityResponse checkSubdomainAvailability(String raw, String ipAddress) {
+        String subdomain = Normalize.lower(raw == null ? "" : raw.trim());
+
+        if (ipAddress != null && !ipAddress.isBlank()) {
+            rateLimiter.check(
+                "subdomain:check:ip:" + ipAddress,
+                SUBDOMAIN_CHECK_MAX_PER_IP, SUBDOMAIN_CHECK_WINDOW,
+                "Too many availability checks. Please slow down.");
+        }
+
+        if (!SUBDOMAIN_PATTERN.matcher(subdomain).matches()) {
+            return SubdomainAvailabilityResponse.unavailable(
+                subdomain, SubdomainAvailabilityResponse.INVALID);
+        }
+        if (ReservedSubdomains.isReserved(subdomain)) {
+            return SubdomainAvailabilityResponse.unavailable(
+                subdomain, SubdomainAvailabilityResponse.RESERVED);
+        }
+        if (tenantRepository.existsBySubdomain(subdomain)) {
+            return SubdomainAvailabilityResponse.unavailable(
+                subdomain, SubdomainAvailabilityResponse.TAKEN);
+        }
+        return SubdomainAvailabilityResponse.available(subdomain);
+    }
+
+    /**
      * Applies a partial profile update for the signed-in user. Only the
      * non-null fields of the request are touched, so the Profile and Studio
      * sections of the settings page can each save independently.
@@ -441,6 +505,38 @@ public class AuthService {
         if (count != null && count >= max) {
             redis.opsForValue().set(lockKey, "1", LOGIN_LOCKOUT_DURATION);
         }
+    }
+
+    /**
+     * How much of a lockout is left on {@code lockKey}, or null if it is not
+     * locked.
+     *
+     * <p>Existence still decides — {@code hasKey} is the same check this
+     * replaced. The TTL is read only to say <em>how long</em>, and a lock whose
+     * TTL cannot be read is reported as the full window rather than as zero:
+     * promising an immediate retry that is then refused is worse than
+     * overstating the wait.
+     */
+    private Duration lockRemaining(String lockKey) {
+        if (!Boolean.TRUE.equals(redis.hasKey(lockKey))) {
+            return null;
+        }
+        Long seconds = redis.getExpire(lockKey, TimeUnit.SECONDS);
+        if (seconds == null || seconds <= 0) {
+            return LOGIN_LOCKOUT_DURATION;
+        }
+        return Duration.ofSeconds(seconds);
+    }
+
+    /** The longer of two possibly-null lockouts, or null when both are null. */
+    private static Duration longer(Duration a, Duration b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        return a.compareTo(b) >= 0 ? a : b;
     }
 
     private void checkRegisterRateLimit(String ipAddress) {

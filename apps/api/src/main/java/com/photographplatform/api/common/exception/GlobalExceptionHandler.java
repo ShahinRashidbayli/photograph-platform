@@ -2,12 +2,15 @@ package com.photographplatform.api.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -68,11 +71,30 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.CONFLICT, ErrorCode.CONFLICT, ex.getMessage(), request);
     }
 
+    /**
+     * Rate limit or lockout. When the exception knows how long the wait is, that
+     * duration is answered twice: as the standard {@code Retry-After} header for
+     * machine clients, and as a {@code retryAfterSeconds} detail so the UI can
+     * say "try again in 12 minutes" instead of an unactionable "too many
+     * requests". Without it the caller retries straight away and reads the
+     * second failure as a broken product rather than as a wait.
+     */
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyRequests(
         TooManyRequestsException ex, HttpServletRequest request) {
+        Duration retryAfter = ex.getRetryAfter();
+        if (retryAfter == null || retryAfter.isNegative() || retryAfter.isZero()) {
+            return respond(
+                HttpStatus.TOO_MANY_REQUESTS, ErrorCode.TOO_MANY_REQUESTS, ex.getMessage(),
+                request);
+        }
+        // Round up: a 90-second wait reported as 1 minute invites a retry that
+        // is still refused.
+        long seconds = (long) Math.ceil(retryAfter.toMillis() / 1000.0);
         return respond(
-            HttpStatus.TOO_MANY_REQUESTS, ErrorCode.TOO_MANY_REQUESTS, ex.getMessage(), request);
+            HttpStatus.TOO_MANY_REQUESTS, ErrorCode.TOO_MANY_REQUESTS, ex.getMessage(), request,
+            Map.of("retryAfterSeconds", seconds),
+            headers -> headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(seconds)));
     }
 
     /**
@@ -217,12 +239,22 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> respond(
         HttpStatus status, String code, String message, HttpServletRequest request,
         Map<String, Object> details) {
+        return respond(status, code, message, request, details, null);
+    }
+
+    private ResponseEntity<ErrorResponse> respond(
+        HttpStatus status, String code, String message, HttpServletRequest request,
+        Map<String, Object> details, Consumer<HttpHeaders> headerCustomiser) {
         // A null message would serialise as a missing `error` field and leave
         // the frontend with nothing to show.
         String safeMessage = (message == null || message.isBlank())
             ? status.getReasonPhrase()
             : message;
-        return ResponseEntity.status(status).body(ErrorResponse.of(
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
+        if (headerCustomiser != null) {
+            builder = builder.headers(headerCustomiser::accept);
+        }
+        return builder.body(ErrorResponse.of(
             code, safeMessage, request.getRequestURI(), OffsetDateTime.now(clock), details));
     }
 }

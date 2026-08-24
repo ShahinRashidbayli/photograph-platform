@@ -10,6 +10,7 @@ import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
 import com.photographplatform.api.auth.dto.ResetPasswordRequest;
+import com.photographplatform.api.auth.dto.SubdomainAvailabilityResponse;
 import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import com.photographplatform.api.auth.dto.VerifyEmailRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
@@ -75,6 +76,22 @@ public class AuthController {
         AuthResult result = authService.register(request, ClientIp.from(httpRequest));
         cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
+    }
+
+    /**
+     * Is this subdomain free? Called by the sign-up form as the user types.
+     *
+     * <p>Unauthenticated by design — the caller is by definition someone who
+     * does not have an account yet. See
+     * {@link AuthService#checkSubdomainAvailability} for why answering this
+     * publicly gives nothing away.
+     */
+    @GetMapping("/subdomain-available")
+    public SubdomainAvailabilityResponse subdomainAvailable(
+        @RequestParam String subdomain,
+        HttpServletRequest httpRequest
+    ) {
+        return authService.checkSubdomainAvailability(subdomain, ClientIp.from(httpRequest));
     }
 
     @PostMapping("/login")

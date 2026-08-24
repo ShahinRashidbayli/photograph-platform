@@ -1,4 +1,4 @@
-.PHONY: dev api web test migrate clean stop
+.PHONY: dev api web test migrate seed clean stop
 
 # Start infra (postgres + redis + object storage + mail catcher) in background.
 # minio-init is a one-shot that creates the media bucket, so image upload
@@ -36,6 +36,21 @@ test:
 migrate:
 	cd apps/api && export $$(grep -v '^#' ../../infra/.env | xargs) && \
 		/opt/homebrew/bin/mvn flyway:migrate -Dflyway.url=$${FLYWAY_URL} -Dflyway.user=$${FLYWAY_USER} -Dflyway.password=$${DB_PASSWORD}
+
+# Fill the local database with demo data — every booking status, lead score,
+# gallery retention state and invoice/payment shape, so the UI can be checked
+# against something other than an empty table.
+#
+# Targets the `shahinrashidbayli` tenant by default:
+#     make seed
+#     make seed SUBDOMAIN=my-studio
+#
+# Development only; the script refuses to run against anything that does not
+# look like the local Docker database.
+SUBDOMAIN ?= shahinrashidbayli
+seed:
+	@docker compose -f infra/docker-compose.yml exec -T -e PGPASSWORD=postgres postgres \
+		psql -U postgres -d centralidp -v subdomain=$(SUBDOMAIN) < scripts/seed-demo.sql
 
 stop:
 	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true

@@ -28,6 +28,8 @@ export const leads: Record<keyof EnLeads, string> = {
   'leadScoreShort.HIGH': 'Hoch',
   'leadScoreShort.MED': 'Mittel',
   'leadScoreShort.LOW': 'Niedrig',
+  'leadUrgency.noDate': 'Kein Datum',
+  'leadUrgency.noDateTitle': 'Diese Anfrage nennt kein Datum',
   'leadUrgency.past': 'Vergangen',
   'leadUrgency.daysAway': 'in {count} T.',
   'leadUrgency.title': 'Termin in {count} Tagen',

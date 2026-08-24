@@ -2,10 +2,23 @@ import { parseApiDate } from '@/lib/date';
 import type { TranslationKey } from '@/lib/i18n';
 import type { ColorTokens, LeadScore } from './leadTypes';
 
-export function daysUntilEvent(iso: string): number {
-  const now = new Date();
+/**
+ * Days from now until the event, or null when the enquiry named no date.
+ *
+ * `leads.event_date` is nullable — "what does this cost?" is a perfectly
+ * ordinary enquiry — but this took a plain `string` and went straight to
+ * `.getTime()`, so the first dateless lead in the inbox took the whole page
+ * down with a TypeError. Null is a real answer here, not a missing one, and
+ * saying so lets the callers show "no date yet" instead of inventing urgency
+ * for an event nobody has scheduled.
+ */
+export function daysUntilEvent(iso: string | null | undefined): number | null {
+  if (!iso) return null;
   const event = parseApiDate(iso);
-  const diff = event.getTime() - now.getTime();
+  const time = event.getTime();
+  // An unparseable date is the same kind of "we don't know" as a missing one.
+  if (Number.isNaN(time)) return null;
+  const diff = time - new Date().getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
@@ -49,9 +62,19 @@ export function statusBadgeVisual(status: string, c: ColorTokens) {
  * resolves it through `t()` with the day count.
  */
 export function getUrgencyVisual(
-  daysUntil: number,
+  daysUntil: number | null,
   c: ColorTokens
 ): { bg: string; color: string; dot: string; labelKey: TranslationKey } {
+  // No date is not "past" — the neutral chip is the same, but the label has to
+  // say why, or a dateless enquiry reads as an event that already happened.
+  if (daysUntil === null) {
+    return {
+      bg: c.neutralBg,
+      color: c.neutralText,
+      dot: c.neutral,
+      labelKey: 'leadUrgency.noDate',
+    };
+  }
   if (daysUntil <= 0) {
     return { bg: c.neutralBg, color: c.neutralText, dot: c.neutral, labelKey: 'leadUrgency.past' };
   }

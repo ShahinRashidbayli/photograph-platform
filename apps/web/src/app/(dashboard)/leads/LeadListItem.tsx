@@ -42,7 +42,11 @@ export function LeadListItem({
   const daysUntil = daysUntilEvent(lead.eventDate);
   const urgency = getUrgencyVisual(daysUntil, c);
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
-  const eventDateShort = format.monthDayYear(lead.eventDate);
+  // Null formats as 1 Jan 1970 rather than throwing, which is worse than a
+  // crash: it looks like data.
+  const eventDateShort = lead.eventDate
+    ? format.monthDayYear(lead.eventDate)
+    : t('leadUrgency.noDate');
 
   let itemStyle: React.CSSProperties = { ...s.listItem };
   if (isActive) itemStyle = { ...itemStyle, ...s.listItemActive };
@@ -168,9 +172,13 @@ export function LeadListItem({
               background: urgency.bg,
               color: urgency.color,
             }}
-            title={t('leadUrgency.title', { count: String(daysUntil) })}
+            title={
+              daysUntil === null
+                ? t('leadUrgency.noDateTitle')
+                : t('leadUrgency.title', { count: String(daysUntil) })
+            }
           >
-            {t(urgency.labelKey, { count: String(daysUntil) })}
+            {t(urgency.labelKey, { count: String(daysUntil ?? 0) })}
           </span>
         </div>
       </div>

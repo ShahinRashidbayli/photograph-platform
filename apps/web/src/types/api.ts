@@ -4,7 +4,13 @@ export interface Lead {
   email: string;
   phone?: string;
   message: string;
-  eventDate: string;
+  /**
+   * Nullable, because `leads.event_date` is: someone can ask "what does this
+   * cost?" without naming a date, and the public form does not require one.
+   * This was typed as a plain `string`, which is why nothing caught the
+   * urgency chip calling `.getTime()` on it.
+   */
+  eventDate: string | null;
   eventType: 'WEDDING' | 'ENGAGEMENT' | 'PORTRAIT' | 'FAMILY' | 'NEWBORN' | 'CORPORATE';
   budgetRange: 'UNDER_200' | '200_500' | '500_1000' | 'OVER_1000';
   score: 'HIGH' | 'MED' | 'LOW';

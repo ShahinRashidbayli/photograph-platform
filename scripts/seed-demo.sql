@@ -215,28 +215,30 @@ SELECT l.id, s.tenant_id, l.name, l.email, l.phone, l.event_date, l.event_type,
        l.budget, l.message, l.notes, l.score, l.status, l.source, now() - l.age
 FROM seed_target s, (VALUES
     ('44444444-0000-4000-a000-000000000001'::uuid, 'Katharina Berg', 'k.berg@web.de', '+49 170 3332211',
-     CURRENT_DATE + 300, 'Hochzeit', '2000-3000',
+     CURRENT_DATE + 300, 'WEDDING', 'OVER_1000',
      'Hallo! Wir heiraten im Juni 2027 auf Gut Höhne und suchen noch jemanden für den ganzen Tag. Ihr Portfolio gefällt uns sehr!',
      NULL, 'HIGH', 'NEW', 'WEBSITE', INTERVAL '2 hours'),
     ('44444444-0000-4000-a000-000000000002'::uuid, 'Tobias Reuter', 'tobias.r@gmail.com', NULL,
-     CURRENT_DATE + 120, 'Business', '500-1000',
+     CURRENT_DATE + 120, 'CORPORATE', '500_1000',
      'Brauchen neue Teamfotos für die Website, ca. 20 Personen.',
      NULL, 'MED', 'NEW', 'INSTAGRAM', INTERVAL '1 day'),
+    -- Deliberately dateless: `leads.event_date` is nullable and the urgency
+    -- chip used to call `.getTime()` on it. Keep at least one of these.
     ('44444444-0000-4000-a000-000000000003'::uuid, 'Anonym', 'kein.budget@example.com', NULL,
      NULL, NULL, NULL,
      'Was kostet das denn so ungefähr?',
      NULL, 'LOW', 'NEW', 'INSTAGRAM', INTERVAL '3 days'),
     ('44444444-0000-4000-a000-000000000004'::uuid, 'Sophie Lang', 'sophie.lang@posteo.de', '+49 151 7778899',
-     CURRENT_DATE + 180, 'Hochzeit', '3000+',
+     CURRENT_DATE + 180, 'WEDDING', 'OVER_1000',
      'Freie Trauung am Baldeneysee, ca. 80 Gäste. Wir hätten gern auch eine Drohne.',
      'Angebot mit Premium-Paket geschickt, wartet auf Rückmeldung vom Partner.',
      'HIGH', 'REPLIED', 'REFERRAL', INTERVAL '6 days'),
     ('44444444-0000-4000-a000-000000000005'::uuid, 'Marco Peters', 'm.peters@web.de', '+49 176 1112233',
-     CURRENT_DATE + 55, 'Familie', '<500',
+     CURRENT_DATE + 55, 'FAMILY', 'UNDER_200',
      'Kleines Shooting mit zwei Kindern, gern draußen.',
      'Termin angeboten, noch keine Antwort.', 'MED', 'REPLIED', 'WEBSITE', INTERVAL '11 days'),
     ('44444444-0000-4000-a000-000000000006'::uuid, 'Julia Hoffmann', 'j.hoffmann@gmx.de', '+49 151 9876543',
-     CURRENT_DATE + 62, 'Hochzeit', '1000-2000',
+     CURRENT_DATE + 62, 'WEDDING', 'OVER_1000',
      'Kirchliche Trauung in Köln, danach Feier im Garten.',
      'Gebucht — Klassik-Paket, Anzahlung erhalten.', 'HIGH', 'BOOKED', 'INSTAGRAM', INTERVAL '35 days'),
     ('44444444-0000-4000-a000-000000000007'::uuid, 'Unbekannt', 'spam@example.com', NULL,
@@ -244,7 +246,7 @@ FROM seed_target s, (VALUES
      'SEO SERVICES BEST PRICE CONTACT US NOW',
      'Spam.', 'LOW', 'REJECTED', 'WEBSITE', INTERVAL '15 days'),
     ('44444444-0000-4000-a000-000000000008'::uuid, 'Daniel Krause', 'd.krause@mail.de', NULL,
-     CURRENT_DATE + 21, 'Hochzeit', '2000-3000',
+     CURRENT_DATE + 21, 'WEDDING', 'OVER_1000',
      'Termin am 21. — geht das noch?',
      'Abgelehnt, Termin war schon vergeben.', 'MED', 'REJECTED', 'WEBSITE', INTERVAL '50 days')
 ) AS l(id, name, email, phone, event_date, event_type, budget, message, notes, score, status, source, age);
@@ -384,13 +386,13 @@ JOIN LATERAL (
     ORDER BY usr.email LIMIT 1
 ) u ON true,
 (VALUES
-    ('Hochzeit', '2000-3000', 240, 'Schloss Hugenpoet, Essen',
+    ('HOCHZEIT', 'OVER_2000', 240, 'Schloss Hugenpoet, Essen',
      'Wir haben Sie über Instagram gefunden und würden gern für 2027 anfragen.',
      'HIGH', 'PENDING', INTERVAL '5 hours'),
-    ('Familie', '<500', 30, 'Zuhause, Duisburg',
+    ('FAMILIE', 'UNDER_500', 30, 'Zuhause, Duisburg',
      'Ein kurzes Shooting mit Oma und den Enkelkindern.',
      'MED', 'ACCEPTED', INTERVAL '9 days'),
-    ('Business', '500-1000', 90, 'Büro Düsseldorf',
+    ('EVENT', '500_1000', 90, 'Büro Düsseldorf',
      'Headshots für sechs neue Kolleginnen.',
      'LOW', 'REJECTED', INTERVAL '20 days')
 ) AS q(event_type, budget, in_days, location, message, score, status, age);

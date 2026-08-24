@@ -29,6 +29,8 @@ export const leads = {
   'leadScoreShort.HIGH': 'High',
   'leadScoreShort.MED': 'Med',
   'leadScoreShort.LOW': 'Low',
+  'leadUrgency.noDate': 'No date yet',
+  'leadUrgency.noDateTitle': 'This enquiry did not name a date',
   'leadUrgency.past': 'Past',
   'leadUrgency.daysAway': '{count}d away',
   'leadUrgency.title': 'Event in {count} days',

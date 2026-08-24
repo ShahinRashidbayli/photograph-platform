@@ -121,7 +121,9 @@ export function ConvertLeadModal({
     }
   };
 
-  const formattedEventDate = format.fullDate(lead.eventDate);
+  const formattedEventDate = lead.eventDate
+    ? format.fullDate(lead.eventDate)
+    : t('leadUrgency.noDate');
 
   // Styles ───────────────────────────────────────────────────────────────────
   const overlay: React.CSSProperties = {

@@ -86,7 +86,9 @@ export function LeadDetail({
   const scoreVisual = getScoreVisual(score, c);
   const daysUntil = daysUntilEvent(lead.eventDate);
   const urgency = getUrgencyVisual(daysUntil, c);
-  const formattedEventDate = format.fullDate(lead.eventDate);
+  const formattedEventDate = lead.eventDate
+    ? format.fullDate(lead.eventDate)
+    : t('leadUrgency.noDate');
 
   const avatar = pickAvatarColor(lead.id || lead.name, c.isDark);
   const waHref = whatsappHref(lead.phone);
@@ -230,7 +232,7 @@ export function LeadDetail({
                 bg: urgency.bg,
                 color: urgency.color,
                 dot: urgency.dot,
-                label: t(urgency.labelKey, { count: String(daysUntil) }),
+                label: t(urgency.labelKey, { count: String(daysUntil ?? 0) }),
               }}
             />
             <FactCard

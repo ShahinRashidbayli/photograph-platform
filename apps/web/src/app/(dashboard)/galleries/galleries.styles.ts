@@ -38,19 +38,27 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       lineHeight: '1.6',
       color: c.textMuted,
     },
+    // `stretch`, so the two figures take their height from the button beside
+    // them rather than setting their own. They used to be 12px-padded cards
+    // around a 20px number — around 62px tall next to a 37px button, which
+    // made a pair of read-only numbers the visual anchor of the header instead
+    // of the one thing on it you can act on.
     headerStats: {
       display: 'flex',
       gap: '12px',
+      alignItems: 'stretch',
     },
     headerStatCard: {
-      padding: '12px 16px',
-      borderRadius: '12px',
+      padding: '0 14px',
+      // Matches `actionButton`, so the three sit on one rounded rhythm.
+      borderRadius: '10px',
       border: `1px solid ${c.border}`,
       background: c.surface,
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
-      minWidth: '140px',
+      justifyContent: 'center',
+      gap: '1px',
+      minWidth: '120px',
     },
     headerStatLabel: {
       fontSize: '10px',
@@ -58,12 +66,14 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       textTransform: 'uppercase',
       letterSpacing: '0.04em',
       color: c.textMuted,
+      lineHeight: 1.2,
     },
     headerStatValue: {
-      fontSize: '20px',
+      fontSize: '15px',
       fontWeight: 800,
       letterSpacing: '-0.01em',
       color: c.text,
+      lineHeight: 1.2,
     },
     headerStatChange: {
       fontSize: '10px',

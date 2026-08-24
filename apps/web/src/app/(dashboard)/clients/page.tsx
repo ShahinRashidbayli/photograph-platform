@@ -158,8 +158,10 @@ function StatCard({
         <span style={s.statLabel}>{label}</span>
         <span style={{ ...s.statIcon, background: iconBg, color: iconColor }}>{icon}</span>
       </div>
-      <div style={s.statValue}>{value}</div>
-      <span style={s.statHint}>{hint}</span>
+      <div style={s.statValueRow}>
+        <span style={s.statValue}>{value}</span>
+        <span style={s.statHint}>{hint}</span>
+      </div>
     </div>
   );
 }

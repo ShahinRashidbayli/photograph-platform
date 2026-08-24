@@ -1206,7 +1206,9 @@ export default function GalleriesPage() {
             </div>
           </div>
           <button
-            style={{ ...styles.actionButton, ...styles.actionButtonPrimary, alignSelf: 'center' }}
+            // No `alignSelf` — the row stretches, so the button and the two
+            // figures beside it end up exactly the same height.
+            style={{ ...styles.actionButton, ...styles.actionButtonPrimary }}
             onClick={() => setShowCreate(true)}
           >
             <IconPlus /> New gallery

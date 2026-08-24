@@ -1,5 +1,5 @@
 import React from 'react';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { fontSize, getColors, leading, radius, space, type Theme } from '@/lib/design-tokens';
 
 export type ClientsTheme = Theme;
 
@@ -58,53 +58,79 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       gap: '16px',
       width: '100%',
     },
+    // Sized to match the bookings stat strip: same 12/16 padding, same 20px
+    // number, same quiet 11px eyebrow. These were 14px-padded cards around a
+    // 24px number stacked over a third line, which made three read-only
+    // figures roughly half again as tall as the equivalent row one screen
+    // over — and pushed the list the page exists for further down.
     statCard: {
       position: 'relative',
-      padding: '14px 16px',
+      padding: `${space.md} ${space.lg}`,
       backgroundColor: c.surface,
-      borderRadius: '14px',
+      borderRadius: radius.card,
       border: `1px solid ${c.border}`,
       boxShadow: c.overlayShadow,
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: space.xxs,
     },
+    // The icon is lifted out of the flow (see `statIcon`), so this row is only
+    // as tall as its label. The right padding reserves the corner the icon
+    // sits in so a long label cannot run under it.
     statTopRow: {
       display: 'flex',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      gap: '10px',
+      gap: space.sm,
+      paddingRight: '28px',
     },
+    // 600, not 700: the eyebrow names the number, it isn't the thing being
+    // read. Bookings learned the same lesson — see `statStripLabel` there.
     statLabel: {
-      fontSize: '0.7rem',
+      fontSize: fontSize.xs,
       color: c.textMuted,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
-      fontWeight: 700,
+      fontWeight: 600,
     },
+    // Pinned to the corner rather than sitting in the label row. At 30px in
+    // the flow it was taller than the number beside it, so the decoration —
+    // not the figure — was what set the card's height. Out of the flow it
+    // costs nothing, which is what closes the last of the gap to the bookings
+    // strip. The card is already `position: relative` for this.
     statIcon: {
-      width: '30px',
-      height: '30px',
-      borderRadius: '8px',
+      position: 'absolute',
+      top: space.md,
+      right: space.lg,
+      width: '22px',
+      height: '22px',
+      borderRadius: '7px',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
     },
+    // The number and its caption share a baseline row, which is what removes
+    // the third line and brings the height in line with the bookings strip.
+    statValueRow: {
+      display: 'flex',
+      alignItems: 'baseline',
+      flexWrap: 'wrap',
+      gap: space.sm,
+      minWidth: 0,
+    },
     statValue: {
-      fontSize: '1.5rem',
+      fontSize: fontSize.xl,
       fontWeight: 800,
       color: c.text,
       letterSpacing: '-0.02em',
-      lineHeight: 1.1,
+      lineHeight: leading.tight,
     },
     statHint: {
-      fontSize: '0.78rem',
-      fontWeight: 600,
+      fontSize: fontSize.sm,
+      fontWeight: 500,
       color: c.textMuted,
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
+      lineHeight: leading.snug,
+      minWidth: 0,
     },
 
     container: {

@@ -88,6 +88,22 @@ DELETE FROM leads      USING seed_target s WHERE leads.tenant_id      = s.tenant
 DELETE FROM packages   USING seed_target s WHERE packages.tenant_id   = s.tenant_id;
 DELETE FROM inquiry_requests USING seed_target s WHERE inquiry_requests.tenant_id = s.tenant_id;
 
+-- ── Studio identity ─────────────────────────────────────────────────────────
+-- The name the product presents as the photographer's own. `business_name` is
+-- what `DeliveryPhotoProcessor.watermarkLabel()` reads first; with it unset the
+-- label fell through to the owner's full name and then to the subdomain, so a
+-- watermarked gallery tiled the developer's personal name across a client's
+-- wedding photos on every dev box that ran this script.
+--
+-- Left NULL on the real signup path on purpose — a photographer's watermark
+-- must be their studio, never ours. This is seed data for a demo tenant, so
+-- here it is simply the demo studio's name.
+UPDATE tenants t
+SET business_name = 'Fotolio'
+FROM seed_target s
+WHERE t.id = s.tenant_id
+  AND (t.business_name IS NULL OR t.business_name = '');
+
 -- ── Packages ────────────────────────────────────────────────────────────────
 INSERT INTO packages (id, tenant_id, name, price_cents, duration_hours, included_photos, is_active, sort_order)
 SELECT p.id, s.tenant_id, p.name, p.price_cents, p.hours, p.photos, p.active, p.sort

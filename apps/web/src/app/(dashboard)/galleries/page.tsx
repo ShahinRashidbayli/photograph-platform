@@ -11,6 +11,15 @@ import { StatStrip } from '@/components/StatStrip';
 import { Badge, Toggle } from '@/components/ui';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
+import {
+  daysUntil,
+  expiryKind,
+  expiryText,
+  galleryGroup,
+  GROUP_LABEL_KEY,
+  GROUP_ORDER,
+  type GalleryGroup,
+} from './galleries.expiry';
 
 type AppColors = ReturnType<typeof getGalleriesColors>;
 type AppStyles = ReturnType<typeof getGalleriesStyles>;
@@ -66,12 +75,6 @@ interface InitiateUploadResponse {
    * anything else fails the signature check.
    */
   contentType: string;
-}
-
-/** Whole days until a date, or null when there's no expiry set. */
-function daysUntil(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 // ─── SVG icons ────────────────────────────────────────────────────────────────
@@ -138,37 +141,6 @@ const IconClock = () => (
   >
     <circle cx="12" cy="12" r="10" />
     <polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-const IconCheck = () => (
-  <svg
-    width="11"
-    height="11"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
-const IconX = () => (
-  <svg
-    width="11"
-    height="11"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 const IconPlus = () => (
@@ -267,76 +239,196 @@ const IconTrash = () => (
   </svg>
 );
 
-type ExpiryKind = 'none' | 'expired' | 'warning' | 'ok';
+// ─── Row chrome ───────────────────────────────────────────────────────────────
+const IconImageOff = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11" />
+    <path d="m4 18 5-5 3 3" />
+    <path d="m2 2 20 20" />
+  </svg>
+);
+const IconImage = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.4" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+const IconChevronRight = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+const IconSearch = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+const IconChevronDown = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
 
-/**
- * How close a gallery is to going offline.
- *
- * <p>Returns the classification and the raw day count rather than a sentence:
- * the wording is locale-dependent (German needs its own plural forms), and a
- * pure helper outside the component tree has no access to the active language.
- * Callers render it with {@link expiryText}.
- */
-function expiryKind(days: number | null): ExpiryKind {
-  if (days === null) return 'none';
-  if (days < 0) return 'expired';
-  if (days < 7) return 'warning';
-  return 'ok';
-}
-
-function expiryText(
-  days: number | null,
-  t: ReturnType<typeof useTranslation>['t'],
-  tPlural: ReturnType<typeof useTranslation>['tPlural']
-): string {
-  const kind = expiryKind(days);
-  if (kind === 'none') return t('galleries.expiry.none');
-  if (kind === 'expired') return t('galleries.expiry.expired');
-  return tPlural('galleries.expiry.daysLeft', days ?? 0);
-}
+/** How many rows the rail shows before "show the remaining n". */
+const LIST_PAGE_SIZE = 6;
 
 // ─── GalleryListItem ──────────────────────────────────────────────────────────
+/**
+ * One gallery in the rail: thumbnail, who and when, and a status line that
+ * doubles as the row's urgency colour.
+ *
+ * <p>The row carries its own next action rather than deferring every one of
+ * them to the detail panel — an empty gallery offers Upload, a lapsed one
+ * offers Reactivate. Those are the two states where the list itself is the
+ * to-do list, and making the photographer select the row first to find out
+ * turned a one-click job into three.
+ */
 function GalleryListItem({
   gallery,
   isActive,
+  busy,
   onSelect,
+  onUpload,
+  onExtend,
   styles,
   colors,
 }: Readonly<{
   gallery: Gallery;
   isActive: boolean;
+  busy: boolean;
   onSelect: () => void;
+  /** Opens the file picker for this gallery. */
+  onUpload: () => void;
+  onExtend: () => void;
   styles: AppStyles;
   colors: AppColors;
 }>) {
-  const { t, tPlural } = useTranslation();
+  const { t, tPlural, format } = useTranslation();
   const days = daysUntil(gallery.expiresAt);
   const kind = expiryKind(days);
+  const isEmpty = gallery.photoCount === 0;
   const tone =
     kind === 'expired'
       ? colors.dangerText
       : kind === 'warning'
         ? colors.warningText
-        : kind === 'ok'
-          ? colors.successText
-          : colors.textMuted;
+        : colors.textMuted;
+
+  // An expired gallery's countdown is the whole story — pairing it with a photo
+  // count reads as though the photos are still being served, which they are not.
+  const meta =
+    kind === 'expired'
+      ? tPlural('galleries.expiry.expiredSince', Math.abs(days ?? 0))
+      : `${isEmpty ? t('galleries.list.noPhotos') : tPlural('galleries.photoCount', gallery.photoCount)} · ${expiryText(days, t, tPlural)}`;
+
+  // Reactivate is only offered while it would actually work: once the photos
+  // are purged the endpoint 409s, and the row falls back to the chevron.
+  const action =
+    kind === 'expired'
+      ? gallery.canExtend
+        ? { label: t('galleries.list.reactivate'), run: onExtend }
+        : null
+      : isEmpty
+        ? { label: t('galleries.detail.upload'), run: onUpload }
+        : null;
 
   return (
-    <button
-      style={{ ...styles.listItem, ...(isActive ? styles.listItemActive : {}) }}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-current={isActive}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      style={{ ...styles.row, ...(isActive ? styles.rowActive : {}) }}
     >
-      <div style={styles.listItemTitle}>{gallery.bookingName}</div>
-      <div style={styles.listItemMeta}>
-        {gallery.eventType} · {gallery.photoCount} photos
-      </div>
-      <div
-        style={{ ...styles.listItemMeta, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-      >
-        {kind === 'expired' ? <IconX /> : kind === 'warning' ? <IconClock /> : <IconCheck />}
-        <span style={{ color: tone }}>{expiryText(days, t, tPlural)}</span>
-      </div>
-    </button>
+      {isActive && <span aria-hidden style={styles.rowAccent} />}
+      <span aria-hidden style={{ ...styles.thumb, ...(isEmpty ? styles.thumbEmpty : {}) }}>
+        {isEmpty ? <IconImageOff /> : <IconImage />}
+      </span>
+      <span style={styles.rowBody}>
+        <span style={styles.rowTitle}>{gallery.bookingName}</span>
+        <span style={styles.rowSub}>
+          {gallery.eventType} · {format.monthDayYear(gallery.shootDate)}
+        </span>
+        <span style={{ ...styles.rowMeta, color: tone }}>{meta}</span>
+      </span>
+      {action ? (
+        <button
+          type="button"
+          style={styles.rowAction}
+          disabled={busy}
+          onClick={(e) => {
+            // The row is clickable too; without this, acting on a gallery also
+            // moved the selection under the photographer.
+            e.stopPropagation();
+            action.run();
+          }}
+        >
+          {busy ? '…' : action.label}
+        </button>
+      ) : (
+        <span aria-hidden style={styles.rowChevron}>
+          <IconChevronRight />
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1016,6 +1108,12 @@ export default function GalleriesPage() {
   const [error, setError] = useState<AsyncError | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The rail shows the first page of galleries and offers the rest behind one
+  // click — a photographer two seasons in has a hundred of them, and the ones
+  // that need doing something about are already sorted to the top.
+  const [showAll, setShowAll] = useState(false);
+  const listFileRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string | null>(null);
 
   const loadGalleries = useCallback(() => {
     setLoading(true);
@@ -1147,9 +1245,59 @@ export default function GalleriesPage() {
     );
   }, [galleries, filterStatus, searchQuery]);
 
+  /**
+   * The filtered list split into its three buckets, each ordered by what makes
+   * that bucket useful: a running deadline sorts most-urgent-first, and
+   * everything else sorts newest shoot first.
+   */
+  const groupedGalleries = useMemo(() => {
+    const buckets: Record<GalleryGroup, Gallery[]> = { soon: [], active: [], expired: [] };
+    for (const gallery of filteredGalleries) buckets[galleryGroup(gallery.expiresAt)].push(gallery);
+    buckets.soon.sort((a, b) => (daysUntil(a.expiresAt) ?? 0) - (daysUntil(b.expiresAt) ?? 0));
+    // Days are negative here, so descending puts the most recently lapsed —
+    // the ones still worth reactivating — at the top.
+    buckets.expired.sort((a, b) => (daysUntil(b.expiresAt) ?? 0) - (daysUntil(a.expiresAt) ?? 0));
+    buckets.active.sort((a, b) => Date.parse(b.shootDate) - Date.parse(a.shootDate));
+    return buckets;
+  }, [filteredGalleries]);
+
+  const orderedGalleries = useMemo(
+    () => GROUP_ORDER.flatMap((group) => groupedGalleries[group]),
+    [groupedGalleries]
+  );
+  const visibleGalleries = showAll ? orderedGalleries : orderedGalleries.slice(0, LIST_PAGE_SIZE);
+  const hiddenCount = orderedGalleries.length - visibleGalleries.length;
+
+  // A new filter or query is a new list; carrying "expanded" across would drop
+  // the photographer into an already-unfolded hundred rows.
+  useEffect(() => setShowAll(false), [filterStatus, searchQuery]);
+
+  const statusCounts = useMemo(() => {
+    const expired = galleries.filter((g) => {
+      const d = daysUntil(g.expiresAt);
+      return d !== null && d < 0;
+    }).length;
+    return { All: galleries.length, Active: galleries.length - expired, Expired: expired };
+  }, [galleries]);
+
+  const requestUpload = useCallback((galleryId: string) => {
+    uploadTargetRef.current = galleryId;
+    listFileRef.current?.click();
+  }, []);
+
+  /**
+   * The gallery the detail panel shows — resolved against the *ordered* list,
+   * not the raw one. Falling back to `galleries[0]` was survivable while the
+   * rail rendered in API order and that gallery was the top row; once the rail
+   * started grouping, sorting and paging at {@link LIST_PAGE_SIZE}, the panel
+   * was opening on a gallery that could sit anywhere in the list or behind
+   * "show more" — and, since nothing was selected yet, with no row highlighted
+   * to explain where it came from. Resolving here means the panel can only ever
+   * show a gallery the photographer can actually see, filtered or not.
+   */
   const selectedGallery = useMemo(
-    () => galleries.find((g) => g.id === selectedGalleryId) ?? galleries[0] ?? null,
-    [galleries, selectedGalleryId]
+    () => orderedGalleries.find((g) => g.id === selectedGalleryId) ?? orderedGalleries[0] ?? null,
+    [orderedGalleries, selectedGalleryId]
   );
 
   const stats = useMemo(
@@ -1231,35 +1379,30 @@ export default function GalleriesPage() {
         <div style={styles.container}>
           <div style={styles.listPanel}>
             <div style={styles.listScroll}>
+              {/* Same shape as a real row — thumbnail, name, meta, status —
+                  so nothing jumps sideways when the galleries land. */}
               {[0, 1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    padding: '14px 16px',
-                    marginBottom: 10,
-                  }}
-                >
-                  <div
+                <div key={i} style={{ ...styles.row, cursor: 'default' }}>
+                  <span
                     style={{
-                      height: 13,
-                      width: '60%',
-                      borderRadius: 6,
-                      background: colors.surfaceAlt,
+                      ...styles.thumb,
                       animation: 'pulse 1.6s ease-in-out infinite',
                     }}
                   />
-                  <div
-                    style={{
-                      height: 11,
-                      width: '40%',
-                      borderRadius: 6,
-                      background: colors.surfaceAlt,
-                      animation: 'pulse 1.6s ease-in-out infinite',
-                    }}
-                  />
+                  <span style={styles.rowBody}>
+                    {(['62%', '44%', '52%'] as const).map((width, line) => (
+                      <span
+                        key={width}
+                        style={{
+                          height: line === 0 ? 13 : 11,
+                          width,
+                          borderRadius: 6,
+                          background: colors.surfaceAlt,
+                          animation: 'pulse 1.6s ease-in-out infinite',
+                        }}
+                      />
+                    ))}
+                  </span>
                 </div>
               ))}
             </div>
@@ -1339,40 +1482,91 @@ export default function GalleriesPage() {
       <div style={styles.container}>
         <div style={styles.listPanel}>
           <div style={styles.listHeader}>
-            <div style={styles.listTitle}>{t('galleries.list.title')}</div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('galleries.list.search')}
-              aria-label={t('galleries.list.searchLabel')}
-              style={styles.searchBox}
-            />
+            <div style={styles.listTitleRow}>
+              <div style={styles.listTitle}>{t('galleries.list.title')}</div>
+              <span style={styles.listCount}>{galleries.length}</span>
+            </div>
+
+            <div style={styles.searchWrap}>
+              <span style={styles.searchIcon}>
+                <IconSearch />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('galleries.list.search')}
+                aria-label={t('galleries.list.searchLabel')}
+                style={styles.searchBox}
+              />
+            </div>
+
+            {/* One segmented control carrying its own counts: the tab labels
+                and the "how many are there" figure answered the same question
+                from two different places before. */}
+            <div
+              style={styles.segmented}
+              role="tablist"
+              aria-label={t('galleries.list.filterLabel')}
+            >
+              {(
+                [
+                  ['All', 'galleries.filter.all'],
+                  ['Active', 'galleries.filter.active'],
+                  ['Expired', 'galleries.filter.expired'],
+                ] as const
+              ).map(([status, labelKey]) => {
+                const active = filterStatus === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setFilterStatus(status)}
+                    style={{
+                      ...styles.segmentTab,
+                      ...(active ? styles.segmentTabActive : {}),
+                    }}
+                  >
+                    {t(labelKey)}
+                    {/* Not aria-hidden: the count is half the answer to "which
+                        tab do I want", and hiding it left a screen-reader user
+                        with three indistinguishable status names. */}
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        color: active ? colors.textMuted : colors.textSubtle,
+                      }}
+                    >
+                      {statusCounts[status]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div style={styles.filterTabs}>
-            {(
-              [
-                ['All', 'galleries.filter.all'],
-                ['Active', 'galleries.filter.active'],
-                ['Expired', 'galleries.filter.expired'],
-              ] as const
-            ).map(([status, labelKey]) => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                style={{
-                  ...styles.filterTab,
-                  ...(filterStatus === status ? styles.filterTabActive : {}),
-                }}
-              >
-                {t(labelKey)}
-              </button>
-            ))}
-          </div>
+          {/* One picker for the whole rail: every row's Upload points its id at
+              it, so the list doesn't mount a file input per gallery. */}
+          <input
+            ref={listFileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const targetId = uploadTargetRef.current;
+              if (targetId && e.target.files && e.target.files.length > 0) {
+                uploadPhotos(targetId, e.target.files);
+              }
+              e.target.value = '';
+              uploadTargetRef.current = null;
+            }}
+          />
 
           <div style={styles.listScroll}>
-            {filteredGalleries.length === 0 ? (
+            {orderedGalleries.length === 0 ? (
               <div
                 style={{
                   padding: '24px',
@@ -1384,16 +1578,52 @@ export default function GalleriesPage() {
                 {galleries.length === 0 ? t('galleries.list.empty') : t('galleries.list.noMatch')}
               </div>
             ) : (
-              filteredGalleries.map((gallery) => (
-                <GalleryListItem
-                  key={gallery.id}
-                  gallery={gallery}
-                  isActive={selectedGalleryId === gallery.id}
-                  onSelect={() => setSelectedGalleryId(gallery.id)}
-                  styles={styles}
-                  colors={colors}
-                />
-              ))
+              <>
+                {GROUP_ORDER.map((group) => {
+                  const rows = visibleGalleries.filter((g) => galleryGroup(g.expiresAt) === group);
+                  if (rows.length === 0) return null;
+                  return (
+                    <React.Fragment key={group}>
+                      <div
+                        style={{
+                          ...styles.groupHeader,
+                          ...(group === 'soon' ? styles.groupHeaderWarning : {}),
+                        }}
+                      >
+                        {group === 'soon' && <IconClock />}
+                        {t(GROUP_LABEL_KEY[group])}
+                      </div>
+                      {rows.map((gallery) => (
+                        <GalleryListItem
+                          key={gallery.id}
+                          gallery={gallery}
+                          isActive={selectedGallery?.id === gallery.id}
+                          busy={busyId === gallery.id}
+                          onSelect={() => setSelectedGalleryId(gallery.id)}
+                          onUpload={() => requestUpload(gallery.id)}
+                          onExtend={() => extendGallery(gallery.id)}
+                          styles={styles}
+                          colors={colors}
+                        />
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+
+                {hiddenCount > 0 ? (
+                  <button type="button" style={styles.showMore} onClick={() => setShowAll(true)}>
+                    {tPlural('galleries.list.showMore', hiddenCount)}
+                    <IconChevronDown />
+                  </button>
+                ) : (
+                  showAll &&
+                  orderedGalleries.length > LIST_PAGE_SIZE && (
+                    <button type="button" style={styles.showMore} onClick={() => setShowAll(false)}>
+                      {t('galleries.list.showLess')}
+                    </button>
+                  )
+                )}
+              </>
             )}
           </div>
         </div>

@@ -58,9 +58,10 @@ function LeadsView() {
     setFilterPipeline,
     searchTerm,
     setSearchTerm,
+    sortOrder,
+    setSortOrder,
     pipelineCounts,
-    filteredLeads,
-    filteredInquiries,
+    inboxItems,
   } = useLeadFilters(leads, inquiries);
 
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -73,19 +74,17 @@ function LeadsView() {
     if (sel) setSelected({ kind: 'lead', id: sel });
   }, [searchParams]);
 
-  // Effective selection with fallback to the first visible row — customer
-  // inquiries render first, so they win the default. Keeps the detail panel in
-  // sync when a filter hides the previously-selected item.
+  // Effective selection with fallback to the first visible row — whichever
+  // source that row happens to come from, since the inbox is one date-ordered
+  // list. Keeps the detail panel in sync when a filter hides the
+  // previously-selected item.
   const effectiveSelected = useMemo<Selection | null>(() => {
-    const visible: Selection[] = [
-      ...filteredInquiries.map((i) => ({ kind: 'inquiry' as const, id: i.id })),
-      ...filteredLeads.map((l) => ({ kind: 'lead' as const, id: l.id })),
-    ];
-    if (selected && visible.some((v) => v.kind === selected.kind && v.id === selected.id)) {
+    if (selected && inboxItems.some((i) => i.kind === selected.kind && i.id === selected.id)) {
       return selected;
     }
-    return visible[0] ?? null;
-  }, [selected, filteredLeads, filteredInquiries]);
+    const first = inboxItems[0];
+    return first ? { kind: first.kind, id: first.id } : null;
+  }, [selected, inboxItems]);
 
   const selectedLead = useMemo(
     () =>
@@ -397,64 +396,27 @@ function LeadsView() {
       ) : (
         <div style={s.container}>
           <div style={s.listPanel}>
-            {/* Compact filter bar — replaces the previous title + subtitle +
-                separate search row + two filter rows (each adding 40px of
-                fixed chrome). Pipeline is the primary axis (segmented
-                control); score and search are inline next to it. Net effect:
-                ~90px of vertical recovered, single visual unit. */}
-            {/* Source axis: leads (anonymous form) vs customer inquiries. Only
-                shown when both sources actually have entries — a photographer
-                with no inquiries yet shouldn't see an empty toggle. */}
-            {inquiries.length > 0 && (
-              <div
-                style={{
-                  display: 'inline-flex',
-                  gap: 2,
-                  padding: 2,
-                  borderRadius: 10,
-                  border: `1px solid ${c.border}`,
-                  background: c.surface,
-                  marginBottom: 10,
-                }}
-              >
-                {(['all', 'form', 'customer'] as const).map((sf) => {
-                  const active = sourceFilter === sf;
-                  return (
-                    <button
-                      key={sf}
-                      type="button"
-                      onClick={() => setSourceFilter(sf)}
-                      style={{
-                        padding: '5px 12px',
-                        borderRadius: 8,
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        background: active ? c.primaryBg : 'transparent',
-                        color: active ? c.primaryText : c.textMuted,
-                      }}
-                    >
-                      {sf === 'all'
-                        ? t('leads.source.all')
-                        : sf === 'form'
-                          ? t('leads.source.form')
-                          : t('leads.source.customer')}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
+            {/* Compact filter bar — pipeline tabs, search + Filter popover, and a
+                results strip showing what is applied. Source (form vs customer)
+                used to be its own segmented control here; it moved into the
+                popover so the panel opens on the list rather than on two rows
+                of filter chrome. */}
             <FilterBar
               c={c}
               filterPipeline={filterPipeline}
               setFilterPipeline={setFilterPipeline}
               filterScore={filterScore}
               setFilterScore={setFilterScore}
+              sourceFilter={sourceFilter}
+              setSourceFilter={setSourceFilter}
+              showSourceFilter={inquiries.length > 0}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               pipelineCounts={pipelineCounts}
+              sortOrder={sortOrder}
+              setSortOrder={setSortOrder}
+              resultCount={inboxItems.length}
+              loading={loading}
             />
 
             <div style={s.listScroll}>
@@ -465,7 +427,7 @@ function LeadsView() {
                   <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noneTitle')}</div>
                   <div>{t('leads.empty.noneBody')}</div>
                 </div>
-              ) : filteredLeads.length === 0 && filteredInquiries.length === 0 ? (
+              ) : inboxItems.length === 0 ? (
                 <div style={s.emptyState}>
                   <div style={{ color: c.text, fontWeight: 600 }}>
                     {t('leads.empty.noMatchTitle')}
@@ -491,36 +453,35 @@ function LeadsView() {
                   )}
                 </div>
               ) : (
-                <>
-                  {filteredInquiries.map((inq) => (
+                inboxItems.map((item) => {
+                  const isActive =
+                    effectiveSelected?.kind === item.kind && effectiveSelected.id === item.id;
+                  const onSelect = () => setSelected({ kind: item.kind, id: item.id });
+                  const onHover = (hov: boolean) => setHoveredId(hov ? item.id : null);
+                  return item.kind === 'inquiry' ? (
                     <InquiryRow
-                      key={`inq-${inq.id}`}
-                      inquiry={inq}
-                      isActive={
-                        effectiveSelected?.kind === 'inquiry' && effectiveSelected.id === inq.id
-                      }
-                      isHovered={hoveredId === inq.id}
-                      onSelect={() => setSelected({ kind: 'inquiry', id: inq.id })}
-                      onHover={(hov) => setHoveredId(hov ? inq.id : null)}
+                      key={`inq-${item.id}`}
+                      inquiry={item.inquiry}
+                      isActive={isActive}
+                      isHovered={hoveredId === item.id}
+                      onSelect={onSelect}
+                      onHover={onHover}
                       s={s}
                       c={c}
                     />
-                  ))}
-                  {filteredLeads.map((lead) => (
+                  ) : (
                     <LeadListItem
-                      key={lead.id}
-                      lead={lead}
-                      isActive={
-                        effectiveSelected?.kind === 'lead' && effectiveSelected.id === lead.id
-                      }
-                      isHovered={hoveredId === lead.id}
-                      onSelect={() => setSelected({ kind: 'lead', id: lead.id })}
-                      onHover={(hov) => setHoveredId(hov ? lead.id : null)}
+                      key={`lead-${item.id}`}
+                      lead={item.lead}
+                      isActive={isActive}
+                      isHovered={hoveredId === item.id}
+                      onSelect={onSelect}
+                      onHover={onHover}
                       s={s}
                       c={c}
                     />
-                  ))}
-                </>
+                  );
+                })
               )}
             </div>
           </div>

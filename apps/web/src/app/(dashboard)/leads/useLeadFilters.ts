@@ -6,6 +6,24 @@ import type { LeadPipelineFilter, LeadScoreFilter } from './leadTypes';
 import { type Inquiry, inquiryPipeline } from './inquiryTypes';
 
 export type SourceFilter = 'all' | 'form' | 'customer';
+/** Newest-first is the inbox default; oldest-first surfaces what has been waiting longest. */
+export type LeadSortOrder = 'newest' | 'oldest';
+
+/**
+ * One row of the inbox.
+ *
+ * <p>Leads and customer inquiries stay separate types — their enums, statuses
+ * and action sets genuinely differ — but they share a single chronological
+ * list, so the sort has to be applied to the merged sequence. Sorting each
+ * source on its own and concatenating them (which is what this hook used to
+ * hand the page) put every inquiry above every lead regardless of date: with
+ * "newest first" selected, a lead from August still rendered below an inquiry
+ * from January. Returning one ordered list instead of two is what makes that
+ * unrepresentable.
+ */
+export type InboxItem =
+  | { kind: 'lead'; id: string; createdAt: string; lead: Lead }
+  | { kind: 'inquiry'; id: string; createdAt: string; inquiry: Inquiry };
 
 export interface LeadFilters {
   sourceFilter: SourceFilter;
@@ -16,16 +34,18 @@ export interface LeadFilters {
   setFilterPipeline: (_v: LeadPipelineFilter) => void;
   searchTerm: string;
   setSearchTerm: (_v: string) => void;
+  sortOrder: LeadSortOrder;
+  setSortOrder: (_v: LeadSortOrder) => void;
   pipelineCounts: Record<LeadPipelineFilter, number>;
-  filteredLeads: Lead[];
-  filteredInquiries: Inquiry[];
+  /** Both sources, filtered and merged into one list in the chosen order. */
+  inboxItems: InboxItem[];
 }
 
 /**
- * Owns the leads inbox filter state (source / score / pipeline / search) and
- * the lists derived from it. Extracted from the page so the component renders
- * from a single view-model rather than juggling filter state and five
- * interdependent memos inline.
+ * Owns the leads inbox filter state (source / score / pipeline / search / sort)
+ * and the single ordered list derived from it. Extracted from the page so the
+ * component renders from one view-model rather than juggling filter state and
+ * five interdependent memos inline.
  *
  * <p>Customer inquiries share the inbox with anonymous-form leads, so every
  * derivation spans both sources and the pipeline counts sum whichever sources
@@ -39,6 +59,7 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
   // away via the pipeline tabs, but they don't clutter the daily working view.
   const [filterPipeline, setFilterPipeline] = useState<LeadPipelineFilter>('Active');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState<LeadSortOrder>('newest');
 
   const showLeads = sourceFilter !== 'customer';
   const showInquiries = sourceFilter !== 'form';
@@ -77,6 +98,14 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     [filterScore]
   );
 
+  const matchesSearch = useCallback(
+    (haystack: string) => {
+      const q = searchTerm.trim().toLowerCase();
+      return q === '' || haystack.toLowerCase().includes(q);
+    },
+    [searchTerm]
+  );
+
   const filteredLeads = useMemo(() => {
     if (!showLeads) return [] as Lead[];
     let list = leads;
@@ -87,17 +116,12 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     } else if (filterPipeline === 'Rejected') {
       list = list.filter((l) => l.status === 'REJECTED');
     }
-    list = list.filter((l) => scoreMatches(l.score));
-    const q = searchTerm.trim().toLowerCase();
-    if (q) {
-      list = list.filter((l) => {
-        const haystack =
-          `${l.name} ${l.email ?? ''} ${l.eventType ?? ''} ${l.message ?? ''}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [leads, showLeads, filterPipeline, scoreMatches, searchTerm]);
+    return list
+      .filter((l) => scoreMatches(l.score))
+      .filter((l) =>
+        matchesSearch(`${l.name} ${l.email ?? ''} ${l.eventType ?? ''} ${l.message ?? ''}`)
+      );
+  }, [leads, showLeads, filterPipeline, scoreMatches, matchesSearch]);
 
   const filteredInquiries = useMemo(() => {
     if (!showInquiries) return [] as Inquiry[];
@@ -105,17 +129,35 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     if (filterPipeline !== 'All') {
       list = list.filter((i) => inquiryPipeline(i.status) === filterPipeline);
     }
-    list = list.filter((i) => scoreMatches(i.score));
-    const q = searchTerm.trim().toLowerCase();
-    if (q) {
-      list = list.filter((i) => {
-        const haystack =
-          `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [inquiries, showInquiries, filterPipeline, scoreMatches, searchTerm]);
+    return list
+      .filter((i) => scoreMatches(i.score))
+      .filter((i) =>
+        matchesSearch(
+          `${i.customerName ?? ''} ${i.customerEmail ?? ''} ${i.eventType ?? ''} ${i.message ?? ''}`
+        )
+      );
+  }, [inquiries, showInquiries, filterPipeline, scoreMatches, matchesSearch]);
+
+  // The one place the order is decided. Sorting a fresh array rather than in
+  // place: the sources are the arrays held in the inbox hook's state, and
+  // sorting those would mutate state React believes it owns.
+  const inboxItems = useMemo<InboxItem[]>(() => {
+    const items: InboxItem[] = [
+      ...filteredInquiries.map(
+        (inquiry): InboxItem => ({
+          kind: 'inquiry',
+          id: inquiry.id,
+          createdAt: inquiry.createdAt,
+          inquiry,
+        })
+      ),
+      ...filteredLeads.map(
+        (lead): InboxItem => ({ kind: 'lead', id: lead.id, createdAt: lead.createdAt, lead })
+      ),
+    ];
+    const direction = sortOrder === 'newest' ? -1 : 1;
+    return items.sort((a, b) => direction * (Date.parse(a.createdAt) - Date.parse(b.createdAt)));
+  }, [filteredInquiries, filteredLeads, sortOrder]);
 
   return {
     sourceFilter,
@@ -126,8 +168,9 @@ export function useLeadFilters(leads: Lead[], inquiries: Inquiry[]): LeadFilters
     setFilterPipeline,
     searchTerm,
     setSearchTerm,
+    sortOrder,
+    setSortOrder,
     pipelineCounts,
-    filteredLeads,
-    filteredInquiries,
+    inboxItems,
   };
 }

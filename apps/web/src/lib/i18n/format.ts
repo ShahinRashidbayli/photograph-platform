@@ -49,6 +49,21 @@ export type Formatters = {
    * or a charge: it would print €1,235 next to a button that debits €1,234.56.
    */
   eurExact: (_cents: number | null | undefined) => string;
+  /**
+   * {@link eur}, split into the symbol and the digits.
+   *
+   * <p>For the one place that cannot use a formatted string: the pricing card
+   * sets the amount in display-size serif and the € in a small superscript, so
+   * it needs the two halves separately. Composing them by hand is what put a
+   * hardcoded `€` in front of a German price — `formatToParts` reports the
+   * order Intl actually chose, so `symbolFirst` decides which side it lands on
+   * instead of the markup deciding for every locale at once.
+   */
+  eurParts: (_cents: number | null | undefined) => {
+    symbol: string;
+    value: string;
+    symbolFirst: boolean;
+  };
   /** Plain number with locale grouping — used for interpolated counts. */
   number: (_value: number) => string;
 } & Record<DateStyleName, (_value: DateInput) => string> & {
@@ -84,6 +99,23 @@ function build(locale: Locale): Formatters {
   const formatters = {
     eur: (cents: number | null | undefined) => currency.format((cents ?? 0) / 100),
     eurExact: (cents: number | null | undefined) => currencyExact.format((cents ?? 0) / 100),
+    eurParts: (cents: number | null | undefined) => {
+      const parts = currency.formatToParts((cents ?? 0) / 100);
+      const symbol = parts.find((p) => p.type === 'currency')?.value ?? '€';
+      // Everything that is not the symbol — digits, grouping separators and
+      // the sign — keeps Intl's own ordering. The literal space German puts
+      // between number and symbol is dropped: the two halves are laid out by
+      // the card's flex gap, and a stray leading space would offset the digits.
+      const value = parts
+        .filter((p) => p.type !== 'currency' && p.type !== 'literal')
+        .map((p) => p.value)
+        .join('');
+      return {
+        symbol,
+        value,
+        symbolFirst: parts.findIndex((p) => p.type === 'currency') === 0,
+      };
+    },
     number: (value: number) => number.format(value),
     monthAbbrUpper: (value: DateInput) => dates.monthAbbr.format(asDate(value)).toUpperCase(),
   } as Formatters;

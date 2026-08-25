@@ -22,7 +22,9 @@ export type IconName =
   | 'briefcase'
   | 'user'
   | 'mail'
-  | 'arrow-right';
+  | 'arrow-right'
+  | 'menu'
+  | 'close';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   target: (
@@ -110,6 +112,19 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M5 12h14" />
       <path d="M13 6l6 6-6 6" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
     </>
   ),
 };

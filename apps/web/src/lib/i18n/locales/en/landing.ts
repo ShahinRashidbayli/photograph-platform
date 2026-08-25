@@ -9,10 +9,23 @@ export const landing = {
   'landing.aria.home': 'Fotolio home',
   'landing.aria.mockPreview': 'Fotolio bookings dashboard preview',
   'landing.aria.billingPeriod': 'Billing period',
+  // Below 860px the section links collapse behind this button. They used to be
+  // `display: none` with nothing in their place, so the whole in-page nav
+  // simply did not exist on a phone.
+  'landing.aria.openMenu': 'Open menu',
+  'landing.aria.closeMenu': 'Close menu',
+  'landing.aria.sections': 'Sections',
   'landing.nav.features': 'Features',
   'landing.nav.howItWorks': 'How it works',
   'landing.nav.pricing': 'Pricing',
-  'landing.nav.forClients': 'For clients',
+  // Points at the audience section, which is now about what the
+  // photographer gets. Labelling it "for clients" re-created, in the
+  // nav, the two-audience framing the section itself dropped.
+  'landing.nav.studio': 'Your studio',
+  // The footer link goes to /customer/auth/login. It used to read "Find a
+  // photographer", promising a directory that does not exist and landing
+  // the visitor on a sign-in form instead.
+  'landing.nav.clientSignIn': 'Client sign-in',
   'landing.nav.signIn': 'Sign in',
   'landing.nav.getStarted': 'Get started',
 
@@ -26,9 +39,15 @@ export const landing = {
   'landing.hero.microNoCard': 'No credit card',
   'landing.hero.microCancel': 'Cancel anytime',
   'landing.hero.mockThisWeek': 'This week',
-  'landing.hero.mockExpected': '€1.240 expected',
+  // The amount is interpolated, never written into the string: typed by hand it
+  // read "€1.240" in *both* locales — the German separator under English copy,
+  // where it means one euro twenty-four, and the English symbol placement under
+  // German copy on the page that sells "built for the German market". The page
+  // passes `format.eur(…)`, so each locale gets its own grouping and its own
+  // side for the symbol.
+  'landing.hero.mockExpected': '{amount} expected',
   'landing.hero.toastTitle': 'New booking confirmed',
-  'landing.hero.toastMeta': 'Wedding · €480 deposit paid',
+  'landing.hero.toastMeta': 'Wedding · {amount} deposit paid',
 
   'landing.cap.leadScoring': 'Lead scoring',
   'landing.cap.onlineBooking': 'Online booking',
@@ -41,38 +60,58 @@ export const landing = {
   'landing.booking.confirmed': 'Confirmed',
   'landing.booking.depositPaid': 'Deposit paid',
   'landing.booking.contractSent': 'Contract sent',
+  'landing.booking.n1Name': 'Lena & Kaan — Wedding',
+  'landing.booking.n1Meta': 'Sat 12 Jul · Grugapark, Essen',
+  'landing.booking.n2Name': 'Meyer Family — Portrait',
+  'landing.booking.n2Meta': 'Sun 13 Jul · Studio',
+  'landing.booking.n3Name': 'Julia T. — Newborn',
+  'landing.booking.n3Meta': 'Tue 15 Jul · On location',
 
   'landing.features.eyebrow': 'Everything in one place',
   'landing.features.title': 'Run your studio without the busywork.',
   'landing.features.sub':
     'From the first enquiry to the final gallery delivery, every step of the shoot lives in one connected workspace.',
-  'landing.features.galleriesTitle': 'Client galleries that sell',
+  'landing.features.galleriesTitle': 'No WeTransfer links, no expiry stress',
   'landing.features.galleriesText':
-    'Deliver private, branded galleries your clients can view, favourite and download — no WeTransfer links, no expiry stress.',
+    'Deliver private, branded galleries your clients can view, favourite and download — the link stays yours, and it stays alive as long as you say.',
+  // Sample data for the previews. These live in the dictionaries rather than in
+  // the page because a mock that says "Sat 12 Jul" under German copy is the
+  // fastest way to tell a visitor the product was not built for them.
+  'landing.features.galleryBarName': 'Lena & Kaan — Wedding',
   'landing.features.galleryBarMeta': '248 photos · 12 favourited',
   'landing.features.downloadAll': 'Download all',
-  'landing.features.bookingsTitle': 'Online bookings',
+  'landing.features.bookingsTitle': 'No more back-and-forth on dates',
   'landing.features.bookingsText':
-    'Clients book sessions straight from your portfolio page — synced to your calendar.',
+    'Clients pick a slot straight from your portfolio page and it lands in your calendar — no email thread, no double booking.',
   'landing.features.booked': 'Booked',
   'landing.features.open': 'Open',
+  'landing.features.slotBooked': 'Sat 12 Jul · 14:00',
+  'landing.features.slotOpen': 'Sun 13 Jul · 10:00',
+  'landing.features.slotOpenLate': 'Sun 13 Jul · 16:00',
   'landing.features.contractsTitle': 'Contracts & e-sign',
   'landing.features.contractsText':
     'Send shoot agreements and collect legally binding signatures — no email back-and-forth.',
-  'landing.features.signed': 'Signed',
-  'landing.features.esigned': 'e-signed',
   'landing.features.stripeTitle': 'Stripe payments',
   'landing.features.stripeText':
     'Take deposits and final payments online with automatic reconciliation.',
-  'landing.features.deposit': 'Deposit',
+  // This card had no preview while payments were unbuilt — mocking a "Paid" row
+  // for a feature that could not take a cent is the one thing a roadmap card
+  // must not do. Card and SEPA shipped on Connect Express on 2026-08-18, so the
+  // preview now shows the states the product actually produces.
+  'landing.features.payDeposit': 'Deposit · {amount}',
+  'landing.features.payBalance': 'Balance · {amount}',
+  'landing.features.payMethods': 'Card · SEPA',
   'landing.features.paid': 'Paid',
-  'landing.features.balance': 'Balance',
-  'landing.features.due': 'Due 12 Jul',
-  'landing.features.leadTitle': 'Lead management',
+  'landing.features.payEnabled': 'Enabled',
+  'landing.features.leadTitle': 'No enquiry slips through',
   'landing.features.leadText':
-    'Capture, score and route enquiries so no booking request slips through.',
+    'Every request is captured and scored the moment it arrives, so the ones worth answering today are at the top.',
   'landing.features.leadHot': '92 · Hot',
   'landing.features.leadWarm': '61 · Warm',
+  'landing.features.leadCold': '34 · Cold',
+  'landing.features.leadHotName': 'Sarah M. · Wedding',
+  'landing.features.leadWarmName': 'Tom K. · Portrait',
+  'landing.features.leadColdName': 'Jonas B. · Family',
   'landing.features.germanTitle': 'Built for the German market',
   'landing.features.germanText':
     'Bilingual DE / EN, DSGVO-aware by default, GoBD-konforme Rechnungen and Kleinunternehmer support.',
@@ -95,22 +134,27 @@ export const landing = {
   'landing.pipeline.galleryText':
     'Final images land in a private, branded gallery to view and download.',
 
-  'landing.audience.eyebrow': 'Both sides of the lens',
-  'landing.audience.title': 'Built for everyone in the frame.',
-  'landing.audience.photographersTitle': 'For photographers',
-  'landing.audience.photographersTag': 'One studio to run the whole business',
-  'landing.audience.clientsTitle': 'For clients',
-  'landing.audience.clientsTag': 'Book, sign and view — all in one link',
-  'landing.audience.startTrial': 'Start free trial',
-  'landing.audience.findPhotographer': 'Find a photographer',
-  'landing.phFeat.portfolio': 'Portfolio & public booking page',
-  'landing.phFeat.leads': 'Lead management & scoring',
-  'landing.phFeat.contracts': 'Contracts & payments',
-  'landing.phFeat.data': 'DSGVO-konforme client data',
-  'landing.clFeat.browse': 'Browse portfolios & book online',
-  'landing.clFeat.sign': 'Sign contracts online',
-  'landing.clFeat.pay': 'Pay securely with Stripe',
-  'landing.clFeat.gallery': 'View & download your gallery',
+  'landing.audience.eyebrow': 'Your studio',
+  'landing.audience.title': 'The whole business — not just the shoot.',
+  'landing.audience.sub':
+    'The portfolio, the enquiries, the galleries and the client data — one workspace, all of it yours.',
+  // Hands off to the pricing table directly below. This section used to carry
+  // a second copy of the hero's "start your trial" button instead.
+  'landing.audience.seePricing': 'See plans and pricing',
+  // Outcome + the detail that makes it concrete. The detail is the point: a
+  // second list of feature names is what made this section skippable.
+  'landing.studio.portfolioTitle': 'Portfolio with a booking page',
+  'landing.studio.portfolioText': 'Your own subdomain, your own look',
+  'landing.studio.leadsTitle': 'Enquiries scored and sorted',
+  'landing.studio.leadsText': 'What is worth answering sits at the top',
+  'landing.studio.galleriesTitle': 'Private client galleries',
+  'landing.studio.galleriesText': 'A link you control — no WeTransfer',
+  'landing.studio.dataTitle': 'Client data kept DSGVO-konform',
+  'landing.studio.dataText': 'Retention limits and deletion built in',
+  'landing.audience.clientTitle': 'And this is what your clients get',
+  'landing.clientExp.book': 'Book a slot in two clicks',
+  'landing.clientExp.gallery': 'View and download the gallery',
+  'landing.clientExp.link': 'One link, no account needed',
 
   'landing.pricing.eyebrow': 'Pricing',
   'landing.pricing.title': 'Simple, transparent pricing.',
@@ -122,6 +166,11 @@ export const landing = {
   'landing.pricing.billedYearly': 'Billed yearly',
   'landing.pricing.billedMonthly': 'Billed monthly',
   'landing.pricing.mostPopular': 'Most popular',
+  // Sits with the prices, not in the footnote: German price-indication law
+  // (PAngV) wants the VAT statement next to the figure it qualifies, and a
+  // page with no statement at all implicitly claims the €19 is what you pay.
+  // Fotolio sells to businesses, so the listed prices are net.
+  'landing.pricing.vatNote': 'Prices exclude VAT.',
   'landing.pricing.feeNote':
     '* 2% of what you collect through Fotolio, on top of Stripe’s own fee. Pro and Studio pay nothing.',
   'landing.pricing.getStarted': 'Get started',
@@ -142,8 +191,10 @@ export const landing = {
   'landing.price.f.analytics': 'Revenue & booking reports',
   'landing.price.f.whiteLabel': 'Your own domain & branding',
 
-  'landing.cta.eyebrow': 'Ready when you are',
-  'landing.cta.title': 'Spend your day behind the camera.',
+  // Split the way the hero's headline is, so the closing line carries the same
+  // shimmering accent word — the two display lines bookend the page.
+  'landing.cta.titlePre': 'Spend your day behind the ',
+  'landing.cta.titleAccent': 'camera',
   'landing.cta.text':
     'Let Fotolio handle the leads, contracts and payments while you do the part only you can.',
   'landing.cta.button': 'Start 14-day free trial',

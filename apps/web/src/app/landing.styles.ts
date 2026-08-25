@@ -80,20 +80,41 @@ export const getLandingStyles = (theme: Theme) => {
       cursor: 'pointer',
     },
     navRight: { display: 'flex', alignItems: 'center', gap: 12 },
-    themeToggle: {
-      width: 38,
-      height: 38,
-      display: 'flex',
+    // Hidden above 860px by `.landing-nav-menu-btn`, where the section links
+    // are laid out in the bar itself.
+    navMenuBtn: {
+      display: 'none',
       alignItems: 'center',
       justifyContent: 'center',
+      width: 38,
+      height: 38,
+      borderRadius: radius.control,
       border: `1px solid ${c.border}`,
       background: 'transparent',
-      borderRadius: radius.pill,
-      cursor: 'pointer',
-      fontSize: 15,
-      lineHeight: 1,
       color: c.text,
-      transition: 'all 0.2s',
+      cursor: 'pointer',
+      padding: 0,
+    },
+    // Drops out of the bar rather than covering the page: the menu holds four
+    // anchors and a sign-in link, and a full-screen overlay for five items
+    // hides the hero it was opened from.
+    navMenu: {
+      display: 'flex',
+      flexDirection: 'column',
+      padding: '8px 20px 16px',
+      borderTop: `1px solid ${c.border}`,
+      background: isDark ? 'rgba(10,10,12,0.97)' : 'rgba(247,248,251,0.98)',
+    },
+    navMenuLink: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '13px 2px',
+      fontSize: '0.95rem',
+      fontWeight: 500,
+      color: c.text,
+      textDecoration: 'none',
+      borderBottom: `1px solid ${c.border}`,
     },
     navSignIn: {
       fontSize: '0.9rem',
@@ -385,7 +406,9 @@ export const getLandingStyles = (theme: Theme) => {
     // 200px void between blocks; 80 keeps the sections breathing without the
     // dead space that made the page feel empty on scroll.
     section: { maxWidth: 1180, margin: '0 auto', padding: '80px 32px' },
-    headCenter: { maxWidth: 640, margin: '0 auto 50px', textAlign: 'center' },
+    // 720 (was 640): at 640 the display sizes below broke the longer German
+    // section titles one word onto a line of their own.
+    headCenter: { maxWidth: 720, margin: '0 auto 50px', textAlign: 'center' },
     eyebrow: {
       display: 'inline-flex',
       alignItems: 'center',
@@ -406,8 +429,17 @@ export const getLandingStyles = (theme: Theme) => {
       lineHeight: 1.08,
       color: c.text,
       margin: '15px 0 15px',
+      // Evens the two lines out instead of leaving a single orphan word on the
+      // second one — the titles are display type, so the rag is very visible.
+      textWrap: 'balance',
     },
-    sectionSub: { fontSize: '1.08rem', lineHeight: 1.6, color: c.textMuted, margin: 0 },
+    sectionSub: {
+      fontSize: '1.08rem',
+      lineHeight: 1.6,
+      color: c.textMuted,
+      margin: 0,
+      textWrap: 'balance',
+    },
 
     // ─── Bento ─────────────────────────────────────────────────
     tile: {
@@ -427,30 +459,6 @@ export const getLandingStyles = (theme: Theme) => {
       display: 'flex',
       flexDirection: 'column',
     },
-    tileIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      background: c.primaryBg,
-      border: `1px solid ${c.primaryBorder}`,
-      color: c.primaryText,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 18,
-    },
-    tileIconInfo: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      background: c.infoBg,
-      border: `1px solid ${c.infoBorder}`,
-      color: c.infoText,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 18,
-    },
     tileTitle: {
       fontFamily: fonts.serif,
       fontSize: '1.2rem',
@@ -463,13 +471,116 @@ export const getLandingStyles = (theme: Theme) => {
     // the bottom of the card via `marginTop: auto`, filling the dead space.
     tileHead: { display: 'flex', flexDirection: 'column' },
 
+    // ─── Audience ──────────────────────────────────────────────
+    // Asymmetric on purpose. Two equal panels said the photographer and the
+    // client were two audiences of equal standing; only one of them can buy
+    // anything, and they were being offered competing calls to action one
+    // screen above the pricing table.
+    // 1000, not the section's full 1180: four outcomes in a 2×2 grid across
+    // the full width gave each line a 545px measure and left the card reading
+    // as an empty plate. The narrower card sits under the centred heading as
+    // one deliberate block.
+    studioCard: {
+      maxWidth: 1000,
+      margin: '0 auto',
+      boxSizing: 'border-box',
+      background: c.surface,
+      border: `1px solid ${c.border}`,
+      borderRadius: 18,
+      padding: '30px 32px',
+    },
+    outcome: { display: 'flex', alignItems: 'flex-start', gap: 12 },
+    // One icon per outcome, in the brand indigo. Four identical green ticks
+    // said "included in your plan" — the pricing table's language, repeated one
+    // screen above the pricing table — and carried no information of their own.
+    outcomeIcon: {
+      color: c.primaryStrong,
+      display: 'inline-flex',
+      flexShrink: 0,
+      marginTop: 2,
+    },
+    outcomeTitle: {
+      display: 'block',
+      fontSize: '1rem',
+      fontWeight: 600,
+      color: c.text,
+      lineHeight: 1.35,
+    },
+    outcomeText: { display: 'block', fontSize: '0.9rem', color: c.textMuted, marginTop: 2 },
+    // A hand-off to the pricing table directly below, not a third copy of the
+    // page's primary CTA. The button that used to sit here repeated the hero's
+    // offer — same label, same "no credit card" line as the closing CTA — one
+    // screen above three more of the same button in the pricing cards.
+    studioCta: {
+      display: 'flex',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '12px 18px',
+      marginTop: 26,
+      paddingTop: 22,
+      borderTop: `1px solid ${c.border}`,
+    },
+    studioLink: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      fontSize: '0.95rem',
+      fontWeight: 600,
+      color: c.primaryStrong,
+      textDecoration: 'none',
+    },
+
+    // The client card is quieter than the studio card by design: no hover
+    // lift, no call to action — it is evidence, not an offer. Quieter is a
+    // flatter fill, though, not an outline: bordered-but-empty next to a filled
+    // card of the same radius and width read as a disabled version of it.
+    // The fill has to sit *below* the studio card in both themes, and no single
+    // token does that: `surfaceAlt` is a hair off the light page background
+    // (#F8FAFC on #F7F8FB) so the card would vanish, while `borderSoft` is
+    // lighter than `surface` in dark mode, which would put the quiet card above
+    // the loud one. One token per theme, picked for the same relationship.
+    clientCard: {
+      maxWidth: 1000,
+      margin: '16px auto 0',
+      boxSizing: 'border-box',
+      border: 'none',
+      borderRadius: 18,
+      padding: '22px 32px 26px',
+      background: isDark ? c.surfaceAlt : c.borderSoft,
+    },
+    clientTitle: {
+      fontSize: '1.02rem',
+      fontWeight: 600,
+      color: c.text,
+      margin: '0 0 16px',
+    },
+    clientItem: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 10,
+      fontSize: '0.95rem',
+      color: c.textMuted,
+      lineHeight: 1.4,
+    },
+    // Flat, currentColor, same weight as the text it sits beside. The gradient
+    // chips this replaces colour-coded photographer vs client — a code used
+    // nowhere else on a page that is otherwise deliberately flat.
+    clientIcon: { color: c.textSubtle, display: 'inline-flex', flexShrink: 0, marginTop: 1 },
+
     // ─── Feature mini-visuals ──────────────────────────────────
     // Each feature card earns its height with a small product preview instead
     // of empty space — a shared "list of rows" language so the four cards read
     // as one system.
+    // Was `marginTop: 'auto'`, which pinned the preview to the bottom of a tile
+    // whose height came from `grid-auto-rows: 1fr` — so a short card showed its
+    // copy at the top, its preview at the floor, and 150–200px of nothing in
+    // between. That reads as unfinished rather than airy. The preview now sits
+    // directly under the copy it illustrates, separated by a hairline, and the
+    // tile is as tall as what is in it.
     mini: {
-      marginTop: 'auto',
-      paddingTop: 20,
+      marginTop: 18,
+      paddingTop: 18,
+      borderTop: `1px solid ${c.border}`,
       display: 'flex',
       flexDirection: 'column',
       gap: 7,
@@ -502,12 +613,6 @@ export const getLandingStyles = (theme: Theme) => {
       alignItems: 'center',
       gap: 7,
       minWidth: 0,
-    },
-    miniValue: {
-      fontSize: '0.78rem',
-      fontWeight: 600,
-      color: c.text,
-      whiteSpace: 'nowrap' as const,
     },
     miniPillPrimary: {
       fontSize: '0.66rem',
@@ -543,32 +648,6 @@ export const getLandingStyles = (theme: Theme) => {
       background: c.neutralBg,
       color: c.textSubtle,
       whiteSpace: 'nowrap' as const,
-    },
-    miniDot: {
-      width: 7,
-      height: 7,
-      borderRadius: '50%',
-      flexShrink: 0,
-    },
-    // Signature line for the contracts card.
-    miniSign: {
-      marginTop: 3,
-      padding: '9px 11px',
-      background: c.surfaceAlt,
-      border: `1px solid ${c.border}`,
-      borderRadius: 10,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    miniSignName: {
-      fontFamily: fonts.serif,
-      fontStyle: 'italic' as const,
-      fontSize: '1.05rem',
-      color: c.primaryText,
-      borderBottom: `1.5px solid ${c.primaryBorder}`,
-      paddingBottom: 1,
-      lineHeight: 1.1,
     },
     bigBody: { padding: '30px 30px 0' },
     bigTitle: {
@@ -733,144 +812,6 @@ export const getLandingStyles = (theme: Theme) => {
       opacity: 0.6,
     },
 
-    // ─── Audience split ────────────────────────────────────────
-    // Two premium cards: a corner spotlight glow for depth, a header divided
-    // from the feature list, accent-tinted checks and a pill CTA — indigo for
-    // photographers, sky for clients — so the pair reads as one designed set
-    // rather than two flat lists. Hover lift lives in `.landing-panel`.
-    panel: {
-      position: 'relative',
-      overflow: 'hidden',
-      background: c.surface,
-      border: `1px solid ${c.border}`,
-      borderRadius: 18,
-      padding: '30px 32px',
-    },
-    panelFeature: {
-      position: 'relative',
-      overflow: 'hidden',
-      background: isDark
-        ? `linear-gradient(165deg, ${c.surface} 42%, rgba(99,102,241,0.10))`
-        : `linear-gradient(165deg, ${c.surface} 42%, ${c.primaryBg})`,
-      border: `1px solid ${c.primaryBorder}`,
-      borderRadius: 18,
-      padding: '30px 32px',
-    },
-    // Soft corner spotlight — the depth cue that lifts the card off the page.
-    panelGlow: {
-      position: 'absolute',
-      top: -90,
-      right: -70,
-      width: 260,
-      height: 260,
-      borderRadius: '50%',
-      filter: 'blur(18px)',
-      pointerEvents: 'none',
-    },
-    panelGlowPrimary: {
-      background: `radial-gradient(circle, ${c.primary}, transparent 68%)`,
-      opacity: isDark ? 0.24 : 0.16,
-    },
-    panelGlowClient: {
-      background: 'radial-gradient(circle, #38BDF8, transparent 68%)',
-      opacity: isDark ? 0.24 : 0.16,
-    },
-    ptop: {
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 14,
-      paddingBottom: 20,
-      marginBottom: 20,
-      borderBottom: `1px solid ${c.border}`,
-    },
-    pic: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#fff',
-      flexShrink: 0,
-    },
-    picFeature: {
-      background: `linear-gradient(135deg, ${c.primary}, ${c.primaryStrong})`,
-      boxShadow: `0 10px 24px -10px ${c.primary}`,
-    },
-    picClient: {
-      background: 'linear-gradient(135deg, #38BDF8, #0369A1)',
-      boxShadow: '0 10px 24px -10px #0EA5E9',
-    },
-    ptopH: {
-      fontFamily: fonts.serif,
-      fontSize: '1.4rem',
-      fontWeight: 500,
-      color: c.text,
-      margin: 0,
-    },
-    ptag: { fontSize: '0.85rem', color: c.textMuted },
-    flist: {
-      position: 'relative',
-      listStyle: 'none',
-      padding: 0,
-      margin: '0 0 24px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 14,
-    },
-    flistItem: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 11,
-      fontSize: '0.95rem',
-      color: c.text,
-    },
-    // Feature-list check — unified brand indigo across both audience cards and
-    // pricing, so "what's included" reads the same everywhere. Green stays for
-    // status/confirmation (paid, signed, booked), not feature bullets.
-    chkPrimary: {
-      width: 22,
-      height: 22,
-      borderRadius: 7,
-      background: c.primaryBg,
-      color: c.primaryText,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    lnk: {
-      position: 'relative',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '11px 20px',
-      borderRadius: radius.pill,
-      fontWeight: 600,
-      fontSize: '0.9rem',
-      color: c.primaryText,
-      background: c.primaryBg,
-      border: `1px solid ${c.primaryBorder}`,
-      textDecoration: 'none',
-      cursor: 'pointer',
-    },
-    lnkClient: {
-      position: 'relative',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '11px 20px',
-      borderRadius: radius.pill,
-      fontWeight: 600,
-      fontSize: '0.9rem',
-      color: c.infoText,
-      background: c.infoBg,
-      border: `1px solid ${c.infoBorder}`,
-      textDecoration: 'none',
-      cursor: 'pointer',
-    },
-
     // ─── Pricing ───────────────────────────────────────────────
     priceSwitch: {
       display: 'inline-flex',
@@ -968,11 +909,17 @@ export const getLandingStyles = (theme: Theme) => {
       flexDirection: 'column',
       gap: 12,
     },
+    // `flex-start`, not `center`: a label long enough to wrap — which German
+    // reliably produces, and a "Soon" badge makes likelier — used to centre its
+    // 20px marker against two lines of text, leaving the tick floating in the
+    // middle of the row. Aligned to the top it sits on the first line, where
+    // the eye scans for it.
     priceItem: {
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 11,
       fontSize: '0.9rem',
+      lineHeight: 1.45,
       color: c.text,
     },
     priceChk: {
@@ -986,6 +933,23 @@ export const getLandingStyles = (theme: Theme) => {
       justifyContent: 'center',
       flexShrink: 0,
     },
+    // The roadmap counterpart of {@link priceChk}: same footprint so the labels
+    // stay in one column, but hollow — an outlined ring carries "not yet" on
+    // sight, where a filled tick beside a "Soon" badge said both at once.
+    priceChkSoon: {
+      width: 20,
+      height: 20,
+      borderRadius: 6,
+      background: 'transparent',
+      border: `1.5px dashed ${c.border}`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    // Roadmap labels step back to muted so a card is scannable for what it
+    // gives you today without reading every badge.
+    priceLabelSoon: { color: c.textMuted },
     // Footnote marker sits tight to the label; the note itself is centred under
     // the whole grid so it reads as a caveat on the pricing, not on one card.
     priceFootMark: { color: c.textMuted, marginLeft: 2, fontWeight: 700 },
@@ -997,86 +961,92 @@ export const getLandingStyles = (theme: Theme) => {
       lineHeight: 1.6,
       color: c.textMuted,
     },
+    // Quieter and tighter than the footnote: it qualifies the prices rather
+    // than adding a condition, and it sits directly under the billing switch,
+    // so it must not compete with the cards it introduces.
+    priceVatNote: {
+      marginTop: 14,
+      fontSize: '0.78rem',
+      color: c.textSubtle,
+    },
 
     // ─── Closing CTA ───────────────────────────────────────────
-    // Asymmetric padding: the section keeps its breathing room up top but sits
-    // closer to the footer below, so the CTA card and the footer read as one
-    // closing unit instead of floating in a void.
-    ctaWrap: { maxWidth: 1180, margin: '0 auto', padding: '68px 32px 88px' },
-    ctaBox: {
+    // The page's bookend, and the only block on it that is neither a card nor
+    // inside the 1180 container. Everything between the hero and here is a
+    // contained panel; a closing CTA built as one more panel reads as the next
+    // item in the list rather than the end of the argument — which is what the
+    // rounded, shadowed box that used to sit here did, one card-width above the
+    // footer.
+    //
+    // So it borrows the hero's own vocabulary instead: full-bleed, the same
+    // faint grid, the same drifting aurora, the same serif display line with
+    // one word carrying the indigo shimmer, the same primary pill. The page
+    // opens and closes in one language.
+    //
+    // The band's fill runs from the page background to the footer's, so the
+    // CTA dissolves into the footer as a single closing unit rather than
+    // stopping at an edge one block above it.
+    ctaSection: {
       position: 'relative',
       overflow: 'hidden',
-      borderRadius: 30,
-      padding: 'clamp(48px, 7vw, 80px) 40px',
-      textAlign: 'center',
-      background: `linear-gradient(140deg, ${c.primaryStrong} 0%, ${c.primary} 58%, #7B4BE0 100%)`,
-      boxShadow: '0 40px 90px -30px rgba(79,70,229,0.5)',
+      borderTop: `1px solid ${c.border}`,
+      background: `linear-gradient(180deg, ${c.bg} 0%, ${c.bg} 42%, ${c.surfaceAlt} 100%)`,
+      padding: 'clamp(84px, 9vw, 116px) 0 clamp(88px, 9vw, 120px)',
     },
-    ctaGlow: {
+    // Same grid as the hero, masked to a centred pool so it fades out well
+    // before the band's edges — a full-width grid would fight the footer's rule.
+    ctaGrid: {
       position: 'absolute',
       inset: 0,
-      background:
-        'radial-gradient(60% 90% at 84% -8%, rgba(255,255,255,0.2), transparent 54%),' +
-        'radial-gradient(50% 80% at 6% 118%, rgba(255,255,255,0.26), transparent 60%)',
+      zIndex: 0,
       pointerEvents: 'none',
+      opacity: 0.5,
+      backgroundImage: `linear-gradient(${c.border} 1px, transparent 1px), linear-gradient(90deg, ${c.border} 1px, transparent 1px)`,
+      backgroundSize: '54px 54px',
+      maskImage: 'radial-gradient(closest-side at 50% 44%, #000, transparent 78%)',
+      WebkitMaskImage: 'radial-gradient(closest-side at 50% 44%, #000, transparent 78%)',
     },
-    ctaEyebrow: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 10,
-      fontFamily: fonts.mono,
-      fontSize: '0.72rem',
-      letterSpacing: '0.2em',
-      textTransform: 'uppercase',
-      color: 'rgba(255,255,255,0.85)',
-      fontWeight: 600,
+    // Dimmer than the hero's: this one sits behind body copy and a CTA, not
+    // beside them.
+    ctaAurora: { opacity: isDark ? 0.6 : 0.34 },
+    ctaInner: {
       position: 'relative',
+      zIndex: 2,
+      maxWidth: 1180,
+      margin: '0 auto',
+      padding: '0 32px',
+      textAlign: 'center',
     },
-    ctaEyebrowLine: {
-      width: 20,
-      height: 1,
-      background: 'rgba(255,255,255,0.5)',
-      display: 'inline-block',
-    },
+    // Between the hero's display size and a section title: bigger than the
+    // headings it follows, because it is the last thing the page says.
     ctaTitle: {
       fontFamily: fonts.serif,
-      fontSize: 'clamp(2rem, 4.2vw, 3rem)',
+      fontSize: 'clamp(2.3rem, 4.6vw, 3.4rem)',
       fontWeight: 500,
       letterSpacing: '-0.02em',
-      color: '#fff',
-      margin: '15px 0 15px',
-      position: 'relative',
+      lineHeight: 1.06,
+      color: c.text,
+      maxWidth: 780,
+      margin: '0 auto 20px',
+      textWrap: 'balance',
     },
     ctaText: {
-      color: 'rgba(255,255,255,0.9)',
-      fontSize: '1.08rem',
-      maxWidth: 480,
-      margin: '0 auto 30px',
-      position: 'relative',
+      color: c.textMuted,
+      fontSize: '1.1rem',
+      lineHeight: 1.6,
+      maxWidth: 540,
+      margin: '0 auto 34px',
+      textWrap: 'balance',
     },
+    ctaActions: { display: 'flex', justifyContent: 'center' },
     ctaMicro: {
-      marginTop: 16,
+      marginTop: 20,
       fontFamily: fonts.mono,
-      fontSize: '0.76rem',
-      color: 'rgba(255,255,255,0.72)',
-      position: 'relative',
-    },
-    btnLight: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      padding: '15px 28px',
-      borderRadius: radius.pill,
-      fontSize: '1rem',
-      fontWeight: 600,
-      cursor: 'pointer',
-      textDecoration: 'none',
-      position: 'relative',
-      background: '#fff',
-      color: c.primaryStrong,
-      border: 'none',
-      boxShadow: '0 14px 34px -12px rgba(0,0,0,0.4)',
+      fontSize: '0.78rem',
+      color: c.textSubtle,
+      // On a phone the line wraps; balancing it breaks between the two claims
+      // instead of hyphenating "DSGVO-konform" across lines.
+      textWrap: 'balance',
     },
 
     // ─── Footer ────────────────────────────────────────────────

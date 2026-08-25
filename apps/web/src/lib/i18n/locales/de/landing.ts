@@ -11,10 +11,20 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.aria.home': 'Fotolio Startseite',
   'landing.aria.mockPreview': 'Fotolio Buchungs-Dashboard-Vorschau',
   'landing.aria.billingPeriod': 'Abrechnungszeitraum',
+  'landing.aria.openMenu': 'Menü öffnen',
+  'landing.aria.closeMenu': 'Menü schließen',
+  'landing.aria.sections': 'Abschnitte',
   'landing.nav.features': 'Funktionen',
   'landing.nav.howItWorks': 'So funktioniert’s',
   'landing.nav.pricing': 'Preise',
-  'landing.nav.forClients': 'Für Kunden',
+  // Points at the audience section, which is now about what the
+  // photographer gets. Labelling it "for clients" re-created, in the
+  // nav, the two-audience framing the section itself dropped.
+  'landing.nav.studio': 'Ihr Studio',
+  // The footer link goes to /customer/auth/login. It used to read "Find a
+  // photographer", promising a directory that does not exist and landing
+  // the visitor on a sign-in form instead.
+  'landing.nav.clientSignIn': 'Kunden-Login',
   'landing.nav.signIn': 'Anmelden',
   'landing.nav.getStarted': 'Loslegen',
 
@@ -28,9 +38,14 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.hero.microNoCard': 'Keine Kreditkarte',
   'landing.hero.microCancel': 'Jederzeit kündbar',
   'landing.hero.mockThisWeek': 'Diese Woche',
-  'landing.hero.mockExpected': '€1.240 erwartet',
+  // Der Betrag wird interpoliert und nie in den String geschrieben: von Hand
+  // getippt stand hier „€1.240“ — die englische Stellung des Symbols unter
+  // deutschem Text, ausgerechnet auf der Seite, die „für den deutschen Markt
+  // gebaut“ verkauft. Die Seite übergibt `format.eur(…)`, das daraus „1.240 €“
+  // macht.
+  'landing.hero.mockExpected': '{amount} erwartet',
   'landing.hero.toastTitle': 'Neue Buchung bestätigt',
-  'landing.hero.toastMeta': 'Hochzeit · €480 Anzahlung bezahlt',
+  'landing.hero.toastMeta': 'Hochzeit · {amount} Anzahlung bezahlt',
 
   'landing.cap.leadScoring': 'Lead-Scoring',
   'landing.cap.onlineBooking': 'Online-Buchung',
@@ -43,38 +58,54 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.booking.confirmed': 'Bestätigt',
   'landing.booking.depositPaid': 'Anzahlung bezahlt',
   'landing.booking.contractSent': 'Vertrag gesendet',
+  'landing.booking.n1Name': 'Lena & Kaan — Hochzeit',
+  'landing.booking.n1Meta': 'Sa., 12. Juli · Grugapark, Essen',
+  'landing.booking.n2Name': 'Familie Meyer — Porträt',
+  'landing.booking.n2Meta': 'So., 13. Juli · Studio',
+  'landing.booking.n3Name': 'Julia T. — Neugeborenes',
+  'landing.booking.n3Meta': 'Di., 15. Juli · Vor Ort',
 
   'landing.features.eyebrow': 'Alles an einem Ort',
   'landing.features.title': 'Führen Sie Ihr Studio ohne den Papierkram.',
   'landing.features.sub':
     'Von der ersten Anfrage bis zur finalen Galerie-Auslieferung lebt jeder Schritt des Shootings in einem verbundenen Workspace.',
-  'landing.features.galleriesTitle': 'Kundengalerien, die verkaufen',
+  'landing.features.galleriesTitle': 'Keine WeTransfer-Links, kein Ablaufstress',
   'landing.features.galleriesText':
-    'Liefern Sie private, gebrandete Galerien, die Ihre Kunden ansehen, favorisieren und herunterladen können — keine WeTransfer-Links, kein Ablaufstress.',
+    'Liefern Sie private, gebrandete Galerien, die Ihre Kunden ansehen, favorisieren und herunterladen können — der Link gehört Ihnen und bleibt so lange aktiv, wie Sie es sagen.',
+  // Beispieldaten für die Vorschauen. Sie stehen in den Wörterbüchern und nicht
+  // in der Seite, weil ein Mock mit „Sat 12 Jul“ unter deutschem Text dem
+  // Besucher am schnellsten sagt, dass das Produkt nicht für ihn gebaut wurde.
+  'landing.features.galleryBarName': 'Lena & Kaan — Hochzeit',
   'landing.features.galleryBarMeta': '248 Fotos · 12 favorisiert',
   'landing.features.downloadAll': 'Alle herunterladen',
-  'landing.features.bookingsTitle': 'Online-Buchungen',
+  'landing.features.bookingsTitle': 'Termine ohne Hin und Her',
   'landing.features.bookingsText':
-    'Kunden buchen Sessions direkt von Ihrer Portfolio-Seite — synchronisiert mit Ihrem Kalender.',
+    'Kunden wählen einen Termin direkt auf Ihrer Portfolio-Seite, und er landet in Ihrem Kalender — kein E-Mail-Verlauf, keine Doppelbuchung.',
   'landing.features.booked': 'Gebucht',
   'landing.features.open': 'Frei',
+  'landing.features.slotBooked': 'Sa., 12. Juli · 14:00',
+  'landing.features.slotOpen': 'So., 13. Juli · 10:00',
+  'landing.features.slotOpenLate': 'So., 13. Juli · 16:00',
   'landing.features.contractsTitle': 'Verträge & digitale Signatur',
   'landing.features.contractsText':
     'Senden Sie Shooting-Verträge und holen Sie rechtsverbindliche Unterschriften ein — kein E-Mail-Hin-und-Her.',
-  'landing.features.signed': 'Signiert',
-  'landing.features.esigned': 'digital signiert',
   'landing.features.stripeTitle': 'Stripe-Zahlungen',
   'landing.features.stripeText':
     'Nehmen Sie Anzahlungen und Restzahlungen online entgegen — mit automatischem Abgleich.',
-  'landing.features.deposit': 'Anzahlung',
+  'landing.features.payDeposit': 'Anzahlung · {amount}',
+  'landing.features.payBalance': 'Restbetrag · {amount}',
+  'landing.features.payMethods': 'Karte · SEPA',
   'landing.features.paid': 'Bezahlt',
-  'landing.features.balance': 'Restbetrag',
-  'landing.features.due': 'Fällig 12. Jul',
-  'landing.features.leadTitle': 'Lead-Management',
+  'landing.features.payEnabled': 'Aktiv',
+  'landing.features.leadTitle': 'Keine Anfrage geht unter',
   'landing.features.leadText':
-    'Erfassen, bewerten und leiten Sie Anfragen — damit keine Buchungsanfrage durchrutscht.',
+    'Jede Anfrage wird beim Eingang erfasst und bewertet — die, die sich heute lohnen, stehen oben.',
   'landing.features.leadHot': '92 · Heiß',
   'landing.features.leadWarm': '61 · Warm',
+  'landing.features.leadCold': '34 · Kalt',
+  'landing.features.leadHotName': 'Sarah M. · Hochzeit',
+  'landing.features.leadWarmName': 'Tom K. · Porträt',
+  'landing.features.leadColdName': 'Jonas B. · Familie',
   'landing.features.germanTitle': 'Für den deutschen Markt gebaut',
   'landing.features.germanText':
     'Zweisprachig DE / EN, DSGVO-bewusst von Haus aus, GoBD-konforme Rechnungen und Kleinunternehmer-Unterstützung.',
@@ -99,22 +130,25 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.pipeline.galleryText':
     'Die finalen Bilder landen in einer privaten, gebrandeten Galerie zum Ansehen und Herunterladen.',
 
-  'landing.audience.eyebrow': 'Beide Seiten der Linse',
-  'landing.audience.title': 'Für alle im Bild gebaut.',
-  'landing.audience.photographersTitle': 'Für Fotografen',
-  'landing.audience.photographersTag': 'Ein Studio für das gesamte Geschäft',
-  'landing.audience.clientsTitle': 'Für Kunden',
-  'landing.audience.clientsTag': 'Buchen, signieren und ansehen — alles in einem Link',
-  'landing.audience.startTrial': 'Kostenlos testen',
-  'landing.audience.findPhotographer': 'Fotografen finden',
-  'landing.phFeat.portfolio': 'Portfolio & öffentliche Buchungsseite',
-  'landing.phFeat.leads': 'Lead-Management & Scoring',
-  'landing.phFeat.contracts': 'Verträge & Zahlungen',
-  'landing.phFeat.data': 'DSGVO-konforme Kundendaten',
-  'landing.clFeat.browse': 'Portfolios durchsuchen & online buchen',
-  'landing.clFeat.sign': 'Verträge online signieren',
-  'landing.clFeat.pay': 'Sicher mit Stripe bezahlen',
-  'landing.clFeat.gallery': 'Ihre Galerie ansehen & herunterladen',
+  'landing.audience.eyebrow': 'Ihr Studio',
+  'landing.audience.title': 'Das ganze Geschäft — nicht nur das Shooting.',
+  'landing.audience.sub':
+    'Portfolio, Anfragen, Galerien und Kundendaten — ein Arbeitsbereich, und alles davon gehört Ihnen.',
+  'landing.audience.seePricing': 'Preise und Pakete ansehen',
+  // Ergebnis + das Detail, das es konkret macht. Das Detail ist der Punkt: eine
+  // zweite Liste von Funktionsnamen war der Grund, diesen Abschnitt zu überspringen.
+  'landing.studio.portfolioTitle': 'Portfolio mit Buchungsseite',
+  'landing.studio.portfolioText': 'Eigene Subdomain, eigene Handschrift',
+  'landing.studio.leadsTitle': 'Anfragen bewertet und sortiert',
+  'landing.studio.leadsText': 'Was sich lohnt, steht oben',
+  'landing.studio.galleriesTitle': 'Private Kundengalerien',
+  'landing.studio.galleriesText': 'Ein Link, den Sie steuern — kein WeTransfer',
+  'landing.studio.dataTitle': 'Kundendaten DSGVO-konform',
+  'landing.studio.dataText': 'Aufbewahrungsfristen und Löschung eingebaut',
+  'landing.audience.clientTitle': 'Und das bekommen Ihre Kunden',
+  'landing.clientExp.book': 'Termin in zwei Klicks buchen',
+  'landing.clientExp.gallery': 'Galerie ansehen und herunterladen',
+  'landing.clientExp.link': 'Ein Link, kein Konto nötig',
 
   'landing.pricing.eyebrow': 'Preise',
   'landing.pricing.title': 'Einfache, transparente Preise.',
@@ -126,6 +160,7 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.pricing.billedYearly': 'Jährlich abgerechnet',
   'landing.pricing.billedMonthly': 'Monatlich abgerechnet',
   'landing.pricing.mostPopular': 'Am beliebtesten',
+  'landing.pricing.vatNote': 'Alle Preise zzgl. gesetzlicher MwSt.',
   'landing.pricing.feeNote':
     '* 2 % Ihrer über Fotolio eingenommenen Zahlungen, zzgl. Stripe-Gebühr. Bei Pro und Studio entfällt sie.',
   'landing.pricing.getStarted': 'Loslegen',
@@ -146,8 +181,8 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.price.f.analytics': 'Umsatz- & Buchungsberichte',
   'landing.price.f.whiteLabel': 'Eigene Domain & Branding',
 
-  'landing.cta.eyebrow': 'Bereit, wenn Sie es sind',
-  'landing.cta.title': 'Verbringen Sie Ihren Tag hinter der Kamera.',
+  'landing.cta.titlePre': 'Verbringen Sie Ihren Tag hinter der ',
+  'landing.cta.titleAccent': 'Kamera',
   'landing.cta.text':
     'Überlassen Sie Fotolio die Leads, Verträge und Zahlungen, während Sie das tun, was nur Sie können.',
   'landing.cta.button': '14 Tage kostenlos testen',

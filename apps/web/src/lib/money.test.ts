@@ -42,3 +42,45 @@ describe('currency formatting', () => {
     expect(en.eurExact(-120_000)).toMatch(/-|−/);
   });
 });
+
+/**
+ * The pricing card renders the symbol and the digits as two separately styled
+ * spans, so it cannot use a formatted string. It used to concatenate them in
+ * source order — a hardcoded `€` in front of the number — which printed the
+ * English form under German copy on the page that sells "built for the German
+ * market". `symbolFirst` is what stops that: it reports where Intl actually
+ * put the symbol rather than letting the markup decide once for every locale.
+ */
+describe('eurParts', () => {
+  const en = getFormatters('en');
+  const de = getFormatters('de');
+
+  it('puts the symbol first in English and last in German', () => {
+    expect(en.eurParts(1_900).symbolFirst).toBe(true);
+    expect(de.eurParts(1_900).symbolFirst).toBe(false);
+  });
+
+  it('carries the locale separators on the digits', () => {
+    expect(en.eurParts(124_000).value).toBe('1,240');
+    expect(de.eurParts(124_000).value).toBe('1.240');
+  });
+
+  it('yields the symbol on its own, with no padding to trim', () => {
+    expect(de.eurParts(1_900).symbol).toBe('€');
+    expect(de.eurParts(1_900).value).toBe('19');
+  });
+
+  it('recomposes to the same text `eur` renders', () => {
+    for (const f of [en, de]) {
+      const { symbol, value, symbolFirst } = f.eurParts(124_000);
+      const joined = symbolFirst ? `${symbol}${value}` : `${value} ${symbol}`;
+      // Intl separates the German pair with U+00A0, not a plain space.
+      expect(joined.replace(/\s/g, ' ')).toBe(f.eur(124_000).replace(/\s/g, ' '));
+    }
+  });
+
+  it('treats a missing amount as zero rather than NaN', () => {
+    expect(en.eurParts(null).value).toBe('0');
+    expect(en.eurParts(undefined).value).toBe('0');
+  });
+});

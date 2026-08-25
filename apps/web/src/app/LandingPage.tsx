@@ -15,48 +15,75 @@ import { getLandingStyles, PHOTO_GRADIENTS } from './landing.styles';
 // ── Content ─────────────────────────────────────────────────────────────
 // Honest copy only: real product surfaces, no invented stats or client logos.
 
+/**
+ * The page's own sections, in the order they appear.
+ *
+ * <p>One list feeding three places — the desktop nav, the mobile menu and the
+ * footer's Product column. They were three hand-written copies of the same four
+ * anchors, which is how a fourth surface (the mobile menu) is easy to forget
+ * and an anchor rename is easy to half-finish.
+ */
+const SECTIONS: { href: string; labelKey: TranslationKey }[] = [
+  { href: '#features', labelKey: 'landing.nav.features' },
+  { href: '#workflow', labelKey: 'landing.nav.howItWorks' },
+  { href: '#pricing', labelKey: 'landing.nav.pricing' },
+  { href: '#audience', labelKey: 'landing.nav.studio' },
+];
+
 // `soon` flags the surfaces that aren't live yet, so the marquee stays honest
 // about what ships today vs. what's on the roadmap.
+//
+// The badge is only honest in the direction it was written for. Stripe payments
+// (2026-08-18) and GoBD invoices both shipped and kept theirs, so the same
+// screen told a visitor that "Karten & SEPA (2 %)" was included in Starter and
+// that "Stripe-Zahlungen" was not built — understating the product to the one
+// person being asked to pay for it. docs/PRICING.md §"What the landing page
+// sells vs. what is built" is the source of truth; check a badge against that
+// table before adding or keeping one.
 const CAPABILITIES: { labelKey: TranslationKey; soon?: boolean }[] = [
   { labelKey: 'landing.cap.leadScoring' },
   { labelKey: 'landing.cap.onlineBooking' },
   { labelKey: 'landing.cap.esign', soon: true },
-  { labelKey: 'landing.cap.stripe', soon: true },
+  { labelKey: 'landing.cap.stripe' },
   { labelKey: 'landing.cap.galleries' },
-  { labelKey: 'landing.cap.invoices', soon: true },
+  { labelKey: 'landing.cap.invoices' },
   { labelKey: 'landing.cap.bilingual' },
 ];
 
 // A slice of the real product — this week's bookings with their live states.
+// The names and dates are translation keys for the same reason the feature
+// previews' are: hardcoded English weekdays under German marketing copy tell a
+// German photographer, above the fold, that the product was built for someone
+// else.
 const BOOKINGS: {
   initials: string;
   gradient: string;
-  name: string;
-  meta: string;
+  nameKey: TranslationKey;
+  metaKey: TranslationKey;
   labelKey: TranslationKey;
   tone: 'conf' | 'paid' | 'pend';
 }[] = [
   {
     initials: 'LK',
     gradient: 'linear-gradient(135deg, #7A66F5, #B06BE0)',
-    name: 'Lena & Kaan — Wedding',
-    meta: 'Sat 12 Jul · Grugapark, Essen',
+    nameKey: 'landing.booking.n1Name',
+    metaKey: 'landing.booking.n1Meta',
     labelKey: 'landing.booking.confirmed',
     tone: 'conf',
   },
   {
     initials: 'MB',
     gradient: 'linear-gradient(135deg, #4C8DE0, #6E56F0)',
-    name: 'Meyer Family — Portrait',
-    meta: 'Sun 13 Jul · Studio',
+    nameKey: 'landing.booking.n2Name',
+    metaKey: 'landing.booking.n2Meta',
     labelKey: 'landing.booking.depositPaid',
     tone: 'paid',
   },
   {
     initials: 'JT',
     gradient: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
-    name: 'Julia T. — Newborn',
-    meta: 'Tue 15 Jul · On location',
+    nameKey: 'landing.booking.n3Name',
+    metaKey: 'landing.booking.n3Meta',
     labelKey: 'landing.booking.contractSent',
     tone: 'pend',
   },
@@ -90,7 +117,6 @@ const PIPELINE: {
     icon: 'card',
     titleKey: 'landing.pipeline.paymentTitle',
     textKey: 'landing.pipeline.paymentText',
-    soon: true,
   },
   {
     icon: 'gallery',
@@ -99,23 +125,69 @@ const PIPELINE: {
   },
 ];
 
-const PHOTOGRAPHER_FEATURES: { labelKey: TranslationKey; soon?: boolean }[] = [
-  { labelKey: 'landing.phFeat.portfolio' },
-  { labelKey: 'landing.phFeat.leads' },
-  { labelKey: 'landing.phFeat.contracts', soon: true },
-  { labelKey: 'landing.phFeat.data' },
+/**
+ * What the photographer walks away with.
+ *
+ * <p>Each line pairs the outcome with the detail that makes it concrete. The
+ * list this replaces re-stated the feature cards above it in fewer words and
+ * with a green tick against items marked "Soon" — telling the reader the same
+ * thing was both shipped and unbuilt. Everything here is live today.
+ *
+ * <p>The icon names the surface the outcome lives on. Four identical ticks
+ * carried no information and borrowed the pricing table's "included in your
+ * plan" language one screen above the pricing table.
+ */
+const STUDIO_OUTCOMES: { icon: IconName; titleKey: TranslationKey; textKey: TranslationKey }[] = [
+  {
+    icon: 'globe',
+    titleKey: 'landing.studio.portfolioTitle',
+    textKey: 'landing.studio.portfolioText',
+  },
+  { icon: 'target', titleKey: 'landing.studio.leadsTitle', textKey: 'landing.studio.leadsText' },
+  {
+    icon: 'gallery',
+    titleKey: 'landing.studio.galleriesTitle',
+    textKey: 'landing.studio.galleriesText',
+  },
+  { icon: 'user', titleKey: 'landing.studio.dataTitle', textKey: 'landing.studio.dataText' },
 ];
 
-const CLIENT_FEATURES: { labelKey: TranslationKey; soon?: boolean }[] = [
-  { labelKey: 'landing.clFeat.browse' },
-  { labelKey: 'landing.clFeat.sign', soon: true },
-  { labelKey: 'landing.clFeat.pay', soon: true },
-  { labelKey: 'landing.clFeat.gallery' },
+/**
+ * The client's side of the same product — an argument aimed at the
+ * photographer, not a second audience being sold to.
+ *
+ * <p>It carries no call to action of its own. The "Find a photographer" button
+ * that used to sit under this list linked to the customer sign-in form,
+ * because there is no photographer directory to send anyone to; a visitor who
+ * clicked it was asked to log in to an account they had no way to hold. It
+ * also split the conversion path one screen above the pricing table, on a page
+ * whose buyer is the photographer.
+ */
+const CLIENT_EXPERIENCE: { icon: IconName; labelKey: TranslationKey }[] = [
+  { icon: 'calendar', labelKey: 'landing.clientExp.book' },
+  { icon: 'gallery', labelKey: 'landing.clientExp.gallery' },
+  { icon: 'globe', labelKey: 'landing.clientExp.link' },
 ];
 
 // Frame number + orientation, so the mock reads as a real gallery that mixes
 // portrait and landscape shots rather than a uniform grid of squares.
-const GALLERY_FRAMES: { no: string; ar: string; fav?: boolean; selected?: boolean }[] = [
+const GALLERY_FRAMES: {
+  no: string;
+  ar: string;
+  /**
+   * Photograph for this slot, once one has been licensed and committed.
+   *
+   * <p>Every frame used to name a file under `public/brand/gallery`, and none
+   * of those files was ever committed — so each load of the landing page fired
+   * eight requests that 404'd before falling back to the gradient underneath.
+   * A path here is a promise that the file exists; add the JPEG first, then the
+   * `src`. See `public/brand/gallery/README.md` for the sizes and the licence
+   * question, which is the actual blocker.
+   */
+  src?: string;
+  fav?: boolean;
+  selected?: boolean;
+}[] = [
   { no: '24A', ar: '3 / 4', fav: true },
   { no: '25', ar: '1 / 1' },
   { no: '26', ar: '1 / 1', selected: true },
@@ -141,8 +213,11 @@ const GALLERY_FRAMES: { no: string; ar: string; fav?: boolean; selected?: boolea
 // that it sits on top of Stripe's own fee.
 //
 // Both payment rows lost their "soon" badge on 2026-08-18, when card/SEPA
-// shipped on Stripe Connect Express — they are the only two promises on this
-// page above Starter's baseline that the product now actually keeps.
+// shipped on Stripe Connect Express. The three gallery-retention rows lost
+// theirs on 2026-08-22, when the expiry job landed (ADR-001) — retention is the
+// value metric these plans are priced on, so leaving all three badged as
+// unbuilt meant the one axis that separates the tiers read as vapour on every
+// card at once.
 //
 // Labels answer "what do I actually get?" for a first-time visitor — no
 // internal jargon ("lead", "portfolio & website"). They stay short because a
@@ -178,7 +253,7 @@ const PRICING: {
       { labelKey: 'landing.price.f.onlineBookings' },
       { labelKey: 'landing.price.f.crm' },
       { labelKey: 'landing.price.f.stripeDeposits', footnote: true },
-      { labelKey: 'landing.price.f.retention60', soon: true },
+      { labelKey: 'landing.price.f.retention60' },
     ],
   },
   {
@@ -195,7 +270,7 @@ const PRICING: {
       { labelKey: 'landing.price.f.instagramDm', soon: true },
       { labelKey: 'landing.price.f.zeroCommission' },
       { labelKey: 'landing.price.f.contractsEsign', soon: true },
-      { labelKey: 'landing.price.f.retention1y', soon: true },
+      { labelKey: 'landing.price.f.retention1y' },
     ],
   },
   {
@@ -209,7 +284,7 @@ const PRICING: {
       { labelKey: 'landing.price.f.upTo3', soon: true },
       { labelKey: 'landing.price.f.analytics', soon: true },
       { labelKey: 'landing.price.f.whiteLabel', soon: true },
-      { labelKey: 'landing.price.f.retention2y', soon: true },
+      { labelKey: 'landing.price.f.retention2y' },
     ],
   },
 ];
@@ -218,10 +293,22 @@ export default function LandingPage() {
   const { theme } = useThemeStore();
   const c = getColors(theme);
   const s = getLandingStyles(theme);
-  const { t } = useTranslation();
+  const { t, format } = useTranslation();
   const year = new Date().getFullYear();
 
   const [yearly, setYearly] = useState(false);
+
+  // The mobile section menu. Closes on Escape as well as on a link, so it is
+  // dismissable from the keyboard without hunting for the toggle.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   // Nav gains a shadow + stronger backdrop once the page scrolls past the hero,
   // so the sticky bar reads as a floating layer rather than a flat strip.
@@ -234,6 +321,14 @@ export default function LandingPage() {
   }, []);
 
   // Scroll-reveal — reveal below-the-fold blocks as they enter the viewport.
+  //
+  // The hidden starting state is gated on `html.js`, which the inline script in
+  // the root layout sets before first paint. It cannot be armed from here: a
+  // class added after mount would hide blocks that had already painted, so the
+  // page would flash visible-then-hidden before the observer revealed them
+  // again. Gating it in the stylesheet without that flag was the other failure
+  // — everything below the hero stayed at `opacity: 0` whenever the bundle did
+  // not execute.
   useEffect(() => {
     const els = Array.from(
       document.querySelectorAll<HTMLElement>('.landing-reveal, .landing-reveal-stagger')
@@ -260,6 +355,43 @@ export default function LandingPage() {
   const statusStyle = (tone: 'conf' | 'paid' | 'pend') =>
     tone === 'conf' ? s.statusConf : tone === 'paid' ? s.statusPaid : s.statusPend;
 
+  /**
+   * A plan's headline price, with the € on the side the active locale puts it.
+   *
+   * <p>It was a literal `€` in front of the digits, which is the English form —
+   * German writes `19 €`. Two spans rather than one formatted string because
+   * the card sets the digits in display-size serif and the symbol small, so
+   * `eurParts` supplies Intl's ordering while each half keeps its own type.
+   *
+   * <p>The symbol is a raised superscript only when it leads. Trailing, German
+   * sets it on the baseline beside the number, and a raised € after the digits
+   * reads as a footnote marker rather than a currency.
+   */
+  const priceAmount = (euros: string) => {
+    const { symbol, value, symbolFirst } = format.eurParts(Number(euros) * 100);
+    const cur = (
+      <span
+        style={
+          symbolFirst
+            ? s.amountCur
+            : // The 2px flex gap is right between digits and "/mo"; German's
+              // number–symbol pair needs the wider space Intl puts there.
+              { ...s.amountCur, alignSelf: 'baseline', marginTop: 0, marginLeft: 4 }
+        }
+      >
+        {symbol}
+      </span>
+    );
+    return (
+      <div style={s.amount}>
+        {symbolFirst && cur}
+        <span style={s.amountVal}>{value}</span>
+        {!symbolFirst && cur}
+        <span style={s.amountPer}>{t('landing.pricing.perMonth')}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="landing-root" style={s.page}>
       <div
@@ -276,24 +408,17 @@ export default function LandingPage() {
           </Link>
 
           <div style={s.navLinks} className="landing-nav-links">
-            <a href="#features" style={s.navLink}>
-              {t('landing.nav.features')}
-            </a>
-            <a href="#workflow" style={s.navLink}>
-              {t('landing.nav.howItWorks')}
-            </a>
-            <a href="#pricing" style={s.navLink}>
-              {t('landing.nav.pricing')}
-            </a>
-            <a href="#audience" style={s.navLink}>
-              {t('landing.nav.forClients')}
-            </a>
+            {SECTIONS.map((sec) => (
+              <a key={sec.href} href={sec.href} style={s.navLink}>
+                {t(sec.labelKey)}
+              </a>
+            ))}
           </div>
 
           <div style={s.navRight}>
             <LanguageToggle variant="pill" />
             <ThemeToggle variant="pill" />
-            <Link href="/login" style={s.navSignIn}>
+            <Link href="/login" style={s.navSignIn} className="landing-nav-signin">
               {t('landing.nav.signIn')}
             </Link>
             <Link
@@ -303,8 +428,49 @@ export default function LandingPage() {
             >
               {t('landing.nav.getStarted')}
             </Link>
+
+            {/* Below 860px the section links collapse behind this. They were
+                simply `display: none` with nothing in their place, so the whole
+                in-page nav did not exist on a phone — the audience this page is
+                most likely to be opened by. */}
+            <button
+              type="button"
+              className="landing-nav-menu-btn"
+              style={s.navMenuBtn}
+              aria-label={t(menuOpen ? 'landing.aria.closeMenu' : 'landing.aria.openMenu')}
+              aria-expanded={menuOpen}
+              aria-controls="landing-mobile-menu"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <Icon name={menuOpen ? 'close' : 'menu'} size={20} strokeWidth={2} />
+            </button>
           </div>
         </div>
+
+        {menuOpen && (
+          <div
+            id="landing-mobile-menu"
+            className="landing-nav-menu"
+            style={s.navMenu}
+            aria-label={t('landing.aria.sections')}
+          >
+            {SECTIONS.map((sec) => (
+              <a
+                key={sec.href}
+                href={sec.href}
+                style={s.navMenuLink}
+                onClick={() => setMenuOpen(false)}
+              >
+                {t(sec.labelKey)}
+                <Icon name="arrow-right" size={15} strokeWidth={2} />
+              </a>
+            ))}
+            <Link href="/login" style={s.navMenuLink} onClick={() => setMenuOpen(false)}>
+              {t('landing.nav.signIn')}
+              <Icon name="arrow-right" size={15} strokeWidth={2} />
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────── */}
@@ -379,18 +545,20 @@ export default function LandingPage() {
 
               <div style={s.mockTitle}>
                 <h4 style={s.mockTitleH}>{t('landing.hero.mockThisWeek')}</h4>
-                <span style={s.mockChip}>{t('landing.hero.mockExpected')}</span>
+                <span style={s.mockChip}>
+                  {t('landing.hero.mockExpected', { amount: format.eur(124_000) })}
+                </span>
               </div>
 
               {BOOKINGS.map((b, i) => (
                 <div
-                  key={b.name}
+                  key={b.nameKey}
                   style={{ ...s.row, ...(i === BOOKINGS.length - 1 ? { marginBottom: 0 } : {}) }}
                 >
                   <span style={{ ...s.avatar, background: b.gradient }}>{b.initials}</span>
                   <span style={s.rowInfo}>
-                    <span style={s.rowName}>{b.name}</span>
-                    <span style={s.rowMeta}>{b.meta}</span>
+                    <span style={s.rowName}>{t(b.nameKey)}</span>
+                    <span style={s.rowMeta}>{t(b.metaKey)}</span>
                   </span>
                   <span style={{ ...s.status, ...statusStyle(b.tone) }}>{t(b.labelKey)}</span>
                 </div>
@@ -402,7 +570,9 @@ export default function LandingPage() {
                 </span>
                 <div>
                   <span style={s.toastB}>{t('landing.hero.toastTitle')}</span>
-                  <span style={s.toastSpan}>{t('landing.hero.toastMeta')}</span>
+                  <span style={s.toastSpan}>
+                    {t('landing.hero.toastMeta', { amount: format.eur(48_000) })}
+                  </span>
                 </div>
               </div>
             </div>
@@ -439,16 +609,13 @@ export default function LandingPage() {
           {/* Hero tile — galleries */}
           <div className="tile-big landing-card-hover" style={s.tileBig}>
             <div style={s.bigBody}>
-              <div style={s.tileIcon}>
-                <Icon name="gallery" size={21} />
-              </div>
               <h3 style={s.bigTitle}>{t('landing.features.galleriesTitle')}</h3>
               <p style={s.bigText}>{t('landing.features.galleriesText')}</p>
             </div>
             <div style={s.galleryPrevWrap}>
               <div style={s.galleryBar}>
                 <div>
-                  <p style={s.galleryBarName}>Lena &amp; Kaan — Wedding</p>
+                  <p style={s.galleryBarName}>{t('landing.features.galleryBarName')}</p>
                   <span style={s.galleryBarMeta}>{t('landing.features.galleryBarMeta')}</span>
                 </div>
                 <span style={s.galleryBarAction}>
@@ -463,7 +630,15 @@ export default function LandingPage() {
                     style={{
                       ...s.gp,
                       aspectRatio: frame.ar,
-                      background: PHOTO_GRADIENTS[i % PHOTO_GRADIENTS.length],
+                      // Two layers where a photograph exists: the image, and
+                      // the duotone gradient underneath it. Naming a file that
+                      // is not on disk still costs a failed request per frame,
+                      // so a frame with no `src` paints the gradient alone.
+                      backgroundImage: frame.src
+                        ? `url('${frame.src}'), ${PHOTO_GRADIENTS[i % PHOTO_GRADIENTS.length]}`
+                        : PHOTO_GRADIENTS[i % PHOTO_GRADIENTS.length],
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
                     }}
                   >
                     <span style={s.gpShade} />
@@ -486,100 +661,120 @@ export default function LandingPage() {
             </div>
           </div>
 
+          {/* The remaining five tiles, in grid order. Contracts is the only one
+              still being built; it looks like every other card because it will
+              be every other card — what marks it out is the badge, not a
+              downgraded box.
+
+              What it does *not* get is a preview: mocking up a "Signed · 12 Jul"
+              row for a feature that cannot collect a signature is the one thing
+              an honest roadmap card must not do. Payments carried that same
+              restriction until card/SEPA shipped on 2026-08-18 — a card earns
+              its preview by shipping, so that is the moment to add one, and the
+              moment the badge has to come off. */}
           {[
             {
-              icon: 'calendar' as IconName,
+              key: 'bookings',
               title: t('landing.features.bookingsTitle'),
               soon: false,
               text: t('landing.features.bookingsText'),
               visual: (
                 <div style={s.mini}>
                   <div style={s.miniRowActive}>
-                    <span style={s.miniLabel}>Sat 12 Jul · 14:00</span>
+                    <span style={s.miniLabel}>{t('landing.features.slotBooked')}</span>
                     <span style={s.miniPillSuccess}>
                       <Icon name="check" size={11} strokeWidth={2.5} />{' '}
                       {t('landing.features.booked')}
                     </span>
                   </div>
                   <div style={s.miniRow}>
-                    <span style={s.miniLabel}>Sun 13 Jul · 10:00</span>
+                    <span style={s.miniLabel}>{t('landing.features.slotOpen')}</span>
+                    <span style={s.miniPillNeutral}>{t('landing.features.open')}</span>
+                  </div>
+                  <div style={s.miniRow}>
+                    <span style={s.miniLabel}>{t('landing.features.slotOpenLate')}</span>
                     <span style={s.miniPillNeutral}>{t('landing.features.open')}</span>
                   </div>
                 </div>
               ),
             },
             {
-              icon: 'contract' as IconName,
-              title: t('landing.features.contractsTitle'),
-              soon: true,
-              text: t('landing.features.contractsText'),
-              visual: (
-                <div style={s.mini}>
-                  <div style={s.miniRow}>
-                    <span style={s.miniLabel}>Shooting-Vertrag.pdf</span>
-                    <span style={s.miniPillSuccess}>
-                      <Icon name="check" size={11} strokeWidth={2.5} />{' '}
-                      {t('landing.features.signed')}
-                    </span>
-                  </div>
-                  <div style={s.miniSign}>
-                    <span style={s.miniSignName}>Anna Fischer</span>
-                    <span style={s.miniPillNeutral}>{t('landing.features.esigned')}</span>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              icon: 'card' as IconName,
-              title: t('landing.features.stripeTitle'),
-              soon: true,
-              text: t('landing.features.stripeText'),
-              visual: (
-                <div style={s.mini}>
-                  <div style={s.miniRow}>
-                    <span style={s.miniLabel}>{t('landing.features.deposit')}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={s.miniValue}>€480</span>
-                      <span style={s.miniPillSuccess}>
-                        <Icon name="check" size={11} strokeWidth={2.5} />{' '}
-                        {t('landing.features.paid')}
-                      </span>
-                    </span>
-                  </div>
-                  <div style={s.miniRow}>
-                    <span style={s.miniLabel}>{t('landing.features.balance')}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={s.miniValue}>€720</span>
-                      <span style={s.miniPillNeutral}>{t('landing.features.due')}</span>
-                    </span>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              icon: 'target' as IconName,
+              key: 'leads',
               title: t('landing.features.leadTitle'),
               soon: false,
               text: t('landing.features.leadText'),
               visual: (
                 <div style={s.mini}>
-                  <div style={s.miniRow}>
-                    <span style={s.miniLabel}>Sarah M. · Wedding</span>
+                  <div style={s.miniRowActive}>
+                    <span style={s.miniLabel}>{t('landing.features.leadHotName')}</span>
                     <span style={s.miniPillPrimary}>{t('landing.features.leadHot')}</span>
                   </div>
                   <div style={s.miniRow}>
-                    <span style={s.miniLabel}>Tom K. · Portrait</span>
+                    <span style={s.miniLabel}>{t('landing.features.leadWarmName')}</span>
                     <span style={s.miniPillNeutral}>{t('landing.features.leadWarm')}</span>
+                  </div>
+                  <div style={s.miniRow}>
+                    <span style={s.miniLabel}>{t('landing.features.leadColdName')}</span>
+                    <span style={s.miniPillNeutral}>{t('landing.features.leadCold')}</span>
                   </div>
                 </div>
               ),
             },
-          ].map((f) => (
-            <div key={f.icon} className="landing-card-hover" style={s.tile}>
-              <div style={s.tileHead}>
-                <div style={s.tileIcon}>
-                  <Icon name={f.icon} size={21} />
+            {
+              key: 'contracts',
+              title: t('landing.features.contractsTitle'),
+              soon: true,
+              text: t('landing.features.contractsText'),
+              visual: null,
+            },
+            {
+              key: 'stripe',
+              title: t('landing.features.stripeTitle'),
+              soon: false,
+              text: t('landing.features.stripeText'),
+              visual: (
+                <div style={s.mini}>
+                  <div style={s.miniRowActive}>
+                    <span style={s.miniLabel}>
+                      {t('landing.features.payDeposit', { amount: format.eur(48_000) })}
+                    </span>
+                    <span style={s.miniPillSuccess}>
+                      <Icon name="check" size={11} strokeWidth={2.5} /> {t('landing.features.paid')}
+                    </span>
+                  </div>
+                  <div style={s.miniRow}>
+                    <span style={s.miniLabel}>
+                      {t('landing.features.payBalance', { amount: format.eur(72_000) })}
+                    </span>
+                    <span style={s.miniPillNeutral}>{t('landing.features.open')}</span>
+                  </div>
+                  <div style={s.miniRow}>
+                    <span style={s.miniLabel}>{t('landing.features.payMethods')}</span>
+                    <span style={s.miniPillNeutral}>{t('landing.features.payEnabled')}</span>
+                  </div>
                 </div>
+              ),
+            },
+            {
+              key: 'german',
+              title: t('landing.features.germanTitle'),
+              soon: false,
+              text: t('landing.features.germanText'),
+              visual: (
+                <div style={{ ...s.mini, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={s.miniPillSuccess}>
+                    <Icon name="check" size={11} strokeWidth={2.5} /> DSGVO
+                  </span>
+                  <span style={s.miniPillSuccess}>
+                    <Icon name="check" size={11} strokeWidth={2.5} /> GoBD
+                  </span>
+                  <span style={s.miniPillNeutral}>Kleinunternehmer §19</span>
+                </div>
+              ),
+            },
+          ].map((f) => (
+            <div key={f.key} className="landing-card-hover" style={s.tile}>
+              <div style={s.tileHead}>
                 <h3 style={s.tileTitle}>
                   {f.title}
                   {f.soon && <ComingSoon size="md" style={{ marginLeft: 8 }} />}
@@ -589,26 +784,6 @@ export default function LandingPage() {
               {f.visual}
             </div>
           ))}
-
-          {/* German market — a full feature tile so the 3×3 bento has no orphan cell. */}
-          <div className="landing-card-hover" style={s.tile}>
-            <div style={s.tileHead}>
-              <div style={s.tileIconInfo}>
-                <Icon name="globe" size={21} />
-              </div>
-              <h3 style={s.tileTitle}>{t('landing.features.germanTitle')}</h3>
-              <p style={s.tileText}>{t('landing.features.germanText')}</p>
-            </div>
-            <div style={{ ...s.mini, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              <span style={s.miniPillSuccess}>
-                <Icon name="check" size={11} strokeWidth={2.5} /> DSGVO
-              </span>
-              <span style={s.miniPillSuccess}>
-                <Icon name="check" size={11} strokeWidth={2.5} /> GoBD
-              </span>
-              <span style={s.miniPillNeutral}>Kleinunternehmer §19</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -661,68 +836,47 @@ export default function LandingPage() {
             <span style={s.eyebrowLine} />
           </span>
           <h2 style={s.sectionTitle}>{t('landing.audience.title')}</h2>
+          <p style={s.sectionSub}>{t('landing.audience.sub')}</p>
         </div>
 
-        <div className="landing-split landing-reveal-stagger">
-          <div className="landing-panel" style={s.panelFeature}>
-            <span style={{ ...s.panelGlow, ...s.panelGlowPrimary }} aria-hidden="true" />
-            <div style={s.ptop}>
-              <span style={{ ...s.pic, ...s.picFeature }}>
-                <Icon name="camera" size={23} />
-              </span>
-              <div>
-                <h3 style={s.ptopH}>{t('landing.audience.photographersTitle')}</h3>
-                <div style={s.ptag}>{t('landing.audience.photographersTag')}</div>
+        {/* Primary card: the photographer's own outcome. It hands off to the
+            pricing table below rather than carrying a fourth copy of the
+            page's primary CTA. */}
+        <div className="landing-reveal" style={s.studioCard}>
+          <div className="landing-studio-grid">
+            {STUDIO_OUTCOMES.map((o) => (
+              <div key={o.titleKey} style={s.outcome}>
+                <span style={s.outcomeIcon} aria-hidden="true">
+                  <Icon name={o.icon} size={17} />
+                </span>
+                <span>
+                  <span style={s.outcomeTitle}>{t(o.titleKey)}</span>
+                  <span style={s.outcomeText}>{t(o.textKey)}</span>
+                </span>
               </div>
-            </div>
-            <ul style={s.flist}>
-              {PHOTOGRAPHER_FEATURES.map((feat) => (
-                <li key={feat.labelKey} style={s.flistItem}>
-                  <span style={s.chkPrimary}>
-                    <Icon name="check" size={13} strokeWidth={2.8} />
-                  </span>
-                  {t(feat.labelKey)}
-                  {feat.soon && <ComingSoon size="sm" style={{ marginLeft: 8 }} />}
-                </li>
-              ))}
-            </ul>
-            <Link href="/register" style={s.lnk}>
-              {t('landing.audience.startTrial')}
-              <Icon name="arrow-right" size={16} strokeWidth={2} />
-            </Link>
+            ))}
           </div>
-
-          <div className="landing-panel" style={s.panel}>
-            <span style={{ ...s.panelGlow, ...s.panelGlowClient }} aria-hidden="true" />
-            <div style={s.ptop}>
-              <span style={{ ...s.pic, ...s.picClient }}>
-                <Icon name="user" size={23} />
-              </span>
-              <div>
-                <h3 style={s.ptopH}>{t('landing.audience.clientsTitle')}</h3>
-                <div style={s.ptag}>{t('landing.audience.clientsTag')}</div>
-              </div>
-            </div>
-            <ul style={s.flist}>
-              {CLIENT_FEATURES.map((feat) => (
-                <li key={feat.labelKey} style={s.flistItem}>
-                  <span style={s.chkPrimary}>
-                    <Icon name="check" size={13} strokeWidth={2.8} />
-                  </span>
-                  {t(feat.labelKey)}
-                  {feat.soon && <ComingSoon size="sm" style={{ marginLeft: 8 }} />}
-                </li>
-              ))}
-            </ul>
-            {/* Clients sign in through their photographer's link — /register is
-                the *photographer* studio signup (subdomain, plan, PHOTOGRAPHER
-                role), so pointing the "For clients" CTA there asked a client to
-                open a studio account. There is no photographer directory yet;
-                the client sign-in page is the real entry point. */}
-            <Link href="/customer/auth/login" style={s.lnkClient}>
-              {t('landing.audience.findPhotographer')}
+          <div style={s.studioCta}>
+            <a href="#pricing" className="landing-textlink" style={s.studioLink}>
+              {t('landing.audience.seePricing')}
               <Icon name="arrow-right" size={16} strokeWidth={2} />
-            </Link>
+            </a>
+          </div>
+        </div>
+
+        {/* Secondary, deliberately quieter: the client experience is the
+            photographer's reason to buy, not a second thing being sold. */}
+        <div className="landing-reveal" style={s.clientCard}>
+          <h3 style={s.clientTitle}>{t('landing.audience.clientTitle')}</h3>
+          <div className="landing-client-grid">
+            {CLIENT_EXPERIENCE.map((ce) => (
+              <div key={ce.labelKey} style={s.clientItem}>
+                <span style={s.clientIcon} aria-hidden="true">
+                  <Icon name={ce.icon} size={17} />
+                </span>
+                {t(ce.labelKey)}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -740,11 +894,15 @@ export default function LandingPage() {
           <h2 style={s.sectionTitle}>{t('landing.pricing.title')}</h2>
           <p style={s.sectionSub}>{t('landing.pricing.sub')}</p>
 
-          <div style={s.priceSwitch} role="tablist" aria-label={t('landing.aria.billingPeriod')}>
+          {/* `radiogroup`, not `tablist`: these are two values of one setting,
+              not two panels. As tabs they promised a `tabpanel` that does not
+              exist, so a screen reader announced "tab 1 of 2" and then found
+              nothing the tab controlled. */}
+          <div style={s.priceSwitch} role="radiogroup" aria-label={t('landing.aria.billingPeriod')}>
             <button
               type="button"
-              role="tab"
-              aria-selected={!yearly}
+              role="radio"
+              aria-checked={!yearly}
               onClick={() => setYearly(false)}
               style={{ ...s.priceSwitchBtn, ...(!yearly ? s.priceSwitchBtnOn : {}) }}
             >
@@ -752,8 +910,8 @@ export default function LandingPage() {
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={yearly}
+              role="radio"
+              aria-checked={yearly}
               onClick={() => setYearly(true)}
               style={{ ...s.priceSwitchBtn, ...(yearly ? s.priceSwitchBtnOn : {}) }}
             >
@@ -761,15 +919,18 @@ export default function LandingPage() {
               <span style={s.priceSave}>{t('landing.pricing.save')}</span>
             </button>
           </div>
+
+          {/* Sits with the prices rather than in the footnote: PAngV wants the
+              VAT statement next to the figure it qualifies, and a page that
+              says nothing implicitly claims €19 is what leaves your account. */}
+          <p style={s.priceVatNote}>{t('landing.pricing.vatNote')}</p>
         </div>
 
         <div className="landing-prices landing-reveal-stagger" style={s.pricesWrap}>
           {PRICING.map((plan) => (
             <div
               key={plan.tier}
-              className={
-                plan.highlighted ? 'landing-price-pro landing-card-hover' : 'landing-card-hover'
-              }
+              className="landing-card-hover"
               style={{ ...s.priceCard, ...(plan.highlighted ? s.priceCardHot : {}) }}
             >
               {plan.highlighted && (
@@ -777,11 +938,7 @@ export default function LandingPage() {
               )}
 
               <div style={{ ...s.tier, ...(plan.highlighted ? s.tierPro : {}) }}>{plan.tier}</div>
-              <div style={s.amount}>
-                <span style={s.amountCur}>€</span>
-                <span style={s.amountVal}>{yearly ? plan.yearly : plan.monthly}</span>
-                <span style={s.amountPer}>{t('landing.pricing.perMonth')}</span>
-              </div>
+              {priceAmount(yearly ? plan.yearly : plan.monthly)}
               <div style={s.billed}>
                 {yearly ? t('landing.pricing.billedYearly') : t('landing.pricing.billedMonthly')}
               </div>
@@ -809,14 +966,23 @@ export default function LandingPage() {
                 </Link>
               )}
 
+              {/* A shipped row gets the filled tick; a roadmap row gets a hollow
+                  dot and the badge. They used to share one tick, so a Studio
+                  card read "✓ Up to 3 photographers · SOON" — the tick saying
+                  included, the badge saying unbuilt, on one line. The audience
+                  section above dropped exactly this pairing; the pricing table
+                  is where it is most expensive, because here the reader is
+                  deciding what they are paying for. */}
               <ul style={s.priceFeatures}>
                 {plan.features.map((feat) => (
                   <li key={feat.labelKey} style={s.priceItem}>
-                    <span style={s.priceChk}>
-                      <Icon name="check" size={12} strokeWidth={2.8} />
+                    <span style={feat.soon ? s.priceChkSoon : s.priceChk} aria-hidden="true">
+                      {!feat.soon && <Icon name="check" size={12} strokeWidth={2.8} />}
                     </span>
-                    {t(feat.labelKey)}
-                    {feat.footnote && <span style={s.priceFootMark}>*</span>}
+                    <span style={feat.soon ? s.priceLabelSoon : undefined}>
+                      {t(feat.labelKey)}
+                      {feat.footnote && <span style={s.priceFootMark}>*</span>}
+                    </span>
                     {feat.soon && <ComingSoon size="sm" style={{ marginLeft: 8 }} />}
                   </li>
                 ))}
@@ -828,20 +994,27 @@ export default function LandingPage() {
       </section>
 
       {/* ── Closing CTA ─────────────────────────────────────────── */}
-      <section style={s.ctaWrap}>
-        <div className="landing-reveal" style={s.ctaBox}>
-          <span style={s.ctaGlow} aria-hidden="true" />
-          <span style={s.ctaEyebrow}>
-            <span style={s.ctaEyebrowLine} />
-            {t('landing.cta.eyebrow')}
-            <span style={s.ctaEyebrowLine} />
-          </span>
-          <h2 style={s.ctaTitle}>{t('landing.cta.title')}</h2>
+      {/* No eyebrow: the mono-and-hairlines label is the device that opens
+          every section above, and here it restated the headline under it —
+          two labels for one message, on the page's last block. */}
+      <section style={s.ctaSection}>
+        <span className="landing-cta-aurora" style={s.ctaAurora} aria-hidden="true" />
+        <span style={s.ctaGrid} aria-hidden="true" />
+        <div className="landing-reveal" style={s.ctaInner}>
+          <h2 style={s.ctaTitle}>
+            {t('landing.cta.titlePre')}
+            <span className="landing-accent-shimmer" style={s.heroAccent}>
+              {t('landing.cta.titleAccent')}
+            </span>
+            .
+          </h2>
           <p style={s.ctaText}>{t('landing.cta.text')}</p>
-          <Link href="/register" style={s.btnLight}>
-            {t('landing.cta.button')}
-            <Icon name="arrow-right" size={18} strokeWidth={2} />
-          </Link>
+          <div style={s.ctaActions}>
+            <Link href="/register" className="landing-btn landing-btn-primary">
+              {t('landing.cta.button')}
+              <Icon name="arrow-right" size={18} strokeWidth={2} />
+            </Link>
+          </div>
           <div style={s.ctaMicro}>{t('landing.cta.micro')}</div>
         </div>
       </section>
@@ -860,18 +1033,11 @@ export default function LandingPage() {
 
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.product')}</h5>
-              <a href="#features" style={s.footLink}>
-                {t('landing.nav.features')}
-              </a>
-              <a href="#pricing" style={s.footLink}>
-                {t('landing.nav.pricing')}
-              </a>
-              <a href="#workflow" style={s.footLink}>
-                {t('landing.nav.howItWorks')}
-              </a>
-              <a href="#audience" style={s.footLink}>
-                {t('landing.nav.forClients')}
-              </a>
+              {SECTIONS.map((sec) => (
+                <a key={sec.href} href={sec.href} style={s.footLink}>
+                  {t(sec.labelKey)}
+                </a>
+              ))}
             </div>
             <div style={s.footCol}>
               <h5 style={s.footColH}>{t('landing.footer.account')}</h5>
@@ -882,7 +1048,7 @@ export default function LandingPage() {
                 {t('landing.nav.getStarted')}
               </Link>
               <Link href="/customer/auth/login" style={s.footLink}>
-                {t('landing.audience.findPhotographer')}
+                {t('landing.nav.clientSignIn')}
               </Link>
             </div>
             <div style={s.footCol}>

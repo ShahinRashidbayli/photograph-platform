@@ -42,7 +42,21 @@ export const metadata: Metadata = {
 // source locale (this is a server component and localStorage is client-only),
 // and assistive tech reads the attribute early, so fixing it here rather than
 // in an effect avoids a window where German copy is announced as English.
-const CLIENT_INIT = `(function(){try{var r=localStorage.getItem('theme-storage');if(r){var t=JSON.parse(r);var m=t&&t.state&&t.state.theme;var el=document.documentElement;if(m==='dark'){el.style.backgroundColor='#0A0A0C';el.style.colorScheme='dark';}else{el.style.backgroundColor='#F7F8FB';el.style.colorScheme='light';}}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
+//
+// And it marks the document `data-js`, which is what gates every "hidden until
+// revealed" starting state — the landing page's scroll-reveal is the only one
+// today. Those rules must not apply when scripts do not run, or a
+// server-rendered page is delivered complete and then painted blank; setting
+// the flag here rather than from an effect means it is on the element before
+// the first paint, so nothing flashes in and back out. It is the first
+// statement in the function because the `try` below it must not be able to
+// skip it.
+//
+// An attribute rather than a class, for two reasons: React owns `<html
+// class>` (the font variables below) and may drop a script-added class when it
+// reconciles that attribute on hydration, and `html.js …` would outrank the
+// `.in` rule the observer relies on — see the note in globals.css.
+const CLIENT_INIT = `(function(){document.documentElement.setAttribute('data-js','');try{var r=localStorage.getItem('theme-storage');if(r){var t=JSON.parse(r);var m=t&&t.state&&t.state.theme;var el=document.documentElement;if(m==='dark'){el.style.backgroundColor='#0A0A0C';el.style.colorScheme='dark';}else{el.style.backgroundColor='#F7F8FB';el.style.colorScheme='light';}}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

@@ -105,14 +105,43 @@ body {
 
 /* Two-column hero → single column below the breakpoint. Text stays first in
  * the DOM so it reads before the visual on mobile and wins the LCP. */
-/* Centre nav anchor links. Hidden on narrower viewports where the logo, the
-   language/theme toggles and the auth buttons would otherwise crowd them — the
-   same sections are still reachable by scrolling. Overrides the inline
-   `display: flex` via !important (a media rule beats a non-important inline). */
+/* Centre nav anchor links. Below 860px the logo, the language/theme toggles and
+   the auth buttons crowd them out, so they move behind the menu button — which
+   is what `.landing-nav-menu-btn` turns on at the same width. They used to be
+   hidden with nothing in their place, leaving a phone with no in-page nav at
+   all.
+
+   `!important` is doing real work here: an inline style beats any stylesheet
+   rule, media query or not, so without it the inline `display: flex` on these
+   elements would win at every width. */
 @media (max-width: 860px) {
   .landing-nav-links {
     display: none !important;
   }
+  .landing-nav-menu-btn {
+    display: inline-flex !important;
+  }
+}
+/* Under ~420px the toggles, "Sign in" and "Get started" no longer fit beside
+   the logo and the menu button. Sign-in is the one that gives way: it is the
+   least likely action for a first-time visitor, and it is the first entry
+   inside the menu it makes room for. */
+@media (max-width: 420px) {
+  .landing-nav-signin {
+    display: none !important;
+  }
+}
+
+/* In-page anchors clear the sticky bar. Without this the browser scrolls the
+   section's top edge to y=0, which is exactly where the 66px navbar is sitting,
+   so a jump to #pricing put its eyebrow underneath the nav.
+
+   Set on the targets themselves rather than as `scroll-padding-top` on `html`,
+   which would apply to every route — the dashboard's chrome is a different
+   height — and rather than on `:target`, which only matches once the hash is
+   already the current one. */
+.landing-root > [id] {
+  scroll-margin-top: 82px;
 }
 
 .landing-hero-grid {
@@ -201,6 +230,12 @@ body {
     left: 135%;
   }
 }
+/* Quiet inline link — used where a section hands off to another section
+ * instead of repeating the page's primary call to action. */
+.landing-textlink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .landing-card-hover {
   transition:
     transform 0.2s ease,
@@ -223,16 +258,6 @@ body {
   outline: 2px solid #6366f1;
   outline-offset: 3px;
 }
-/* Audience cards — a firmer lift + soft shadow so they feel tactile on hover. */
-.landing-panel {
-  transition:
-    transform 0.22s ease,
-    box-shadow 0.22s ease;
-}
-.landing-panel:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 26px 54px -26px rgba(2, 6, 23, 0.4);
-}
 
 /* Film-grain overlay — photographic texture for the landing page only.
  * Opacity is set inline (it differs per theme); this class only carries the
@@ -249,7 +274,10 @@ body {
 .landing-bento {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
+  /* `1fr` forced every row to the height of the tallest tile in it, which is
+     where the gap between a short card's copy and its preview came from. Rows
+     now size to their content and the tiles stretch to match their row. */
+  grid-auto-rows: auto;
   gap: 16px;
 }
 .landing-bento .tile-big {
@@ -312,14 +340,24 @@ body {
   }
 }
 
-/* Audience split. */
-.landing-split {
+/* Studio outcomes — exactly four items, so the grid is a fixed 2×2. An
+ * auto-fit track fitted three 353px columns at desktop width and dropped the
+ * fourth item onto a row of its own, leaving ~770px of empty card beside it. */
+.landing-studio-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 24px 40px;
 }
-@media (max-width: 760px) {
-  .landing-split {
+/* Three client-side outcomes, one per column, collapsing together with the
+ * grid above so both cards break at the same width. */
+.landing-client-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 28px;
+}
+@media (max-width: 720px) {
+  .landing-studio-grid,
+  .landing-client-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -377,15 +415,39 @@ body {
   }
 }
 
-/* Scroll-reveal — the page adds `.in` via IntersectionObserver. */
-.landing-reveal {
+/* Scroll-reveal — the page adds `.in` via IntersectionObserver.
+ *
+ * The hidden state is gated on `html[data-js]`, which the root layout's inline
+ * script sets before first paint. Hidden by default with script doing the
+ * revealing left everything below the hero at `opacity: 0` for any visitor
+ * whose JavaScript did not run: the markup is server-rendered and present, so
+ * a crawler or a reader with scripts off got a blank marketing page rather
+ * than an unanimated one.
+ *
+ * Two things about the selector are load-bearing, and getting either wrong
+ * hides the page from *everyone*:
+ *
+ *   - It is an attribute, not a class. React owns `<html class>` — it is set
+ *     from the layout's font variables — so a class added by the inline script
+ *     is liable to be dropped when React reconciles the attribute on hydration.
+ *     `data-js` is not an attribute React writes, so it survives.
+ *   - The gate carries no element selector, and the `.in` rules carry the gate.
+ *     `[data-js] .landing-reveal` scores (0,2,0) and `[data-js]
+ *     .landing-reveal.in` scores (0,3,0), so revealing wins on specificity
+ *     rather than on source order. Adding `html` in front — `html[data-js]
+ *     .landing-reveal` — takes the gate to (0,2,1), which outranks a bare
+ *     `.landing-reveal.in` at (0,2,0): the observer then adds the class and
+ *     nothing happens, leaving the whole page below the hero invisible. An
+ *     attribute selector weighs the same as a class; the element is the part
+ *     that tips it. */
+[data-js] .landing-reveal {
   opacity: 0;
   transform: translateY(22px);
   transition:
     opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
     transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.landing-reveal.in {
+[data-js] .landing-reveal.in {
   opacity: 1;
   transform: none;
 }
@@ -396,31 +458,31 @@ body {
  * transition on the same element would overwrite that shorthand and make the
  * hover snap. An animation touches only `opacity`, leaving `transition` — and
  * therefore the smooth hover — untouched. */
-.landing-reveal-stagger > * {
+[data-js] .landing-reveal-stagger > * {
   opacity: 0;
 }
-.landing-reveal-stagger.in > * {
+[data-js] .landing-reveal-stagger.in > * {
   animation: landing-fade-in 0.55s ease both;
 }
-.landing-reveal-stagger.in > *:nth-child(1) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(1) {
   animation-delay: 0.04s;
 }
-.landing-reveal-stagger.in > *:nth-child(2) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(2) {
   animation-delay: 0.11s;
 }
-.landing-reveal-stagger.in > *:nth-child(3) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(3) {
   animation-delay: 0.18s;
 }
-.landing-reveal-stagger.in > *:nth-child(4) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(4) {
   animation-delay: 0.25s;
 }
-.landing-reveal-stagger.in > *:nth-child(5) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(5) {
   animation-delay: 0.32s;
 }
-.landing-reveal-stagger.in > *:nth-child(6) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(6) {
   animation-delay: 0.39s;
 }
-.landing-reveal-stagger.in > *:nth-child(7) {
+[data-js] .landing-reveal-stagger.in > *:nth-child(7) {
   animation-delay: 0.46s;
 }
 @keyframes landing-fade-in {
@@ -467,6 +529,45 @@ body {
   background: radial-gradient(circle, rgba(76, 141, 224, 0.45), transparent 70%);
   animation: landing-aurora-b 23s ease-in-out infinite alternate;
 }
+/* Closing CTA aurora — the hero's blobs, recentred. The hero's sit top-right
+ * because its composition is left-aligned; this one is centred, so one blob
+ * pools behind the headline and the second lifts the lower-left corner. They
+ * run on the hero's own keyframes so the two ends of the page drift alike. */
+.landing-cta-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.landing-cta-aurora::before,
+.landing-cta-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+.landing-cta-aurora::before {
+  width: 620px;
+  height: 620px;
+  top: -280px;
+  left: 50%;
+  margin-left: -310px;
+  background: radial-gradient(circle, rgba(124, 102, 245, 0.5), transparent 70%);
+  animation: landing-aurora-a 18s ease-in-out infinite alternate;
+}
+.landing-cta-aurora::after {
+  width: 440px;
+  height: 440px;
+  /* Far enough off-canvas that only the soft shoulder of the blob reaches the
+     band — closer in, its blurred edge banded into visible arcs. */
+  bottom: -320px;
+  left: 4%;
+  filter: blur(96px);
+  background: radial-gradient(circle, rgba(76, 141, 224, 0.3), transparent 70%);
+  animation: landing-aurora-b 23s ease-in-out infinite alternate;
+}
 @keyframes landing-aurora-a {
   from {
     transform: translate(0, 0) scale(1);
@@ -510,17 +611,27 @@ body {
   .landing-float {
     animation: none;
   }
-  .landing-reveal {
+  /* A media query adds no specificity, so each of these has to match — or beat
+     — the rule it is overriding, not just come after it. The `.in` variants are
+     listed separately for that reason: `[data-js] .landing-reveal-stagger > *`
+     alone scores (0,2,0) and loses to the `.in` rule's (0,3,0), which would
+     leave the staggered cards animating for a reader who asked for less
+     motion. */
+  [data-js] .landing-reveal,
+  [data-js] .landing-reveal.in {
     opacity: 1;
     transform: none;
     transition: none;
   }
-  .landing-reveal-stagger > * {
+  [data-js] .landing-reveal-stagger > *,
+  [data-js] .landing-reveal-stagger.in > * {
     opacity: 1;
     animation: none;
   }
   .landing-aurora::before,
-  .landing-aurora::after {
+  .landing-aurora::after,
+  .landing-cta-aurora::before,
+  .landing-cta-aurora::after {
     animation: none;
   }
   .landing-accent-shimmer {
@@ -528,11 +639,5 @@ body {
   }
   .landing-btn-primary:hover::after {
     animation: none;
-  }
-  .landing-panel {
-    transition: none;
-  }
-  .landing-panel:hover {
-    transform: none;
   }
 }

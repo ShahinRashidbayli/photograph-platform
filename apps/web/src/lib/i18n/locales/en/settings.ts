@@ -215,6 +215,11 @@ export const settings = {
   'settings.team.leaveBody':
     'You will be signed out and lose access immediately. This cannot be undone from here — the owner would have to invite you again.',
   'settings.team.leaveError': 'Could not leave the studio.',
+  'settings.team.makeOwner': 'Make owner',
+  'settings.team.handoverTitle': 'Hand the studio over?',
+  'settings.team.handoverBody':
+    '{name} becomes the owner and you become an ordinary photographer here. They take over billing, the plan, and who is in the studio — including the ability to remove you. Only they can hand it back.',
+  'settings.team.handoverError': 'Could not hand the studio over.',
   'settings.team.pastInvites': 'Earlier invitations',
   'settings.team.statusPending': 'Pending',
   'settings.team.statusAccepted': 'Accepted',

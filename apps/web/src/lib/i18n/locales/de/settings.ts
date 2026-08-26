@@ -216,6 +216,11 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.team.leaveBody':
     'Sie werden abgemeldet und verlieren sofort den Zugang. Das lässt sich hier nicht rückgängig machen — der Inhaber müsste Sie erneut einladen.',
   'settings.team.leaveError': 'Das Studio konnte nicht verlassen werden.',
+  'settings.team.makeOwner': 'Zum Inhaber machen',
+  'settings.team.handoverTitle': 'Studio übergeben?',
+  'settings.team.handoverBody':
+    '{name} wird Inhaber, Sie werden hier zum gewöhnlichen Fotografen. Abrechnung, Tarif und die Frage, wer im Studio ist, gehen über — einschließlich der Möglichkeit, Sie zu entfernen. Nur diese Person kann es zurückgeben.',
+  'settings.team.handoverError': 'Das Studio konnte nicht übergeben werden.',
   'settings.team.pastInvites': 'Frühere Einladungen',
   'settings.team.statusPending': 'Offen',
   'settings.team.statusAccepted': 'Angenommen',

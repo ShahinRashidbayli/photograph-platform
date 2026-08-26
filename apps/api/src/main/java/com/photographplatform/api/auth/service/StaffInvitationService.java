@@ -300,6 +300,57 @@ public class StaffInvitationService {
     }
 
     /**
+     * Hands the studio to one of its members.
+     *
+     * <p>The missing half of {@link #leaveStudio}: an owner cannot leave, so
+     * without this a studio can never change hands — not on a sale, not when a
+     * partnership ends, not when the founder stops shooting. The owner is the
+     * only account that can manage billing, so the product has to provide a way
+     * to move that, or the answer is a support ticket and a manual UPDATE.
+     *
+     * <p>Demote-then-promote, each flushed, because {@code uq_users_tenant_owner}
+     * allows exactly one OWNER per tenant. Doing it the other way round, or in
+     * one flush, hits the index mid-way with two owners and fails. The whole
+     * thing is one transaction, so a failure between the two leaves the studio
+     * with the owner it started with rather than none.
+     *
+     * <p>{@code tenants.owner_email} moves too. It is not the source of
+     * ownership any more — {@code staff_role} is — but it still addresses lead
+     * and enquiry notifications and identifies the Stripe customer, so leaving
+     * it behind would keep mailing the former owner about a studio they no
+     * longer run.
+     */
+    @Transactional
+    public void transferOwnership(UUID tenantId, UUID actorId, UUID newOwnerId, String ipAddress) {
+        User current = ownershipGuard.requireOwner(tenantId, actorId);
+        if (current.getId().equals(newOwnerId)) {
+            return;
+        }
+
+        User target = userRepository.findById(newOwnerId)
+            .filter(u -> u.getTenantId().equals(tenantId))
+            .orElseThrow(() -> new NotFoundException("Member not found"));
+        // Customers share the tenant but are not staff; handing a studio to one
+        // would leave it owned by an account that cannot sign in to run it.
+        if (target.getStaffRole() == null) {
+            throw new ConflictException("That account is not a photographer in this studio");
+        }
+
+        current.setStaffRole(StaffRole.MEMBER);
+        userRepository.saveAndFlush(current);
+        target.setStaffRole(StaffRole.OWNER);
+        userRepository.saveAndFlush(target);
+
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Studio not found"));
+        tenant.setOwnerEmail(target.getEmail());
+        tenantRepository.save(tenant);
+
+        auditService.logQuietly("OWNERSHIP_TRANSFERRED", "USER", newOwnerId,
+            tenantId, actorId, ipAddress);
+    }
+
+    /**
      * A member leaving the studio they were invited into.
      *
      * <p>The counterpart to {@link #removeMember}: same effect, but the person

@@ -6,6 +6,7 @@ import com.photographplatform.api.auth.dto.InviteStaffRequest;
 import com.photographplatform.api.auth.dto.TeamInvitationResponse;
 import com.photographplatform.api.auth.dto.TeamMemberResponse;
 import com.photographplatform.api.auth.dto.TeamResponse;
+import com.photographplatform.api.auth.dto.TransferOwnershipRequest;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.auth.service.AvatarUrlResolver;
 import com.photographplatform.api.auth.service.StaffInvitationService;
@@ -123,6 +124,26 @@ public class TeamController {
             SecurityUtils.requireCurrentTenantId(),
             SecurityUtils.requireCurrentUserId(),
             id,
+            ClientIp.from(httpRequest));
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Hands the studio to a colleague.
+     *
+     * <p>The caller becomes an ordinary member in the same request, so this is
+     * the last owner-only action they can take. Answers 204: the client reloads
+     * rather than patching state, because what the whole shell offers changes.
+     */
+    @PostMapping("/transfer-ownership")
+    public ResponseEntity<Void> transferOwnership(
+        @Valid @RequestBody TransferOwnershipRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        invitationService.transferOwnership(
+            SecurityUtils.requireCurrentTenantId(),
+            SecurityUtils.requireCurrentUserId(),
+            request.memberId(),
             ClientIp.from(httpRequest));
         return ResponseEntity.noContent().build();
     }

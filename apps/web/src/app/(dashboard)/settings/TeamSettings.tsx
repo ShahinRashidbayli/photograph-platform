@@ -74,6 +74,7 @@ export function TeamSettings() {
 
   const [pendingRemoval, setPendingRemoval] = useState<TeamMember | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [pendingHandover, setPendingHandover] = useState<TeamMember | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -148,6 +149,24 @@ export function TeamSettings() {
    * it — the layout's `/api/auth/me` effect must not refire against dead
    * cookies.
    */
+  /**
+   * Hands the studio over. Reloads afterwards rather than refetching the team:
+   * the caller stops being the owner in the same request, so the controls this
+   * screen offers — and the ones the API will accept — both change.
+   */
+  async function transferOwnership() {
+    if (!pendingHandover) return;
+    setBusy(true);
+    try {
+      await api.post('/api/team/transfer-ownership', { memberId: pendingHandover.id });
+      globalThis.location.reload();
+    } catch (err) {
+      setPendingHandover(null);
+      setError(asyncError(err, 'settings.team.handoverError'));
+      setBusy(false);
+    }
+  }
+
   async function leaveStudio() {
     setBusy(true);
     try {
@@ -429,6 +448,20 @@ export function TeamSettings() {
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingHandover !== null}
+        title={t('settings.team.handoverTitle')}
+        message={t('settings.team.handoverBody', {
+          name: pendingHandover?.fullName ?? pendingHandover?.email ?? '',
+        })}
+        confirmLabel={t('settings.team.makeOwner')}
+        tone="danger"
+        theme={theme}
+        busy={busy}
+        onConfirm={() => void transferOwnership()}
+        onCancel={() => setPendingHandover(null)}
+      />
 
       <ConfirmDialog
         open={confirmLeave}

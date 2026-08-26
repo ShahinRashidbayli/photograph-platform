@@ -9,6 +9,7 @@ import { FotolioLogo } from '@/components/FotolioLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -21,18 +22,26 @@ import { AccountLockNotice } from '@/components/AccountLockNotice';
 // an uppercase section header for grouping signal without using horizontal
 // dividers.
 //
-// There is no analytics group: /revenue and /reports still exist as routes
-// (and are still gated to photographers below), but nothing links to them from
-// here. Their labels are the `nav.section.analytics` / `nav.reports` /
-// `nav.revenue` keys that `npm run i18n:check` reports as unreferenced — kept
-// so the section can come back without re-translating it, not an oversight.
+// The analytics group is conditional: /revenue and /reports are Studio's
+// ANALYTICS capability, so linking to them from a plan that does not include
+// it would send a photographer to a screen the API answers with 402. The group
+// is filtered out below rather than shown-and-locked — a sidebar is a list of
+// places you can go.
 type NavLeaf = {
   labelKey: TranslationKey;
   href: string;
   icon: React.ReactNode;
   badgeKey?: 'unrepliedLeads';
 };
-type NavGroup = { titleKey?: TranslationKey; items: NavLeaf[] };
+type NavGroup = {
+  titleKey?: TranslationKey;
+  items: NavLeaf[];
+  /**
+   * Plan capability this group needs. Groups without one are always shown;
+   * the value is a {@code Capability} name as the API serialises it.
+   */
+  capability?: string;
+};
 
 const PHOTOGRAPHER_NAV: NavGroup[] = [
   {
@@ -159,10 +168,49 @@ const PHOTOGRAPHER_NAV: NavGroup[] = [
       },
     ],
   },
-  // Analytics (Reports + Revenue) is deliberately absent: both are stubbed
-  // pages that render a "coming soon" placeholder, and a menu of entries that
-  // lead nowhere reads as an unfinished product. The routes still exist — they
-  // return to the sidebar as one entry each once they render real data.
+  // Both pages read real figures now — revenue from issued invoices and
+  // succeeded payments, reports from bookings, leads and packages — so they
+  // are linked. Filtered out entirely on a plan without ANALYTICS.
+  {
+    titleKey: 'nav.section.analytics',
+    capability: 'ANALYTICS',
+    items: [
+      {
+        labelKey: 'nav.revenue',
+        href: '/revenue',
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M2 11.5V8m3.33 3.5V5.5M8.67 11.5v-5M12 11.5v-9"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        ),
+      },
+      {
+        labelKey: 'nav.reports',
+        href: '/reports',
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M3 1.5h5l3 3v8a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5z"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M8 1.5v3h3M4.75 8h4.5M4.75 10.25h3"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
 
 // Payments is linked and reads REAL data — it derives every amount from the
@@ -445,7 +493,13 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     }
   }
 
-  const navItems = isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV;
+  // Groups that name a capability drop out unless the plan grants it. `has`
+  // answers false until the entitlements load, so a gated group appears when
+  // it is confirmed rather than flashing in and out on every navigation.
+  const { has: hasCapability } = useEntitlements();
+  const navItems = (isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV).filter(
+    (group) => !group.capability || hasCapability(group.capability)
+  );
   const [attentionCount, setAttentionCount] = useState<number | null>(null);
 
   // Attention badge (bell + sidebar Leads): everything new that landed in the

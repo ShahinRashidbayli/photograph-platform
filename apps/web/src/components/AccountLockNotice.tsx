@@ -1,24 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import api from '@/lib/api';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { useTranslation } from '@/lib/i18n';
-import { useIsPhotographer } from '@/store/authStore';
-
-interface Entitlements {
-  plan: string;
-  capabilities: string[];
-  galleryRetentionDays: number;
-  seats: number;
-  commissionBps: number;
-  writable: boolean;
-  lockReason: string | null;
-  trialEndsAt: string | null;
-  subscriptionStatus: string;
-}
+import { useEntitlements } from '@/hooks/useEntitlements';
 
 /**
  * Explains a read-only account, once, at the top of every dashboard page.
@@ -36,27 +23,11 @@ export function AccountLockNotice() {
   const { t, format } = useTranslation();
   const { theme } = useThemeStore();
   const c = getColors(theme);
-  const isPhotographer = useIsPhotographer();
-  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
-
-  useEffect(() => {
-    // Clients share the tenant but are not the party being billed, and their
-    // writes are never locked — asking on their behalf would only produce a
-    // banner about someone else's subscription.
-    if (!isPhotographer) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { data } = await api.get<Entitlements>('/api/entitlements');
-        if (!cancelled) setEntitlements(data);
-      } catch {
-        // Best-effort: a banner that cannot load must not break the shell.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isPhotographer]);
+  // Shared with the sidebar and the team section — one request, not three.
+  // The hook already skips clients, who share the tenant but are not the party
+  // being billed, and answers `undefined` when it cannot load, so a banner that
+  // fails to fetch stays absent rather than breaking the shell.
+  const { entitlements } = useEntitlements();
 
   if (!entitlements) return null;
 

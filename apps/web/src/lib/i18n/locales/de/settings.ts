@@ -201,6 +201,11 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.team.emptyTitle': 'Bisher nur Sie',
   'settings.team.emptyBody':
     'Laden Sie einen Fotografen ein — er erhält einen eigenen Zugang zu diesem Studio.',
+  'settings.team.upgradeTitle': 'Mit anderen Fotografen arbeiten',
+  'settings.team.upgradeBody':
+    'Ihr Tarif enthält einen Platz. In einem Tarif mit mehr Plätzen laden Sie Fotografen in dieses Studio ein — sie erhalten einen eigenen Zugang und sehen dieselben Buchungen, Kunden und Galerien.',
+  'settings.team.overLimit':
+    'Ihr Tarif enthält {seats} Platz, und dieses Studio hat mehr Personen. Entfernen Sie jemanden oder ziehen Sie eine offene Einladung zurück, um wieder darunter zu kommen — niemand verliert seine Arbeit, Buchungen bleiben beim Studio.',
   'settings.team.pastInvites': 'Frühere Einladungen',
   'settings.team.statusPending': 'Offen',
   'settings.team.statusAccepted': 'Angenommen',

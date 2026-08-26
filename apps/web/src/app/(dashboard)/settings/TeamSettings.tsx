@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { useThemeStore } from '@/store/themeStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -45,11 +46,20 @@ interface Team {
  * not get is the controls, which is what `canManage` decides. That flag comes
  * from the server rather than from reading the current user's own role here,
  * so the screen and the API cannot disagree about who may act.
+ *
+ * <p>On a one-seat plan there is no team to manage, so the section becomes an
+ * upgrade prompt instead. It previously rendered in full on Starter: an invite
+ * form the API answers with 402, next to the line "2 of 1 seats used" — which
+ * is a real state (a studio that downgraded keeps the people it already had)
+ * but reads as a counting bug. The exception below is for exactly that case:
+ * once somebody is over the limit they need to see who, or they cannot get
+ * back under it.
  */
 export function TeamSettings() {
   const { t, format } = useTranslation();
   const c = useColors();
   const { theme } = useThemeStore();
+  const { seats } = useEntitlements();
 
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,6 +162,19 @@ export function TeamSettings() {
   // screen down with it, which is a bad trade for a list that can be empty.
   const members = team.members ?? [];
   const invitations = team.invitations ?? [];
+
+  // A single-seat plan has no team. Shown as an upgrade prompt unless the
+  // studio is carrying people from a plan it used to be on, in which case the
+  // list is the only way to see who to remove.
+  const singleSeat = seats <= 1;
+  const hasOthers = members.length > 1 || invitations.some((i) => i.status === 'PENDING');
+  if (singleSeat && !hasOthers) {
+    return (
+      <Card>
+        <EmptyState title={t('settings.team.upgradeTitle')} body={t('settings.team.upgradeBody')} />
+      </Card>
+    );
+  }
 
   // Settled invitations are worth showing — an owner who sees "revoked" knows
   // the seat came back, where a disappearing row reads as a bug — but they are
@@ -281,7 +304,7 @@ export function TeamSettings() {
         </div>
       )}
 
-      {team.canManage && (
+      {team.canManage && !singleSeat && (
         <form
           onSubmit={invite}
           style={{ borderTop: `1px solid ${c.border}`, paddingTop: 18, marginTop: 14 }}
@@ -322,6 +345,14 @@ export function TeamSettings() {
             </Alert>
           )}
         </form>
+      )}
+
+      {/* Over the limit after a downgrade. The invite form is gone — there is
+          nothing to invite into — so this says what to do instead. */}
+      {singleSeat && hasOthers && (
+        <Alert tone="warning" style={{ marginTop: 16 }}>
+          {t('settings.team.overLimit', { seats: format.number(seats) })}
+        </Alert>
       )}
 
       {settledInvites.length > 0 && (

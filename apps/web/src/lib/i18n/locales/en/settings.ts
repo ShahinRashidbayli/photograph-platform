@@ -200,6 +200,11 @@ export const settings = {
   'settings.team.removeError': 'Could not remove that person.',
   'settings.team.emptyTitle': 'It is just you so far',
   'settings.team.emptyBody': 'Invite a photographer and they get their own login into this studio.',
+  'settings.team.upgradeTitle': 'Work with other photographers',
+  'settings.team.upgradeBody':
+    'Your plan includes one seat. On a plan with more, you can invite photographers into this studio — they get their own login and see the same bookings, clients and galleries.',
+  'settings.team.overLimit':
+    'Your plan includes {seats} seat, and this studio has more people than that. Remove someone or withdraw a pending invitation to get back under the limit — nobody loses their work, and bookings stay with the studio.',
   'settings.team.pastInvites': 'Earlier invitations',
   'settings.team.statusPending': 'Pending',
   'settings.team.statusAccepted': 'Accepted',

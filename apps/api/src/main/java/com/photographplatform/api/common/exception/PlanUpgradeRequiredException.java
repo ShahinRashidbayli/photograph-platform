@@ -26,6 +26,24 @@ public class PlanUpgradeRequiredException extends RuntimeException {
         this.requiredPlan = requiredPlan;
     }
 
+    /**
+     * For a plan limit that is a quantity rather than a feature — seats being
+     * the first: the studio is not missing a capability, it has run out of one
+     * it already has.
+     *
+     * <p>Same status and same code, because it is the same conversation with
+     * the customer: "this needs a bigger plan, and here is which". The
+     * capability is null, and {@code GlobalExceptionHandler} omits it rather
+     * than inventing one, so the frontend can tell the two apart by its
+     * absence. The message is passed in because "you have 3 of 3 seats" is
+     * worth saying precisely.
+     */
+    public PlanUpgradeRequiredException(String message, Plan requiredPlan) {
+        super(message);
+        this.capability = null;
+        this.requiredPlan = requiredPlan;
+    }
+
     public Capability getCapability() {
         return capability;
     }

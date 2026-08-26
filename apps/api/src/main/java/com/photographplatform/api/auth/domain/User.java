@@ -2,6 +2,8 @@ package com.photographplatform.api.auth.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -28,6 +30,20 @@ public class User {
 
     @Column(nullable = false, length = 20)
     private String role = "PHOTOGRAPHER";
+
+    /**
+     * Standing inside the studio — see {@link StaffRole}.
+     *
+     * <p>Null for customers, and never null for staff; {@code
+     * chk_users_staff_role} (V25) holds both halves of that. It is left null
+     * here rather than defaulted, because the right value depends on how the
+     * account came to exist: registering creates a studio and its
+     * {@code OWNER}, accepting an invitation joins one as a {@code MEMBER}.
+     * A default would silently make every invited colleague an owner.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "staff_role", length = 20)
+    private StaffRole staffRole;
 
     @Column(name = "full_name", length = 200)
     private String fullName;
@@ -90,6 +106,23 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public StaffRole getStaffRole() {
+        return staffRole;
+    }
+
+    public void setStaffRole(StaffRole staffRole) {
+        this.staffRole = staffRole;
+    }
+
+    /**
+     * Whether this account may change what the studio pays for and who is in
+     * it. False for members and for customers, so callers can ask without
+     * first checking which kind of account they hold.
+     */
+    public boolean isOwner() {
+        return staffRole != null && staffRole.isOwner();
     }
 
     public String getFullName() {

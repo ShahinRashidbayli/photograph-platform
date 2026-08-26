@@ -52,4 +52,29 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      */
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.email = :email AND u.role <> 'CUSTOMER'")
     boolean existsStaffByEmail(@Param("email") String email);
+
+    /**
+     * The photographers in one studio, oldest first, so the owner — who has
+     * been there longest — heads the team list.
+     */
+    @Query("SELECT u FROM User u WHERE u.tenantId = :tenantId AND u.role <> 'CUSTOMER' "
+        + "ORDER BY u.staffRole ASC, u.email ASC")
+    java.util.List<User> findStaffByTenantId(@Param("tenantId") UUID tenantId);
+
+    /**
+     * How many seats this studio currently has filled.
+     *
+     * <p>Counts staff rows only. Pending invitations are counted separately by
+     * {@code StaffInvitationRepository} and added on top before a new one is
+     * issued — an invitation that has been sent but not yet accepted has to
+     * hold its seat, or a studio on a two-seat plan could invite ten people and
+     * let them race for it.
+     */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.tenantId = :tenantId AND u.role <> 'CUSTOMER'")
+    long countStaffByTenantId(@Param("tenantId") UUID tenantId);
+
+    /** The account that owns this studio, if the tenant still has one. */
+    @Query("SELECT u FROM User u WHERE u.tenantId = :tenantId AND u.staffRole = "
+        + "com.photographplatform.api.auth.domain.StaffRole.OWNER")
+    Optional<User> findOwnerByTenantId(@Param("tenantId") UUID tenantId);
 }

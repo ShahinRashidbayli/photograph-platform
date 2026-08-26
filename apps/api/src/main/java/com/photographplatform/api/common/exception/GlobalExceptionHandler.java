@@ -169,11 +169,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PlanUpgradeRequiredException.class)
     public ResponseEntity<ErrorResponse> handlePlanUpgradeRequired(
         PlanUpgradeRequiredException ex, HttpServletRequest request) {
+        // A quantity limit (seats) carries no capability — see the second
+        // constructor. Omitted rather than sent as null, so the field's
+        // presence is what tells the two kinds of upgrade prompt apart.
+        Map<String, Object> details = ex.getCapability() == null
+            ? Map.of("requiredPlan", ex.getRequiredPlan().name())
+            : Map.of(
+                "capability", ex.getCapability().name(),
+                "requiredPlan", ex.getRequiredPlan().name());
         return respond(
             HttpStatus.PAYMENT_REQUIRED, ErrorCode.PLAN_UPGRADE_REQUIRED, ex.getMessage(), request,
-            Map.of(
-                "capability", ex.getCapability().name(),
-                "requiredPlan", ex.getRequiredPlan().name()));
+            details);
     }
 
     /** Trial expired or subscription lapsed: reads still work, writes do not. */

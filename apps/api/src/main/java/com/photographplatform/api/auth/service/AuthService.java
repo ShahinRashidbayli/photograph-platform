@@ -1,6 +1,7 @@
 package com.photographplatform.api.auth.service;
 
 import com.photographplatform.api.auth.domain.RefreshToken;
+import com.photographplatform.api.auth.domain.StaffRole;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.dto.AuthResponse;
 import com.photographplatform.api.auth.dto.AuthResult;
@@ -187,6 +188,10 @@ public class AuthService {
             req.fullName().trim()
         );
         user.setRole(req.role());
+        // Registering creates a studio, so this account owns it. The only other
+        // way a staff row appears is accepting an invitation, which joins an
+        // existing studio as a MEMBER — see StaffInvitationService.
+        user.setStaffRole(StaffRole.OWNER);
         userRepository.save(user);
 
         // Best-effort: issue + send verification email. Persistence failures

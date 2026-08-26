@@ -88,13 +88,18 @@ describe('shipped features are not advertised as unbuilt', () => {
     expectNoBadge('Up to 3 photographers');
   });
 
+  // The /revenue and /reports screens stopped being stubs when the analytics
+  // endpoint landed — both read real invoices, payments, bookings and leads.
+  it('Studio reports carry no badge', () => {
+    expectNoBadge('Revenue & booking reports');
+  });
+
   // The other direction matters just as much: the badge has to keep working for
   // the things that genuinely are not built, or the honest-roadmap device the
   // page is built around stops meaning anything.
   it('still badges what has not shipped', () => {
     expectBadge('Contracts & e-sign');
     expectBadge('Auto-reply to Instagram DMs');
-    expectBadge('Revenue & booking reports');
     expectBadge('Your own domain & branding');
   });
 });

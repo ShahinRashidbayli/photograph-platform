@@ -13,6 +13,7 @@ import { galleries } from './galleries';
 import { portfolio } from './portfolio';
 import { settings } from './settings';
 import { stubs } from './stubs';
+import { analytics } from './analytics';
 
 /**
  * The English dictionary, assembled from one file per surface. Keys stay flat
@@ -35,4 +36,5 @@ export const en = {
   ...portfolio,
   ...settings,
   ...stubs,
+  ...analytics,
 };

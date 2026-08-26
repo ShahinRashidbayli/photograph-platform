@@ -61,7 +61,7 @@ Stripe Connect Express; the two rows below moved to ✅ and the landing page's
 | Pro | Galleries online 1 year | ✅ shipped 2026-08-22 (ADR-001) |
 | Studio | Everything in Pro | — |
 | Studio | Up to 3 photographers | ✅ shipped — staff seats, owner/member roles and email invitations (V25) |
-| Studio | Analytics & reports | ❌ `/reports` and `/revenue` are stubs |
+| Studio | Analytics & reports | ✅ shipped — revenue (invoiced vs collected) and booking reports, gated on ANALYTICS |
 | Studio | White-label branding | ❌ |
 | Studio | Galleries online 2 years | ✅ shipped 2026-08-22 (ADR-001) |
 

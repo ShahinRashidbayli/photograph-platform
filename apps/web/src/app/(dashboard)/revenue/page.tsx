@@ -1,61 +1,108 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import React from 'react';
 import { useTranslation } from '@/lib/i18n';
+import { useColors } from '@/components/ui';
+import { BarChart, Legend } from '../analytics.charts';
+import { monthLabels, useAnalytics } from '../analytics.data';
+import { ChartCard, DataTable, ReportShell, StatTile } from '../analytics.shell';
 
 /**
- * Revenue — stub page. Sidebar entry exists to validate the information
- * architecture; the real implementation (monthly revenue, deposits vs
- * outstanding, year-over-year comparison, Stripe payout reconciliation)
- * needs Stripe + accounting integration (Sprint 5 + v3.0 in the master plan).
+ * Revenue — what the studio invoiced, and what actually arrived.
+ *
+ * <p>The gap between those two is the point of the screen. A report that only
+ * showed turnover would tell a photographer they had a good year while the
+ * money was still sitting in somebody else's account.
+ *
+ * <p>Every figure comes from issued invoices and succeeded payments. Nothing is
+ * projected, annualised or smoothed — a half-finished year is shown as a
+ * half-finished year.
  */
 export default function RevenuePage() {
-  const { t } = useTranslation();
-  const { theme } = useThemeStore();
-  const c = useMemo(() => getColors(theme), [theme]);
+  const { t, format, lang } = useTranslation();
+  const c = useColors();
+  const { data, year, loading, locked, error, selectYear } = useAnalytics();
+
+  const months = monthLabels(lang);
+  const rev = data?.revenue;
+  const isEmpty = !!data && rev !== undefined && rev.invoiceCount === 0;
+
+  const invoiced = t('analytics.invoiced');
+  const collected = t('analytics.collected');
 
   return (
-    <div
-      style={{
-        padding: '28px 28px 40px',
-        maxWidth: '860px',
-        margin: '0 auto',
-        color: c.text,
-      }}
+    <ReportShell
+      title={t('analytics.revenue.title')}
+      subtitle={t('analytics.revenue.subtitle')}
+      years={data?.availableYears ?? []}
+      year={year}
+      onSelectYear={selectYear}
+      loading={loading}
+      locked={locked}
+      error={error}
+      isEmpty={isEmpty}
     >
-      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '6px' }}>
-        {t('stubs.revenue.title')}
-      </h1>
-      <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: '24px' }}>
-        {t('stubs.revenue.subtitle')}
-      </p>
+      {rev && (
+        <>
+          <ChartCard title={t('analytics.revenue.summary')}>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              <StatTile label={invoiced} value={format.eur(rev.invoicedCents)} />
+              <StatTile
+                label={collected}
+                value={format.eur(rev.collectedCents)}
+                hint={t('analytics.revenue.ofInvoiced', {
+                  percent: percent(rev.collectedCents, rev.invoicedCents),
+                })}
+              />
+              <StatTile
+                label={t('analytics.revenue.outstanding')}
+                value={format.eur(rev.outstandingCents)}
+                // Amber only when there is something to chase; an outstanding
+                // balance of zero is good news and should not wear a warning.
+                tone={rev.outstandingCents > 0 ? c.warningText : undefined}
+              />
+              <StatTile
+                label={t('analytics.revenue.averageInvoice')}
+                value={format.eur(rev.averageInvoiceCents)}
+                hint={t('analytics.revenue.invoiceCount', {
+                  count: format.number(rev.invoiceCount),
+                })}
+              />
+            </div>
+          </ChartCard>
 
-      <div
-        style={{
-          padding: '32px 24px',
-          background: c.surface,
-          border: `1px dashed ${c.border}`,
-          borderRadius: '14px',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '8px' }}>
-          {t('stubs.comingSoon')}
-        </div>
-        <p
-          style={{
-            fontSize: '0.88rem',
-            color: c.textMuted,
-            lineHeight: 1.5,
-            maxWidth: '440px',
-            margin: '0 auto',
-          }}
-        >
-          {t('stubs.revenue.body')}
-        </p>
-      </div>
-    </div>
+          <ChartCard
+            title={t('analytics.revenue.byMonth')}
+            aside={<Legend a={invoiced} b={collected} />}
+          >
+            <BarChart
+              bars={rev.months.map((m) => ({
+                label: months[m.month - 1].slice(0, 1),
+                title: months[m.month - 1],
+                a: m.invoicedCents,
+                b: m.collectedCents,
+              }))}
+              seriesA={invoiced}
+              seriesB={collected}
+              format={(v) => format.eur(v)}
+            />
+            <DataTable
+              caption={t('analytics.showTable')}
+              head={[t('analytics.month'), invoiced, collected]}
+              rows={rev.months.map((m) => [
+                months[m.month - 1],
+                format.eur(m.invoicedCents),
+                format.eur(m.collectedCents),
+              ])}
+            />
+          </ChartCard>
+        </>
+      )}
+    </ReportShell>
   );
+}
+
+function percent(part: number, whole: number): string {
+  if (whole <= 0) return '0%';
+  return `${Math.round((part / whole) * 100)}%`;
 }

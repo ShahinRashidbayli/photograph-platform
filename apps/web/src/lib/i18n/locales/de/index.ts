@@ -13,6 +13,7 @@ import { galleries } from './galleries';
 import { portfolio } from './portfolio';
 import { settings } from './settings';
 import { stubs } from './stubs';
+import { analytics } from './analytics';
 
 /** The German dictionary. Each namespace is typed against its English twin. */
 export const de = {
@@ -31,4 +32,5 @@ export const de = {
   ...portfolio,
   ...settings,
   ...stubs,
+  ...analytics,
 };

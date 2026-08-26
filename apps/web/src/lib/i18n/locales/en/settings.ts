@@ -205,7 +205,6 @@ export const settings = {
     'Your plan includes one seat. On a plan with more, you can invite photographers into this studio — they get their own login and see the same bookings, clients and galleries.',
   'settings.team.overLimit':
     'Your plan includes {seats} seat, and this studio has more people than that. Remove someone or withdraw a pending invitation to get back under the limit — nobody loses their work, and bookings stay with the studio.',
-  'settings.team.inertInvite': 'A pending invitation to {email} cannot be accepted on this plan.',
   'settings.team.pastInvites': 'Earlier invitations',
   'settings.team.statusPending': 'Pending',
   'settings.team.statusAccepted': 'Accepted',

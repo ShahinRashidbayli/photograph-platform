@@ -52,6 +52,25 @@ seed:
 	@docker compose -f infra/docker-compose.yml exec -T -e PGPASSWORD=postgres postgres \
 		psql -U postgres -d centralidp -v subdomain=$(SUBDOMAIN) < scripts/seed-demo.sql
 
+# Switch a tenant's plan locally, without Stripe.
+#
+# Self-service upgrades go through Stripe Checkout and are hidden until the six
+# STRIPE_PRICE_* ids are configured — deliberately, since a plan is something a
+# customer pays for. That leaves no way to *test* a paid tier on a machine with
+# no Stripe account, which is what this is for.
+#
+#     make plan PLAN=STUDIO
+#     make plan PLAN=PRO SUBDOMAIN=my-studio
+#
+# Development only: it grants a tier for free, so it must never be run anywhere
+# a real customer's subscription is the source of truth.
+PLAN ?= STUDIO
+plan:
+	@docker compose -f infra/docker-compose.yml exec -T -e PGPASSWORD=postgres postgres \
+		psql -U postgres -d centralidp -v ON_ERROR_STOP=1 \
+		-c "UPDATE tenants SET plan='$(PLAN)' WHERE subdomain='$(SUBDOMAIN)';" \
+		-c "SELECT subdomain, plan FROM tenants WHERE subdomain='$(SUBDOMAIN)';"
+
 stop:
 	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true

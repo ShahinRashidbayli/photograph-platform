@@ -169,43 +169,18 @@ export function TeamSettings() {
   // used to be on: those are real accounts that can still sign in, and hiding
   // them would leave the owner unable to remove someone they can no longer see.
   //
-  // A pending invitation is not such a case, which the first version of this
-  // got wrong. It is not a person — accepting it is refused by the seat check
-  // on the way in — so it is already inert, and it expires on its own. Keeping
-  // the whole team manager on screen for a dead invitation is what made Starter
-  // show "2 of 1 seats used" next to an invite form the API answers with 402.
+  // A pending invitation is not such a case. It is not a person — accepting it
+  // is refused by the seat check on the way in (409) — so it is already inert,
+  // and it lapses on its own. It is not surfaced here at all: naming a dead
+  // invitation on a plan that cannot honour it gives the owner something to
+  // think about that has no consequence either way, on the one screen whose
+  // job is to say "this plan does not do teams".
   const singleSeat = seats <= 1;
   const extraMembers = members.length > 1;
-  const deadInvites = invitations.filter((i) => i.status === 'PENDING');
   if (singleSeat && !extraMembers) {
     return (
       <Card>
         <EmptyState title={t('settings.team.upgradeTitle')} body={t('settings.team.upgradeBody')} />
-        {/* Named rather than silently dropped: the owner sent it and would
-            otherwise wonder where it went. Withdrawable here so it does not
-            have to sit out its expiry. */}
-        {deadInvites.length > 0 && team.canManage && (
-          <div style={{ borderTop: `1px solid ${c.border}`, marginTop: 18, paddingTop: 14 }}>
-            {deadInvites.map((i) => (
-              <div
-                key={i.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  fontSize: '0.85rem',
-                  color: c.textMuted,
-                }}
-              >
-                <span>{t('settings.team.inertInvite', { email: i.email })}</span>
-                <Button variant="ghost" size="sm" onClick={() => void revoke(i.id)} disabled={busy}>
-                  {t('settings.team.revoke')}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
       </Card>
     );
   }

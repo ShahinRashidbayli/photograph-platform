@@ -21,6 +21,9 @@ import { loginUrlFor } from '@/lib/login-redirect';
 //   /r/...              — public booking-request form
 //   /g/...              — client gallery viewer, addressed by access token. The
 //                         token is the credential; recipients have no account.
+//   /invite             — accepting a seat in a studio. Same shape as /g/: the
+//                         token is the credential, and the person holding it
+//                         has no account yet — creating one is the point.
 //   /impressum, /datenschutz, /agb        — legal pages (must be reachable
 //                                            without login; §5 DDG / DSGVO)
 const PUBLIC_PATHS = [
@@ -29,6 +32,10 @@ const PUBLIC_PATHS = [
   '/forgot-password',
   '/reset-password',
   '/verify-email',
+  // Not '/invite/' with a slash: the page is '/invite?token=…', so a trailing
+  // slash would never match and the invitation link would bounce to /login
+  // with the token stranded in a `next` parameter.
+  '/invite',
   '/p/',
   '/r/',
   '/g/',

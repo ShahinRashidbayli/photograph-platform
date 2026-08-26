@@ -1,8 +1,33 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render as rtlRender, type RenderResult } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { useLangStore } from '@/store/langStore';
+
+/**
+ * `userEvent`, without the typing delay.
+ *
+ * <p>By default `userEvent` waits between keystrokes to imitate a real typist.
+ * The wait is real time, and it is paid per character: the sign-up suite fills
+ * five fields — about sixty characters — before it can assert anything, and
+ * every one of those is a trip through the event loop. On an idle machine that
+ * is fine, and under Jest's parallel workers it is not. `register.test.tsx` was
+ * failing roughly one run in two on the default 5s timeout while passing 3/3
+ * when run alone, which is the signature of a test that is slow rather than
+ * wrong.
+ *
+ * <p>`delay: null` removes the pause, not the events — each keystroke is still
+ * dispatched in order, so anything the component does per character still
+ * happens. Debounces keep working: they run on their own timers, and the
+ * assertions already wait for them through `findBy*` / `waitFor`.
+ *
+ * <p>Pass `advanceTimers` through when the test installs fake timers, or
+ * `userEvent` will wait on a clock nothing is winding.
+ */
+export function setupUser(options?: Parameters<typeof userEvent.setup>[0]) {
+  return userEvent.setup({ delay: null, ...options });
+}
 
 interface RenderOptions {
   /**

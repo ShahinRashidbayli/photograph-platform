@@ -1,7 +1,6 @@
 import React from 'react';
 import { act, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test-utils/render';
+import { renderWithProviders, setupUser } from '@/test-utils/render';
 import { StripePaymentModal } from './StripePaymentModal';
 import type { Invoice, Payment } from '@/types/api';
 
@@ -167,7 +166,7 @@ describe('StripePaymentModal', () => {
    * canceled" and nothing on screen explaining it.
    */
   it('ignores a stale intent that resolves after a newer one', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     let releaseCard: (_p: Payment) => void = () => {};
     const slowCard = new Promise<Payment>((resolve) => {
       releaseCard = resolve;
@@ -199,7 +198,7 @@ describe('StripePaymentModal', () => {
   });
 
   it('asks for an intent in the method the payer picked', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedCreateIntent.mockResolvedValue(payment());
     renderModal();
 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test-utils/render';
+import { renderWithProviders, setupUser } from '@/test-utils/render';
 import RegisterPage from './page';
 
 const push = jest.fn();
@@ -21,7 +20,7 @@ import api from '@/lib/api';
 const mockedApi = api as jest.Mocked<typeof api>;
 
 /** A sign-up that should sail through, so each test can spoil one thing. */
-async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
+async function fillValidForm(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Full name'), 'Anna Fischer');
   await user.type(screen.getByLabelText('Email address'), 'anna@fotografie.de');
   await user.type(screen.getByLabelText('Your subdomain'), 'anna-foto');
@@ -48,7 +47,7 @@ describe('RegisterPage', () => {
    * starting checked would make it no consent at all.
    */
   it('starts with consent unticked and refuses to submit without it', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render();
 
     expect(screen.getByRole('checkbox')).not.toBeChecked();
@@ -77,7 +76,7 @@ describe('RegisterPage', () => {
    * at the *next* sign-in, when the only remedy left is a password reset.
    */
   it('catches a mistyped password before creating the account', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render();
 
     await user.type(screen.getByLabelText('Full name'), 'Anna Fischer');
@@ -93,7 +92,7 @@ describe('RegisterPage', () => {
   });
 
   it('reports each bad field on the field itself, not as one banner', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render();
 
     await user.type(screen.getByLabelText('Email address'), 'not-an-email');
@@ -107,7 +106,7 @@ describe('RegisterPage', () => {
   });
 
   it('clears a field’s complaint as soon as the user starts fixing it', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render();
 
     await user.click(submit());
@@ -124,7 +123,7 @@ describe('RegisterPage', () => {
    * advance. It used to be reported by a 409 after the whole form was filled in.
    */
   it('reports a taken subdomain while the user is still on the field', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.get.mockResolvedValue({
       data: { subdomain: 'anna-foto', available: false, reason: 'TAKEN' },
     } as never);
@@ -139,7 +138,7 @@ describe('RegisterPage', () => {
   });
 
   it('confirms a free subdomain by name', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render();
 
     await user.type(screen.getByLabelText('Your subdomain'), 'anna-foto');
@@ -154,7 +153,7 @@ describe('RegisterPage', () => {
    * server would have accepted — register still holds the unique constraint.
    */
   it('still allows submitting when the availability check itself fails', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.get.mockRejectedValue(new Error('network'));
     mockedApi.post.mockResolvedValue({
       data: { id: 'u1', role: 'PHOTOGRAPHER', emailVerified: false },
@@ -169,7 +168,7 @@ describe('RegisterPage', () => {
   });
 
   it('tells the user to confirm their address instead of only redirecting', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockResolvedValue({
       data: { id: 'u1', role: 'PHOTOGRAPHER', emailVerified: false },
     } as never);
@@ -183,7 +182,7 @@ describe('RegisterPage', () => {
   });
 
   it('puts a lost race for the subdomain on the subdomain field', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockRejectedValue({
       response: { status: 409, data: { error: 'Subdomain already taken' } },
     });

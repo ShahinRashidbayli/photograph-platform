@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test-utils/render';
 import { Toggle } from './Toggle';
 
 describe('Toggle', () => {
@@ -26,7 +26,7 @@ describe('Toggle', () => {
   });
 
   it('hands back the flipped value', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onChange = jest.fn();
     render(<Toggle checked={false} onChange={onChange} label="Watermark" />);
 
@@ -36,7 +36,7 @@ describe('Toggle', () => {
   });
 
   it('turns off again', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onChange = jest.fn();
     render(<Toggle checked onChange={onChange} label="Watermark" />);
 
@@ -47,7 +47,7 @@ describe('Toggle', () => {
 
   /** `<button>` gets this for free — a clickable `<span>` would not. */
   it('is operable from the keyboard', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onChange = jest.fn();
     render(<Toggle checked={false} onChange={onChange} label="Watermark" />);
 
@@ -58,7 +58,7 @@ describe('Toggle', () => {
   });
 
   it('says nothing and does nothing while disabled', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onChange = jest.fn();
     render(<Toggle checked={false} onChange={onChange} label="Watermark" disabled />);
 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { act, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test-utils/render';
+import { renderWithProviders, setupUser } from '@/test-utils/render';
 import CustomerLoginPage from './page';
 
 jest.mock('next/navigation', () => ({
@@ -17,7 +16,7 @@ import api from '@/lib/api';
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-async function requestLink(user: ReturnType<typeof userEvent.setup>) {
+async function requestLink(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
   await user.type(screen.getByLabelText('Photographer subdomain'), 'anna-foto');
   await user.click(screen.getByRole('button', { name: 'Send me a magic link →' }));
@@ -33,7 +32,7 @@ describe('CustomerLoginPage', () => {
   const render = () => renderWithProviders(<CustomerLoginPage />, { lang: 'en' });
 
   it('confirms the link was sent without confirming the account exists', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockResolvedValue({ status: 204 } as never);
     render();
 
@@ -50,7 +49,7 @@ describe('CustomerLoginPage', () => {
    * for an hour.
    */
   it('holds the resend button after a link goes out', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockResolvedValue({ status: 204 } as never);
     render();
 
@@ -74,7 +73,7 @@ describe('CustomerLoginPage', () => {
     // waits would never fire.
     jest.useFakeTimers();
     try {
-      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      const user = setupUser({ advanceTimers: jest.advanceTimersByTime });
       mockedApi.post.mockResolvedValueOnce({ status: 204 } as never);
       render();
       await requestLink(user);
@@ -108,7 +107,7 @@ describe('CustomerLoginPage', () => {
   it('recovers the countdown when a background tab has starved its timers', async () => {
     jest.useFakeTimers();
     try {
-      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      const user = setupUser({ advanceTimers: jest.advanceTimersByTime });
       mockedApi.post.mockResolvedValue({ status: 204 } as never);
       render();
       await requestLink(user);
@@ -131,7 +130,7 @@ describe('CustomerLoginPage', () => {
   });
 
   it('reports a rate limit as a wait, with the time the server gave', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockRejectedValue({
       response: {
         status: 429,
@@ -150,7 +149,7 @@ describe('CustomerLoginPage', () => {
   });
 
   it('falls back to a plain wait message when the server gave no duration', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockedApi.post.mockRejectedValue({
       response: { status: 429, data: { code: 'TOO_MANY_REQUESTS' } },
     });

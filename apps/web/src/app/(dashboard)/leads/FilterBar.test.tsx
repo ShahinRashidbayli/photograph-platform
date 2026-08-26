@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { setupUser } from '@/test-utils/render';
 import { FilterBar } from './FilterBar';
 import { getLeadsColors } from './leads.styles';
 import type { LeadPipelineFilter, LeadScoreFilter } from './leadTypes';
@@ -62,7 +62,7 @@ describe('pipeline tabs', () => {
   });
 
   it('switches the pipeline', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { setFilterPipeline } = setup();
 
     await user.click(screen.getByRole('tab', { name: /Booked/ }));
@@ -92,7 +92,7 @@ describe('while the inbox is still loading', () => {
 
 describe('filter popover', () => {
   it('opens, and closes on Escape and on an outside click', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     setup();
     const trigger = screen.getByRole('button', { name: /open filters/i });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -111,7 +111,7 @@ describe('filter popover', () => {
 
   /** `role="dialog"` promises the panel is where you are now. */
   it('moves focus into the panel and hands it back on Escape', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     setup();
     const trigger = screen.getByRole('button', { name: /open filters/i });
 
@@ -123,7 +123,7 @@ describe('filter popover', () => {
   });
 
   it('hides the source section when there are no inquiries to tell apart', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     setup({ showSourceFilter: false });
 
     await user.click(screen.getByRole('button', { name: /open filters/i }));
@@ -133,7 +133,7 @@ describe('filter popover', () => {
   });
 
   it('leaves an already-applied source filter clearable after that section hides', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const props = setup({ showSourceFilter: false, sourceFilter: 'customer' });
 
     await user.click(screen.getByRole('button', { name: /open filters/i }));
@@ -157,7 +157,7 @@ describe('badge and chips', () => {
   });
 
   it('renders one removable chip per applied filter', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const props = setup({ filterScore: 'High', sourceFilter: 'form', searchTerm: '  anna  ' });
     const removes = screen.getAllByRole('button', { name: /remove filter/i });
 
@@ -179,7 +179,7 @@ describe('badge and chips', () => {
 
 describe('search box', () => {
   it('offers a clear button only once there is something to clear', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { setSearchTerm } = setup({ searchTerm: 'anna' });
 
     await user.click(screen.getByRole('button', { name: /clear search/i }));
@@ -195,7 +195,7 @@ describe('search box', () => {
 
 describe('sort control', () => {
   it('describes the order it is in and toggles to the other', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { setSortOrder } = setup();
 
     await user.click(screen.getByRole('button', { name: /sorted newest first/i }));

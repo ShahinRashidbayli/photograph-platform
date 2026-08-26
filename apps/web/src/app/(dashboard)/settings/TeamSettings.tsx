@@ -163,15 +163,49 @@ export function TeamSettings() {
   const members = team.members ?? [];
   const invitations = team.invitations ?? [];
 
-  // A single-seat plan has no team. Shown as an upgrade prompt unless the
-  // studio is carrying people from a plan it used to be on, in which case the
-  // list is the only way to see who to remove.
+  // A single-seat plan has no team, so the section is an upgrade prompt.
+  //
+  // The one exception is a studio still carrying *colleagues* from a plan it
+  // used to be on: those are real accounts that can still sign in, and hiding
+  // them would leave the owner unable to remove someone they can no longer see.
+  //
+  // A pending invitation is not such a case, which the first version of this
+  // got wrong. It is not a person — accepting it is refused by the seat check
+  // on the way in — so it is already inert, and it expires on its own. Keeping
+  // the whole team manager on screen for a dead invitation is what made Starter
+  // show "2 of 1 seats used" next to an invite form the API answers with 402.
   const singleSeat = seats <= 1;
-  const hasOthers = members.length > 1 || invitations.some((i) => i.status === 'PENDING');
-  if (singleSeat && !hasOthers) {
+  const extraMembers = members.length > 1;
+  const deadInvites = invitations.filter((i) => i.status === 'PENDING');
+  if (singleSeat && !extraMembers) {
     return (
       <Card>
         <EmptyState title={t('settings.team.upgradeTitle')} body={t('settings.team.upgradeBody')} />
+        {/* Named rather than silently dropped: the owner sent it and would
+            otherwise wonder where it went. Withdrawable here so it does not
+            have to sit out its expiry. */}
+        {deadInvites.length > 0 && team.canManage && (
+          <div style={{ borderTop: `1px solid ${c.border}`, marginTop: 18, paddingTop: 14 }}>
+            {deadInvites.map((i) => (
+              <div
+                key={i.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontSize: '0.85rem',
+                  color: c.textMuted,
+                }}
+              >
+                <span>{t('settings.team.inertInvite', { email: i.email })}</span>
+                <Button variant="ghost" size="sm" onClick={() => void revoke(i.id)} disabled={busy}>
+                  {t('settings.team.revoke')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     );
   }
@@ -347,9 +381,10 @@ export function TeamSettings() {
         </form>
       )}
 
-      {/* Over the limit after a downgrade. The invite form is gone — there is
-          nothing to invite into — so this says what to do instead. */}
-      {singleSeat && hasOthers && (
+      {/* Over the limit after a downgrade, with real colleagues still in the
+          studio. The invite form is gone — there is nothing to invite into —
+          so this says what to do instead. */}
+      {singleSeat && extraMembers && (
         <Alert tone="warning" style={{ marginTop: 16 }}>
           {t('settings.team.overLimit', { seats: format.number(seats) })}
         </Alert>

@@ -127,6 +127,20 @@ public class TeamController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Leaving the studio. Not owner-gated — this is the one team operation a
+     * member performs on themselves, and gating it to owners would recreate the
+     * problem it exists to solve.
+     */
+    @PostMapping("/leave")
+    public ResponseEntity<Void> leave(HttpServletRequest httpRequest) {
+        invitationService.leaveStudio(
+            SecurityUtils.requireCurrentTenantId(),
+            SecurityUtils.requireCurrentUserId(),
+            ClientIp.from(httpRequest));
+        return ResponseEntity.noContent().build();
+    }
+
     private TeamMemberResponse toMember(User user) {
         return new TeamMemberResponse(
             user.getId(),

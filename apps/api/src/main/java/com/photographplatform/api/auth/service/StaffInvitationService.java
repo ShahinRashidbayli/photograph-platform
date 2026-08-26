@@ -299,6 +299,46 @@ public class StaffInvitationService {
         auditService.logQuietly("STAFF_REMOVED", "USER", memberId, tenantId, actorId, ipAddress);
     }
 
+    /**
+     * A member leaving the studio they were invited into.
+     *
+     * <p>The counterpart to {@link #removeMember}: same effect, but the person
+     * deciding is the one it happens to. Without it a photographer who joins
+     * someone's studio has no way out on their own — and because staff emails
+     * are globally unique (V23), no way to open a studio of their own either.
+     * Their whole account depended on the owner clicking a button, which is the
+     * wrong shape for a professional relationship that routinely ends.
+     *
+     * <p>The account is deleted rather than moved to a fresh tenant. That frees
+     * the address, so the ordinary `/register` flow can open a new studio with
+     * it — reusing the path that already handles subdomains, trials and the
+     * first owner, instead of growing a second one that does the same thing
+     * halfway.
+     *
+     * <p>Nothing of the studio's leaves with them: bookings, clients, galleries
+     * and invoices belong to the tenant, not to the account that touched them.
+     *
+     * @throws ConflictException if the caller owns the studio — an owner
+     *         leaving would strand the tenant with nobody able to manage
+     *         billing, so ownership has to be handed over first
+     */
+    @Transactional
+    public void leaveStudio(UUID tenantId, UUID actorId, String ipAddress) {
+        User actor = userRepository.findById(actorId)
+            .filter(u -> u.getTenantId().equals(tenantId))
+            .orElseThrow(() -> new UnauthorizedException("Not your studio"));
+
+        if (actor.isOwner()) {
+            throw new ConflictException(
+                "You own this studio. Hand ownership to someone else before leaving.");
+        }
+
+        // Logged before the row goes, or the audit trail loses the actor it is
+        // about — audit rows outlive the accounts they describe.
+        auditService.logQuietly("STAFF_LEFT", "USER", actorId, tenantId, actorId, ipAddress);
+        userRepository.delete(actor);
+    }
+
     // ── Internals ─────────────────────────────────────────────────────────────
 
     private StaffInvitation loadPending(String rawToken) {

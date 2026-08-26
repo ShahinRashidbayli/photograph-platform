@@ -209,6 +209,13 @@ export const settings: Record<keyof EnSettings, string> = {
     'Ihr Tarif enthält einen Platz. In einem Tarif mit mehr Plätzen laden Sie Fotografen in dieses Studio ein — sie erhalten einen eigenen Zugang und sehen dieselben Buchungen, Kunden und Galerien.',
   'settings.team.overLimit':
     'Ihr Tarif enthält {seats} Platz, und dieses Studio hat mehr Personen. Entfernen Sie jemanden oder ziehen Sie eine offene Einladung zurück, um wieder darunter zu kommen — niemand verliert seine Arbeit, Buchungen bleiben beim Studio.',
+  'settings.team.leave': 'Studio verlassen',
+  'settings.team.leaveHelp':
+    'Beim Verlassen wird Ihr Zugang zu diesem Studio entfernt. Buchungen, Kunden und Galerien, an denen Sie gearbeitet haben, bleiben — sie gehören dem Studio. Ihre E-Mail wird wieder frei, Sie können damit ein eigenes Studio eröffnen.',
+  'settings.team.leaveTitle': 'Studio verlassen?',
+  'settings.team.leaveBody':
+    'Sie werden abgemeldet und verlieren sofort den Zugang. Das lässt sich hier nicht rückgängig machen — der Inhaber müsste Sie erneut einladen.',
+  'settings.team.leaveError': 'Das Studio konnte nicht verlassen werden.',
   'settings.team.pastInvites': 'Frühere Einladungen',
   'settings.team.statusPending': 'Offen',
   'settings.team.statusAccepted': 'Angenommen',

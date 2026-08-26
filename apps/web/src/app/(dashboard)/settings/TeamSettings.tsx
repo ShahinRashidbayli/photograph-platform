@@ -6,6 +6,7 @@ import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useThemeStore } from '@/store/themeStore';
+import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserAvatar } from '@/components/UserAvatar';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, useColors } from '@/components/ui';
@@ -60,6 +61,7 @@ export function TeamSettings() {
   const c = useColors();
   const { theme } = useThemeStore();
   const { seats } = useEntitlements();
+  const clearUser = useAuthStore((st) => st.clearUser);
 
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,7 @@ export function TeamSettings() {
   const [invited, setInvited] = useState<string | null>(null);
 
   const [pendingRemoval, setPendingRemoval] = useState<TeamMember | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -132,6 +135,28 @@ export function TeamSettings() {
       setPendingRemoval(null);
       setError(asyncError(err, 'settings.team.removeError'));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Leaving the studio the caller was invited into.
+   *
+   * <p>Sends them to the marketing page rather than back to the dashboard:
+   * the account is gone by the time this resolves, so every subsequent request
+   * would 401. `clearUser` first, for the same reason the sign-out handler does
+   * it — the layout's `/api/auth/me` effect must not refire against dead
+   * cookies.
+   */
+  async function leaveStudio() {
+    setBusy(true);
+    try {
+      await api.post('/api/team/leave');
+      clearUser();
+      globalThis.location.href = '/?left=1';
+    } catch (err) {
+      setConfirmLeave(false);
+      setError(asyncError(err, 'settings.team.leaveError'));
       setBusy(false);
     }
   }
@@ -390,6 +415,32 @@ export function TeamSettings() {
           </ul>
         </details>
       )}
+
+      {/* A member's own way out. Absent for the owner, who cannot leave without
+          handing the studio over first — the API refuses it, so offering the
+          button would be a promise the server breaks. */}
+      {!team.canManage && (
+        <div style={{ borderTop: `1px solid ${c.border}`, marginTop: 18, paddingTop: 16 }}>
+          <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: c.textMuted }}>
+            {t('settings.team.leaveHelp')}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setConfirmLeave(true)} disabled={busy}>
+            {t('settings.team.leave')}
+          </Button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmLeave}
+        title={t('settings.team.leaveTitle')}
+        message={t('settings.team.leaveBody')}
+        confirmLabel={t('settings.team.leave')}
+        tone="danger"
+        theme={theme}
+        busy={busy}
+        onConfirm={() => void leaveStudio()}
+        onCancel={() => setConfirmLeave(false)}
+      />
 
       <ConfirmDialog
         open={pendingRemoval !== null}

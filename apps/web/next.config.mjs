@@ -64,6 +64,23 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /**
+   * Build output directory, overridable per invocation.
+   *
+   * <p>`next dev` and `next build` both own `.next`, and they write
+   * incompatible things into it: a production build leaves a chunk manifest the
+   * dev server then tries to load, which fails as `Cannot find module
+   * './383.js'` on a route that was never touched. Running a verification build
+   * while a dev server is up therefore breaks the dev server, and the error
+   * points at the wrong thing entirely.
+   *
+   * <p>So a checking build goes somewhere else:
+   *
+   *   NEXT_DIST_DIR=.next-verify npx next build
+   *
+   * Unset — every normal `dev`, `build` and `start` — it is `.next` as before.
+   */
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Announcing the framework and its version only helps someone matching a
   // CVE list against this deployment.
   poweredByHeader: false,

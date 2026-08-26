@@ -12,6 +12,9 @@ target/
 # Node / Next.js
 node_modules/
 .next/
+# Verification builds (NEXT_DIST_DIR) — kept out of `.next` so running one
+# does not corrupt a dev server that is already using it.
+.next-*/
 .turbo/
 dist/
 

@@ -584,6 +584,8 @@ interface BillingStatus {
   subscriptionConfigured: boolean;
   manageable: boolean;
   writable: boolean;
+  /** Deployment has enabled unbilled plan changes — development only. */
+  devPlanSwitch: boolean;
   lockReason: string | null;
 }
 
@@ -676,6 +678,24 @@ export function SubscriptionSection() {
     },
     [yearly]
   );
+
+  /**
+   * The development-only switch. Reloads rather than patching state locally:
+   * the plan changes what the whole shell shows — the sidebar's analytics
+   * group, the team section, gallery retention — and those read entitlements
+   * through their own cached query.
+   */
+  const devSetPlan = useCallback(async (plan: BillingStatus['plan']) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/api/billing/dev-plan', { plan });
+      globalThis.location.reload();
+    } catch (err) {
+      setError(asyncError(err, 'settings.subscription.checkoutError'));
+      setBusy(false);
+    }
+  }, []);
 
   const manage = useCallback(async () => {
     setBusy(true);
@@ -816,6 +836,30 @@ export function SubscriptionSection() {
                       {plan === status.plan && status.subscriptionStatus === 'ACTIVE'
                         ? t('settings.subscription.currentPlan', { plan })
                         : t('settings.subscription.choose', { plan })}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : status.devPlanSwitch ? (
+              // No Stripe prices, but this deployment has opted into changing
+              // the plan without paying for it. Labelled loudly rather than
+              // dressed up as checkout: nothing is being bought here, and a
+              // screen that implied otherwise would be the more dangerous bug.
+              <>
+                <Alert tone="warning" style={{ marginBottom: 12 }}>
+                  {t('settings.subscription.devSwitchWarning')}
+                </Alert>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {PLANS.map((plan) => (
+                    <Button
+                      key={plan}
+                      variant={plan === status.plan ? 'secondary' : 'primary'}
+                      onClick={() => devSetPlan(plan)}
+                      disabled={busy || plan === status.plan}
+                    >
+                      {plan === status.plan
+                        ? t('settings.subscription.currentPlan', { plan })
+                        : t('settings.subscription.switchTo', { plan })}
                     </Button>
                   ))}
                 </div>

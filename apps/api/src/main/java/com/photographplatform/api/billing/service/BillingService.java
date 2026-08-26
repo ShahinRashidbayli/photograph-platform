@@ -92,6 +92,37 @@ public class BillingService {
         this.clock = clock;
     }
 
+    /**
+     * Sets the tenant's plan without taking payment for it.
+     *
+     * <p>Only reachable on a deployment that has explicitly enabled
+     * {@code app.billing.dev-plan-switch}. Everywhere else this throws, because
+     * the honest version of "change your plan" is Stripe Checkout and a tier
+     * granted for free is revenue quietly given away.
+     *
+     * <p>Deliberately does not touch the Stripe customer, the subscription
+     * status or the period end: it moves the entitlement and nothing else, so
+     * a deployment that later configures Stripe finds no fabricated
+     * subscription state to reconcile.
+     */
+    @Transactional
+    public void devSetPlan(Plan plan, String ipAddress) {
+        if (!properties.isDevPlanSwitch()) {
+            throw new ConflictException(
+                "Plan changes go through checkout on this deployment.");
+        }
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+        Tenant tenant = tenantRepository.require(tenantId);
+        Plan previous = tenant.plan();
+        tenant.setPlan(plan);
+        tenantRepository.save(tenant);
+        LOG.warn("Plan changed without billing: {} -> {} (tenant {}). "
+            + "app.billing.dev-plan-switch is enabled — this must not be a "
+            + "production environment.", previous, plan, tenantId);
+        auditService.logQuietly("PLAN_CHANGED_UNBILLED", "TENANT", tenantId,
+            tenantId, SecurityUtils.requireCurrentUserId(), ipAddress);
+    }
+
     @Transactional(readOnly = true)
     public BillingStatusResponse getStatus() {
         Tenant tenant = tenantRepository.require(SecurityUtils.requireCurrentTenantId());
@@ -104,7 +135,8 @@ public class BillingService {
             properties.isConfigured() && stripeClient.isPresent(),
             tenant.getStripeCustomerId() != null,
             access.writable(),
-            access.lockReason());
+            access.lockReason(),
+            properties.isDevPlanSwitch());
     }
 
     /**

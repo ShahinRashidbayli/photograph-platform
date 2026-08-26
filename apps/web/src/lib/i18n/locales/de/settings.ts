@@ -59,6 +59,9 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.subscription.choose': '{plan} wählen',
   'settings.subscription.currentPlan': '{plan} (aktuell)',
   'settings.subscription.yearly': 'Jährlich zahlen (2 Monate gratis)',
+  'settings.subscription.switchTo': 'Zu {plan} wechseln',
+  'settings.subscription.devSwitchWarning':
+    'Für diese Installation ist keine Stripe-Abrechnung eingerichtet, und Tarifwechsel ohne Zahlung sind erlaubt. Es wird nichts berechnet und kein Abonnement angelegt — eine Entwicklungseinstellung.',
   'settings.subscription.unavailable':
     'Abonnements sind auf dieser Installation noch nicht aktiviert. Dein Konto bleibt nutzbar; wende dich an den Support.',
   'settings.subscription.loadError': 'Abo konnte nicht geladen werden.',

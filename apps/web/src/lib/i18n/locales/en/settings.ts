@@ -59,6 +59,9 @@ export const settings = {
   'settings.subscription.choose': 'Choose {plan}',
   'settings.subscription.currentPlan': '{plan} (current)',
   'settings.subscription.yearly': 'Pay yearly (2 months free)',
+  'settings.subscription.switchTo': 'Switch to {plan}',
+  'settings.subscription.devSwitchWarning':
+    'This deployment has no Stripe billing configured, and is set to allow plan changes without payment. Nothing is charged and no subscription is created — this is a development setting.',
   'settings.subscription.unavailable':
     'Subscriptions are not enabled on this deployment yet. Your account keeps working; contact support to arrange billing.',
   'settings.subscription.loadError': 'Could not load your subscription.',

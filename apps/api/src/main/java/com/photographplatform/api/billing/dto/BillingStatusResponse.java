@@ -15,6 +15,10 @@ import java.time.OffsetDateTime;
  * @param writable               mirrors the read-only lock, so the settings
  *                               page can explain a lock the rest of the app is
  *                               already enforcing
+ * @param devPlanSwitch          true only on a deployment that has explicitly
+ *                               enabled unbilled plan changes — see
+ *                               {@code BillingProperties#devPlanSwitch}. The UI
+ *                               offers the switch behind a visible warning
  */
 public record BillingStatusResponse(
     String plan,
@@ -24,5 +28,6 @@ public record BillingStatusResponse(
     boolean subscriptionConfigured,
     boolean manageable,
     boolean writable,
-    String lockReason
+    String lockReason,
+    boolean devPlanSwitch
 ) {}

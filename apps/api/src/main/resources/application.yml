@@ -265,6 +265,12 @@ app:
   # app.stripe below, which moves the photographer's clients' money.
   billing:
     trial-days: ${BILLING_TRIAL_DAYS:14}
+    # Lets a studio owner set their own plan without paying for it, for
+    # deployments that have no Stripe account to check out against. OFF unless
+    # deliberately enabled, and BillingService logs a warning on every use:
+    # turned on where real subscriptions live, it hands every customer every
+    # tier for free.
+    dev-plan-switch: ${BILLING_DEV_PLAN_SWITCH:false}
     # Its own signing secret, from its own Stripe webhook endpoint. Sharing
     # app.stripe.webhook-secret would mean rotating one silently breaks the
     # other, with money on both sides.

@@ -2,6 +2,7 @@ package com.photographplatform.api.billing.controller;
 
 import com.photographplatform.api.billing.dto.BillingStatusResponse;
 import com.photographplatform.api.billing.dto.CheckoutSessionResponse;
+import com.photographplatform.api.billing.dto.DevPlanRequest;
 import com.photographplatform.api.billing.dto.StartCheckoutRequest;
 import com.photographplatform.api.auth.service.OwnershipGuard;
 import com.photographplatform.api.billing.service.BillingService;
@@ -56,6 +57,23 @@ public class BillingController {
         @Valid @RequestBody StartCheckoutRequest request, HttpServletRequest http) {
         ownershipGuard.requireOwner();
         return ResponseEntity.ok(billingService.startCheckout(request, ClientIp.from(http)));
+    }
+
+    /**
+     * Sets the plan directly, on deployments with no Stripe prices configured.
+     *
+     * <p>Owner only, like every other write here, and refused outright unless
+     * {@code app.billing.dev-plan-switch} is on — see
+     * {@code BillingService#devSetPlan}. It exists so a paid tier can be
+     * exercised on a machine with no Stripe account; it is not a way to buy
+     * anything.
+     */
+    @PostMapping("/dev-plan")
+    public ResponseEntity<Void> devPlan(
+        @Valid @RequestBody DevPlanRequest request, HttpServletRequest http) {
+        ownershipGuard.requireOwner();
+        billingService.devSetPlan(request.plan(), ClientIp.from(http));
+        return ResponseEntity.noContent().build();
     }
 
     /**

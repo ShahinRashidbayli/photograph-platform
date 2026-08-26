@@ -34,6 +34,23 @@ public class BillingProperties {
     private int trialDays = 14;
 
     /**
+     * Lets a studio owner change their own plan without paying for it.
+     *
+     * <p><strong>Development only, and off unless someone deliberately turns it
+     * on.</strong> Self-service upgrades normally go through Stripe Checkout,
+     * which is hidden until the six price ids are configured — deliberately,
+     * because a tier is something a customer pays for. That leaves no way to
+     * exercise a paid tier on a machine with no Stripe account, which is what
+     * this exists for.
+     *
+     * <p>Turning it on anywhere a real subscription is the source of truth
+     * gives every customer every tier for free. {@code BillingService} logs a
+     * warning at startup when it is enabled, so an environment that switched it
+     * on by accident says so in its own logs.
+     */
+    private boolean devPlanSwitch = false;
+
+    /**
      * Signing secret for the subscription webhook.
      *
      * <p>Deliberately its own secret, separate from {@code
@@ -46,6 +63,14 @@ public class BillingProperties {
     private String webhookSecret;
 
     private Map<Plan, PlanPrices> prices = new EnumMap<>(Plan.class);
+
+    public boolean isDevPlanSwitch() {
+        return devPlanSwitch;
+    }
+
+    public void setDevPlanSwitch(boolean devPlanSwitch) {
+        this.devPlanSwitch = devPlanSwitch;
+    }
 
     public int getTrialDays() {
         return trialDays;

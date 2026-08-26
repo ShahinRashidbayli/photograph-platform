@@ -57,6 +57,7 @@ public class StaffInvitationService {
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
     private final EntitlementService entitlementService;
+    private final OwnershipGuard ownershipGuard;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
@@ -68,6 +69,7 @@ public class StaffInvitationService {
         UserRepository userRepository,
         TenantRepository tenantRepository,
         EntitlementService entitlementService,
+        OwnershipGuard ownershipGuard,
         EmailService emailService,
         PasswordEncoder passwordEncoder,
         AuditService auditService,
@@ -78,6 +80,7 @@ public class StaffInvitationService {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.entitlementService = entitlementService;
+        this.ownershipGuard = ownershipGuard;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
@@ -109,7 +112,7 @@ public class StaffInvitationService {
     /**
      * Issues an invitation and emails it.
      *
-     * <p>Only the owner may call this — {@link #requireOwner} is the gate, and
+     * <p>Only the owner may call this — {@link OwnershipGuard} is the gate, and
      * it is here rather than in the controller so every future caller inherits
      * it.
      *
@@ -117,7 +120,7 @@ public class StaffInvitationService {
      */
     @Transactional
     public StaffInvitation invite(UUID tenantId, UUID actorId, String rawEmail, String ipAddress) {
-        User actor = requireOwner(tenantId, actorId);
+        User actor = ownershipGuard.requireOwner(tenantId, actorId);
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Studio not found"));
         entitlementService.requireWritable(tenant);
@@ -183,7 +186,7 @@ public class StaffInvitationService {
      */
     @Transactional
     public void revoke(UUID tenantId, UUID actorId, UUID invitationId, String ipAddress) {
-        requireOwner(tenantId, actorId);
+        ownershipGuard.requireOwner(tenantId, actorId);
         StaffInvitation invitation = invitationRepository.findById(invitationId)
             .filter(i -> i.getTenantId().equals(tenantId))
             .orElseThrow(() -> new NotFoundException("Invitation not found"));
@@ -284,7 +287,7 @@ public class StaffInvitationService {
      */
     @Transactional
     public void removeMember(UUID tenantId, UUID actorId, UUID memberId, String ipAddress) {
-        requireOwner(tenantId, actorId);
+        ownershipGuard.requireOwner(tenantId, actorId);
         User member = userRepository.findById(memberId)
             .filter(u -> u.getTenantId().equals(tenantId))
             .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -297,23 +300,6 @@ public class StaffInvitationService {
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
-
-    /**
-     * The gate for every seat operation.
-     *
-     * <p>Answers 403-shaped situations with {@link UnauthorizedException}
-     * because that is what the rest of this service does for "you may not",
-     * and the caller is authenticated either way.
-     */
-    private User requireOwner(UUID tenantId, UUID actorId) {
-        User actor = userRepository.findById(actorId)
-            .filter(u -> u.getTenantId().equals(tenantId))
-            .orElseThrow(() -> new UnauthorizedException("Not your studio"));
-        if (!actor.isOwner()) {
-            throw new UnauthorizedException("Only the studio owner can manage the team");
-        }
-        return actor;
-    }
 
     private StaffInvitation loadPending(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {

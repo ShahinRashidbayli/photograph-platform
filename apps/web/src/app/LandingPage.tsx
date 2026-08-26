@@ -219,6 +219,11 @@ const GALLERY_FRAMES: {
 // unbuilt meant the one axis that separates the tiers read as vapour on every
 // card at once.
 //
+// Studio's seats lost theirs when staff invitations shipped (V25). Until then
+// Studio was the weakest card on the page: three of its five rows were badged,
+// and the only thing it actually gave you over Pro was one more year of
+// retention for another €40 a month.
+//
 // Labels answer "what do I actually get?" for a first-time visitor — no
 // internal jargon ("lead", "portfolio & website"). They stay short because a
 // pricing bullet is scanned, not read, and the row lays its check icon out with
@@ -281,7 +286,7 @@ const PRICING: {
     highlighted: false,
     features: [
       { labelKey: 'landing.price.f.everythingPro' },
-      { labelKey: 'landing.price.f.upTo3', soon: true },
+      { labelKey: 'landing.price.f.upTo3' },
       { labelKey: 'landing.price.f.analytics', soon: true },
       { labelKey: 'landing.price.f.whiteLabel', soon: true },
       { labelKey: 'landing.price.f.retention2y' },

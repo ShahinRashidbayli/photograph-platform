@@ -171,6 +171,40 @@ export const settings = {
   'settings.datev.download': 'Download CSV',
   'settings.datev.accountsNotice':
     'The export uses SKR03 standard accounts (debtor 10000, revenue 8400 / 8337 for Kleinunternehmer). Have your tax advisor confirm these match your chart of accounts before importing — the structure is correct, but the account mapping is their call.',
+  // ── Team / seats ──────────────────────────────────────────────────────────
+  // Studio's "up to 3 photographers". Every photographer sees the section; the
+  // controls appear only for the owner, decided by the server's `canManage`.
+  'settings.team.title': 'Team',
+  'settings.team.description':
+    'The photographers who work in this studio. Everyone here sees the same bookings, clients and galleries — only you can invite, remove, and change what the studio pays for.',
+  'settings.team.loading': 'Loading your team…',
+  'settings.team.loadError': 'Could not load your team.',
+  'settings.team.seatsUsed': '{used} of {total} seats used',
+  'settings.team.seatsFull': 'Full',
+  'settings.team.seatsFullHelp':
+    'Every seat on your plan is taken. Remove someone, withdraw a pending invitation, or move to a plan with more seats.',
+  'settings.team.roleOwner': 'Owner',
+  'settings.team.roleMember': 'Photographer',
+  'settings.team.invite': 'Send invitation',
+  'settings.team.inviteLabel': 'Invite a photographer',
+  'settings.team.invitePlaceholder': 'name@studio.de',
+  'settings.team.inviteSent': 'Invitation sent to {email}.',
+  'settings.team.inviteError': 'Could not send that invitation.',
+  'settings.team.invitedExpires': 'Invitation expires {date}',
+  'settings.team.revoke': 'Withdraw',
+  'settings.team.revokeError': 'Could not withdraw that invitation.',
+  'settings.team.remove': 'Remove',
+  'settings.team.removeTitle': 'Remove from studio?',
+  'settings.team.removeBody':
+    '{name} loses access to this studio immediately. Their bookings, clients and galleries stay — they belong to the studio, not to the account.',
+  'settings.team.removeError': 'Could not remove that person.',
+  'settings.team.emptyTitle': 'It is just you so far',
+  'settings.team.emptyBody': 'Invite a photographer and they get their own login into this studio.',
+  'settings.team.pastInvites': 'Earlier invitations',
+  'settings.team.statusPending': 'Pending',
+  'settings.team.statusAccepted': 'Accepted',
+  'settings.team.statusRevoked': 'Withdrawn',
+  'settings.team.statusExpired': 'Expired',
 } as const;
 
 export type EnSettings = typeof settings;

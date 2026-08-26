@@ -1,5 +1,6 @@
 package com.photographplatform.api.gallery.service;
 
+import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
@@ -278,12 +279,12 @@ public class DeliveryPhotoProcessor {
         if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
             return tenant.getBusinessName();
         }
-        // Tenant-scoped: we are already inside one tenant, and a global lookup
-        // by address threw as soon as any other tenant had a customer with the
-        // same one — which would have failed watermarking for a whole gallery.
-        String ownerName = userRepository
-            .findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
-            .map(u -> u.getFullName())
+        // The studio's owner, asked of the staff row rather than reconstructed
+        // by matching tenants.owner_email — see PublicTenantResolver for why
+        // that stopped being the same question once studios gained seats. A
+        // member's name must never end up on someone else's watermark.
+        String ownerName = userRepository.findOwnerByTenantId(tenant.getId())
+            .map(User::getFullName)
             .orElse(null);
         return ownerName != null && !ownerName.isBlank() ? ownerName : tenant.getSubdomain();
     }

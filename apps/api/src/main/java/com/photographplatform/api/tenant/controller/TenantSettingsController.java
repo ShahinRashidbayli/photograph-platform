@@ -1,5 +1,6 @@
 package com.photographplatform.api.tenant.controller;
 
+import com.photographplatform.api.auth.service.OwnershipGuard;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.payment.dto.StripeConnectStatusResponse;
 import com.photographplatform.api.payment.dto.StripeOnboardingLinkResponse;
@@ -29,13 +30,16 @@ public class TenantSettingsController {
 
     private final TenantSettingsService settingsService;
     private final StripeConnectService connectService;
+    private final OwnershipGuard ownershipGuard;
 
     public TenantSettingsController(
         TenantSettingsService settingsService,
-        StripeConnectService connectService
+        StripeConnectService connectService,
+        OwnershipGuard ownershipGuard
     ) {
         this.settingsService = settingsService;
         this.connectService = connectService;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @GetMapping("/billing-profile")
@@ -43,11 +47,17 @@ public class TenantSettingsController {
         return ResponseEntity.ok(settingsService.getBillingProfile());
     }
 
+    /**
+     * Owner only. This is the issuer identity printed on every §14 UStG
+     * invoice the studio sends — changing it changes who, legally, billed the
+     * client.
+     */
     @PutMapping("/billing-profile")
     public ResponseEntity<BillingProfileResponse> updateBillingProfile(
         @Valid @RequestBody BillingProfileRequest request,
         HttpServletRequest http
     ) {
+        ownershipGuard.requireOwner();
         return ResponseEntity.ok(settingsService.updateBillingProfile(request, ClientIp.from(http)));
     }
 
@@ -56,8 +66,17 @@ public class TenantSettingsController {
         return ResponseEntity.ok(connectService.getStatus());
     }
 
+    /**
+     * Owner only, and the sharpest reason {@link OwnershipGuard} exists.
+     *
+     * <p>Onboarding attaches the bank account that every client payment is
+     * paid out to. Left open to members, a colleague could point the studio's
+     * entire revenue at themselves — the one thing seats must not make
+     * possible.
+     */
     @PostMapping("/stripe/onboarding-link")
     public ResponseEntity<StripeOnboardingLinkResponse> stripeOnboardingLink(HttpServletRequest http) {
+        ownershipGuard.requireOwner();
         return ResponseEntity.ok(connectService.createOnboardingLink(ClientIp.from(http)));
     }
 

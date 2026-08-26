@@ -58,14 +58,13 @@ public class PublicTenantResolver {
     @Transactional(readOnly = true)
     public PublicPhotographer requirePhotographer(String subdomain) {
         Tenant tenant = requireBySubdomain(subdomain);
-        // Scoped to this tenant, which we already have. The global lookup this
-        // replaces asked a question it had no business asking — "who anywhere
-        // uses this address" — and threw the moment the answer was more than
-        // one, taking down the photographer's entire public portfolio and every
-        // gallery link on it.
-        User owner = userRepository
-            .findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
-            .orElse(null);
+        // Asked of the staff row directly, now that ownership is recorded there
+        // (V25). Matching tenants.owner_email against a user's address was the
+        // older way to ask the same question, and it quietly stopped being
+        // reliable the moment a studio could hold more than one photographer:
+        // the address identifies the founder, not "the account that owns this",
+        // and nothing kept the two in step after an email change.
+        User owner = userRepository.findOwnerByTenantId(tenant.getId()).orElse(null);
         String displayName = owner != null && owner.getFullName() != null
             ? owner.getFullName()
             : tenant.getSubdomain();

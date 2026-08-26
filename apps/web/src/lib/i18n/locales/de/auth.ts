@@ -211,4 +211,24 @@ export const auth: Record<keyof EnAuth, string> = {
   'register.subdomainTaken': 'Diese Adresse ist bereits vergeben. Bitte wählen Sie eine andere.',
   'register.subdomainReserved': 'Diese Adresse ist reserviert. Bitte wählen Sie eine andere.',
   'register.subdomainTooShort': 'Mindestens 3 Zeichen.',
+  // ── Einladung annehmen (/invite) ──────────────────────────────────────────
+  'invite.checking': 'Einladung wird geprüft…',
+  'invite.title': '{studio} beitreten',
+  'invite.subtitle':
+    'Passwort festlegen und los. Sie sehen dieselben Buchungen, Kunden und Galerien wie der Rest von {studio}.',
+  'invite.emailLabel': 'Ihre E-Mail',
+  'invite.nameLabel': 'Ihr Name',
+  'invite.passwordLabel': 'Passwort wählen',
+  'invite.passwordHelp': 'Mindestens 10 Zeichen, mit einem Buchstaben und einer Ziffer.',
+  'invite.join': 'Studio beitreten',
+  'invite.joining': 'Konto wird erstellt…',
+  'invite.error': 'Das hat nicht geklappt. Bitte versuchen Sie es erneut.',
+  'invite.invalidTitle': 'Diese Einladung ist nicht mehr gültig',
+  'invite.invalidBody':
+    'Sie ist möglicherweise abgelaufen, zurückgezogen oder bereits verwendet worden. Bitten Sie den Studio-Inhaber um eine neue.',
+  'invite.backToLogin': 'Zur Anmeldung',
+  'invite.haveAccount': 'Sie haben schon ein Konto? Anmelden',
+  'invite.visualTitle': 'Ein Studio, ein Arbeitsbereich',
+  'invite.visualSubtitle':
+    'Buchungen, Kunden und Galerien — geteilt mit den Fotografen, mit denen Sie arbeiten.',
 };

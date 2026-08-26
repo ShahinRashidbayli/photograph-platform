@@ -207,6 +207,28 @@ export const auth = {
   'register.subdomainTaken': 'That address is already taken. Try another.',
   'register.subdomainReserved': 'That address is reserved. Please choose another.',
   'register.subdomainTooShort': 'At least 3 characters.',
+  // ── Invitation acceptance (/invite) ───────────────────────────────────────
+  // Joining someone else's studio. A sign-up, but for a seat rather than a new
+  // studio — hence the (auth) group and the shared split layout.
+  'invite.checking': 'Checking your invitation…',
+  'invite.title': 'Join {studio}',
+  'invite.subtitle':
+    'Set a password and you are in. You will see the same bookings, clients and galleries as the rest of {studio}.',
+  'invite.emailLabel': 'Your email',
+  'invite.nameLabel': 'Your name',
+  'invite.passwordLabel': 'Choose a password',
+  'invite.passwordHelp': 'At least 10 characters, with a letter and a number.',
+  'invite.join': 'Join the studio',
+  'invite.joining': 'Creating your account…',
+  'invite.error': 'We could not complete that. Please try again.',
+  'invite.invalidTitle': 'This invitation is no longer valid',
+  'invite.invalidBody':
+    'It may have expired, been withdrawn, or already been used. Ask the studio owner to send a new one.',
+  'invite.backToLogin': 'Go to sign in',
+  'invite.haveAccount': 'Already have an account? Sign in',
+  'invite.visualTitle': 'One studio, one workspace',
+  'invite.visualSubtitle':
+    'Bookings, clients and galleries — shared with the photographers you work with.',
 } as const;
 
 export type EnAuth = typeof auth;

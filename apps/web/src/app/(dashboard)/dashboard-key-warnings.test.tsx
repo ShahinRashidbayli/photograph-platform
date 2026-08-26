@@ -66,7 +66,15 @@ const ROWS = [
 jest.mock('@/lib/api', () => ({
   __esModule: true,
   default: {
-    get: jest.fn(() => Promise.resolve({ data: (globalThis as any).__ROWS })),
+    // Most screens read a list; /api/team reads an object. Returning rows for
+    // both would only prove the pages survive a shape they never receive.
+    get: jest.fn((url: string) =>
+      Promise.resolve({
+        data: String(url).startsWith('/api/team')
+          ? { members: [], invitations: [], seatsUsed: 1, seatsTotal: 3, canManage: true }
+          : (globalThis as any).__ROWS,
+      })
+    ),
     post: jest.fn(() => Promise.resolve({ data: {} })),
     put: jest.fn(() => Promise.resolve({ data: {} })),
     patch: jest.fn(() => Promise.resolve({ data: {} })),

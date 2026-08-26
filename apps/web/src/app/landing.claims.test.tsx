@@ -81,13 +81,19 @@ describe('shipped features are not advertised as unbuilt', () => {
     expectNoBadge('GoBD invoices');
   });
 
+  // Shipped with V25 (staff_role + staff_invitations). Until then Studio was
+  // the weakest card on the page: three of its five rows badged, and the only
+  // thing it gave you over Pro was one more year of retention for €40 a month.
+  it('Studio seats carry no badge', () => {
+    expectNoBadge('Up to 3 photographers');
+  });
+
   // The other direction matters just as much: the badge has to keep working for
   // the things that genuinely are not built, or the honest-roadmap device the
   // page is built around stops meaning anything.
   it('still badges what has not shipped', () => {
     expectBadge('Contracts & e-sign');
     expectBadge('Auto-reply to Instagram DMs');
-    expectBadge('Up to 3 photographers');
     expectBadge('Revenue & booking reports');
     expectBadge('Your own domain & branding');
   });

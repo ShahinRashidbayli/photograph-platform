@@ -60,10 +60,16 @@ Stripe Connect Express; the two rows below moved to ✅ and the landing page's
 | Pro | Contracts & e-sign | ❌ "soon" |
 | Pro | Galleries online 1 year | ✅ shipped 2026-08-22 (ADR-001) |
 | Studio | Everything in Pro | — |
-| Studio | Up to 3 photographers | ❌ no multi-user support exists |
+| Studio | Up to 3 photographers | ✅ shipped — staff seats, owner/member roles and email invitations (V25) |
 | Studio | Analytics & reports | ❌ `/reports` and `/revenue` are stubs |
 | Studio | White-label branding | ❌ |
 | Studio | Galleries online 2 years | ✅ shipped 2026-08-22 (ADR-001) |
+
+**Studio's seats are now built** — `staff_role`, invitations and the seat
+limit enforced from `app.plans.tiers.*.seats`. Until then Studio was announced
+in full: three of its five rows carried a "soon" badge and the only thing it
+actually gave a customer over Pro was one more year of gallery retention, for
+another €40 a month.
 
 **Pro's 0% commission is now the only built difference from Starter.** It is
 also the one §4 called the real conversion trigger, so the tier is no longer

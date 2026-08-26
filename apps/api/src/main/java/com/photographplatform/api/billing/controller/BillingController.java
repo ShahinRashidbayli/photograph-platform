@@ -3,6 +3,7 @@ package com.photographplatform.api.billing.controller;
 import com.photographplatform.api.billing.dto.BillingStatusResponse;
 import com.photographplatform.api.billing.dto.CheckoutSessionResponse;
 import com.photographplatform.api.billing.dto.StartCheckoutRequest;
+import com.photographplatform.api.auth.service.OwnershipGuard;
 import com.photographplatform.api.billing.service.BillingService;
 import com.photographplatform.api.common.security.AllowedWhenReadOnly;
 import com.photographplatform.api.common.security.ClientIp;
@@ -31,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class BillingController {
 
     private final BillingService billingService;
+    private final OwnershipGuard ownershipGuard;
 
-    public BillingController(BillingService billingService) {
+    public BillingController(BillingService billingService, OwnershipGuard ownershipGuard) {
         this.billingService = billingService;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @GetMapping
@@ -41,16 +44,29 @@ public class BillingController {
         return ResponseEntity.ok(billingService.getStatus());
     }
 
-    /** Opens a Stripe Checkout session. Does not change the plan by itself. */
+    /**
+     * Opens a Stripe Checkout session. Does not change the plan by itself.
+     *
+     * <p>Owner only. Reading the plan is something every colleague may do —
+     * the screen shows it — but committing the studio to a subscription is
+     * spending its money.
+     */
     @PostMapping("/checkout")
     public ResponseEntity<CheckoutSessionResponse> checkout(
         @Valid @RequestBody StartCheckoutRequest request, HttpServletRequest http) {
+        ownershipGuard.requireOwner();
         return ResponseEntity.ok(billingService.startCheckout(request, ClientIp.from(http)));
     }
 
-    /** Opens Stripe's hosted portal for card changes, invoices and cancellation. */
+    /**
+     * Opens Stripe's hosted portal for card changes, invoices and cancellation.
+     *
+     * <p>Owner only, and this one matters more than checkout: the portal can
+     * cancel the subscription and exposes the card on file.
+     */
     @PostMapping("/portal")
     public ResponseEntity<CheckoutSessionResponse> portal() {
+        ownershipGuard.requireOwner();
         return ResponseEntity.ok(billingService.openPortal());
     }
 }

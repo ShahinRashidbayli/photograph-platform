@@ -173,4 +173,37 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.datev.download': 'CSV herunterladen',
   'settings.datev.accountsNotice':
     'Der Export verwendet SKR03-Standardkonten (Debitor 10000, Erlöse 8400 bzw. 8337 bei Kleinunternehmern). Lassen Sie Ihren Steuerberater vor dem Import prüfen, ob diese zu Ihrem Kontenrahmen passen — die Struktur stimmt, die Kontenzuordnung ist seine Entscheidung.',
+  // ── Team / Plätze ─────────────────────────────────────────────────────────
+  'settings.team.title': 'Team',
+  'settings.team.description':
+    'Die Fotografen, die in diesem Studio arbeiten. Alle hier sehen dieselben Buchungen, Kunden und Galerien — nur Sie können einladen, entfernen und ändern, was das Studio bezahlt.',
+  'settings.team.loading': 'Team wird geladen…',
+  'settings.team.loadError': 'Ihr Team konnte nicht geladen werden.',
+  'settings.team.seatsUsed': '{used} von {total} Plätzen belegt',
+  'settings.team.seatsFull': 'Voll',
+  'settings.team.seatsFullHelp':
+    'Alle Plätze Ihres Tarifs sind belegt. Entfernen Sie jemanden, ziehen Sie eine offene Einladung zurück, oder wechseln Sie in einen Tarif mit mehr Plätzen.',
+  'settings.team.roleOwner': 'Inhaber',
+  'settings.team.roleMember': 'Fotograf',
+  'settings.team.invite': 'Einladung senden',
+  'settings.team.inviteLabel': 'Fotografen einladen',
+  'settings.team.invitePlaceholder': 'name@studio.de',
+  'settings.team.inviteSent': 'Einladung an {email} gesendet.',
+  'settings.team.inviteError': 'Die Einladung konnte nicht gesendet werden.',
+  'settings.team.invitedExpires': 'Einladung läuft ab am {date}',
+  'settings.team.revoke': 'Zurückziehen',
+  'settings.team.revokeError': 'Die Einladung konnte nicht zurückgezogen werden.',
+  'settings.team.remove': 'Entfernen',
+  'settings.team.removeTitle': 'Aus dem Studio entfernen?',
+  'settings.team.removeBody':
+    '{name} verliert sofort den Zugang zu diesem Studio. Buchungen, Kunden und Galerien bleiben — sie gehören dem Studio, nicht dem Konto.',
+  'settings.team.removeError': 'Die Person konnte nicht entfernt werden.',
+  'settings.team.emptyTitle': 'Bisher nur Sie',
+  'settings.team.emptyBody':
+    'Laden Sie einen Fotografen ein — er erhält einen eigenen Zugang zu diesem Studio.',
+  'settings.team.pastInvites': 'Frühere Einladungen',
+  'settings.team.statusPending': 'Offen',
+  'settings.team.statusAccepted': 'Angenommen',
+  'settings.team.statusRevoked': 'Zurückgezogen',
+  'settings.team.statusExpired': 'Abgelaufen',
 };

@@ -71,9 +71,11 @@ public class BookingController {
     public BookingConflictResponse conflicts(
         @RequestParam(required = false) UUID assignedUserId,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDate,
-        @RequestParam(required = false) UUID excludeBookingId
+        @RequestParam(required = false) UUID excludeBookingId,
+        @RequestParam(required = false) List<UUID> resourceIds
     ) {
-        return bookingService.findConflicts(assignedUserId, eventDate, excludeBookingId);
+        return bookingService.findConflicts(
+            assignedUserId, eventDate, excludeBookingId, resourceIds);
     }
 
     @PostMapping("/api/bookings")

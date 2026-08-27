@@ -7,6 +7,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -58,5 +59,12 @@ public record UpdateBookingRequest(
      * a photographer drops out and the studio has not decided on a replacement
      * yet, and pretending someone is still on it would be worse than a gap.
      */
-    UUID assignedUserId
+    UUID assignedUserId,
+
+    /**
+     * Rooms and kit this shoot uses. Absent leaves them untouched; an empty
+     * list clears them — the form always sends its whole selection, so those
+     * have to mean different things or removing the last one is impossible.
+     */
+    List<UUID> resourceIds
 ) {}

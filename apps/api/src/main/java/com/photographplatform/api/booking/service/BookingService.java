@@ -12,6 +12,9 @@ import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.resource.domain.BookingResource;
+import com.photographplatform.api.resource.repository.BookingResourceRepository;
+import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -41,6 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
+    private final StudioResourceRepository studioResourceRepository;
+    private final BookingResourceRepository bookingResourceRepository;
     private final ClientRepository clientRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
@@ -53,9 +58,13 @@ public class BookingService {
         UserRepository userRepository,
         AuditService auditService,
         PackageRepository packageRepository,
-        BookingPaymentStateResolver paymentStateResolver
+        BookingPaymentStateResolver paymentStateResolver,
+        StudioResourceRepository studioResourceRepository,
+        BookingResourceRepository bookingResourceRepository
     ) {
         this.bookingRepository = bookingRepository;
+        this.studioResourceRepository = studioResourceRepository;
+        this.bookingResourceRepository = bookingResourceRepository;
         this.clientRepository = clientRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
@@ -119,6 +128,7 @@ public class BookingService {
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);
+        replaceResources(saved.getId(), request.resourceIds());
 
         auditService.log(
             "BOOKING_CREATED",
@@ -295,6 +305,7 @@ public class BookingService {
         booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
 
         Booking saved = bookingRepository.save(booking);
+        replaceResources(saved.getId(), request.resourceIds());
 
         auditService.log(
             "BOOKING_UPDATED",
@@ -363,22 +374,62 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public BookingConflictResponse findConflicts(
-        UUID assignedUserId, LocalDate eventDate, UUID excludeBookingId) {
-        if (assignedUserId == null || eventDate == null) {
-            // Nobody assigned, or no date yet: there is nothing to clash with.
-            return new BookingConflictResponse(List.of());
+        UUID assignedUserId, LocalDate eventDate, UUID excludeBookingId,
+        List<UUID> resourceIds) {
+        if (eventDate == null) {
+            // No date yet: nothing can clash.
+            return new BookingConflictResponse(List.of(), List.of());
+        }
+        UUID exclude = excludeBookingId != null ? excludeBookingId : UUID.randomUUID();
+
+        List<BookingConflictResponse.ResourceClash> resourceClashes =
+            resourceIds == null || resourceIds.isEmpty()
+                ? List.of()
+                : studioResourceRepository.findClashes(resourceIds, eventDate, exclude).stream()
+                    .map(c -> new BookingConflictResponse.ResourceClash(
+                        c.getResourceName(), c.getBookingId(), c.getClientName(),
+                        c.getEventTime(), c.getStatus()))
+                    .toList();
+
+        if (assignedUserId == null) {
+            // Nobody assigned: the photographer half has nothing to answer, but
+            // the rooms and kit still do.
+            return new BookingConflictResponse(List.of(), resourceClashes);
         }
         List<BookingConflictResponse.Conflict> conflicts = bookingRepository
-            .findSameDayForPhotographer(
-                assignedUserId,
-                eventDate,
-                // A new booking has no id yet; a random one excludes nothing.
-                excludeBookingId != null ? excludeBookingId : UUID.randomUUID())
+            .findSameDayForPhotographer(assignedUserId, eventDate, exclude)
             .stream()
             .map(b -> new BookingConflictResponse.Conflict(
                 b.getId(), b.getClientName(), b.getEventTime(), b.getStatus()))
             .toList();
-        return new BookingConflictResponse(conflicts);
+        return new BookingConflictResponse(conflicts, resourceClashes);
+    }
+
+    /**
+     * Rewrites a booking's resource links.
+     *
+     * <p>Delete-then-insert rather than a diff: the set is a handful of rows,
+     * the form always sends its whole selection, and a diff would be more code
+     * to get subtly wrong for no measurable gain.
+     *
+     * @param resourceIds null leaves the existing links alone — used by callers
+     *                    that are not editing them; an empty list clears them
+     */
+    private void replaceResources(UUID bookingId, List<UUID> resourceIds) {
+        if (resourceIds == null) {
+            return;
+        }
+        bookingResourceRepository.deleteByBookingId(bookingId);
+        // Flush before inserting: the composite primary key means re-adding a
+        // resource that was already linked would collide with the row this
+        // transaction has queued for deletion but not yet sent.
+        bookingResourceRepository.flush();
+        if (!resourceIds.isEmpty()) {
+            bookingResourceRepository.saveAll(resourceIds.stream()
+                .distinct()
+                .map(rid -> new BookingResource(bookingId, rid))
+                .toList());
+        }
     }
 
     /**

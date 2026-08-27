@@ -21,7 +21,13 @@ import java.util.UUID;
  * the times that are known and decides.
  */
 public record BookingConflictResponse(
-    List<Conflict> conflicts
+    List<Conflict> conflicts,
+    /**
+     * Rooms and kit already spoken for that day, named individually. "The
+     * studio is taken" and "the lighting kit is taken" call for different
+     * decisions, and one flat list of client names cannot tell them apart.
+     */
+    List<ResourceClash> resourceClashes
 ) {
     /**
      * @param eventTime null when the existing booking has no time set — the
@@ -30,6 +36,15 @@ public record BookingConflictResponse(
      */
     public record Conflict(
         UUID id,
+        String clientName,
+        LocalTime eventTime,
+        String status
+    ) {
+    }
+
+    public record ResourceClash(
+        String resourceName,
+        UUID bookingId,
         String clientName,
         LocalTime eventTime,
         String status

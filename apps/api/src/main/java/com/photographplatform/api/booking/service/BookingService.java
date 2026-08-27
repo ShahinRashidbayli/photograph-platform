@@ -6,6 +6,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
+import com.photographplatform.api.booking.dto.BookingConflictResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
@@ -22,6 +23,7 @@ import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -113,6 +115,7 @@ public class BookingService {
         booking.setLocation(Normalize.trimToNull(request.location()));
         applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
+        booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), tenantId));
         booking.setStatus(BookingStatus.ENQUIRY.name());
 
         Booking saved = bookingRepository.save(booking);
@@ -348,6 +351,34 @@ public class BookingService {
         Package pkg = packageRepository.findById(packageId)
             .orElseThrow(() -> new NotFoundException("Package not found: " + packageId));
         return pkg.getPriceCents();
+    }
+
+    /**
+     * What else this photographer has on that day.
+     *
+     * <p>Answers a question the form asks while it is being filled in; it
+     * changes nothing and refuses nothing. See {@link BookingConflictResponse}
+     * for why this is a warning rather than a constraint, and why it is scoped
+     * to the day instead of to overlapping hours.
+     */
+    @Transactional(readOnly = true)
+    public BookingConflictResponse findConflicts(
+        UUID assignedUserId, LocalDate eventDate, UUID excludeBookingId) {
+        if (assignedUserId == null || eventDate == null) {
+            // Nobody assigned, or no date yet: there is nothing to clash with.
+            return new BookingConflictResponse(List.of());
+        }
+        List<BookingConflictResponse.Conflict> conflicts = bookingRepository
+            .findSameDayForPhotographer(
+                assignedUserId,
+                eventDate,
+                // A new booking has no id yet; a random one excludes nothing.
+                excludeBookingId != null ? excludeBookingId : UUID.randomUUID())
+            .stream()
+            .map(b -> new BookingConflictResponse.Conflict(
+                b.getId(), b.getClientName(), b.getEventTime(), b.getStatus()))
+            .toList();
+        return new BookingConflictResponse(conflicts);
     }
 
     /**

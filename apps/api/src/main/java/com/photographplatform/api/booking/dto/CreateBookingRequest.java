@@ -58,5 +58,12 @@ public record CreateBookingRequest(
     @PositiveOrZero(message = "Deposit amount cannot be negative")
     Integer depositAmountCents,
 
-    String internalNotes
+    String internalNotes,
+
+    /**
+     * Who will shoot it. Optional, and usually absent: a booking created from
+     * an enquiry has no photographer decided yet, and the studio assigns it
+     * later.
+     */
+    UUID assignedUserId
 ) {}

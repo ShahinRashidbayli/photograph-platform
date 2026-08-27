@@ -1,5 +1,6 @@
 package com.photographplatform.api.booking.controller;
 
+import com.photographplatform.api.booking.dto.BookingConflictResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -55,6 +58,22 @@ public class BookingController {
         @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(bookingService.getOwnBookings(status, page, size));
+    }
+
+    /**
+     * Whether the assigned photographer is already busy that day.
+     *
+     * <p>Called by the form as the date and photographer are picked, so the
+     * warning appears before the save rather than as a rejection after it. It
+     * is a read: nothing here can refuse a booking.
+     */
+    @GetMapping("/api/bookings/conflicts")
+    public BookingConflictResponse conflicts(
+        @RequestParam(required = false) UUID assignedUserId,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDate,
+        @RequestParam(required = false) UUID excludeBookingId
+    ) {
+        return bookingService.findConflicts(assignedUserId, eventDate, excludeBookingId);
     }
 
     @PostMapping("/api/bookings")

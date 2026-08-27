@@ -94,13 +94,18 @@ describe('shipped features are not advertised as unbuilt', () => {
     expectNoBadge('Revenue & booking reports');
   });
 
+  // Branding shipped; the custom domain half was removed from the label rather
+  // than left as an unbuilt promise riding along with a shipped one.
+  it('Studio branding carries no badge, and promises only what exists', () => {
+    expectNoBadge('Your logo on client pages');
+  });
+
   // The other direction matters just as much: the badge has to keep working for
   // the things that genuinely are not built, or the honest-roadmap device the
   // page is built around stops meaning anything.
   it('still badges what has not shipped', () => {
     expectBadge('Contracts & e-sign');
     expectBadge('Auto-reply to Instagram DMs');
-    expectBadge('Your own domain & branding');
   });
 });
 

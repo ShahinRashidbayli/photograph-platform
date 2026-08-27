@@ -33,6 +33,20 @@ export interface PublicGalleryPayload {
   // answer.
   expired: boolean;
   photos: DeliveryPhoto[];
+  /**
+   * The studio's own logo and colour, and whether its plan takes "Delivered
+   * with Fotolio" off the footer. Optional so an older API response — or a
+   * cached one from before this shipped — renders the platform footer rather
+   * than throwing.
+   */
+  branding?: Branding | null;
+}
+
+/** Mirrors `BrandingResponse` on the API. */
+export interface Branding {
+  logoUrl: string | null;
+  brandColor: string | null;
+  whiteLabel: boolean;
 }
 
 interface Props {

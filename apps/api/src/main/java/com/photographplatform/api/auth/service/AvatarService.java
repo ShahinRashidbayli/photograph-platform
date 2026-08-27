@@ -45,6 +45,18 @@ public class AvatarService {
      *         to store.
      */
     public AvatarPresignResponse presign(String contentType, long fileSizeBytes) {
+        return presign(contentType, fileSizeBytes, "avatars");
+    }
+
+    /**
+     * The same upload, filed under a different prefix.
+     *
+     * <p>Added for studio logos, which are the same shape of problem — a small
+     * image the browser uploads straight to R2 — and would otherwise have
+     * needed a second copy of the type whitelist, the size cap and the
+     * pre-signing. The prefix is a caller-supplied constant, never user input.
+     */
+    public AvatarPresignResponse presign(String contentType, long fileSizeBytes, String prefix) {
         R2StorageService r2 = storage.orElseThrow(() -> new IllegalStateException(
             "R2 storage is not configured. Please contact support."));
 
@@ -55,7 +67,7 @@ public class AvatarService {
         long sizeBytes = UploadLimits.requireWithin(
             fileSizeBytes, props.getMaxAvatarBytes(), "Profile photo");
 
-        String key = "avatars/" + TenantContext.getTenant() + "/" + UUID.randomUUID()
+        String key = prefix + "/" + TenantContext.getTenant() + "/" + UUID.randomUUID()
             + type.extension();
 
         return new AvatarPresignResponse(

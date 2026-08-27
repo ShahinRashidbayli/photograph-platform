@@ -8,6 +8,8 @@ import com.photographplatform.api.portfolio.dto.PhotoResponse;
 import com.photographplatform.api.portfolio.dto.PublicPortfolioResponse;
 import com.photographplatform.api.portfolio.dto.UpdatePhotoCategoryRequest;
 import com.photographplatform.api.portfolio.service.PhotoService;
+import com.photographplatform.api.branding.dto.BrandingResponse;
+import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import jakarta.validation.Valid;
@@ -29,10 +31,25 @@ public class PortfolioController {
 
     private final PhotoService photoService;
     private final PublicTenantResolver tenantResolver;
+    private final BrandingService brandingService;
 
-    public PortfolioController(PhotoService photoService, PublicTenantResolver tenantResolver) {
+    public PortfolioController(PhotoService photoService, PublicTenantResolver tenantResolver,
+        BrandingService brandingService
+    ) {
         this.photoService = photoService;
         this.tenantResolver = tenantResolver;
+        this.brandingService = brandingService;
+    }
+
+    /**
+     * The studio's branding, in the shape the public page needs.
+     *
+     * <p>Read outside the capability gate: the visitor is anonymous and has no
+     * plan of their own, and the studio's tier is not something to publish. The
+     * `whiteLabel` flag is what decides whether the footer keeps our name.
+     */
+    private BrandingResponse brandingFor(Tenant tenant) {
+        return brandingService.forTenant(tenant.getId());
     }
 
     @GetMapping("/public/portfolio/{subdomain}")
@@ -49,7 +66,8 @@ public class PortfolioController {
                     tenant.getPlan(),
                     photographer.avatarUrl()
                 ),
-                photos
+                photos,
+                brandingFor(tenant)
             );
         }));
     }

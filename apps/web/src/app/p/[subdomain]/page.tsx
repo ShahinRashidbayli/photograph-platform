@@ -23,6 +23,19 @@ export interface PublicPhoto {
 export interface PublicPortfolioPayload {
   photographer: PhotographerPublic;
   photos: PublicPhoto[];
+  /**
+   * The studio's logo and colour, and whether its plan takes the platform's
+   * name off the footer. Optional so a response from before this shipped keeps
+   * the footer rather than throwing.
+   */
+  branding?: Branding | null;
+}
+
+/** Mirrors `BrandingResponse` on the API. */
+export interface Branding {
+  logoUrl: string | null;
+  brandColor: string | null;
+  whiteLabel: boolean;
 }
 
 interface Props {

@@ -189,7 +189,10 @@ export const landing = {
   'landing.price.f.everythingPro': 'Everything in Pro',
   'landing.price.f.upTo3': 'Up to 3 photographers',
   'landing.price.f.analytics': 'Revenue & booking reports',
-  'landing.price.f.whiteLabel': 'Your own domain & branding',
+  // "domain" was dropped when branding shipped: a custom domain needs DNS
+  // verification and certificate issuance, which is infrastructure this does
+  // not have. Selling the half that exists is the point of this table.
+  'landing.price.f.whiteLabel': 'Your logo on client pages',
 
   // Split the way the hero's headline is, so the closing line carries the same
   // shimmering accent word — the two display lines bookend the page.

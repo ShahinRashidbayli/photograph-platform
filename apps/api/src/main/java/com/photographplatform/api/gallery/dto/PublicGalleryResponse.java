@@ -1,5 +1,6 @@
 package com.photographplatform.api.gallery.dto;
 
+import com.photographplatform.api.branding.dto.BrandingResponse;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -30,15 +31,21 @@ public record PublicGalleryResponse(
     boolean watermarkEnabled,
     OffsetDateTime expiresAt,
     boolean expired,
-    List<DeliveryPhotoResponse> photos
+    List<DeliveryPhotoResponse> photos,
+    /**
+     * The studio's logo and colour, and whether its plan takes the platform's
+     * name off the footer. A gallery is the surface a client spends longest on,
+     * so it is the one white-label most has to reach.
+     */
+    BrandingResponse branding
 ) {
 
     /** The tombstone: enough context to explain itself, and no photos. */
     public static PublicGalleryResponse expired(
         String photographerName, String bookingName, String eventType,
-        LocalDate shootDate, OffsetDateTime expiresAt) {
+        LocalDate shootDate, OffsetDateTime expiresAt, BrandingResponse branding) {
         return new PublicGalleryResponse(
             photographerName, bookingName, eventType, shootDate,
-            false, false, expiresAt, true, List.of());
+            false, false, expiresAt, true, List.of(), branding);
     }
 }

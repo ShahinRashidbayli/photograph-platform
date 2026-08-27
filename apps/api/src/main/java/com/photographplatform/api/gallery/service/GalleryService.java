@@ -3,6 +3,7 @@ package com.photographplatform.api.gallery.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.repository.QueryLimits;
+import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -56,6 +57,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class GalleryService {
 
     private final GalleryRepository galleryRepository;
+    private final BrandingService brandingService;
     private final DeliveryPhotoRepository deliveryPhotoRepository;
     private final BookingRepository bookingRepository;
     private final Optional<R2StorageService> storage;
@@ -79,8 +81,11 @@ public class GalleryService {
                           EntitlementService entitlementService,
                           Clock clock,
                           RateLimiter rateLimiter,
-                          R2Properties r2Properties) {
+                          R2Properties r2Properties,
+        BrandingService brandingService
+    ) {
         this.galleryRepository = galleryRepository;
+        this.brandingService = brandingService;
         this.deliveryPhotoRepository = deliveryPhotoRepository;
         this.bookingRepository = bookingRepository;
         this.storage = storage;
@@ -340,7 +345,8 @@ public class GalleryService {
                 tombstone.getBookingName(),
                 tombstone.getEventType(),
                 tombstone.getShootDate(),
-                gallery.getExpiresAt());
+                gallery.getExpiresAt(),
+                brandingService.forTenant(gallery.getTenantId()));
         }
 
         galleryRepository.incrementViewCount(gallery.getId());
@@ -365,7 +371,9 @@ public class GalleryService {
             Boolean.TRUE.equals(gallery.getWatermarkEnabled()),
             gallery.getExpiresAt(),
             false,
-            photos
+            photos,
+            // The studio's own mark on the surface its clients look at longest.
+            brandingService.forTenant(gallery.getTenantId())
         );
     }
 

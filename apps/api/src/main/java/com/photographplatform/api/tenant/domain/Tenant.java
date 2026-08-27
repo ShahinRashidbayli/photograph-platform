@@ -123,6 +123,34 @@ public class Tenant {
         this.subdomain = subdomain;
     }
 
+    /**
+     * R2 object key for the studio's logo, or null. Not a URL — download URLs
+     * are pre-signed and expire, so storing one stores a link that stops
+     * working.
+     */
+    @Column(name = "logo_key", length = 500)
+    private String logoKey;
+
+    /** `#RRGGBB` accent for client-facing surfaces, or null for the default. */
+    @Column(name = "brand_color", length = 7)
+    private String brandColor;
+
+    public String getLogoKey() {
+        return logoKey;
+    }
+
+    public void setLogoKey(String logoKey) {
+        this.logoKey = logoKey;
+    }
+
+    public String getBrandColor() {
+        return brandColor;
+    }
+
+    public void setBrandColor(String brandColor) {
+        this.brandColor = brandColor;
+    }
+
     public String getOwnerEmail() {
         return ownerEmail;
     }

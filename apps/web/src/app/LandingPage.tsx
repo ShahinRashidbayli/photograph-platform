@@ -288,7 +288,7 @@ const PRICING: {
       { labelKey: 'landing.price.f.everythingPro' },
       { labelKey: 'landing.price.f.upTo3' },
       { labelKey: 'landing.price.f.analytics' },
-      { labelKey: 'landing.price.f.whiteLabel', soon: true },
+      { labelKey: 'landing.price.f.whiteLabel' },
       { labelKey: 'landing.price.f.retention2y' },
     ],
   },

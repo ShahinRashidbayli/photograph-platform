@@ -153,9 +153,15 @@ export default function GalleryView({
         </div>
       )}
 
-      <footer style={styles.footer}>
-        Delivered with <strong>Fotolio</strong>
-      </footer>
+      {/* The platform's name comes off only where the plan pays for it. A
+          studio that uploaded a logo on Studio and then downgraded keeps the
+          logo and gets this line back — they stopped paying for the part they
+          stopped paying for, not for the part they uploaded. */}
+      {!data.branding?.whiteLabel && (
+        <footer style={styles.footer}>
+          Delivered with <strong>Fotolio</strong>
+        </footer>
+      )}
 
       {active && (
         <div style={styles.lightbox} onClick={() => setActive(null)}>

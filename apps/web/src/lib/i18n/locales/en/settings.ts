@@ -177,6 +177,25 @@ export const settings = {
   // ── Team / seats ──────────────────────────────────────────────────────────
   // Studio's "up to 3 photographers". Every photographer sees the section; the
   // controls appear only for the owner, decided by the server's `canManage`.
+  'settings.branding.title': 'Your branding',
+  'settings.branding.description':
+    'Your logo and colour on the pages your clients see — the portfolio, the booking form and every gallery you deliver. Fotolio’s name comes off those pages too.',
+  'settings.branding.loading': 'Loading your branding…',
+  'settings.branding.loadError': 'Could not load your branding.',
+  'settings.branding.saveError': 'Could not save your branding.',
+  'settings.branding.uploadError': 'Could not upload that logo.',
+  'settings.branding.logo': 'Logo',
+  'settings.branding.noLogo': 'No logo',
+  'settings.branding.uploadLogo': 'Upload logo',
+  'settings.branding.replaceLogo': 'Replace',
+  'settings.branding.removeLogo': 'Remove',
+  'settings.branding.color': 'Brand colour',
+  'settings.branding.colorHint': 'Used for buttons and highlights on your client-facing pages.',
+  'settings.branding.save': 'Save',
+  'settings.branding.saved': 'Branding saved.',
+  'settings.branding.upgradeTitle': 'Put your own name on it',
+  'settings.branding.upgradeBody':
+    'With white-label branding your logo and colour appear on your portfolio, booking form and client galleries, and Fotolio’s name comes off them. It is included in the Studio plan.',
   'settings.team.title': 'Team',
   'settings.team.description':
     'The photographers who work in this studio. Everyone here sees the same bookings, clients and galleries — only you can invite, remove, and change what the studio pays for.',

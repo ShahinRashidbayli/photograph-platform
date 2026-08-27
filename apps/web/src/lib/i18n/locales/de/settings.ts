@@ -177,6 +177,25 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.datev.accountsNotice':
     'Der Export verwendet SKR03-Standardkonten (Debitor 10000, Erlöse 8400 bzw. 8337 bei Kleinunternehmern). Lassen Sie Ihren Steuerberater vor dem Import prüfen, ob diese zu Ihrem Kontenrahmen passen — die Struktur stimmt, die Kontenzuordnung ist seine Entscheidung.',
   // ── Team / Plätze ─────────────────────────────────────────────────────────
+  'settings.branding.title': 'Ihr Branding',
+  'settings.branding.description':
+    'Ihr Logo und Ihre Farbe auf den Seiten, die Ihre Kunden sehen — Portfolio, Anfrageformular und jede ausgelieferte Galerie. Der Name Fotolio verschwindet dort ebenfalls.',
+  'settings.branding.loading': 'Branding wird geladen…',
+  'settings.branding.loadError': 'Ihr Branding konnte nicht geladen werden.',
+  'settings.branding.saveError': 'Ihr Branding konnte nicht gespeichert werden.',
+  'settings.branding.uploadError': 'Das Logo konnte nicht hochgeladen werden.',
+  'settings.branding.logo': 'Logo',
+  'settings.branding.noLogo': 'Kein Logo',
+  'settings.branding.uploadLogo': 'Logo hochladen',
+  'settings.branding.replaceLogo': 'Ersetzen',
+  'settings.branding.removeLogo': 'Entfernen',
+  'settings.branding.color': 'Markenfarbe',
+  'settings.branding.colorHint': 'Für Schaltflächen und Akzente auf Ihren kundenseitigen Seiten.',
+  'settings.branding.save': 'Speichern',
+  'settings.branding.saved': 'Branding gespeichert.',
+  'settings.branding.upgradeTitle': 'Ihr eigener Name darauf',
+  'settings.branding.upgradeBody':
+    'Mit White-Label-Branding erscheinen Ihr Logo und Ihre Farbe auf Portfolio, Anfrageformular und Kundengalerien, und der Name Fotolio verschwindet dort. Enthalten im Studio-Tarif.',
   'settings.team.title': 'Team',
   'settings.team.description':
     'Die Fotografen, die in diesem Studio arbeiten. Alle hier sehen dieselben Buchungen, Kunden und Galerien — nur Sie können einladen, entfernen und ändern, was das Studio bezahlt.',

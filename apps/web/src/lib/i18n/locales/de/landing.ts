@@ -179,7 +179,7 @@ export const landing: Record<keyof EnLanding, string> = {
   'landing.price.f.everythingPro': 'Alles aus Pro',
   'landing.price.f.upTo3': 'Bis zu 3 Fotografen',
   'landing.price.f.analytics': 'Umsatz- & Buchungsberichte',
-  'landing.price.f.whiteLabel': 'Eigene Domain & Branding',
+  'landing.price.f.whiteLabel': 'Ihr Logo auf Kundenseiten',
 
   'landing.cta.titlePre': 'Verbringen Sie Ihren Tag hinter der ',
   'landing.cta.titleAccent': 'Kamera',

@@ -10,6 +10,7 @@ import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
+import { BrandingSettings } from './BrandingSettings';
 import { TeamSettings } from './TeamSettings';
 import {
   BillingProfileSection,
@@ -447,6 +448,23 @@ export default function SettingsPage() {
           subscription, and there was no checkout behind the button. Never
           shown to clients — the API refuses them too (SecurityConfig). */}
       {isPhotographer && <SubscriptionSection />}
+
+      {/* What the studio's clients see. Sits before Team because it is about
+          the studio's face, not its staff. */}
+      {isPhotographer && (
+        <section style={section} aria-labelledby="settings-branding">
+          <h2
+            id="settings-branding"
+            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+          >
+            {t('settings.branding.title')}
+          </h2>
+          <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
+            {t('settings.branding.description')}
+          </p>
+          <BrandingSettings />
+        </section>
+      )}
 
       {/* Who else works in this studio. Sits after the subscription because
           seats are a plan limit — the number above decides the number here. */}

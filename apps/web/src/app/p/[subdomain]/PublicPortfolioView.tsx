@@ -53,7 +53,7 @@ const BODY_FONT =
   'var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif';
 
 export default function PublicPortfolioView({ data }: { data: PublicPortfolioPayload }) {
-  const { photographer, photos } = data;
+  const { photographer, photos, branding } = data;
   const [theme, setTheme] = useState<Theme>('dark');
   const [mounted, setMounted] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -101,7 +101,12 @@ export default function PublicPortfolioView({ data }: { data: PublicPortfolioPay
 
   const palette = PALETTES[theme];
   const heroPhoto = photos[0];
-  const showPoweredBy = photographer.plan === 'STARTER';
+  // Asked of the capability, not of the plan name. Comparing against STARTER
+  // meant Pro got white-label branding without paying for it — WHITE_LABEL_BRANDING
+  // is Studio's, and the server has always gated it that way. The fallback keeps
+  // our name on if branding is missing: showing it when unsure is the mistake
+  // that costs nothing.
+  const showPoweredBy = !branding?.whiteLabel;
   const formVariant: 'light' | 'dark' = theme;
 
   function toggleTheme() {

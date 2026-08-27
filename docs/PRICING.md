@@ -62,7 +62,7 @@ Stripe Connect Express; the two rows below moved to ✅ and the landing page's
 | Studio | Everything in Pro | — |
 | Studio | Up to 3 photographers | ✅ shipped — staff seats, owner/member roles and email invitations (V25) |
 | Studio | Analytics & reports | ✅ shipped — revenue (invoiced vs collected) and booking reports, gated on ANALYTICS |
-| Studio | White-label branding | ❌ |
+| Studio | White-label branding | ✅ shipped — studio logo and colour on client-facing pages, platform footer removed (V26). Custom domain is NOT included and the label no longer claims it |
 | Studio | Galleries online 2 years | ✅ shipped 2026-08-22 (ADR-001) |
 
 **Studio's seats are now built** — `staff_role`, invitations and the seat

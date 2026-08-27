@@ -1,7 +1,15 @@
 package com.photographplatform.api.tenant.controller;
 
+import com.photographplatform.api.auth.dto.AvatarPresignResponse;
+import com.photographplatform.api.auth.service.AvatarService;
 import com.photographplatform.api.auth.service.OwnershipGuard;
+import com.photographplatform.api.entitlement.domain.Capability;
+import com.photographplatform.api.entitlement.service.EntitlementService;
+import com.photographplatform.api.branding.dto.BrandingResponse;
+import com.photographplatform.api.branding.dto.UpdateBrandingRequest;
+import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.common.security.ClientIp;
+import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.payment.dto.StripeConnectStatusResponse;
 import com.photographplatform.api.payment.dto.StripeOnboardingLinkResponse;
 import com.photographplatform.api.payment.service.StripeConnectService;
@@ -14,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,15 +40,24 @@ public class TenantSettingsController {
     private final TenantSettingsService settingsService;
     private final StripeConnectService connectService;
     private final OwnershipGuard ownershipGuard;
+    private final BrandingService brandingService;
+    private final AvatarService avatarService;
+    private final EntitlementService entitlementService;
 
     public TenantSettingsController(
         TenantSettingsService settingsService,
         StripeConnectService connectService,
-        OwnershipGuard ownershipGuard
+        OwnershipGuard ownershipGuard,
+        BrandingService brandingService,
+        AvatarService avatarService,
+        EntitlementService entitlementService
     ) {
         this.settingsService = settingsService;
         this.connectService = connectService;
         this.ownershipGuard = ownershipGuard;
+        this.brandingService = brandingService;
+        this.avatarService = avatarService;
+        this.entitlementService = entitlementService;
     }
 
     @GetMapping("/billing-profile")
@@ -59,6 +77,44 @@ public class TenantSettingsController {
     ) {
         ownershipGuard.requireOwner();
         return ResponseEntity.ok(settingsService.updateBillingProfile(request, ClientIp.from(http)));
+    }
+
+    /**
+     * Pre-signs a direct-to-R2 upload for the studio's logo.
+     *
+     * <p>Reuses the avatar path's service — same whitelist, same size cap, same
+     * signed Content-Length — with a different key prefix. Owner-gated and
+     * plan-gated, so a Starter tenant cannot fill the bucket with objects it
+     * will never be allowed to display.
+     */
+    @PostMapping("/branding/logo/presign")
+    public ResponseEntity<AvatarPresignResponse> presignLogo(
+        @RequestParam String contentType,
+        @RequestParam long fileSizeBytes
+    ) {
+        ownershipGuard.requireOwner();
+        entitlementService.requireCapabilityForCurrentTenant(Capability.WHITE_LABEL_BRANDING);
+        return ResponseEntity.ok(avatarService.presign(contentType, fileSizeBytes, "logos"));
+    }
+
+    /** The studio's logo and colour, for the settings form. */
+    @GetMapping("/branding")
+    public ResponseEntity<BrandingResponse> getBranding() {
+        return ResponseEntity.ok(
+            brandingService.forTenant(SecurityUtils.requireCurrentTenantId()));
+    }
+
+    /**
+     * Owner only, and plan-gated in the service. Branding is what a studio's
+     * clients see, so changing it is closer to changing the invoice issuer than
+     * to changing a personal preference.
+     */
+    @PutMapping("/branding")
+    public ResponseEntity<BrandingResponse> updateBranding(
+        @Valid @RequestBody UpdateBrandingRequest request) {
+        ownershipGuard.requireOwner();
+        return ResponseEntity.ok(
+            brandingService.update(SecurityUtils.requireCurrentTenantId(), request));
     }
 
     @GetMapping("/stripe")

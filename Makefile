@@ -35,7 +35,7 @@ test:
 
 migrate:
 	cd apps/api && export $$(grep -v '^#' ../../infra/.env | xargs) && \
-		/opt/homebrew/bin/mvn flyway:migrate -Dflyway.url=$${FLYWAY_URL} -Dflyway.user=$${FLYWAY_USER} -Dflyway.password=$${DB_PASSWORD}
+		/opt/homebrew/bin/mvn flyway:migrate -Dflyway.url=$${FLYWAY_URL} -Dflyway.user=$${FLYWAY_USER} -Dflyway.password=$${FLYWAY_PASSWORD:-$${DB_PASSWORD}}
 
 # Fill the local database with demo data — every booking status, lead score,
 # gallery retention state and invoice/payment shape, so the UI can be checked

@@ -6,7 +6,8 @@ import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingStatusRequest;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.common.security.RequiresVerifiedEmail;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,10 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class BookingController {
 
-    private final BookingService bookingService;
+    private final BookingQueryService queryService;
+    private final BookingCommandService commandService;
 
-    public BookingController(BookingService bookingService) {
-        this.bookingService = bookingService;
+    public BookingController(
+        BookingQueryService queryService, BookingCommandService commandService) {
+        this.queryService = queryService;
+        this.commandService = commandService;
     }
 
     /**
@@ -44,7 +48,7 @@ public class BookingController {
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(bookingService.listForPhotographer(status, page, size));
+        return ResponseEntity.ok(queryService.listForPhotographer(status, page, size));
     }
 
     /**
@@ -57,7 +61,7 @@ public class BookingController {
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(bookingService.getOwnBookings(status, page, size));
+        return ResponseEntity.ok(queryService.getOwnBookings(status, page, size));
     }
 
     /**
@@ -74,7 +78,7 @@ public class BookingController {
         @RequestParam(required = false) UUID excludeBookingId,
         @RequestParam(required = false) List<UUID> resourceIds
     ) {
-        return bookingService.findConflicts(
+        return queryService.findConflicts(
             assignedUserId, eventDate, excludeBookingId, resourceIds);
     }
 
@@ -83,7 +87,7 @@ public class BookingController {
         @Valid @RequestBody CreateBookingRequest request,
         HttpServletRequest httpRequest
     ) {
-        BookingResponse created = bookingService.createBooking(request, ClientIp.from(httpRequest));
+        BookingResponse created = commandService.createBooking(request, ClientIp.from(httpRequest));
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -98,7 +102,7 @@ public class BookingController {
         @Valid @RequestBody UpdateBookingStatusRequest request,
         HttpServletRequest httpRequest
     ) {
-        BookingResponse updated = bookingService.changeStatus(id, request.status(), ClientIp.from(httpRequest));
+        BookingResponse updated = commandService.changeStatus(id, request.status(), ClientIp.from(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -114,7 +118,7 @@ public class BookingController {
         @Valid @RequestBody UpdateBookingRequest request,
         HttpServletRequest httpRequest
     ) {
-        BookingResponse updated = bookingService.updateBooking(id, request, ClientIp.from(httpRequest));
+        BookingResponse updated = commandService.updateBooking(id, request, ClientIp.from(httpRequest));
         return ResponseEntity.ok(updated);
     }
 }

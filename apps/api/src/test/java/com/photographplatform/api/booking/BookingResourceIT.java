@@ -7,7 +7,8 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.dto.BookingConflictResponse;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.pricing.domain.Package;
@@ -41,7 +42,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class BookingResourceIT extends IntegrationTestBase {
 
-    @Autowired private BookingService bookingService;
+    @Autowired private BookingCommandService commandService;
+    @Autowired private BookingQueryService queryService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private StudioResourceRepository studioResourceRepository;
@@ -63,7 +65,7 @@ class BookingResourceIT extends IntegrationTestBase {
         // so before the tenant check this insert simply succeeded, and their
         // room showed up in my clash warnings.
         assertThatThrownBy(() -> asUser(mine, () ->
-            bookingService.createBooking(request(null, null, List.of(theirStudio)), IP)))
+            commandService.createBooking(request(null, null, List.of(theirStudio)), IP)))
             .isInstanceOf(NotFoundException.class);
 
         assertThat(countAcrossTenants("SELECT count(*) FROM booking_resources")).isZero();
@@ -75,7 +77,7 @@ class BookingResourceIT extends IntegrationTestBase {
         UUID myStudio = createResource(mine, "Studio A", "ROOM");
 
         BookingResponse created = asUser(mine, () ->
-            bookingService.createBooking(request(null, null, List.of(myStudio)), IP));
+            commandService.createBooking(request(null, null, List.of(myStudio)), IP));
 
         assertThat(created.resourceIds()).containsExactly(myStudio);
     }
@@ -93,7 +95,7 @@ class BookingResourceIT extends IntegrationTestBase {
         // written into my booking without a word — the FK is satisfied, because
         // the FK does not know about tenants.
         assertThatThrownBy(() -> asUser(mine, () ->
-            bookingService.createBooking(request(theirPackage, 250_000, null), IP)))
+            commandService.createBooking(request(theirPackage, 250_000, null), IP)))
             .isInstanceOf(NotFoundException.class);
 
         assertThat(countAcrossTenants("SELECT count(*) FROM bookings")).isZero();
@@ -114,10 +116,10 @@ class BookingResourceIT extends IntegrationTestBase {
         Fixture mine = createTenant();
         UUID studio = createResource(mine, "Studio A", "ROOM");
         BookingResponse existing = asUser(mine, () ->
-            bookingService.createBooking(request(null, null, List.of(studio)), IP));
+            commandService.createBooking(request(null, null, List.of(studio)), IP));
 
         BookingConflictResponse clashes = asUser(mine, () ->
-            bookingService.findConflicts(mine.userId(), EVENT_DATE, null, List.of(studio)));
+            queryService.findConflicts(mine.userId(), EVENT_DATE, null, List.of(studio)));
 
         assertThat(clashes.resourceClashes()).hasSize(1);
         assertThat(clashes.resourceClashes().get(0).bookingId()).isEqualTo(existing.id());
@@ -130,10 +132,10 @@ class BookingResourceIT extends IntegrationTestBase {
         Fixture mine = createTenant();
         UUID studio = createResource(mine, "Studio A", "ROOM");
         BookingResponse booking = asUser(mine, () ->
-            bookingService.createBooking(request(null, null, List.of(studio)), IP));
+            commandService.createBooking(request(null, null, List.of(studio)), IP));
 
         BookingConflictResponse clashes = asUser(mine, () ->
-            bookingService.findConflicts(mine.userId(), EVENT_DATE, booking.id(), List.of(studio)));
+            queryService.findConflicts(mine.userId(), EVENT_DATE, booking.id(), List.of(studio)));
 
         assertThat(clashes.resourceClashes()).isEmpty();
     }

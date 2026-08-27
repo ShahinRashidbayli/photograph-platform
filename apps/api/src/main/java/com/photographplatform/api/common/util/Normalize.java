@@ -17,7 +17,7 @@ import java.util.Locale;
  * class is where the rest of the codebase gets the same guarantee.
  *
  * <p>Also carries the null/blank trimming that was copy-pasted across
- * {@code BookingService}, {@code LeadService} and {@code InquiryRequestService}.
+ * {@code BookingCommandService}, {@code LeadService} and {@code InquiryRequestService}.
  */
 public final class Normalize {
 

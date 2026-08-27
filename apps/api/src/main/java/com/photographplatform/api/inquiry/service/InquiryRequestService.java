@@ -3,7 +3,7 @@ package com.photographplatform.api.inquiry.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -77,7 +77,7 @@ public class InquiryRequestService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final RateLimiter rateLimiter;
-    private final BookingService bookingService;
+    private final BookingConversionService bookingConversionService;
     private final EmailService emailService;
     private final Clock clock;
 
@@ -87,7 +87,7 @@ public class InquiryRequestService {
                                  AuditService auditService,
                                  ApplicationEventPublisher eventPublisher,
                                  RateLimiter rateLimiter,
-                                 BookingService bookingService,
+                                 BookingConversionService bookingConversionService,
                                  EmailService emailService,
                                  Clock clock) {
         this.inquiryRepository = inquiryRepository;
@@ -96,7 +96,7 @@ public class InquiryRequestService {
         this.auditService = auditService;
         this.eventPublisher = eventPublisher;
         this.rateLimiter = rateLimiter;
-        this.bookingService = bookingService;
+        this.bookingConversionService = bookingConversionService;
         this.emailService = emailService;
         this.clock = clock;
     }
@@ -233,7 +233,7 @@ public class InquiryRequestService {
 
         boolean accepted = target == InquiryStatus.BOOKING_CREATED;
         if (accepted) {
-            bookingService.createFromInquiry(inquiry, customer, ipAddress);
+            bookingConversionService.createFromInquiry(inquiry, customer, ipAddress);
         }
         inquiry.setStatus(target.name());
         InquiryRequest saved = inquiryRepository.save(inquiry);

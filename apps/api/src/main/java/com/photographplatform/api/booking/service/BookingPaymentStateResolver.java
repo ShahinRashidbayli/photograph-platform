@@ -64,9 +64,9 @@ public class BookingPaymentStateResolver {
      * keeping its own loop: the previous implementation summed payments with
      * one {@code sumSucceededAmountCents} call per invoice, so a booking with
      * an original plus a Storno correction cost three queries instead of two —
-     * a small N+1, but on the write paths ({@code createBooking},
-     * {@code updateBooking}, {@code changeStatus}) that all map their result
-     * through here.
+     * a small N+1, but on every write path in {@code
+     * BookingCommandService} and {@code BookingConversionService}, which all
+     * map their result through here.
      */
     public Summary resolve(UUID bookingId) {
         return resolveAll(List.of(bookingId)).getOrDefault(bookingId, Summary.none());
@@ -77,7 +77,7 @@ public class BookingPaymentStateResolver {
      * two queries total (all invoices for the given bookings, then all
      * succeeded payment sums for those invoices' ids) instead of resolving
      * each booking's payment state with its own pair of queries. Used by
-     * {@code BookingService#listForPhotographer} and {@code #getOwnBookings},
+     * {@code BookingQueryService#listForPhotographer} and {@code #getOwnBookings},
      * which previously called {@link #resolve(UUID)} once per row in the
      * page — an N+1 that showed up as 1-2 extra queries per booking.
      *

@@ -302,7 +302,7 @@ public class PaymentService {
     /**
      * PHOTOGRAPHER/ADMIN callers may act on any invoice in their tenant
      * (already enforced by RLS); a CUSTOMER caller must own the invoice via
-     * its booking. Mirrors {@code BookingService#getOwnBookings}: identity
+     * its booking. Mirrors {@code BookingQueryService#getOwnBookings}: identity
      * is resolved from the JWT and matched on {@code client_email}, never
      * from a caller-supplied id, since {@code Client} carries no direct link
      * back to the auth {@code User}. A mismatch reports 404 rather than 403

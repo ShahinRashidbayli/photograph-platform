@@ -16,9 +16,9 @@ import java.util.Set;
  * changed independently, and there was no way to represent "confirmed but
  * unpaid and now the event date has passed" or a postponed shoot at all.
  *
- * <p>The state machine is enforced in the service layer ({@code
- * BookingService}) so the database CHECK constraint cannot be the only line
- * of defence: invalid transitions return HTTP 409 (via {@link
+ * <p>The state machine is enforced by {@link Booking#changeStatus}, so the
+ * database CHECK constraint cannot be the only line of defence: invalid
+ * transitions return HTTP 409 (via {@link
  * ConflictException}) with a clear message, instead of bubbling up as a
  * generic constraint-violation 500.
  *

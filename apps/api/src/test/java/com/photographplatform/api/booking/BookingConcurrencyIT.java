@@ -10,7 +10,7 @@ import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.resource.domain.StudioResource;
@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * What the write path actually leaves in the database, and what happens when
  * two writers arrive together.
  *
- * <p>Written because the unit tests around {@code BookingService} mock the
+ * <p>Written because the unit tests around {@code BookingCommandService} mock the
  * repository, so they can only assert that {@code save} was called — which
  * says nothing about whether the row changed, and nothing at all about the
  * V30 optimistic lock, whose whole behaviour happens at flush time against a
@@ -51,7 +51,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class BookingConcurrencyIT extends IntegrationTestBase {
 
-    @Autowired private BookingService bookingService;
+    @Autowired private BookingCommandService commandService;
     @Autowired private BookingRepository bookingRepository;
     @Autowired private BookingResourceRepository bookingResourceRepository;
     @Autowired private StudioResourceRepository studioResourceRepository;
@@ -80,14 +80,14 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     void aWriteFromAStaleReadIsRefusedRatherThanOverwriting() {
         Fixture fx = createTenant();
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(null), IP)).id();
+            commandService.createBooking(request(null), IP)).id();
 
         // The first writer's view of the booking, taken and then held.
         Booking stale = asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager)
             .execute(status -> bookingRepository.findById(bookingId).orElseThrow()));
 
         // Someone else moves it in the meantime.
-        asUser(fx, () -> bookingService.changeStatus(bookingId, "CONFIRMED", IP));
+        asUser(fx, () -> commandService.changeStatus(bookingId, "CONFIRMED", IP));
 
         // The first writer now writes the decision it made against the old row.
         // Legal from the ENQUIRY this copy still believes it holds.
@@ -112,7 +112,7 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     void twoTransitionsAtOnceNeverLeaveAMixedResult() throws Exception {
         Fixture fx = createTenant();
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(null), IP)).id();
+            commandService.createBooking(request(null), IP)).id();
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -139,7 +139,7 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     private Callable<Outcome> transition(Fixture fx, UUID bookingId, BookingStatus target) {
         return () -> {
             try {
-                asUser(fx, () -> bookingService.changeStatus(bookingId, target.name(), IP));
+                asUser(fx, () -> commandService.changeStatus(bookingId, target.name(), IP));
                 return new Outcome(target, true);
             } catch (OptimisticLockingFailureException | ConflictException expected) {
                 // Optimistic lock -> 409 CONCURRENT_MODIFICATION; an illegal
@@ -155,9 +155,9 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     void aStatusChangeIsPersisted() {
         Fixture fx = createTenant();
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(null), IP)).id();
+            commandService.createBooking(request(null), IP)).id();
 
-        asUser(fx, () -> bookingService.changeStatus(bookingId, "CONFIRMED", IP));
+        asUser(fx, () -> commandService.changeStatus(bookingId, "CONFIRMED", IP));
 
         assertThat(storedStatus(fx, bookingId)).isEqualTo(BookingStatus.CONFIRMED);
     }
@@ -178,11 +178,11 @@ class BookingConcurrencyIT extends IntegrationTestBase {
         UUID kit = createResource(fx, "Lighting kit");
 
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(List.of(roomA, roomB)), IP)).id();
+            commandService.createBooking(request(List.of(roomA, roomB)), IP)).id();
 
         // B is kept, A dropped, kit added — the kept one is the collision.
         BookingResponse updated = asUser(fx, () ->
-            bookingService.updateBooking(bookingId, update(List.of(roomB, kit)), IP));
+            commandService.updateBooking(bookingId, update(List.of(roomB, kit)), IP));
 
         assertThat(updated.resourceIds()).containsExactlyInAnyOrder(roomB, kit);
         assertThat(storedResourceIds(fx, bookingId)).containsExactlyInAnyOrder(roomB, kit);
@@ -193,14 +193,14 @@ class BookingConcurrencyIT extends IntegrationTestBase {
         Fixture fx = createTenant();
         UUID room = createResource(fx, "Room A");
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(List.of(room)), IP)).id();
+            commandService.createBooking(request(List.of(room)), IP)).id();
 
         // null: the caller is not editing the links.
-        asUser(fx, () -> bookingService.updateBooking(bookingId, update(null), IP));
+        asUser(fx, () -> commandService.updateBooking(bookingId, update(null), IP));
         assertThat(storedResourceIds(fx, bookingId)).containsExactly(room);
 
         // empty: the caller cleared them, which the form has no other way to say.
-        asUser(fx, () -> bookingService.updateBooking(bookingId, update(List.of()), IP));
+        asUser(fx, () -> commandService.updateBooking(bookingId, update(List.of()), IP));
         assertThat(storedResourceIds(fx, bookingId)).isEmpty();
     }
 
@@ -210,7 +210,7 @@ class BookingConcurrencyIT extends IntegrationTestBase {
         UUID room = createResource(fx, "Room A");
 
         UUID bookingId = asUser(fx, () ->
-            bookingService.createBooking(request(List.of(room, room)), IP)).id();
+            commandService.createBooking(request(List.of(room, room)), IP)).id();
 
         assertThat(storedResourceIds(fx, bookingId)).containsExactly(room);
     }

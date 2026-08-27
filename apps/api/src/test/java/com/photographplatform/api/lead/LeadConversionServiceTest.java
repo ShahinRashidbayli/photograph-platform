@@ -2,7 +2,7 @@ package com.photographplatform.api.lead;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.dto.BookingResponse;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>Three behaviours matter:
  * <ul>
- *   <li>Happy path: the booking is created via {@link BookingService}, the lead
+ *   <li>Happy path: the booking is created via {@link BookingConversionService}, the lead
  *       flips to {@code BOOKED}, and a {@code LEAD_CONVERTED} audit row is
  *       written carrying the prior status so the trail is honest.</li>
  *   <li>404 on an unknown lead id — must not silently create a dangling
@@ -54,14 +54,14 @@ class LeadConversionServiceTest {
     private static final String IP = "203.0.113.7";
 
     private LeadRepository leadRepository;
-    private BookingService bookingService;
+    private BookingConversionService bookingConversionService;
     private AuditService auditService;
     private LeadConversionService conversionService;
 
     @BeforeEach
     void setUp() {
         leadRepository = mock(LeadRepository.class);
-        bookingService = mock(BookingService.class);
+        bookingConversionService = mock(BookingConversionService.class);
         auditService = mock(AuditService.class);
 
         // Conversion now has exactly the three collaborators it actually uses.
@@ -70,7 +70,7 @@ class LeadConversionServiceTest {
         // a CSV exporter — none of which the conversion path touches; that
         // list of no-op mocks was the clearest signal the class was doing too
         // much.
-        conversionService = new LeadConversionService(leadRepository, bookingService, auditService);
+        conversionService = new LeadConversionService(leadRepository, bookingConversionService, auditService);
 
         // Authenticate as the photographer for currentUserId() — the audit row
         // must record *who* converted the lead.
@@ -94,7 +94,7 @@ class LeadConversionServiceTest {
         when(leadRepository.findById(lead.getId())).thenReturn(Optional.of(lead));
 
         BookingResponse stubBooking = stubBookingResponse();
-        when(bookingService.createFromLead(eq(lead), any(ConvertLeadRequest.class), eq(IP)))
+        when(bookingConversionService.createFromLead(eq(lead), any(ConvertLeadRequest.class), eq(IP)))
             .thenReturn(stubBooking);
 
         ConvertLeadRequest request = new ConvertLeadRequest(null, "Berlin", null, 80000, 20000, null);
@@ -129,7 +129,7 @@ class LeadConversionServiceTest {
         ).isInstanceOf(NotFoundException.class);
 
         // Crucially: no booking is created and no audit row is written.
-        verify(bookingService, never()).createFromLead(any(), any(), anyString());
+        verify(bookingConversionService, never()).createFromLead(any(), any(), anyString());
         verify(auditService, never()).logChange(
             anyString(), anyString(), any(), any(), any(), anyString(), anyString(), anyString());
     }
@@ -146,7 +146,7 @@ class LeadConversionServiceTest {
         // Idempotency contract: a second convert must not produce a duplicate
         // booking. If this assertion ever flips, callers retrying on a network
         // blip will silently double-book photographers' calendars.
-        verify(bookingService, never()).createFromLead(any(), any(), anyString());
+        verify(bookingConversionService, never()).createFromLead(any(), any(), anyString());
         verify(leadRepository, never()).save(any());
     }
 
@@ -154,7 +154,7 @@ class LeadConversionServiceTest {
     void bookingCreationFailureLeavesLeadStatusUnchanged() {
         Lead lead = newLead(LeadStatus.REPLIED);
         when(leadRepository.findById(lead.getId())).thenReturn(Optional.of(lead));
-        when(bookingService.createFromLead(any(), any(), anyString()))
+        when(bookingConversionService.createFromLead(any(), any(), anyString()))
             .thenThrow(new RuntimeException("DB down"));
 
         assertThatThrownBy(() ->

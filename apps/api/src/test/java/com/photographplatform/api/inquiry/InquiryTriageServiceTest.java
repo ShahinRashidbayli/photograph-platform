@@ -3,7 +3,7 @@ package com.photographplatform.api.inquiry;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
@@ -49,7 +49,7 @@ class InquiryTriageServiceTest {
     private static final String IP = "203.0.113.20";
 
     private InquiryRequestRepository inquiryRepository;
-    private BookingService bookingService;
+    private BookingConversionService bookingConversionService;
     private EmailService emailService;
     private AuditService auditService;
     private User customer;
@@ -59,7 +59,7 @@ class InquiryTriageServiceTest {
     void setUp() {
         inquiryRepository = mock(InquiryRequestRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
-        bookingService = mock(BookingService.class);
+        bookingConversionService = mock(BookingConversionService.class);
         emailService = mock(EmailService.class);
         auditService = mock(AuditService.class);
         TenantRepository tenantRepository = mock(TenantRepository.class);
@@ -67,7 +67,7 @@ class InquiryTriageServiceTest {
         RateLimiter rateLimiter = mock(RateLimiter.class);
 
         service = new InquiryRequestService(inquiryRepository, userRepository, tenantRepository,
-            auditService, eventPublisher, rateLimiter, bookingService, emailService,
+            auditService, eventPublisher, rateLimiter, bookingConversionService, emailService,
             java.time.Clock.systemUTC());
 
         customer = mock(User.class);
@@ -101,7 +101,7 @@ class InquiryTriageServiceTest {
         InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "ACCEPTED", IP);
 
         assertThat(response.status()).isEqualTo("BOOKING_CREATED");
-        verify(bookingService).createFromInquiry(eq(inquiry), eq(customer), eq(IP));
+        verify(bookingConversionService).createFromInquiry(eq(inquiry), eq(customer), eq(IP));
         verify(emailService).send(any(EmailMessage.class));
         verify(auditService).log(
             eq("INQUIRY_ACCEPTED"), eq("INQUIRY_REQUEST"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
@@ -115,7 +115,7 @@ class InquiryTriageServiceTest {
         InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "REJECTED", IP);
 
         assertThat(response.status()).isEqualTo("REJECTED");
-        verify(bookingService, never()).createFromInquiry(any(), any(), any());
+        verify(bookingConversionService, never()).createFromInquiry(any(), any(), any());
         verify(emailService).send(any(EmailMessage.class));
     }
 
@@ -128,7 +128,7 @@ class InquiryTriageServiceTest {
         assertThatThrownBy(() -> service.updateStatus(INQUIRY_ID, "ACCEPTED", IP))
             .isInstanceOf(ConflictException.class);
 
-        verify(bookingService, never()).createFromInquiry(any(), any(), any());
+        verify(bookingConversionService, never()).createFromInquiry(any(), any(), any());
     }
 
     @Test

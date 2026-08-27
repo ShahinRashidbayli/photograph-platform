@@ -11,7 +11,8 @@ import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
 import com.photographplatform.api.booking.service.BookingMapper;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
+import com.photographplatform.api.booking.service.BookingPricingResolver;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
@@ -37,20 +38,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit-level verification of {@link BookingService} orchestration — the two
+ * Unit-level verification of {@link BookingCommandService} orchestration — the two
  * write paths the photographer drives: creating a booking and advancing its
  * lifecycle. The transition rules themselves live in {@code BookingStatus} (and
  * are covered by {@code BookingStatusTest}); here we prove the service wires
  * them in — always starting in {@code ENQUIRY}, refusing illegal moves with a
  * 409, unknown ids with a 404 — and never persists on a rejected path.
  */
-class BookingServiceTest {
+class BookingCommandServiceTest {
 
     private static final UUID ACTOR_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -61,7 +61,7 @@ class BookingServiceTest {
     private PackageRepository packageRepository;
     private AuditService auditService;
     private StudioResourceRepository studioResourceRepository;
-    private BookingService bookingService;
+    private BookingCommandService commandService;
 
     @BeforeEach
     void setUp() {
@@ -76,9 +76,10 @@ class BookingServiceTest {
 
         studioResourceRepository = mock(StudioResourceRepository.class);
         BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
-        bookingService = new BookingService(
-            bookingRepository, clientRepository, userRepository, auditService, packageRepository,
-            paymentStateResolver, studioResourceRepository, bookingResourceRepository,
+        commandService = new BookingCommandService(
+            bookingRepository, clientRepository, userRepository, studioResourceRepository,
+            bookingResourceRepository, new BookingPricingResolver(packageRepository),
+            auditService,
             new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -103,7 +104,7 @@ class BookingServiceTest {
     void createBookingStartsInEnquiryAndAudits() {
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        BookingResponse response = bookingService.createBooking(request(null, null, 50_000), IP);
+        BookingResponse response = commandService.createBooking(request(null, null, 50_000), IP);
 
         assertThat(response.status()).isEqualTo("ENQUIRY");
         assertThat(response.totalAmountCents()).isEqualTo(50_000);
@@ -123,7 +124,7 @@ class BookingServiceTest {
         UUID clientId = UUID.randomUUID();
         when(clientRepository.existsById(clientId)).thenReturn(false);
 
-        assertThatThrownBy(() -> bookingService.createBooking(request(clientId, null, 1000), IP))
+        assertThatThrownBy(() -> commandService.createBooking(request(clientId, null, 1000), IP))
             .isInstanceOf(NotFoundException.class);
 
         verify(bookingRepository, never()).save(any());
@@ -137,7 +138,7 @@ class BookingServiceTest {
         when(packageRepository.findById(packageId)).thenReturn(Optional.of(pkg));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        BookingResponse response = bookingService.createBooking(request(null, packageId, null), IP);
+        BookingResponse response = commandService.createBooking(request(null, packageId, null), IP);
 
         assertThat(response.totalAmountCents()).isEqualTo(120_000);
     }
@@ -147,7 +148,7 @@ class BookingServiceTest {
         UUID packageId = UUID.randomUUID();
         when(packageRepository.findById(packageId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> bookingService.createBooking(request(null, packageId, null), IP))
+        assertThatThrownBy(() -> commandService.createBooking(request(null, packageId, null), IP))
             .isInstanceOf(NotFoundException.class);
 
         verify(bookingRepository, never()).save(any());
@@ -160,7 +161,7 @@ class BookingServiceTest {
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        BookingResponse response = bookingService.changeStatus(id, "CONFIRMED", IP);
+        BookingResponse response = commandService.changeStatus(id, "CONFIRMED", IP);
 
         assertThat(response.status()).isEqualTo("CONFIRMED");
         verify(auditService).logChange(
@@ -175,7 +176,7 @@ class BookingServiceTest {
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         // ENQUIRY may only advance to CONFIRMED or CANCELLED — jumping to COMPLETED is illegal.
-        assertThatThrownBy(() -> bookingService.changeStatus(id, "COMPLETED", IP))
+        assertThatThrownBy(() -> commandService.changeStatus(id, "COMPLETED", IP))
             .isInstanceOf(ConflictException.class);
 
         verify(bookingRepository, never()).save(any());
@@ -186,7 +187,7 @@ class BookingServiceTest {
         UUID id = UUID.randomUUID();
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> bookingService.changeStatus(id, "CONFIRMED", IP))
+        assertThatThrownBy(() -> commandService.changeStatus(id, "CONFIRMED", IP))
             .isInstanceOf(NotFoundException.class);
     }
 
@@ -204,7 +205,7 @@ class BookingServiceTest {
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
         when(studioResourceRepository.findExistingIds(any())).thenReturn(Set.of());
 
-        assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(List.of(foreignResource)), IP))
+        assertThatThrownBy(() -> commandService.updateBooking(id, updateRequest(List.of(foreignResource)), IP))
             .isInstanceOf(NotFoundException.class)
             .hasMessageContaining(foreignResource.toString());
     }
@@ -221,28 +222,12 @@ class BookingServiceTest {
         booking.changeStatus(BookingStatus.CANCELLED);
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
-        assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(null), IP))
+        assertThatThrownBy(() -> commandService.updateBooking(id, updateRequest(null), IP))
             .isInstanceOf(ConflictException.class)
             .hasMessageContaining("CANCELLED");
 
         // Nothing was written on the way to the refusal.
         assertThat(booking.getClientName()).isEqualTo("Maria");
-    }
-
-    @Test
-    void listRefusesAStatusFilterThatIsNotAStatus() {
-        // ?status=CONFIRMEDD used to answer an empty list, which is
-        // indistinguishable from "you have no confirmed bookings".
-        assertThatThrownBy(() -> bookingService.listForPhotographer("CONFIRMEDD", 0, 20))
-            .isInstanceOf(ConflictException.class);
-        verifyNoInteractions(bookingRepository);
-    }
-
-    @Test
-    void listRefusesAPageSizeNoClientAsksFor() {
-        assertThatThrownBy(() -> bookingService.listForPhotographer(null, 0, 100_000))
-            .isInstanceOf(IllegalArgumentException.class);
-        verifyNoInteractions(bookingRepository);
     }
 
     private static UpdateBookingRequest updateRequest(List<UUID> resourceIds) {

@@ -1,0 +1,151 @@
+package com.photographplatform.api.booking.service;
+
+import com.photographplatform.api.auth.domain.User;
+import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.domain.Booking;
+import com.photographplatform.api.booking.domain.BookingStatus;
+import com.photographplatform.api.booking.dto.BookingConflictResponse;
+import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.booking.dto.CustomerBookingResponse;
+import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
+import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
+import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Paging;
+import com.photographplatform.api.resource.repository.StudioResourceRepository;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Everything the booking module answers without changing anything.
+ *
+ * <p>Split from the write side because the two share almost nothing: reads care
+ * about paging, filters and batching lookups so a page costs a fixed number of
+ * queries, while writes care about validation, the lifecycle and audit. Held
+ * together they made one class where the interesting question — "can this be
+ * written, and by whom" — was buried among mapping and pagination.
+ */
+@Service
+@Transactional(readOnly = true)
+public class BookingQueryService {
+
+    private static final Sort BY_EVENT_DATE = Sort.by("eventDate").ascending();
+
+    private final BookingRepository bookingRepository;
+    private final StudioResourceRepository studioResourceRepository;
+    private final UserRepository userRepository;
+    private final BookingPaymentStateResolver paymentStateResolver;
+    private final BookingMapper mapper;
+
+    public BookingQueryService(
+        BookingRepository bookingRepository,
+        StudioResourceRepository studioResourceRepository,
+        UserRepository userRepository,
+        BookingPaymentStateResolver paymentStateResolver,
+        BookingMapper mapper
+    ) {
+        this.bookingRepository = bookingRepository;
+        this.studioResourceRepository = studioResourceRepository;
+        this.userRepository = userRepository;
+        this.paymentStateResolver = paymentStateResolver;
+        this.mapper = mapper;
+    }
+
+    /**
+     * Photographer-facing list of every booking in the tenant, optionally
+     * filtered by status.
+     *
+     * <p>An unrecognised {@code status} is rejected rather than filtered on:
+     * passing it through meant {@code ?status=CONFIRMEDD} answered an empty
+     * list, which is indistinguishable from "you have no confirmed bookings"
+     * and sends whoever hits it looking for the bug in the wrong place.
+     */
+    public List<BookingResponse> listForPhotographer(String status, int page, int size) {
+        Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
+        List<Booking> bookings = (status != null && !status.isBlank())
+            ? bookingRepository.findByStatus(BookingStatus.parse(status), pageable).getContent()
+            : bookingRepository.findAllBy(pageable).getContent();
+
+        PageLookups lookups = mapper.forPage(bookings);
+        return bookings.stream().map(b -> mapper.toResponse(b, lookups)).toList();
+    }
+
+    /**
+     * List the bookings owned by the currently authenticated customer.
+     *
+     * <p>The caller's identity is resolved from the JWT (not a request
+     * parameter) and matched against the booking's {@code client_email}: this
+     * is what closes the IDOR where a customer could read another customer's
+     * bookings by supplying an arbitrary {@code clientId}. The result is mapped
+     * to {@link CustomerBookingResponse}, which excludes the photographer's
+     * internal notes.
+     */
+    public List<CustomerBookingResponse> getOwnBookings(String rawStatus, int page, int size) {
+        User user = userRepository.findById(SecurityUtils.requireCurrentUserId())
+            .orElseThrow(() -> new UnauthorizedException("Authentication required"));
+        String email = user.getEmail();
+
+        Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
+        List<Booking> bookings = (rawStatus != null && !rawStatus.isBlank())
+            ? bookingRepository
+                .findByClientEmailIgnoreCaseAndStatus(email, BookingStatus.parse(rawStatus), pageable)
+                .getContent()
+            : bookingRepository.findByClientEmailIgnoreCase(email, pageable).getContent();
+
+        Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
+            bookings.stream().map(Booking::getId).toList());
+        return bookings.stream()
+            .map(b -> mapper.toCustomerResponse(b, paymentStates.get(b.getId())))
+            .toList();
+    }
+
+    /**
+     * What else this photographer has on that day, and what else is holding the
+     * rooms and kit they picked.
+     *
+     * <p>Answers a question the form asks while it is being filled in; it
+     * changes nothing and refuses nothing. See {@link BookingConflictResponse}
+     * for why this is a warning rather than a constraint, and why it is scoped
+     * to the day instead of to overlapping hours.
+     */
+    public BookingConflictResponse findConflicts(
+        UUID assignedUserId, LocalDate eventDate, UUID excludeBookingId,
+        List<UUID> resourceIds) {
+        if (eventDate == null) {
+            // No date yet: nothing can clash.
+            return new BookingConflictResponse(List.of(), List.of());
+        }
+
+        List<BookingConflictResponse.ResourceClash> resourceClashes =
+            resourceIds == null || resourceIds.isEmpty()
+                ? List.of()
+                : studioResourceRepository
+                    .findClashes(resourceIds, eventDate, excludeBookingId, BookingStatus.NOT_HAPPENING)
+                    .stream()
+                    .map(c -> new BookingConflictResponse.ResourceClash(
+                        c.getResourceName(), c.getBookingId(), c.getClientName(),
+                        c.getEventTime(), c.getStatus().name()))
+                    .toList();
+
+        if (assignedUserId == null) {
+            // Nobody assigned: the photographer half has nothing to answer, but
+            // the rooms and kit still do.
+            return new BookingConflictResponse(List.of(), resourceClashes);
+        }
+        List<BookingConflictResponse.Conflict> conflicts = bookingRepository
+            .findSameDayForPhotographer(
+                assignedUserId, eventDate, excludeBookingId, BookingStatus.NOT_HAPPENING)
+            .stream()
+            .map(b -> new BookingConflictResponse.Conflict(
+                b.getId(), b.getClientName(), b.getEventTime(), b.getStatus().name()))
+            .toList();
+        return new BookingConflictResponse(conflicts, resourceClashes);
+    }
+}

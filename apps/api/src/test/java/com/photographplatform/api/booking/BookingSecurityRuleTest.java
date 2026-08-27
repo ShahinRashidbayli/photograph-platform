@@ -5,7 +5,8 @@ import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.controller.BookingController;
 import com.photographplatform.api.booking.repository.BookingRepository;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.config.ClockConfig;
 import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.SecurityConfig;
@@ -63,7 +64,10 @@ class BookingSecurityRuleTest {
     private JwtService jwtService;
 
     @MockitoBean
-    private BookingService bookingService;
+    private BookingQueryService queryService;
+
+    @MockitoBean
+    private BookingCommandService commandService;
 
     @MockitoBean
     private BookingRepository bookingRepository;
@@ -123,7 +127,7 @@ class BookingSecurityRuleTest {
     /** The customer's own bookings endpoint must remain reachable by a CUSTOMER. */
     @Test
     void customerTokenIsAllowedIntoOwnBookings() throws Exception {
-        when(bookingService.getOwnBookings(nullable(String.class), anyInt(), anyInt()))
+        when(queryService.getOwnBookings(nullable(String.class), anyInt(), anyInt()))
             .thenReturn(List.of());
         mvc.perform(get("/api/customerBookings")
                 .header("Authorization", "Bearer " + customerToken()))

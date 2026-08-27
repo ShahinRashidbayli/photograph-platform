@@ -8,7 +8,8 @@ import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingCommandService;
+import com.photographplatform.api.booking.service.BookingPricingResolver;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
@@ -56,7 +57,7 @@ class BookingAutoPricingTest {
     private UserRepository userRepository;
     private AuditService auditService;
     private PackageRepository packageRepository;
-    private BookingService bookingService;
+    private BookingCommandService commandService;
 
     @BeforeEach
     void setUp() {
@@ -73,11 +74,11 @@ class BookingAutoPricingTest {
 
         StudioResourceRepository studioResourceRepository = mock(StudioResourceRepository.class);
         BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
-        bookingService = new BookingService(
-            bookingRepository, clientRepository, userRepository, auditService, packageRepository,
-            paymentStateResolver, studioResourceRepository, bookingResourceRepository,
-            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver)
-        );
+        commandService = new BookingCommandService(
+            bookingRepository, clientRepository, userRepository, studioResourceRepository,
+            bookingResourceRepository, new BookingPricingResolver(packageRepository),
+            auditService,
+            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null)
@@ -103,7 +104,7 @@ class BookingAutoPricingTest {
 
         CreateBookingRequest req = req(packageId, 250000); // override > package
 
-        BookingResponse resp = bookingService.createBooking(req, "1.2.3.4");
+        BookingResponse resp = commandService.createBooking(req, "1.2.3.4");
 
         assertThat(resp.totalAmountCents()).isEqualTo(250000);
         // The package is still looked up, and that is deliberate rather than
@@ -127,7 +128,7 @@ class BookingAutoPricingTest {
         when(packageRepository.findById(packageId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
-            bookingService.createBooking(req(packageId, 250000), "1.2.3.4")
+            commandService.createBooking(req(packageId, 250000), "1.2.3.4")
         ).isInstanceOf(NotFoundException.class);
 
         verify(bookingRepository, never()).save(any(Booking.class));
@@ -141,7 +142,7 @@ class BookingAutoPricingTest {
 
         CreateBookingRequest req = req(packageId, null);
 
-        BookingResponse resp = bookingService.createBooking(req, "1.2.3.4");
+        BookingResponse resp = commandService.createBooking(req, "1.2.3.4");
 
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
@@ -154,7 +155,7 @@ class BookingAutoPricingTest {
         // A booking can legitimately be created with no package and no price
         // yet — the photographer might still be quoting. Default to 0; don't
         // surface a validation error.
-        BookingResponse resp = bookingService.createBooking(req(null, null), "1.2.3.4");
+        BookingResponse resp = commandService.createBooking(req(null, null), "1.2.3.4");
 
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
@@ -170,7 +171,7 @@ class BookingAutoPricingTest {
         // Failing closed beats silently writing total=0 against a phantom
         // package_id FK — that pattern hides bugs and ships broken invoices.
         assertThatThrownBy(() ->
-            bookingService.createBooking(req(packageId, null), "1.2.3.4")
+            commandService.createBooking(req(packageId, null), "1.2.3.4")
         ).isInstanceOf(NotFoundException.class);
     }
 
@@ -187,7 +188,7 @@ class BookingAutoPricingTest {
         // a 409 until the review — the one place in the codebase where
         // hand-rolled validation did not answer 422.
         assertThatThrownBy(() ->
-            bookingService.createBooking(req(null, 100_000, 150_000), "1.2.3.4")
+            commandService.createBooking(req(null, 100_000, 150_000), "1.2.3.4")
         ).isInstanceOf(IllegalArgumentException.class);
 
         verify(bookingRepository, never()).save(any(Booking.class));
@@ -197,7 +198,7 @@ class BookingAutoPricingTest {
     void depositEqualToTheTotalIsAccepted() {
         // The boundary is inclusive — paying the whole thing up front is a
         // normal deposit, not an overpayment.
-        BookingResponse resp = bookingService.createBooking(req(null, 100_000, 100_000), "1.2.3.4");
+        BookingResponse resp = commandService.createBooking(req(null, 100_000, 100_000), "1.2.3.4");
 
         assertThat(resp.depositAmountCents()).isEqualTo(100_000);
         assertThat(resp.totalAmountCents()).isEqualTo(100_000);

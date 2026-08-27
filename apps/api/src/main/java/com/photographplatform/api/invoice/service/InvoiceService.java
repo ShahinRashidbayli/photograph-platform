@@ -265,7 +265,7 @@ public class InvoiceService {
      * <p>The photographer-facing {@code listForBooking} can't serve this: it
      * takes a booking id the customer has no way to enumerate, and {@code
      * /api/bookings/**} is closed to CUSTOMER tokens anyway. Ownership is
-     * resolved the same way {@code BookingService#getOwnBookings} and {@code
+     * resolved the same way {@code BookingQueryService#getOwnBookings} and {@code
      * PaymentService#requireOwnedByCallerIfCustomer} do it — from the JWT's
      * user, matched on {@code client_email}, never from a caller-supplied id.
      * RLS still scopes everything to the one tenant the token belongs to.

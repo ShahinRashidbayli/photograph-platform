@@ -2,7 +2,7 @@ package com.photographplatform.api.lead.service;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.dto.BookingResponse;
-import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
@@ -22,21 +22,21 @@ import org.springframework.transaction.annotation.Transactional;
  * changes (new pricing fields, a new required booking attribute), which has
  * nothing to do with why lead intake or lead editing changes. Keeping it in
  * {@code LeadService} was also what forced that class to depend on
- * {@code BookingService}, coupling every lead endpoint to the booking module's
+ * {@code BookingConversionService}, coupling every lead endpoint to the booking module's
  * startup graph.
  */
 @Service
 public class LeadConversionService {
 
     private final LeadRepository leadRepository;
-    private final BookingService bookingService;
+    private final BookingConversionService bookingConversionService;
     private final AuditService auditService;
 
     public LeadConversionService(LeadRepository leadRepository,
-                                 BookingService bookingService,
+                                 BookingConversionService bookingConversionService,
                                  AuditService auditService) {
         this.leadRepository = leadRepository;
-        this.bookingService = bookingService;
+        this.bookingConversionService = bookingConversionService;
         this.auditService = auditService;
     }
 
@@ -69,7 +69,7 @@ public class LeadConversionService {
         }
         previousStatus.assertCanTransitionTo(LeadStatus.BOOKED);
 
-        BookingResponse booking = bookingService.createFromLead(lead, overrides, ipAddress);
+        BookingResponse booking = bookingConversionService.createFromLead(lead, overrides, ipAddress);
 
         lead.setStatus(LeadStatus.BOOKED);
         leadRepository.save(lead);

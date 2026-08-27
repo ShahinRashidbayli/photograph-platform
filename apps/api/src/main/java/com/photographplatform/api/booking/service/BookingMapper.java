@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 /**
  * Booking → response mapping, and the batch lookups a whole page of them needs.
  *
- * <p>Split out of {@code BookingService} because the two change for unrelated
+ * <p>Split out of the booking services because the two change for unrelated
  * reasons — the service changes when the booking rules change, this changes
  * when the response shape does — and because the cost of the single-booking
  * mapping was invisible while it sat inline. {@link #withLookups} is named for

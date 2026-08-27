@@ -57,18 +57,27 @@ export function BrandingSettings() {
     void load();
   }, [load]);
 
-  /** Saves both fields together — the API treats null as "clear it". */
+  /**
+   * Saves one field at a time.
+   *
+   * <p>`undefined` is left out of the request entirely, which the API reads as
+   * "leave it"; `null` is sent as `""`, which it reads as "clear it". Sending
+   * both fields on every save is what made saving a colour delete the logo —
+   * the two are edited by different controls and the form never holds the
+   * logo's key, only its (expiring) URL.
+   */
   async function save(next: { logoKey?: string | null; brandColor?: string | null }) {
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
-      const { data } = await api.put<Branding>('/api/settings/branding', {
-        // `logoKey` is only known right after an upload; otherwise the server
-        // keeps what it has, so an unrelated colour change cannot drop a logo.
-        logoKey: next.logoKey,
-        brandColor: next.brandColor,
-      });
+      // Only the field being changed is sent. Absent means "leave it" on the
+      // server, and "" means "clear it" — sending both every time is what made
+      // saving a colour delete the logo.
+      const body: Record<string, string> = {};
+      if (next.logoKey !== undefined) body.logoKey = next.logoKey ?? '';
+      if (next.brandColor !== undefined) body.brandColor = next.brandColor ?? '';
+      const { data } = await api.put<Branding>('/api/settings/branding', body);
       setBranding(data);
       setSaved(true);
     } catch (err) {
@@ -104,7 +113,7 @@ export function BrandingSettings() {
         body: file,
       });
       if (!res.ok) throw new Error('upload failed');
-      await save({ logoKey: presign.r2Key, brandColor: color });
+      await save({ logoKey: presign.r2Key });
     } catch (err) {
       setError(asyncError(err, 'settings.branding.uploadError'));
       setBusy(false);
@@ -140,64 +149,72 @@ export function BrandingSettings() {
         </Alert>
       )}
 
-      <Field label={t('settings.branding.logo')}>
-        {() => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <div
-              style={{
-                width: 96,
-                height: 56,
-                borderRadius: 8,
-                border: `1px solid ${c.border}`,
-                background: c.surfaceAlt,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                flexShrink: 0,
-              }}
-            >
-              {branding?.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={branding.logoUrl}
-                  alt={t('settings.branding.logo')}
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                />
-              ) : (
-                <span style={{ fontSize: '0.72rem', color: c.textSubtle }}>
-                  {t('settings.branding.noLogo')}
-                </span>
-              )}
-            </div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void uploadLogo(file);
-                e.target.value = '';
-              }}
-            />
-            <Button variant="secondary" onClick={() => fileInput.current?.click()} disabled={busy}>
-              {branding?.logoUrl
-                ? t('settings.branding.replaceLogo')
-                : t('settings.branding.uploadLogo')}
-            </Button>
-            {branding?.logoUrl && (
-              <Button
-                variant="ghost"
-                onClick={() => void save({ logoKey: null, brandColor: color })}
-                disabled={busy}
-              >
-                {t('settings.branding.removeLogo')}
-              </Button>
+      {/* Not a `Field`: that renders `<label for=…>` and hands the id to its
+          child, and this block's control is a button plus a hidden file input.
+          A label pointing at nothing is worse than a plain heading. */}
+      <div style={{ marginBottom: 18 }}>
+        <span
+          style={{
+            display: 'block',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: c.text,
+            marginBottom: 8,
+          }}
+        >
+          {t('settings.branding.logo')}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              width: 96,
+              height: 56,
+              borderRadius: 8,
+              border: `1px solid ${c.border}`,
+              background: c.surfaceAlt,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              flexShrink: 0,
+            }}
+          >
+            {branding?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoUrl}
+                alt={t('settings.branding.logo')}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '0.72rem', color: c.textSubtle }}>
+                {t('settings.branding.noLogo')}
+              </span>
             )}
           </div>
-        )}
-      </Field>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadLogo(file);
+              e.target.value = '';
+            }}
+          />
+          <Button variant="secondary" onClick={() => fileInput.current?.click()} disabled={busy}>
+            {branding?.logoUrl
+              ? t('settings.branding.replaceLogo')
+              : t('settings.branding.uploadLogo')}
+          </Button>
+          {branding?.logoUrl && (
+            <Button variant="ghost" onClick={() => void save({ logoKey: null })} disabled={busy}>
+              {t('settings.branding.removeLogo')}
+            </Button>
+          )}
+        </div>
+      </div>
 
       <Field label={t('settings.branding.color')} hint={t('settings.branding.colorHint')}>
         {(props) => (

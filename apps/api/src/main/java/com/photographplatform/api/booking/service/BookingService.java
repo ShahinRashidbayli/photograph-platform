@@ -89,8 +89,9 @@ public class BookingService {
         // One query for the whole page, not one per row — the same reason
         // payment states are resolved in a batch just above.
         Map<UUID, String> names = assigneeNames(bookings);
+        Map<UUID, List<UUID>> resources = resourceIdsFor(bookings);
         return bookings.stream()
-            .map(b -> toResponse(b, paymentStates.get(b.getId()), names))
+            .map(b -> toResponse(b, paymentStates.get(b.getId()), names, resources))
             .toList();
     }
 
@@ -455,6 +456,24 @@ public class BookingService {
             .orElseThrow(() -> new NotFoundException("That photographer is not in your studio"));
     }
 
+    /**
+     * Resource links for a whole page, in one query.
+     *
+     * <p>Bookings with none are absent from the map rather than present with an
+     * empty list; the caller defaults, which keeps this a straight groupBy.
+     */
+    private Map<UUID, List<UUID>> resourceIdsFor(List<Booking> bookings) {
+        if (bookings.isEmpty()) {
+            return Map.of();
+        }
+        return bookingResourceRepository
+            .findByBookingIdIn(bookings.stream().map(Booking::getId).toList())
+            .stream()
+            .collect(Collectors.groupingBy(
+                BookingResource::getBookingId,
+                Collectors.mapping(BookingResource::getResourceId, Collectors.toList())));
+    }
+
     /** Assignee display names, resolved in one query for a whole page. */
     private Map<UUID, String> assigneeNames(List<Booking> bookings) {
         Set<UUID> ids = bookings.stream()
@@ -475,14 +494,16 @@ public class BookingService {
     }
 
     private BookingResponse toResponse(Booking booking, Summary payment) {
-        return toResponse(booking, payment, null);
+        return toResponse(booking, payment, null, null);
     }
 
     /**
      * @param names pre-resolved assignee names for a whole page, or null for a
      *              single booking — which then looks its own up
      */
-    private BookingResponse toResponse(Booking booking, Summary payment, Map<UUID, String> names) {
+    private BookingResponse toResponse(
+        Booking booking, Summary payment, Map<UUID, String> names,
+        Map<UUID, List<UUID>> resources) {
         return new BookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -507,9 +528,11 @@ public class BookingService {
                 : names != null
                     ? names.get(booking.getAssignedUserId())
                     : assigneeName(booking.getAssignedUserId()),
-            bookingResourceRepository.findByBookingId(booking.getId()).stream()
-                .map(BookingResource::getResourceId)
-                .toList(),
+            resources != null
+                ? resources.getOrDefault(booking.getId(), List.of())
+                : bookingResourceRepository.findByBookingId(booking.getId()).stream()
+                    .map(BookingResource::getResourceId)
+                    .toList(),
             booking.getCreatedAt()
         );
     }

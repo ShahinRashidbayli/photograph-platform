@@ -68,10 +68,15 @@ public class BrandingService {
         entitlementService.requireCapability(tenant, Capability.WHITE_LABEL_BRANDING);
         entitlementService.requireWritable(tenant);
 
-        // Null clears. The form sends its whole state, so a partial update
-        // would leave no way to remove a logo once one is set.
-        tenant.setLogoKey(blankToNull(request.logoKey()));
-        tenant.setBrandColor(blankToNull(request.brandColor()));
+        // Absent leaves the field alone; empty clears it. Treating absent as
+        // "clear" meant saving a colour deleted the logo, because the two are
+        // saved by different controls — see UpdateBrandingRequest.
+        if (request.logoKey() != null) {
+            tenant.setLogoKey(blankToNull(request.logoKey()));
+        }
+        if (request.brandColor() != null) {
+            tenant.setBrandColor(blankToNull(request.brandColor()));
+        }
         tenantRepository.save(tenant);
         return toResponse(tenant);
     }

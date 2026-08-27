@@ -43,6 +43,7 @@ public class BookingCommandService {
     private final StudioResourceRepository studioResourceRepository;
     private final BookingResourceRepository bookingResourceRepository;
     private final BookingPricingResolver pricingResolver;
+    private final CustomerAccountResolver customerAccounts;
     private final AuditService auditService;
     private final BookingMapper mapper;
 
@@ -53,6 +54,7 @@ public class BookingCommandService {
         StudioResourceRepository studioResourceRepository,
         BookingResourceRepository bookingResourceRepository,
         BookingPricingResolver pricingResolver,
+        CustomerAccountResolver customerAccounts,
         AuditService auditService,
         BookingMapper mapper
     ) {
@@ -62,6 +64,7 @@ public class BookingCommandService {
         this.studioResourceRepository = studioResourceRepository;
         this.bookingResourceRepository = bookingResourceRepository;
         this.pricingResolver = pricingResolver;
+        this.customerAccounts = customerAccounts;
         this.auditService = auditService;
         this.mapper = mapper;
     }
@@ -97,6 +100,7 @@ public class BookingCommandService {
             request.packageId(), request.totalAmountCents(), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.assignTo(resolveAssignee(request.assignedUserId(), tenantId));
+        booking.linkCustomer(customerAccounts.forEmail(booking.getClientEmail(), tenantId));
 
         Set<UUID> resources = requireOwnResources(request.resourceIds());
 
@@ -169,8 +173,16 @@ public class BookingCommandService {
                 "Cannot edit a " + booking.getStatus() + " booking — the shoot is closed.");
         }
 
+        String previousEmail = booking.getClientEmail();
         booking.setClientName(request.clientName().trim());
         booking.setClientEmail(Normalize.email(request.clientEmail()));
+        if (booking.getCustomerUserId() == null) {
+            // Still unlinked, so the address is what decides who sees this.
+            // Link it if the new one now has an account — after which the
+            // address stops deciding anything.
+            booking.linkCustomer(
+                customerAccounts.forEmail(booking.getClientEmail(), booking.getTenantId()));
+        }
         booking.setEventDate(request.eventDate());
         booking.setEventTime(request.eventTime());
         booking.setEventType(Normalize.trimToNull(request.eventType()));
@@ -185,14 +197,18 @@ public class BookingCommandService {
         Booking saved = bookingRepository.save(booking);
         replaceResources(saved.getId(), resources);
 
-        auditService.log(
-            "BOOKING_UPDATED",
-            "BOOKING",
-            saved.getId(),
-            SecurityUtils.currentTenantId(),
-            SecurityUtils.requireCurrentUserId(),
-            ipAddress
-        );
+        UUID tenantId = SecurityUtils.currentTenantId();
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+        if (!previousEmail.equalsIgnoreCase(saved.getClientEmail())) {
+            // Its own audit row, with both addresses. On an unlinked booking
+            // this still decides who can see it, its invoices and its payments
+            // — and recorded as a plain BOOKING_UPDATED there was nothing in
+            // the trail to tell that apart from a corrected typo.
+            auditService.logChange(
+                "BOOKING_CLIENT_EMAIL_CHANGED", "BOOKING", saved.getId(), tenantId, actorId,
+                ipAddress, previousEmail, saved.getClientEmail());
+        }
+        auditService.log("BOOKING_UPDATED", "BOOKING", saved.getId(), tenantId, actorId, ipAddress);
 
         return mapper.withLookups(saved);
     }

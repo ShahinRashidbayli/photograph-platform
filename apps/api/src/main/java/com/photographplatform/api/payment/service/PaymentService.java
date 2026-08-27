@@ -2,7 +2,6 @@ package com.photographplatform.api.payment.service;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.repository.UserRepository;
-import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -315,10 +314,11 @@ public class PaymentService {
         }
         var user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
-        Booking booking = invoice.getBookingId() != null
-            ? bookingRepository.findById(invoice.getBookingId()).orElse(null)
-            : null;
-        if (booking == null || !booking.getClientEmail().equalsIgnoreCase(user.getEmail())) {
+        boolean owned = invoice.getBookingId() != null
+            && bookingRepository.isOwnedBy(invoice.getBookingId(), user.getId(), user.getEmail());
+        if (!owned) {
+            // 404, not 403: an invoice this caller does not own is not theirs
+            // to learn the existence of.
             throw new NotFoundException("Invoice not found: " + invoice.getId());
         }
     }

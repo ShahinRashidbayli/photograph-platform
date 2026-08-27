@@ -80,24 +80,26 @@ public class BookingQueryService {
     /**
      * List the bookings owned by the currently authenticated customer.
      *
-     * <p>The caller's identity is resolved from the JWT (not a request
-     * parameter) and matched against the booking's {@code client_email}: this
-     * is what closes the IDOR where a customer could read another customer's
-     * bookings by supplying an arbitrary {@code clientId}. The result is mapped
-     * to {@link CustomerBookingResponse}, which excludes the photographer's
-     * internal notes.
+     * <p>The caller's identity is resolved from the JWT, never from a request
+     * parameter — that is what closes the IDOR where a customer could read
+     * another customer's bookings by supplying an arbitrary {@code clientId}.
+     * Ownership itself is {@code customer_user_id}, falling back to the email
+     * match only for bookings that have no account linked yet; see {@code
+     * BookingRepository#OWNED_BY_CALLER}. The result is mapped to {@link
+     * CustomerBookingResponse}, which excludes the photographer's internal
+     * notes.
      */
     public List<CustomerBookingResponse> getOwnBookings(String rawStatus, int page, int size) {
         User user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
-        String email = user.getEmail();
 
         Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
         List<Booking> bookings = (rawStatus != null && !rawStatus.isBlank())
             ? bookingRepository
-                .findByClientEmailIgnoreCaseAndStatus(email, BookingStatus.parse(rawStatus), pageable)
+                .findOwnedByAndStatus(
+                    user.getId(), user.getEmail(), BookingStatus.parse(rawStatus), pageable)
                 .getContent()
-            : bookingRepository.findByClientEmailIgnoreCase(email, pageable).getContent();
+            : bookingRepository.findOwnedBy(user.getId(), user.getEmail(), pageable).getContent();
 
         Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
             bookings.stream().map(Booking::getId).toList());

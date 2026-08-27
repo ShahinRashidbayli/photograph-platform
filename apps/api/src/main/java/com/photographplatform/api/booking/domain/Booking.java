@@ -40,6 +40,20 @@ public class Booking {
     @Column(name = "client_id")
     private UUID clientId;
 
+    /**
+     * The signed-in customer this booking belongs to, or null while nobody has
+     * an account for it.
+     *
+     * <p>Not {@link #clientId}, which points at the photographer's own address
+     * book and is not a login; and not {@link #clientEmail}, which is a contact
+     * detail that the edit form may change. V31 has the whole reasoning.
+     *
+     * <p>Null is a real state: a booking taken over the phone exists before its
+     * customer does. Those fall back to the email match until someone signs up.
+     */
+    @Column(name = "customer_user_id")
+    private UUID customerUserId;
+
     @Column(name = "lead_id")
     private UUID leadId;
 
@@ -172,6 +186,19 @@ public class Booking {
 
     public void setTenantId(UUID tenantId) {
         this.tenantId = tenantId;
+    }
+
+    public UUID getCustomerUserId() {
+        return customerUserId;
+    }
+
+    /**
+     * Binds the booking to a customer account. Once set, {@code clientEmail} is
+     * contact information and nothing more — editing it no longer moves who can
+     * see this booking, its invoices or its payments.
+     */
+    public void linkCustomer(UUID customerUserId) {
+        this.customerUserId = customerUserId;
     }
 
     public UUID getClientId() {

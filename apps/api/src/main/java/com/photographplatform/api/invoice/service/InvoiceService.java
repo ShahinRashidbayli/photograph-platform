@@ -267,14 +267,15 @@ public class InvoiceService {
      * /api/bookings/**} is closed to CUSTOMER tokens anyway. Ownership is
      * resolved the same way {@code BookingQueryService#getOwnBookings} and {@code
      * PaymentService#requireOwnedByCallerIfCustomer} do it — from the JWT's
-     * user, matched on {@code client_email}, never from a caller-supplied id.
+     * user, matched on {@code customer_user_id} (falling back to the address
+     * for bookings with no account linked yet), never from a caller-supplied id.
      * RLS still scopes everything to the one tenant the token belongs to.
      */
     @Transactional(readOnly = true)
     public List<InvoiceResponse> listForCustomer() {
         var user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
-        List<UUID> bookingIds = bookingRepository.findByClientEmailIgnoreCase(user.getEmail())
+        List<UUID> bookingIds = bookingRepository.findOwnedBy(user.getId(), user.getEmail())
             .stream().map(Booking::getId).toList();
         if (bookingIds.isEmpty()) {
             return List.of();

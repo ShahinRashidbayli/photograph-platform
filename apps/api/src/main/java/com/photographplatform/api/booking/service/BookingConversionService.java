@@ -41,17 +41,20 @@ public class BookingConversionService {
 
     private final BookingRepository bookingRepository;
     private final BookingPricingResolver pricingResolver;
+    private final CustomerAccountResolver customerAccounts;
     private final AuditService auditService;
     private final BookingMapper mapper;
 
     public BookingConversionService(
         BookingRepository bookingRepository,
         BookingPricingResolver pricingResolver,
+        CustomerAccountResolver customerAccounts,
         AuditService auditService,
         BookingMapper mapper
     ) {
         this.bookingRepository = bookingRepository;
         this.pricingResolver = pricingResolver;
+        this.customerAccounts = customerAccounts;
         this.auditService = auditService;
         this.mapper = mapper;
     }
@@ -83,6 +86,9 @@ public class BookingConversionService {
         booking.applyPricing(pricingResolver.resolve(
             overrides.packageId(), overrides.totalAmountCents(), overrides.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(overrides.internalNotes()));
+        // A lead arrives from the public form, so the address may or may not
+        // already have an account here.
+        booking.linkCustomer(customerAccounts.forEmail(booking.getClientEmail(), tenantId));
 
         return save(booking, tenantId, ipAddress);
     }
@@ -112,6 +118,9 @@ public class BookingConversionService {
         );
         booking.setTenantId(tenantId);
         booking.setInquiryId(inquiry.getId());
+        // The one path that knows the account for certain: the inquiry was
+        // submitted by a signed-in customer, and this is that customer.
+        booking.linkCustomer(customer.getId());
         booking.setEventType(Normalize.trimToNull(inquiry.getEventType()));
         booking.setLocation(Normalize.trimToNull(inquiry.getLocation()));
         // Nothing quoted yet — said explicitly, in the same vocabulary the

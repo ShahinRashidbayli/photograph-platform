@@ -79,15 +79,35 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         @Param("excludeId") UUID excludeId,
         @Param("notHappening") Collection<BookingStatus> notHappening);
 
-    // Customer-facing lookups are keyed on the booking's client_email rather
-    // than client_id: a booking may exist before its Client directory row does
-    // (e.g. created straight from a lead), and the authenticated customer's
-    // identity is their email. Case-insensitive because emails are stored
-    // lower-cased on write but callers should not depend on that.
-    Slice<Booking> findByClientEmailIgnoreCase(String clientEmail, Pageable pageable);
+    /*
+     * ── What a signed-in customer owns ──────────────────────────────────────
+     *
+     * Keyed on customer_user_id, with an email fallback for rows that have not
+     * been linked to an account yet — a booking the photographer took over the
+     * phone exists before its customer does, and refusing to show it once they
+     * sign up would be a regression, not a fix. See V31.
+     *
+     * The fallback applies only where the link is absent. That is the whole
+     * security property: once a booking names a customer, editing client_email
+     * cannot hand it, or its invoices and payments, to somebody else.
+     *
+     * Case-insensitive because emails are stored lower-cased on write but
+     * callers should not depend on that.
+     */
 
-    Slice<Booking> findByClientEmailIgnoreCaseAndStatus(
-        String clientEmail, BookingStatus status, Pageable pageable);
+    String OWNED_BY_CALLER = """
+        (b.customerUserId = :userId
+         OR (b.customerUserId IS NULL AND lower(b.clientEmail) = lower(:email)))
+        """;
+
+    @Query("SELECT b FROM Booking b WHERE " + OWNED_BY_CALLER)
+    Slice<Booking> findOwnedBy(
+        @Param("userId") UUID userId, @Param("email") String email, Pageable pageable);
+
+    @Query("SELECT b FROM Booking b WHERE " + OWNED_BY_CALLER + " AND b.status = :status")
+    Slice<Booking> findOwnedByAndStatus(
+        @Param("userId") UUID userId, @Param("email") String email,
+        @Param("status") BookingStatus status, Pageable pageable);
 
     /**
      * Unpaged — used only to resolve which bookings (and so which invoices) a
@@ -95,5 +115,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
      * with one photographer, which is a handful of rows, not a listing that
      * needs paging.
      */
-    List<Booking> findByClientEmailIgnoreCase(String clientEmail);
+    @Query("SELECT b FROM Booking b WHERE " + OWNED_BY_CALLER)
+    List<Booking> findOwnedBy(@Param("userId") UUID userId, @Param("email") String email);
+
+    /** Whether this booking is one of {@code userId}'s. */
+    @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.id = :bookingId AND " + OWNED_BY_CALLER)
+    boolean isOwnedBy(
+        @Param("bookingId") UUID bookingId,
+        @Param("userId") UUID userId,
+        @Param("email") String email);
 }

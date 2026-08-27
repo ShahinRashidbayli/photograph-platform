@@ -13,6 +13,7 @@ import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
 import com.photographplatform.api.booking.service.BookingMapper;
 import com.photographplatform.api.booking.service.BookingCommandService;
 import com.photographplatform.api.booking.service.BookingPricingResolver;
+import com.photographplatform.api.booking.service.CustomerAccountResolver;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
@@ -79,7 +80,7 @@ class BookingCommandServiceTest {
         commandService = new BookingCommandService(
             bookingRepository, clientRepository, userRepository, studioResourceRepository,
             bookingResourceRepository, new BookingPricingResolver(packageRepository),
-            auditService,
+            new CustomerAccountResolver(userRepository), auditService,
             new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
 
         SecurityContextHolder.getContext().setAuthentication(

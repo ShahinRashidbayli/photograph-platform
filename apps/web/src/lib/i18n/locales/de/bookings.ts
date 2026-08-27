@@ -164,6 +164,9 @@ export const bookings: Record<keyof EnBookings, string> = {
   'createBooking.eventType': 'Art des Termins',
   'createBooking.eventTypePlaceholder': 'Hochzeit, Portrait…',
   'createBooking.location': 'Ort',
+  'createBooking.assignee': 'Fotograf',
+  'createBooking.unassigned': 'Noch nicht zugewiesen',
+  'createBooking.conflictWarning': 'Dieser Fotograf ist an dem Tag bereits gebucht:',
   'createBooking.package': 'Paket',
   'createBooking.noPackage': 'Kein Paket — individueller Preis',
   'createBooking.packageHelp':

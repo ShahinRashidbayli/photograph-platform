@@ -33,6 +33,7 @@ const EMPTY_FORM = {
   totalAmount: '',
   depositAmount: '',
   internalNotes: '',
+  assignedUserId: '',
 };
 
 const centsToInput = (cents?: number | null): string =>
@@ -48,6 +49,7 @@ function formForBooking(booking: Booking): typeof EMPTY_FORM {
     eventType: booking.eventType ?? '',
     location: booking.location ?? '',
     packageId: booking.packageId ?? '',
+    assignedUserId: booking.assignedUserId ?? '',
     totalAmount: centsToInput(booking.totalAmountCents),
     depositAmount: centsToInput(booking.depositAmountCents),
     internalNotes: booking.internalNotes ?? '',
@@ -71,6 +73,13 @@ export function CreateBookingModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [packages, setPackages] = useState<Package[]>([]);
+  // The studio's photographers, for the assignment picker. Read from the team
+  // endpoint every colleague may already call — a booking form does not need a
+  // second, narrower list of the same people.
+  const [staff, setStaff] = useState<{ id: string; email: string; fullName: string | null }[]>([]);
+  const [conflicts, setConflicts] = useState<
+    { id: string; clientName: string; eventTime: string | null; status: string }[]
+  >([]);
   // Tracks whether the photographer has manually typed a total. Picking a
   // package auto-fills the total *only when they haven't overridden it*, so a
   // custom quote isn't silently overwritten when they re-pick a package. In edit
@@ -86,6 +95,63 @@ export function CreateBookingModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // The studio's photographers. Best-effort: a failure here loses the picker,
+  // not the form — assignment is optional and can be set later.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ members: { id: string; email: string; fullName: string | null }[] }>('/api/team')
+      .then(({ data }) => {
+        if (!cancelled) setStaff(data.members ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStaff([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Asks whether the chosen photographer is already working that day.
+   *
+   * <p>Debounced, because it fires on every keystroke in the date field. Runs
+   * only once both halves of the question exist — an unassigned booking or one
+   * with no date cannot clash with anything, and the server answers so anyway.
+   *
+   * <p>The result never blocks the save: it is rendered as a warning above the
+   * buttons and the photographer decides. Two shoots in a day is normal work.
+   */
+  useEffect(() => {
+    if (!form.assignedUserId || !form.eventDate) {
+      setConflicts([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api
+        .get<{ conflicts: typeof conflicts }>('/api/bookings/conflicts', {
+          params: {
+            assignedUserId: form.assignedUserId,
+            eventDate: form.eventDate,
+            // So editing a booking does not report it clashing with itself.
+            excludeBookingId: booking?.id,
+          },
+        })
+        .then(({ data }) => {
+          if (!cancelled) setConflicts(data.conflicts ?? []);
+        })
+        .catch(() => {
+          // A warning that cannot load must not stop anyone booking work.
+          if (!cancelled) setConflicts([]);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.assignedUserId, form.eventDate, booking?.id]);
 
   // Load the active packages once when the modal mounts. We don't refetch on
   // open/close because the modal itself is mounted on demand — each open is a
@@ -200,6 +266,9 @@ export function CreateBookingModal({
         totalAmountCents: totalTyped ? eurosToCents(form.totalAmount) : null,
         depositAmountCents: eurosToCents(form.depositAmount),
         internalNotes: form.internalNotes.trim() || null,
+        // Empty means unassigned, which the API stores as null rather than
+        // rejecting — a booking without a photographer is a normal state.
+        assignedUserId: form.assignedUserId || null,
       };
       const res = isEdit
         ? await api.patch<Booking>(`/api/bookings/${booking!.id}`, payload)
@@ -352,6 +421,56 @@ export function CreateBookingModal({
               />
             </div>
           </div>
+
+          {/* Only offered once there is somebody to choose between. A studio
+              of one has nothing to assign — the work is theirs by definition. */}
+          {staff.length > 1 && (
+            <div style={styles.formField}>
+              <label style={styles.formLabel} htmlFor="bk-assignee">
+                {t('createBooking.assignee')}
+              </label>
+              <select
+                id="bk-assignee"
+                value={form.assignedUserId}
+                onChange={(e) => setForm((prev) => ({ ...prev, assignedUserId: e.target.value }))}
+                style={styles.formInput}
+              >
+                <option value="">{t('createBooking.unassigned')}</option>
+                {staff.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.fullName || m.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* A warning, never a block: two shoots in one day is ordinary work,
+              and sometimes an overlap is deliberate. The times are shown so the
+              photographer can judge rather than be told. */}
+          {conflicts.length > 0 && (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: colors.warningBg,
+                color: colors.warningText,
+                fontSize: '0.85rem',
+                lineHeight: 1.5,
+              }}
+              role="status"
+            >
+              {t('createBooking.conflictWarning')}
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {conflicts.map((cf) => (
+                  <li key={cf.id}>
+                    {cf.clientName}
+                    {cf.eventTime ? ` · ${cf.eventTime.slice(0, 5)}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {packages.length > 0 && (
             <div style={styles.formField}>

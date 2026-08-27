@@ -166,6 +166,9 @@ export const bookings = {
   'createBooking.eventType': 'Event type',
   'createBooking.eventTypePlaceholder': 'Wedding, Portrait…',
   'createBooking.location': 'Location',
+  'createBooking.assignee': 'Photographer',
+  'createBooking.unassigned': 'Not assigned yet',
+  'createBooking.conflictWarning': 'This photographer is already booked that day:',
   'createBooking.package': 'Package',
   'createBooking.noPackage': 'No package — custom price',
   'createBooking.packageHelp':

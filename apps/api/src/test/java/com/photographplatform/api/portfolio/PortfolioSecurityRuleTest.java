@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import com.photographplatform.api.branding.service.BrandingService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -56,6 +57,11 @@ class PortfolioSecurityRuleTest {
 
     @Autowired
     private JwtService jwtService;
+
+    // PortfolioController serves the studio's public branding alongside its
+    // photos (V26), so the slice has to stand one in.
+    @MockitoBean
+    private BrandingService brandingService;
 
     @MockitoBean
     private PhotoService photoService;

@@ -107,6 +107,30 @@ public class StaffInvitationService {
             + invitationRepository.countPending(tenantId, OffsetDateTime.now(clock));
     }
 
+    /**
+     * Seats the tenant's plan grants, defaulting to one for a tenant that has
+     * somehow lost its row. Sits here beside {@link #seatsUsed} rather than in
+     * the controller: the two numbers are only meaningful as a pair, and the
+     * controller reaching for {@code TenantRepository} to get the second half
+     * was what put a repository call in the layer least able to reuse or test
+     * it (see {@code ArchitectureTest}).
+     */
+    @Transactional(readOnly = true)
+    public int seatsAllowed(UUID tenantId) {
+        return tenantRepository.findById(tenantId)
+            .map(t -> entitlementService.forTenant(t).seats())
+            .orElse(1);
+    }
+
+    /**
+     * Whether this user may invite, remove or hand over seats. Only the owner
+     * may; an unknown user may not, rather than defaulting open.
+     */
+    @Transactional(readOnly = true)
+    public boolean canManageTeam(UUID userId) {
+        return userRepository.findById(userId).map(User::isOwner).orElse(false);
+    }
+
     // ── Inviting ──────────────────────────────────────────────────────────────
 
     /**

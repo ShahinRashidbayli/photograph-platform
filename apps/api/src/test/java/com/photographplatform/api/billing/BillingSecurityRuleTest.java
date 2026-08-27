@@ -84,6 +84,11 @@ class BillingSecurityRuleTest {
     @Autowired
     private JwtService jwtService;
 
+    // BillingController gates its writes on ownership (V25), so the slice
+    // needs the guard even where no test exercises it.
+    @MockitoBean
+    private OwnershipGuard ownershipGuard;
+
     @MockitoBean
     private BillingService billingService;
 

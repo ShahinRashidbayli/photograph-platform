@@ -7,13 +7,10 @@ import com.photographplatform.api.auth.dto.TeamInvitationResponse;
 import com.photographplatform.api.auth.dto.TeamMemberResponse;
 import com.photographplatform.api.auth.dto.TeamResponse;
 import com.photographplatform.api.auth.dto.TransferOwnershipRequest;
-import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.auth.service.AvatarUrlResolver;
 import com.photographplatform.api.auth.service.StaffInvitationService;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.common.security.SecurityUtils;
-import com.photographplatform.api.entitlement.service.EntitlementService;
-import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Clock;
@@ -45,24 +42,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class TeamController {
 
     private final StaffInvitationService invitationService;
-    private final UserRepository userRepository;
-    private final TenantRepository tenantRepository;
-    private final EntitlementService entitlementService;
     private final AvatarUrlResolver avatarUrlResolver;
     private final Clock clock;
 
     public TeamController(
         StaffInvitationService invitationService,
-        UserRepository userRepository,
-        TenantRepository tenantRepository,
-        EntitlementService entitlementService,
         AvatarUrlResolver avatarUrlResolver,
         Clock clock
     ) {
         this.invitationService = invitationService;
-        this.userRepository = userRepository;
-        this.tenantRepository = tenantRepository;
-        this.entitlementService = entitlementService;
         this.avatarUrlResolver = avatarUrlResolver;
         this.clock = clock;
     }
@@ -85,13 +73,10 @@ public class TeamController {
             .map(i -> toInvitation(i, now))
             .toList();
 
-        int seats = tenantRepository.findById(tenantId)
-            .map(t -> entitlementService.forTenant(t).seats())
-            .orElse(1);
-        boolean canManage = userRepository.findById(userId).map(User::isOwner).orElse(false);
-
         return new TeamResponse(members, invitations,
-            invitationService.seatsUsed(tenantId), seats, canManage);
+            invitationService.seatsUsed(tenantId),
+            invitationService.seatsAllowed(tenantId),
+            invitationService.canManageTeam(userId));
     }
 
     @PostMapping("/invitations")

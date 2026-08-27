@@ -15,8 +15,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,8 +57,9 @@ class PublicTenantResolverTest {
         when(tenantRepository.findBySubdomain("anna-foto")).thenReturn(Optional.of(anna));
         User owner = new User(UUID.randomUUID(), "anna@example.test", "hash", "Anna Müller");
         owner.setAvatarUrl("avatars/anna.jpg");
-        when(userRepository.findByTenantIdAndEmail(any(), eq("anna@example.test")))
-            .thenReturn(Optional.of(owner));
+        // Ownership is read from the staff row now (V25), not by matching the
+        // tenant's owner_email against a user's address.
+        when(userRepository.findOwnerByTenantId(any())).thenReturn(Optional.of(owner));
 
         var photographer = resolver.requirePhotographer("anna-foto");
 
@@ -77,7 +76,7 @@ class PublicTenantResolverTest {
     void missingOwnerFallsBackToTheSubdomain() {
         Tenant anna = tenant("anna-foto");
         when(tenantRepository.findBySubdomain("anna-foto")).thenReturn(Optional.of(anna));
-        when(userRepository.findByTenantIdAndEmail(any(), anyString())).thenReturn(Optional.empty());
+        when(userRepository.findOwnerByTenantId(any())).thenReturn(Optional.empty());
 
         var photographer = resolver.requirePhotographer("anna-foto");
 
@@ -89,7 +88,7 @@ class PublicTenantResolverTest {
     void unnamedOwnerAlsoFallsBackToTheSubdomain() {
         Tenant anna = tenant("anna-foto");
         when(tenantRepository.findBySubdomain("anna-foto")).thenReturn(Optional.of(anna));
-        when(userRepository.findByTenantIdAndEmail(any(), anyString()))
+        when(userRepository.findOwnerByTenantId(any()))
             .thenReturn(Optional.of(new User(UUID.randomUUID(), "anna@example.test", "hash", null)));
 
         assertThat(resolver.requirePhotographer("anna-foto").displayName()).isEqualTo("anna-foto");

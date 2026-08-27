@@ -1,5 +1,8 @@
 package com.photographplatform.api.tenant;
 
+import com.photographplatform.api.auth.service.AvatarService;
+import com.photographplatform.api.auth.service.OwnershipGuard;
+import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
@@ -103,6 +106,17 @@ class TenantSettingsSecurityRuleTest {
 
     @MockitoBean
     private EntitlementService entitlementService;
+
+    // Added to TenantSettingsController alongside branding: the owner gate and
+    // the two services the branding endpoints call.
+    @MockitoBean
+    private OwnershipGuard ownershipGuard;
+
+    @MockitoBean
+    private BrandingService brandingService;
+
+    @MockitoBean
+    private AvatarService avatarService;
 
     @Test
     void photographerCanReadTheBillingProfile() throws Exception {

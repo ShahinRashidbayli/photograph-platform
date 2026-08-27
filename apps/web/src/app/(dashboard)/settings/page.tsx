@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
 import { BrandingSettings } from './BrandingSettings';
+import { ResourceSettings } from './ResourceSettings';
 import { TeamSettings } from './TeamSettings';
 import {
   BillingProfileSection,
@@ -463,6 +464,22 @@ export default function SettingsPage() {
             {t('settings.branding.description')}
           </p>
           <BrandingSettings />
+        </section>
+      )}
+
+      {/* What the studio books out, alongside its people. */}
+      {isPhotographer && (
+        <section style={section} aria-labelledby="settings-resources">
+          <h2
+            id="settings-resources"
+            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+          >
+            {t('settings.resources.title')}
+          </h2>
+          <p style={{ fontSize: '0.88rem', color: c.textMuted, marginBottom: '20px' }}>
+            {t('settings.resources.description')}
+          </p>
+          <ResourceSettings />
         </section>
       )}
 

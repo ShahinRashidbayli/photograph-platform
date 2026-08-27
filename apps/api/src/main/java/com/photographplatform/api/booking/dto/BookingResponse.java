@@ -3,6 +3,7 @@ package com.photographplatform.api.booking.dto;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record BookingResponse(
@@ -28,5 +29,11 @@ public record BookingResponse(
      */
     UUID assignedUserId,
     String assignedUserName,
+    /**
+     * Rooms and kit this shoot holds. Sent so the edit form can show the
+     * existing selection — without it, opening a booking and saving would
+     * silently drop every resource it had.
+     */
+    List<UUID> resourceIds,
     OffsetDateTime createdAt
 ) {}

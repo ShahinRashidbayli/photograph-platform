@@ -80,6 +80,13 @@ export function CreateBookingModal({
   const [conflicts, setConflicts] = useState<
     { id: string; clientName: string; eventTime: string | null; status: string }[]
   >([]);
+  // Rooms and kit. Only the active ones: a retired resource cannot be booked
+  // onto new work, which is what retiring it meant.
+  const [resources, setResources] = useState<{ id: string; name: string; kind: string }[]>([]);
+  const [selectedResources, setSelectedResources] = useState<string[]>(booking?.resourceIds ?? []);
+  const [resourceClashes, setResourceClashes] = useState<
+    { resourceName: string; clientName: string; eventTime: string | null }[]
+  >([]);
   // Tracks whether the photographer has manually typed a total. Picking a
   // package auto-fills the total *only when they haven't overridden it*, so a
   // custom quote isn't silently overwritten when they re-pick a package. In edit
@@ -95,6 +102,23 @@ export function CreateBookingModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Best-effort like the team list: losing the picker costs an optional field,
+  // not the booking.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ id: string; name: string; kind: string }[]>('/api/resources')
+      .then(({ data }) => {
+        if (!cancelled) setResources(data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setResources([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The studio's photographers. Best-effort: a failure here loses the picker,
   // not the form — assignment is optional and can be set later.
@@ -124,34 +148,50 @@ export function CreateBookingModal({
    * buttons and the photographer decides. Two shoots in a day is normal work.
    */
   useEffect(() => {
-    if (!form.assignedUserId || !form.eventDate) {
+    // A date is the one thing both halves need; either a photographer or a
+    // resource is enough to have something to ask about.
+    if (!form.eventDate || (!form.assignedUserId && selectedResources.length === 0)) {
       setConflicts([]);
+      setResourceClashes([]);
       return;
     }
     let cancelled = false;
     const timer = setTimeout(() => {
       api
-        .get<{ conflicts: typeof conflicts }>('/api/bookings/conflicts', {
-          params: {
-            assignedUserId: form.assignedUserId,
-            eventDate: form.eventDate,
-            // So editing a booking does not report it clashing with itself.
-            excludeBookingId: booking?.id,
-          },
-        })
+        .get<{ conflicts: typeof conflicts; resourceClashes: typeof resourceClashes }>(
+          '/api/bookings/conflicts',
+          {
+            params: {
+              assignedUserId: form.assignedUserId || undefined,
+              eventDate: form.eventDate,
+              // So editing a booking does not report it clashing with itself.
+              excludeBookingId: booking?.id,
+              resourceIds: selectedResources.length > 0 ? selectedResources : undefined,
+            },
+            // Repeated `resourceIds=` rather than a comma-joined value, which is
+            // what Spring binds a List<UUID> from.
+            paramsSerializer: { indexes: null },
+          }
+        )
         .then(({ data }) => {
-          if (!cancelled) setConflicts(data.conflicts ?? []);
+          if (!cancelled) {
+            setConflicts(data.conflicts ?? []);
+            setResourceClashes(data.resourceClashes ?? []);
+          }
         })
         .catch(() => {
           // A warning that cannot load must not stop anyone booking work.
-          if (!cancelled) setConflicts([]);
+          if (!cancelled) {
+            setConflicts([]);
+            setResourceClashes([]);
+          }
         });
     }, 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [form.assignedUserId, form.eventDate, booking?.id]);
+  }, [form.assignedUserId, form.eventDate, booking?.id, selectedResources]);
 
   // Load the active packages once when the modal mounts. We don't refetch on
   // open/close because the modal itself is mounted on demand — each open is a
@@ -269,6 +309,9 @@ export function CreateBookingModal({
         // Empty means unassigned, which the API stores as null rather than
         // rejecting — a booking without a photographer is a normal state.
         assignedUserId: form.assignedUserId || null,
+        // Always sent, so clearing the last one is possible — the API reads an
+        // empty list as "none" and an absent field as "leave them".
+        resourceIds: selectedResources,
       };
       const res = isEdit
         ? await api.patch<Booking>(`/api/bookings/${booking!.id}`, payload)
@@ -442,6 +485,68 @@ export function CreateBookingModal({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* Checkboxes rather than a multi-select: a shoot uses two or three
+              things and a native multi-select hides that behind a scroll and a
+              modifier key most people do not know. */}
+          {resources.length > 0 && (
+            <div style={styles.formField}>
+              <span style={styles.formLabel}>{t('createBooking.resources')}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 4 }}>
+                {resources.map((r) => (
+                  <label
+                    key={r.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: '0.88rem',
+                      color: colors.text,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedResources.includes(r.id)}
+                      onChange={(e) =>
+                        setSelectedResources((prev) =>
+                          e.target.checked ? [...prev, r.id] : prev.filter((id) => id !== r.id)
+                        )
+                      }
+                    />
+                    {r.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Named one by one: "the studio is taken" and "the lighting kit is
+              taken" are different decisions. Like the photographer clash, it
+              warns and never blocks. */}
+          {resourceClashes.length > 0 && (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: colors.warningBg,
+                color: colors.warningText,
+                fontSize: '0.85rem',
+                lineHeight: 1.5,
+              }}
+              role="status"
+            >
+              {t('createBooking.resourceConflictWarning')}
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {resourceClashes.map((rc, i) => (
+                  <li key={`${rc.resourceName}-${i}`}>
+                    <strong>{rc.resourceName}</strong> · {rc.clientName}
+                    {rc.eventTime ? ` · ${rc.eventTime.slice(0, 5)}` : ''}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

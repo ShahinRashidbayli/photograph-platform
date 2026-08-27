@@ -499,9 +499,17 @@ public class BookingService {
             payment.paidCents(),
             booking.getInternalNotes(),
             booking.getAssignedUserId(),
-            names != null
-                ? names.get(booking.getAssignedUserId())
-                : assigneeName(booking.getAssignedUserId()),
+            // Guarded because an unassigned booking is the common case and
+            // `Map.of()` throws on a null key rather than returning null — which
+            // made the whole list 500 for any studio with one unassigned shoot.
+            booking.getAssignedUserId() == null
+                ? null
+                : names != null
+                    ? names.get(booking.getAssignedUserId())
+                    : assigneeName(booking.getAssignedUserId()),
+            bookingResourceRepository.findByBookingId(booking.getId()).stream()
+                .map(BookingResource::getResourceId)
+                .toList(),
             booking.getCreatedAt()
         );
     }

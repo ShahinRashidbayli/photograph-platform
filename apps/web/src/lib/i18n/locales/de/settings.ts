@@ -196,6 +196,24 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.branding.upgradeTitle': 'Ihr eigener Name darauf',
   'settings.branding.upgradeBody':
     'Mit White-Label-Branding erscheinen Ihr Logo und Ihre Farbe auf Portfolio, Anfrageformular und Kundengalerien, und der Name Fotolio verschwindet dort. Enthalten im Studio-Tarif.',
+  'settings.resources.title': 'Räume & Ausrüstung',
+  'settings.resources.description':
+    'Was ein Shooting außer Ihnen braucht — ein Studioraum, ein Lichtset, ein zweites Gehäuse. Sind sie erfasst, kann eine Buchung angeben, welche sie nutzt, und Sie werden gewarnt, wenn zwei Shootings am selben Tag dasselbe wollen.',
+  'settings.resources.loading': 'Wird geladen…',
+  'settings.resources.loadError': 'Räume und Ausrüstung konnten nicht geladen werden.',
+  'settings.resources.addError': 'Konnte nicht hinzugefügt werden.',
+  'settings.resources.saveError': 'Die Änderung konnte nicht gespeichert werden.',
+  'settings.resources.rooms': 'Räume',
+  'settings.resources.equipment': 'Ausrüstung',
+  'settings.resources.kind': 'Art',
+  'settings.resources.add': 'Hinzufügen',
+  'settings.resources.addLabel': 'Raum oder Ausrüstung hinzufügen',
+  'settings.resources.addPlaceholder': 'Studio A, Profoto B10…',
+  'settings.resources.retire': 'Stilllegen',
+  'settings.resources.restore': 'Reaktivieren',
+  'settings.resources.emptyTitle': 'Noch nichts erfasst',
+  'settings.resources.emptyBody':
+    'Erfassen Sie die Räume und Ausrüstung, die Sie verplanen. Stillgelegtes bleibt hier — es erklärt weiterhin, womit frühere Arbeiten entstanden sind.',
   'settings.team.title': 'Team',
   'settings.team.description':
     'Die Fotografen, die in diesem Studio arbeiten. Alle hier sehen dieselben Buchungen, Kunden und Galerien — nur Sie können einladen, entfernen und ändern, was das Studio bezahlt.',

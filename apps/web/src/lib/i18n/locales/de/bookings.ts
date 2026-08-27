@@ -167,6 +167,8 @@ export const bookings: Record<keyof EnBookings, string> = {
   'createBooking.assignee': 'Fotograf',
   'createBooking.unassigned': 'Noch nicht zugewiesen',
   'createBooking.conflictWarning': 'Dieser Fotograf ist an dem Tag bereits gebucht:',
+  'createBooking.resources': 'Räume & Ausrüstung',
+  'createBooking.resourceConflictWarning': 'An dem Tag bereits verplant:',
   'createBooking.package': 'Paket',
   'createBooking.noPackage': 'Kein Paket — individueller Preis',
   'createBooking.packageHelp':

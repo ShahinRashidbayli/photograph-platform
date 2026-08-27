@@ -169,6 +169,8 @@ export const bookings = {
   'createBooking.assignee': 'Photographer',
   'createBooking.unassigned': 'Not assigned yet',
   'createBooking.conflictWarning': 'This photographer is already booked that day:',
+  'createBooking.resources': 'Rooms & equipment',
+  'createBooking.resourceConflictWarning': 'Already booked that day:',
   'createBooking.package': 'Package',
   'createBooking.noPackage': 'No package — custom price',
   'createBooking.packageHelp':

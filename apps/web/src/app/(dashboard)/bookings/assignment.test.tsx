@@ -46,7 +46,15 @@ beforeEach(() => {
       return Promise.resolve({ data: TEAM } as never);
     }
     if (String(url).startsWith('/api/bookings/conflicts')) {
-      return Promise.resolve({ data: { conflicts: [] } } as never);
+      return Promise.resolve({ data: { conflicts: [], resourceClashes: [] } } as never);
+    }
+    if (String(url).startsWith('/api/resources')) {
+      return Promise.resolve({
+        data: [
+          { id: 'r-studio', name: 'Studio A', kind: 'ROOM' },
+          { id: 'r-light', name: 'Profoto B10', kind: 'EQUIPMENT' },
+        ],
+      } as never);
     }
     return Promise.resolve({ data: [] } as never);
   });
@@ -79,7 +87,7 @@ it('hides the picker for a studio of one — there is nothing to choose', async 
       data: String(url).startsWith('/api/team')
         ? { members: [TEAM.members[0]] }
         : String(url).startsWith('/api/bookings/conflicts')
-          ? { conflicts: [] }
+          ? { conflicts: [], resourceClashes: [] }
           : [],
     } as never)
   );
@@ -98,6 +106,7 @@ it('warns about a same-day clash without preventing the save', async () => {
           conflicts: [
             { id: 'b1', clientName: 'Lena & Kaan', eventTime: '10:00:00', status: 'CONFIRMED' },
           ],
+          resourceClashes: [],
         },
       } as never);
     }
@@ -116,5 +125,49 @@ it('warns about a same-day clash without preventing the save', async () => {
   expect(await screen.findByText(/Lena & Kaan/)).toBeInTheDocument();
 
   // And the form is still submittable — this is the whole point.
+  expect(screen.getByRole('button', { name: /create|save/i })).toBeEnabled();
+});
+
+it('lists the studio\u2019s rooms and kit as checkboxes', async () => {
+  render();
+  // A shoot uses two or three things; a native multi-select hides that behind
+  // a scroll and a modifier key.
+  expect(await screen.findByLabelText('Studio A')).toBeInTheDocument();
+  expect(screen.getByLabelText('Profoto B10')).toBeInTheDocument();
+});
+
+it('warns when a room is taken, naming it, and still allows the save', async () => {
+  const user = setupUser();
+  mockedApi.get.mockImplementation((url: string) => {
+    if (String(url).startsWith('/api/team')) return Promise.resolve({ data: TEAM } as never);
+    if (String(url).startsWith('/api/resources')) {
+      return Promise.resolve({
+        data: [{ id: 'r-studio', name: 'Studio A', kind: 'ROOM' }],
+      } as never);
+    }
+    if (String(url).startsWith('/api/bookings/conflicts')) {
+      return Promise.resolve({
+        data: {
+          conflicts: [],
+          resourceClashes: [
+            { resourceName: 'Studio A', clientName: 'Meyer', eventTime: '14:00:00' },
+          ],
+        },
+      } as never);
+    }
+    return Promise.resolve({ data: [] } as never);
+  });
+
+  render();
+  await user.click(await screen.findByLabelText('Studio A'));
+  await user.type(document.getElementById('bk-eventDate') as HTMLInputElement, '05.11.2026');
+
+  // The resource is named, because "the studio is taken" and "the lights are
+  // taken" call for different decisions.
+  expect(await screen.findByText(/already booked that day/i)).toBeInTheDocument();
+  // Targeted at the warning's own markup: the name also appears on the
+  // checkbox that selected it, and matching either would pass whether or not
+  // the warning names the resource at all.
+  expect(await screen.findByText('Studio A', { selector: 'strong' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /create|save/i })).toBeEnabled();
 });

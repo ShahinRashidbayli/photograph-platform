@@ -196,6 +196,24 @@ export const settings = {
   'settings.branding.upgradeTitle': 'Put your own name on it',
   'settings.branding.upgradeBody':
     'With white-label branding your logo and colour appear on your portfolio, booking form and client galleries, and Fotolio’s name comes off them. It is included in the Studio plan.',
+  'settings.resources.title': 'Rooms & equipment',
+  'settings.resources.description':
+    'The things a shoot needs besides you — a studio room, a lighting kit, a second body. Once they are listed, a booking can say which ones it uses, and you get warned when two shoots want the same one on the same day.',
+  'settings.resources.loading': 'Loading…',
+  'settings.resources.loadError': 'Could not load your rooms and equipment.',
+  'settings.resources.addError': 'Could not add that.',
+  'settings.resources.saveError': 'Could not save that change.',
+  'settings.resources.rooms': 'Rooms',
+  'settings.resources.equipment': 'Equipment',
+  'settings.resources.kind': 'Type',
+  'settings.resources.add': 'Add',
+  'settings.resources.addLabel': 'Add a room or a piece of kit',
+  'settings.resources.addPlaceholder': 'Studio A, Profoto B10…',
+  'settings.resources.retire': 'Retire',
+  'settings.resources.restore': 'Bring back',
+  'settings.resources.emptyTitle': 'Nothing listed yet',
+  'settings.resources.emptyBody':
+    'Add the rooms and kit you book out. Retired items stay here — they still explain what shot your past work.',
   'settings.team.title': 'Team',
   'settings.team.description':
     'The photographers who work in this studio. Everyone here sees the same bookings, clients and galleries — only you can invite, remove, and change what the studio pays for.',

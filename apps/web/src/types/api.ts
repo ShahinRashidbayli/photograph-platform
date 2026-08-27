@@ -85,6 +85,8 @@ export interface Booking {
    */
   assignedUserId?: string | null;
   assignedUserName?: string | null;
+  /** Rooms and kit this shoot holds, so the edit form can restore the selection. */
+  resourceIds?: string[];
   createdAt: string;
 }
 

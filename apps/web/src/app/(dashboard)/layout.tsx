@@ -12,7 +12,7 @@ import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AccountLockNotice } from '@/components/AccountLockNotice';
@@ -41,6 +41,31 @@ type NavGroup = {
    * the value is a {@code Capability} name as the API serialises it.
    */
   capability?: string;
+};
+
+/**
+ * One thing waiting on the photographer, as the bell panel shows it.
+ *
+ * <p>There is no notifications table behind this: "unread" is derived from the
+ * two states that mean nobody has dealt with the thing yet — a lead still
+ * {@code NEW} and an inquiry still {@code PENDING}. That is also why marking
+ * one read is a real transition rather than a local flag; see the panel.
+ */
+type AttentionItem = {
+  kind: 'LEAD' | 'INQUIRY';
+  id: string;
+  name: string;
+  detail: string | null;
+  createdAt: string;
+};
+
+type LeadRow = { id: string; name: string; status: string; eventType?: string; createdAt: string };
+type InquiryRow = {
+  id: string;
+  customerName: string;
+  status: string;
+  eventType?: string;
+  createdAt: string;
 };
 
 const PHOTOGRAPHER_NAV: NavGroup[] = [
@@ -500,7 +525,10 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   const navItems = (isPhotographer ? PHOTOGRAPHER_NAV : CLIENT_NAV).filter(
     (group) => !group.capability || hasCapability(group.capability)
   );
-  const [attentionCount, setAttentionCount] = useState<number | null>(null);
+  const [attention, setAttention] = useState<AttentionItem[] | null>(null);
+  // Null until the first fetch lands, so the bell shows nothing rather than a
+  // confident zero it has not checked.
+  const attentionCount = attention === null ? null : attention.length;
 
   // Attention badge (bell + sidebar Leads): everything new that landed in the
   // leads inbox and still needs the photographer — un-replied form leads
@@ -508,6 +536,11 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   // surface on /leads, so a single count drives both indicators. Polled every
   // 60s — cheap and "good enough" without a websocket; failures are silent so
   // an outage doesn't make the badge flicker.
+  // Bumped when the photographer acts on an item from the panel, so the list
+  // refetches instead of waiting out the 60s poll with a row it just cleared.
+  const [attentionNonce, setAttentionNonce] = useState(0);
+  const refreshAttention = useCallback(() => setAttentionNonce((n) => n + 1), []);
+
   useEffect(() => {
     if (!isPhotographer) return;
     let cancelled = false;
@@ -517,19 +550,36 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       // no longer all NEW — i.e. it under-reported exactly when there was a
       // backlog to flag.
       Promise.all([
-        fetchAllPages<{ status: string }>('/api/leads').catch(() => null),
-        fetchAllPages<{ status: string }>('/api/inquiries').catch(() => null),
+        fetchAllPages<LeadRow>('/api/leads').catch(() => null),
+        fetchAllPages<InquiryRow>('/api/inquiries').catch(() => null),
       ]).then(([leads, inquiries]) => {
         if (cancelled) return;
-        // If both calls failed, leave the previous count untouched.
+        // If both calls failed, leave the previous list untouched.
         if (leads === null && inquiries === null) return;
-        const newLeads = (Array.isArray(leads) ? leads : []).filter(
-          (l) => l.status === 'NEW'
-        ).length;
-        const pendingInquiries = (Array.isArray(inquiries) ? inquiries : []).filter(
-          (i) => i.status === 'PENDING'
-        ).length;
-        setAttentionCount(newLeads + pendingInquiries);
+        const items: AttentionItem[] = [
+          ...(Array.isArray(leads) ? leads : [])
+            .filter((l) => l.status === 'NEW')
+            .map((l) => ({
+              kind: 'LEAD' as const,
+              id: l.id,
+              name: l.name,
+              detail: l.eventType ?? null,
+              createdAt: l.createdAt,
+            })),
+          ...(Array.isArray(inquiries) ? inquiries : [])
+            .filter((i) => i.status === 'PENDING')
+            .map((i) => ({
+              kind: 'INQUIRY' as const,
+              id: i.id,
+              name: i.customerName,
+              detail: i.eventType ?? null,
+              createdAt: i.createdAt,
+            })),
+        ];
+        // Newest first, so the panel reads like an inbox rather than like two
+        // lists stapled together.
+        items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        setAttention(items);
       });
     };
     fetchCount();
@@ -538,7 +588,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [isPhotographer]);
+  }, [isPhotographer, attentionNonce]);
 
   if (loading) {
     // Read the persisted theme directly so the loading screen doesn't flash
@@ -632,6 +682,8 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         isOpen={isOpen}
         setIsOpen={setIsOpen}
         attentionCount={attentionCount}
+        attention={attention}
+        onAttentionHandled={refreshAttention}
       />
 
       <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
@@ -868,6 +920,8 @@ function Header({
   isOpen,
   setIsOpen,
   attentionCount,
+  attention,
+  onAttentionHandled,
 }: {
   user: AuthUser | null;
   theme: 'light' | 'dark';
@@ -888,9 +942,14 @@ function Header({
   // stack (announcements, payment events, gallery views) lives in v2.0+; until
   // then this gives the bell semantic weight without inventing fake content.
   attentionCount: number | null;
+  /** The items behind the count, or null until the first fetch lands. */
+  attention: AttentionItem[] | null;
+  /** Called after one is acted on, so the list refetches. */
+  onAttentionHandled: () => void;
 }) {
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
   const isPhotographer = useIsPhotographer();
@@ -910,6 +969,22 @@ function Header({
     setMenuOpen(false);
     avatarRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBellOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [bellOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -992,70 +1067,82 @@ function Header({
             notifications stack lands this becomes a popover; the entry point
             stays the same so users don't re-learn it. */}
         {isPhotographer && (
-          <button
-            onClick={() => router.push('/leads')}
-            aria-label={bellLabel}
-            title={bellTitle}
-            style={{
-              width: 34,
-              height: 34,
-              position: 'relative',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              borderRadius: '8px',
-              transition: 'background 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: colors.text,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+          <div ref={bellRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setBellOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={bellOpen}
+              aria-label={bellLabel}
+              title={bellTitle}
+              style={{
+                width: 34,
+                height: 34,
+                position: 'relative',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                transition: 'background 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: colors.text,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = colors.surfaceHover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-            </svg>
-            {hasAlerts && (
-              <span
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 aria-hidden
-                style={{
-                  position: 'absolute',
-                  top: -1,
-                  right: -1,
-                  minWidth: 16,
-                  height: 16,
-                  padding: '0 4px',
-                  borderRadius: 999,
-                  background: '#DC2626',
-                  color: '#fff',
-                  fontSize: '0.62rem',
-                  fontWeight: 700,
-                  lineHeight: '16px',
-                  textAlign: 'center',
-                  border: `2px solid ${colors.headerBg}`,
-                  boxSizing: 'content-box',
-                }}
               >
-                {count > 99 ? '99+' : count}
-              </span>
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {hasAlerts && (
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    top: -1,
+                    right: -1,
+                    minWidth: 16,
+                    height: 16,
+                    padding: '0 4px',
+                    borderRadius: 999,
+                    background: '#DC2626',
+                    color: '#fff',
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    lineHeight: '16px',
+                    textAlign: 'center',
+                    border: `2px solid ${colors.headerBg}`,
+                    boxSizing: 'content-box',
+                  }}
+                >
+                  {count > 99 ? '99+' : count}
+                </span>
+              )}
+            </button>
+            {bellOpen && (
+              <NotificationPanel
+                items={attention}
+                colors={colors}
+                onClose={() => setBellOpen(false)}
+                onHandled={onAttentionHandled}
+              />
             )}
-          </button>
+          </div>
         )}
 
         <LanguageToggle variant="bare" />
@@ -1202,6 +1289,208 @@ function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * What is waiting on the photographer, opened from the bell.
+ *
+ * <p>The bell used to navigate straight to /leads. That answered "how many"
+ * with a page load and never answered "which" — you had to leave whatever you
+ * were doing to find out whether the five items were worth interrupting for.
+ *
+ * <h2>What "mark as read" means here</h2>
+ * There is no notifications table and no read flag: an item is unread because
+ * it is still in the state that means nobody has dealt with it. So marking a
+ * lead read is the real transition {@code LeadService#markReplied} already
+ * exposes — "I have replied to this person" — which is the same thing that
+ * clears it from the badge, and it is recorded as LEAD_REPLIED in the audit
+ * trail rather than as a UI preference.
+ *
+ * <p>Inquiries deliberately have no such button. Clearing one means accepting
+ * or rejecting it, and that creates a booking or sends the customer a refusal
+ * — not something to do from a dropdown with the customer's message out of
+ * sight. Those rows link to /leads instead, where the decision is made with
+ * everything in view.
+ */
+function NotificationPanel({
+  items,
+  colors,
+  onClose,
+  onHandled,
+}: {
+  items: AttentionItem[] | null;
+  colors: { border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
+  onClose: () => void;
+  onHandled: () => void;
+}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState<string | null>(null);
+  // Removed here as soon as the API confirms, so the row goes at the moment
+  // the photographer acts rather than when the next refetch lands.
+  const [cleared, setCleared] = useState<string[]>([]);
+
+  const visible = (items ?? []).filter((i) => !cleared.includes(i.id));
+
+  async function markRead(item: AttentionItem) {
+    setBusy(item.id);
+    try {
+      await api.patch(`/api/leads/${item.id}/status`, { status: 'REPLIED' });
+      setCleared((ids) => [...ids, item.id]);
+      onHandled();
+    } catch {
+      // Left in the list: a row that silently vanished on a failed write would
+      // say the lead was handled when it was not.
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div
+      role="menu"
+      aria-label={t('chrome.notifications.title')}
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
+        right: 0,
+        width: 320,
+        maxHeight: 400,
+        overflowY: 'auto',
+        background: colors.cardBg,
+        border: `1px solid ${colors.border}`,
+        borderRadius: '12px',
+        boxShadow: '0 12px 32px rgba(15, 23, 42, 0.16)',
+        padding: '8px',
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          padding: '6px 8px 8px',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          color: colors.subText,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {t('chrome.notifications.title')}
+      </div>
+
+      {items === null ? (
+        <div style={{ padding: '12px 8px', fontSize: '0.85rem', color: colors.subText }}>
+          {t('chrome.notifications.loading')}
+        </div>
+      ) : visible.length === 0 ? (
+        <div style={{ padding: '12px 8px', fontSize: '0.85rem', color: colors.subText }}>
+          {t('chrome.notifications.none')}
+        </div>
+      ) : (
+        visible.map((item) => (
+          <div
+            key={`${item.kind}-${item.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              padding: '8px',
+              borderRadius: '8px',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  color: item.kind === 'LEAD' ? '#6366F1' : '#0EA5E9',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {t(
+                  item.kind === 'LEAD'
+                    ? 'chrome.notifications.kind.lead'
+                    : 'chrome.notifications.kind.inquiry'
+                )}
+              </div>
+              <div
+                style={{
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  color: colors.text,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {item.name}
+              </div>
+              {item.detail && (
+                <div style={{ fontSize: '0.76rem', color: colors.subText }}>{item.detail}</div>
+              )}
+            </div>
+            {item.kind === 'LEAD' ? (
+              <button
+                role="menuitem"
+                onClick={() => markRead(item)}
+                disabled={busy === item.id}
+                style={{
+                  flexShrink: 0,
+                  border: `1px solid ${colors.border}`,
+                  background: 'transparent',
+                  color: colors.text,
+                  borderRadius: '7px',
+                  padding: '4px 8px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: busy === item.id ? 'default' : 'pointer',
+                  opacity: busy === item.id ? 0.5 : 1,
+                }}
+              >
+                {t('chrome.notifications.markRead')}
+              </button>
+            ) : (
+              <Link
+                role="menuitem"
+                href="/leads"
+                onClick={onClose}
+                style={{
+                  flexShrink: 0,
+                  borderRadius: '7px',
+                  padding: '4px 8px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  color: colors.text,
+                  textDecoration: 'none',
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                {t('chrome.notifications.review')}
+              </Link>
+            )}
+          </div>
+        ))
+      )}
+
+      <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: '6px', paddingTop: '6px' }}>
+        <Link
+          role="menuitem"
+          href="/leads"
+          onClick={onClose}
+          style={{
+            display: 'block',
+            padding: '8px',
+            borderRadius: '8px',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            color: colors.text,
+            textDecoration: 'none',
+          }}
+        >
+          {t('chrome.notifications.viewAll')}
+        </Link>
+      </div>
+    </div>
   );
 }
 

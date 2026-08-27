@@ -15,6 +15,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
 import { UserAvatar } from '@/components/UserAvatar';
+import { getInitials } from '@/lib/avatar';
 import { AccountLockNotice } from '@/components/AccountLockNotice';
 
 // Nav grouped into sections so the sidebar mirrors the mental model:
@@ -54,17 +55,34 @@ type NavGroup = {
 type AttentionItem = {
   kind: 'LEAD' | 'INQUIRY';
   id: string;
-  name: string;
-  detail: string | null;
+  /** Blank when the form was submitted without one — the panel says so. */
+  name: string | null;
+  email: string | null;
+  eventType: string | null;
+  /** The shoot's date, not the enquiry's. Null until someone has proposed one. */
+  eventDate: string | null;
+  /** Where a lead came in from, shown when there is nothing else to say. */
+  source: string | null;
   createdAt: string;
 };
 
-type LeadRow = { id: string; name: string; status: string; eventType?: string; createdAt: string };
+type LeadRow = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  status: string;
+  eventType?: string | null;
+  eventDate?: string | null;
+  source?: string | null;
+  createdAt: string;
+};
 type InquiryRow = {
   id: string;
-  customerName: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
   status: string;
-  eventType?: string;
+  eventType?: string | null;
+  proposedDate?: string | null;
   createdAt: string;
 };
 
@@ -562,8 +580,11 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
             .map((l) => ({
               kind: 'LEAD' as const,
               id: l.id,
-              name: l.name,
-              detail: l.eventType ?? null,
+              name: l.name ?? null,
+              email: l.email ?? null,
+              eventType: l.eventType ?? null,
+              eventDate: l.eventDate ?? null,
+              source: l.source ?? null,
               createdAt: l.createdAt,
             })),
           ...(Array.isArray(inquiries) ? inquiries : [])
@@ -571,8 +592,11 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
             .map((i) => ({
               kind: 'INQUIRY' as const,
               id: i.id,
-              name: i.customerName,
-              detail: i.eventType ?? null,
+              name: i.customerName ?? null,
+              email: i.customerEmail ?? null,
+              eventType: i.eventType ?? null,
+              eventDate: i.proposedDate ?? null,
+              source: null,
               createdAt: i.createdAt,
             })),
         ];
@@ -1138,6 +1162,7 @@ function Header({
               <NotificationPanel
                 items={attention}
                 colors={colors}
+                theme={theme}
                 onClose={() => setBellOpen(false)}
                 onHandled={onAttentionHandled}
               />
@@ -1293,58 +1318,319 @@ function Header({
 }
 
 /**
+ * How long an item may sit before the panel calls it overdue.
+ *
+ * <p>A day, because that is the promise the product makes elsewhere: the leads
+ * page counts anything still {@code NEW} as "awaiting your reply", and a
+ * photographer who has not answered an enquiry by the next day has lost the
+ * booking to whoever did. Long enough that an evening enquiry is not scolding
+ * you at breakfast; short enough to still be worth flagging.
+ */
+const OVERDUE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/** "vor 3 Tagen" / "3 days ago", in the active language. */
+function relativeTime(iso: string, locale: string): string {
+  const elapsed = Date.now() - new Date(iso).getTime();
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
+  const minutes = Math.round(elapsed / 60000);
+  if (minutes < 60) return rtf.format(-Math.max(minutes, 1), 'minute');
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return rtf.format(-hours, 'hour');
+  return rtf.format(-Math.round(hours / 24), 'day');
+}
+
+const IconCheck = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M4 12.5l5 5L20 6.5" />
+  </svg>
+);
+
+const IconEye = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const IconEnvelope = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <rect x="2.5" y="5" width="19" height="14" rx="2" />
+    <path d="M3 6.5l9 6 9-6" />
+  </svg>
+);
+
+const IconPerson = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5" />
+  </svg>
+);
+
+const IconArrowRight = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M4 12h15M13 6l6 6-6 6" />
+  </svg>
+);
+
+/**
  * What is waiting on the photographer, opened from the bell.
  *
  * <p>The bell used to navigate straight to /leads. That answered "how many"
  * with a page load and never answered "which" — you had to leave whatever you
  * were doing to find out whether the five items were worth interrupting for.
  *
- * <h2>What "mark as read" means here</h2>
- * There is no notifications table and no read flag: an item is unread because
- * it is still in the state that means nobody has dealt with it. So marking a
- * lead read is the real transition {@code LeadService#markReplied} already
- * exposes — "I have replied to this person" — which is the same thing that
- * clears it from the badge, and it is recorded as LEAD_REPLIED in the audit
- * trail rather than as a UI preference.
+ * <h2>Why it is grouped</h2>
+ * Five rows in one list are five equal claims on the photographer's attention,
+ * and they are not equal: an enquiry from twenty minutes ago is fine, one from
+ * three days ago is a booking going to someone else. The split says which is
+ * which before anything is read, and the amber rail carries that without
+ * needing a word.
  *
- * <p>Inquiries deliberately have no such button. Clearing one means accepting
- * or rejecting it, and that creates a booking or sends the customer a refusal
- * — not something to do from a dropdown with the customer's message out of
- * sight. Those rows link to /leads instead, where the decision is made with
- * everything in view.
+ * <h2>What "done" means here</h2>
+ * There is no notifications table and no read flag: an item is unread because
+ * it is still in the state that means nobody has dealt with it. So clearing a
+ * lead is the real transition {@code LeadService#markReplied} already exposes
+ * — "I have replied to this person" — which is the same thing that clears it
+ * from the badge, and lands in the audit trail as LEAD_REPLIED rather than as
+ * a UI preference.
+ *
+ * <p>Inquiries deliberately have no such button, which is why their action is
+ * an eye rather than a tick. Clearing one means accepting or rejecting it, and
+ * that creates a booking or sends the customer a refusal — not something to do
+ * from a dropdown with their message out of sight. Those rows open /leads,
+ * where the decision is made with everything in view.
  */
 function NotificationPanel({
   items,
   colors,
+  theme,
   onClose,
   onHandled,
 }: {
   items: AttentionItem[] | null;
   colors: { border: string; text: string; subText: string; cardBg: string; surfaceHover: string };
+  theme: 'light' | 'dark';
   onClose: () => void;
   onHandled: () => void;
 }) {
-  const { t } = useTranslation();
-  const [busy, setBusy] = useState<string | null>(null);
-  // Removed here as soon as the API confirms, so the row goes at the moment
-  // the photographer acts rather than when the next refetch lands.
+  const { t, format, lang } = useTranslation();
+  const [busy, setBusy] = useState<string[]>([]);
+  // Cleared here as soon as the API confirms, so a row goes at the moment the
+  // photographer acts rather than when the next refetch lands.
   const [cleared, setCleared] = useState<string[]>([]);
 
   const visible = (items ?? []).filter((i) => !cleared.includes(i.id));
+  const now = Date.now();
+  const overdue = visible.filter((i) => now - new Date(i.createdAt).getTime() > OVERDUE_AFTER_MS);
+  const fresh = visible.filter((i) => !overdue.includes(i));
+  const clearableLeads = visible.filter((i) => i.kind === 'LEAD');
 
-  async function markRead(item: AttentionItem) {
-    setBusy(item.id);
-    try {
-      await api.patch(`/api/leads/${item.id}/status`, { status: 'REPLIED' });
-      setCleared((ids) => [...ids, item.id]);
-      onHandled();
-    } catch {
-      // Left in the list: a row that silently vanished on a failed write would
-      // say the lead was handled when it was not.
-    } finally {
-      setBusy(null);
+  async function markReplied(ids: string[]) {
+    if (ids.length === 0) return;
+    setBusy((b) => [...b, ...ids]);
+    const done: string[] = [];
+    // Sequential, not Promise.all: each is a state transition the server may
+    // refuse on its own, and one refusal must not take the others' rows with
+    // it — a row that vanished on a failed write would say the lead was
+    // answered when it was not.
+    for (const id of ids) {
+      try {
+        await api.patch(`/api/leads/${id}/status`, { status: 'REPLIED' });
+        done.push(id);
+      } catch {
+        /* left in the list */
+      }
     }
+    setCleared((c) => [...c, ...done]);
+    setBusy((b) => b.filter((id) => !ids.includes(id)));
+    if (done.length > 0) onHandled();
   }
+
+  function subtitle(item: AttentionItem): string {
+    // Most specific thing first, and never an empty line: a lead with nothing
+    // but an address still has to say who it is from.
+    const parts = [
+      item.name ? null : item.email,
+      item.eventType,
+      item.eventDate ? format.dayMonthYearLong(item.eventDate) : null,
+      relativeTime(item.createdAt, lang),
+    ].filter(Boolean) as string[];
+    if (parts.length === 1 && item.source) {
+      parts.unshift(t('chrome.notifications.contactForm'));
+    }
+    return parts.join(' · ');
+  }
+
+  function Avatar({ item, urgent }: { item: AttentionItem; urgent: boolean }) {
+    const tint = urgent
+      ? { bg: theme === 'dark' ? '#442D10' : '#FEF3C7', fg: '#D97706' }
+      : { bg: theme === 'dark' ? '#1E2A5A' : '#E0E7FF', fg: '#6366F1' };
+    const plain = { bg: theme === 'dark' ? '#2A2A2E' : '#EEF0F4', fg: colors.subText };
+    const shown = item.name ? tint : plain;
+    return (
+      <div
+        aria-hidden
+        style={{
+          width: 36,
+          height: 36,
+          flexShrink: 0,
+          borderRadius: '50%',
+          background: shown.bg,
+          color: shown.fg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+        }}
+      >
+        {item.name ? (
+          getInitials(item.name)
+        ) : item.kind === 'INQUIRY' ? (
+          <IconEnvelope />
+        ) : (
+          <IconPerson />
+        )}
+      </div>
+    );
+  }
+
+  function Row({ item, urgent }: { item: AttentionItem; urgent: boolean }) {
+    const working = busy.includes(item.id);
+    const displayName =
+      item.name ??
+      t(
+        item.kind === 'INQUIRY'
+          ? 'chrome.notifications.unnamedInquiry'
+          : 'chrome.notifications.unnamed'
+      );
+    const actionStyle: React.CSSProperties = {
+      flexShrink: 0,
+      width: 34,
+      height: 34,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: `1px solid ${colors.border}`,
+      borderRadius: '9px',
+      background: 'transparent',
+      color: colors.text,
+      textDecoration: 'none',
+      cursor: working ? 'default' : 'pointer',
+      opacity: working ? 0.45 : 1,
+    };
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px' }}>
+        <Avatar item={item} urgent={urgent} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              color: colors.text,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {displayName}
+          </div>
+          <div
+            style={{
+              fontSize: '0.78rem',
+              color: colors.subText,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {subtitle(item)}
+          </div>
+        </div>
+        {item.kind === 'LEAD' ? (
+          <button
+            role="menuitem"
+            onClick={() => markReplied([item.id])}
+            disabled={working}
+            aria-label={t('chrome.notifications.markRead')}
+            title={t('chrome.notifications.markRead')}
+            style={actionStyle}
+          >
+            <IconCheck />
+          </button>
+        ) : (
+          <Link
+            role="menuitem"
+            href="/leads"
+            onClick={onClose}
+            aria-label={t('chrome.notifications.review')}
+            title={t('chrome.notifications.review')}
+            style={actionStyle}
+          >
+            <IconEye />
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  const sectionLabel: React.CSSProperties = {
+    padding: '10px 12px 4px',
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+  };
 
   return (
     <div
@@ -1352,142 +1638,103 @@ function NotificationPanel({
       aria-label={t('chrome.notifications.title')}
       style={{
         position: 'absolute',
-        top: 'calc(100% + 8px)',
+        top: 'calc(100% + 10px)',
         right: 0,
-        width: 320,
-        maxHeight: 400,
+        width: 380,
+        maxWidth: 'calc(100vw - 24px)',
+        maxHeight: 460,
         overflowY: 'auto',
         background: colors.cardBg,
         border: `1px solid ${colors.border}`,
-        borderRadius: '12px',
-        boxShadow: '0 12px 32px rgba(15, 23, 42, 0.16)',
-        padding: '8px',
+        borderRadius: '14px',
+        boxShadow: '0 18px 44px rgba(15, 23, 42, 0.22)',
         zIndex: 50,
       }}
     >
       <div
         style={{
-          padding: '6px 8px 8px',
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          color: colors.subText,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          padding: '14px 14px 10px',
         }}
       >
-        {t('chrome.notifications.title')}
+        <div style={{ fontSize: '1.02rem', fontWeight: 700, color: colors.text }}>
+          {t('chrome.notifications.title')}
+        </div>
+        {clearableLeads.length > 0 && (
+          <button
+            role="menuitem"
+            onClick={() => markReplied(clearableLeads.map((i) => i.id))}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: colors.subText,
+              fontSize: '0.84rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {t('chrome.notifications.allDone')}
+          </button>
+        )}
       </div>
 
       {items === null ? (
-        <div style={{ padding: '12px 8px', fontSize: '0.85rem', color: colors.subText }}>
+        <div style={{ padding: '4px 14px 16px', fontSize: '0.86rem', color: colors.subText }}>
           {t('chrome.notifications.loading')}
         </div>
       ) : visible.length === 0 ? (
-        <div style={{ padding: '12px 8px', fontSize: '0.85rem', color: colors.subText }}>
+        <div style={{ padding: '4px 14px 16px', fontSize: '0.86rem', color: colors.subText }}>
           {t('chrome.notifications.none')}
         </div>
       ) : (
-        visible.map((item) => (
-          <div
-            key={`${item.kind}-${item.id}`}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px',
-              padding: '8px',
-              borderRadius: '8px',
-            }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  color: item.kind === 'LEAD' ? '#6366F1' : '#0EA5E9',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {t(
-                  item.kind === 'LEAD'
-                    ? 'chrome.notifications.kind.lead'
-                    : 'chrome.notifications.kind.inquiry'
-                )}
+        <>
+          {overdue.length > 0 && (
+            // The rail is the whole point of the grouping: urgency you can see
+            // without reading a date.
+            <div style={{ borderLeft: '3px solid #D97706', background: 'rgba(217, 119, 6, 0.06)' }}>
+              <div style={{ ...sectionLabel, color: '#D97706' }}>
+                {t('chrome.notifications.overdue')} · {overdue.length}
               </div>
-              <div
-                style={{
-                  fontSize: '0.86rem',
-                  fontWeight: 600,
-                  color: colors.text,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {item.name}
-              </div>
-              {item.detail && (
-                <div style={{ fontSize: '0.76rem', color: colors.subText }}>{item.detail}</div>
-              )}
+              {overdue.map((item) => (
+                <Row key={`${item.kind}-${item.id}`} item={item} urgent />
+              ))}
             </div>
-            {item.kind === 'LEAD' ? (
-              <button
-                role="menuitem"
-                onClick={() => markRead(item)}
-                disabled={busy === item.id}
-                style={{
-                  flexShrink: 0,
-                  border: `1px solid ${colors.border}`,
-                  background: 'transparent',
-                  color: colors.text,
-                  borderRadius: '7px',
-                  padding: '4px 8px',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: busy === item.id ? 'default' : 'pointer',
-                  opacity: busy === item.id ? 0.5 : 1,
-                }}
-              >
-                {t('chrome.notifications.markRead')}
-              </button>
-            ) : (
-              <Link
-                role="menuitem"
-                href="/leads"
-                onClick={onClose}
-                style={{
-                  flexShrink: 0,
-                  borderRadius: '7px',
-                  padding: '4px 8px',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  color: colors.text,
-                  textDecoration: 'none',
-                  border: `1px solid ${colors.border}`,
-                }}
-              >
-                {t('chrome.notifications.review')}
-              </Link>
-            )}
-          </div>
-        ))
+          )}
+          {fresh.length > 0 && (
+            <div>
+              <div style={{ ...sectionLabel, color: colors.subText }}>
+                {t('chrome.notifications.fresh')} · {fresh.length}
+              </div>
+              {fresh.map((item) => (
+                <Row key={`${item.kind}-${item.id}`} item={item} urgent={false} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: '6px', paddingTop: '6px' }}>
+      <div style={{ borderTop: `1px solid ${colors.border}` }}>
         <Link
           role="menuitem"
           href="/leads"
           onClick={onClose}
           style={{
-            display: 'block',
-            padding: '8px',
-            borderRadius: '8px',
-            fontSize: '0.82rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '13px 14px',
+            fontSize: '0.88rem',
             fontWeight: 600,
-            color: colors.text,
+            color: '#6366F1',
             textDecoration: 'none',
           }}
         >
           {t('chrome.notifications.viewAll')}
+          <IconArrowRight />
         </Link>
       </div>
     </div>

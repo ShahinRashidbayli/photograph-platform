@@ -21,43 +21,66 @@ jest.mock('@/lib/api', () => ({
   },
 }));
 
+const hoursAgo = (n: number) => new Date(Date.now() - n * 3600_000).toISOString();
+
 const LEADS = [
+  // Older than a day: overdue.
   {
     id: 'lead-1',
-    name: 'Maria Kellner',
+    name: 'Katharina Berg',
+    email: 'kb@example.test',
     status: 'NEW',
-    eventType: 'WEDDING',
-    createdAt: '2026-08-26T10:00:00Z',
+    eventType: 'Wedding',
+    eventDate: '2026-06-12',
+    source: 'WEBSITE',
+    createdAt: hoursAgo(72),
   },
+  // Within the day: new.
   {
     id: 'lead-2',
-    name: 'Jonas Weber',
+    name: 'Maria Kellner',
+    email: 'mk@example.test',
     status: 'NEW',
-    eventType: 'PORTRAIT',
-    createdAt: '2026-08-25T10:00:00Z',
+    eventType: 'Wedding',
+    eventDate: '2026-07-04',
+    source: 'WEBSITE',
+    createdAt: hoursAgo(6),
   },
+  // Submitted without a name — the panel has to say something anyway.
   {
     id: 'lead-3',
+    name: null,
+    email: null,
+    status: 'NEW',
+    eventType: null,
+    eventDate: null,
+    source: 'WEBSITE',
+    createdAt: hoursAgo(0.3),
+  },
+  {
+    id: 'lead-4',
     name: 'Already handled',
     status: 'REPLIED',
-    eventType: 'WEDDING',
-    createdAt: '2026-08-24T10:00:00Z',
+    eventType: 'Wedding',
+    createdAt: hoursAgo(48),
   },
 ];
 const INQUIRIES = [
   {
     id: 'inq-1',
-    customerName: 'Lena Vogt',
+    customerName: null,
+    customerEmail: 'anna@example.test',
     status: 'PENDING',
-    eventType: 'HOCHZEIT',
-    createdAt: '2026-08-27T10:00:00Z',
+    eventType: 'Wedding',
+    proposedDate: null,
+    createdAt: hoursAgo(4),
   },
   {
     id: 'inq-2',
     customerName: 'Decided already',
     status: 'BOOKING_CREATED',
-    eventType: 'HOCHZEIT',
-    createdAt: '2026-08-23T10:00:00Z',
+    eventType: 'Wedding',
+    createdAt: hoursAgo(50),
   },
 ];
 
@@ -115,8 +138,8 @@ describe('notification panel', () => {
     await openBell();
 
     expect(await screen.findByRole('menu', { name: /needs attention/i })).toBeInTheDocument();
+    expect(screen.getByText('Katharina Berg')).toBeInTheDocument();
     expect(screen.getByText('Maria Kellner')).toBeInTheDocument();
-    expect(screen.getByText('Lena Vogt')).toBeInTheDocument();
     // Clicking the bell navigates nowhere — that was the complaint.
     expect(push).not.toHaveBeenCalled();
   });
@@ -143,7 +166,7 @@ describe('notification panel', () => {
       // transition that clears the badge and lands in the audit trail.
       expect(patch).toHaveBeenCalledWith('/api/leads/lead-1/status', { status: 'REPLIED' })
     );
-    await waitFor(() => expect(screen.queryByText('Maria Kellner')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Katharina Berg')).not.toBeInTheDocument());
   });
 
   /**
@@ -155,11 +178,50 @@ describe('notification panel', () => {
     await openBell();
     await screen.findByRole('menu', { name: /needs attention/i });
 
-    const row = screen.getByText('Lena Vogt').closest('div')?.parentElement;
-    expect(row).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /review/i })).toBeInTheDocument();
-    // One lead button per unreplied lead, and none for the inquiry.
-    expect(screen.getAllByRole('menuitem', { name: /mark replied/i })).toHaveLength(2);
+    expect(screen.getByRole('menuitem', { name: /^review$/i })).toBeInTheDocument();
+    // One tick per unreplied lead, and none for the inquiry.
+    expect(screen.getAllByRole('menuitem', { name: /mark replied/i })).toHaveLength(3);
+  });
+
+  /**
+   * Five equal rows are five equal claims on the photographer's attention, and
+   * they are not equal — an enquiry from three days ago is a booking going to
+   * someone else.
+   */
+  it('separates what is late from what just arrived, with counts', async () => {
+    await openBell();
+    await screen.findByRole('menu', { name: /needs attention/i });
+
+    // 72h old.
+    expect(screen.getByText((_, el) => el?.textContent === 'Overdue · 1')).toBeTruthy();
+    // 6h, 20min and the 4h inquiry.
+    expect(screen.getByText((_, el) => el?.textContent === 'New · 3')).toBeTruthy();
+  });
+
+  /** A form submitted without a name still has to be recognisable. */
+  it('names the nameless by what is known about them', async () => {
+    await openBell();
+    await screen.findByRole('menu', { name: /needs attention/i });
+
+    expect(screen.getByText('Inquiry without a name')).toBeInTheDocument();
+    // Its address is what identifies it, so it moves into the subtitle.
+    expect(screen.getByText(/anna@example\.test/)).toBeInTheDocument();
+    expect(screen.getByText('No name')).toBeInTheDocument();
+  });
+
+  it('clears every lead at once, and leaves the inquiry alone', async () => {
+    await openBell();
+    await screen.findByRole('menu', { name: /needs attention/i });
+
+    await userEvent.click(screen.getByRole('menuitem', { name: /mark all replied/i }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(3));
+    for (const id of ['lead-1', 'lead-2', 'lead-3']) {
+      expect(patch).toHaveBeenCalledWith(`/api/leads/${id}/status`, { status: 'REPLIED' });
+    }
+    // The inquiry is untouched: clearing one means accepting or rejecting it.
+    expect(patch).not.toHaveBeenCalledWith(expect.stringContaining('inq-1'), expect.anything());
+    await waitFor(() => expect(screen.getByText('Inquiry without a name')).toBeInTheDocument());
   });
 
   it('closes on Escape', async () => {

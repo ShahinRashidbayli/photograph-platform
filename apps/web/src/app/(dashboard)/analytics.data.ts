@@ -29,6 +29,8 @@ export interface Analytics {
     topPackages: { name: string; count: number; revenueCents: number }[];
     leadsReceived: number;
     leadsConverted: number;
+    /** Who shot what. `name` is null for the unassigned bucket. */
+    byPhotographer: { name: string | null; count: number; revenueCents: number }[];
   };
 }
 

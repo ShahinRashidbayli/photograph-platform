@@ -273,6 +273,18 @@ export function BookingDetail({
             rows, so this is the only place they can be changed. */}
         {isPhotographer && <BookingInvoices booking={booking} theme={theme} />}
 
+        {/* Who is shooting it. Photographer-only and shown even when nobody is
+            assigned: "not yet decided" is the state a studio most needs to see,
+            and a row that disappears when empty hides exactly that. */}
+        {isPhotographer && (
+          <section style={{ ...styles.section, ...styles.sectionDivided }}>
+            <div style={styles.sectionTitle}>{t('bookings.detail.assignedTo')}</div>
+            <div style={booking.assignedUserName ? styles.notesText : styles.notesEmpty}>
+              {booking.assignedUserName || t('bookings.detail.unassigned')}
+            </div>
+          </section>
+        )}
+
         {/* Notes — internal to the photographer; the customer API never
             returns this field, so the section is photographer-only. */}
         {isPhotographer && (

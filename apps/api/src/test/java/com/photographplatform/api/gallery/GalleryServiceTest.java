@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -68,6 +69,7 @@ class GalleryServiceTest {
     private AuditService auditService;
     private DeliveryPhotoProcessor photoProcessor;
     private EntitlementService entitlementService;
+    private BrandingService brandingService;
     /** Permissive by default — the download quota has its own test. */
     private RateLimiter rateLimiter;
     private GalleryService galleryService;
@@ -87,12 +89,16 @@ class GalleryServiceTest {
             new Entitlements(Plan.STARTER, EnumSet.noneOf(Capability.class), 60, 1, 200, 0L),
             true, null, null, SubscriptionStatus.TRIALING));
 
+        // Branding rides along on the public gallery payload; these tests are
+        // about retention and access, so it only has to not be null.
+        brandingService = mock(BrandingService.class);
+
         rateLimiter = mock(RateLimiter.class);
 
         galleryService = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.<R2StorageService>empty(), auditService, photoProcessor,
-            entitlementService, FIXED_CLOCK, rateLimiter, new R2Properties());
+            entitlementService, FIXED_CLOCK, rateLimiter, new R2Properties(), brandingService);
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -305,7 +311,7 @@ class GalleryServiceTest {
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
-            rateLimiter, new R2Properties());
+            rateLimiter, new R2Properties(), brandingService);
 
         UUID photoId = UUID.randomUUID();
         DeliveryPhoto photo = new DeliveryPhoto(UUID.randomUUID(), "t/g/a.jpg", "a.jpg");

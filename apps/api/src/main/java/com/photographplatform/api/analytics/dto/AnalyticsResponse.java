@@ -73,8 +73,23 @@ public record AnalyticsResponse(
         List<MonthlyCount> months,
         List<PackageCount> topPackages,
         int leadsReceived,
-        int leadsConverted
+        int leadsConverted,
+        /**
+         * Who shot what, biggest first — the question a studio owner asks as
+         * soon as there is more than one photographer. Empty for a studio that
+         * never assigns, and carries an "unassigned" row when some bookings
+         * have no photographer, because hiding those would make the numbers
+         * fail to add up to the total above.
+         */
+        List<PhotographerCount> byPhotographer
     ) {
+    }
+
+    /**
+     * @param name null for the unassigned bucket, so a client renders its own
+     *             wording rather than matching on a magic string
+     */
+    public record PhotographerCount(String name, int count, long revenueCents) {
     }
 
     public record StatusCount(String status, int count) {

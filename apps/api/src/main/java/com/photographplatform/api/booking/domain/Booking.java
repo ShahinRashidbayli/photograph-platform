@@ -63,6 +63,16 @@ public class Booking {
     @Column(nullable = false, length = 30)
     private String status = "ENQUIRY";
 
+    /**
+     * The photographer shooting this, or null while nobody has decided.
+     *
+     * <p>Null is a real state, not a gap to be filled: a booking arrives from
+     * an enquiry before anyone has been assigned, and inventing an answer then
+     * looks like a decision that was never made.
+     */
+    @Column(name = "assigned_user_id")
+    private UUID assignedUserId;
+
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
 
@@ -197,6 +207,14 @@ public class Booking {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public UUID getAssignedUserId() {
+        return assignedUserId;
+    }
+
+    public void setAssignedUserId(UUID assignedUserId) {
+        this.assignedUserId = assignedUserId;
     }
 
     public String getInternalNotes() {

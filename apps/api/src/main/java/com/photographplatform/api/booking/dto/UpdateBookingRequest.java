@@ -51,5 +51,12 @@ public record UpdateBookingRequest(
     @PositiveOrZero(message = "Deposit amount cannot be negative")
     Integer depositAmountCents,
 
-    String internalNotes
+    String internalNotes,
+
+    /**
+     * Who is shooting it. Null clears the assignment, which is a real edit —
+     * a photographer drops out and the studio has not decided on a replacement
+     * yet, and pretending someone is still on it would be worse than a gap.
+     */
+    UUID assignedUserId
 ) {}

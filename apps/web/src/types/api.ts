@@ -79,6 +79,12 @@ export interface Booking {
   paymentState?: 'NOT_INVOICED' | 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
   amountPaidCents?: number;
   internalNotes?: string;
+  /**
+   * The photographer shooting it, or absent while nobody has been assigned.
+   * The name rides along so a list does not resolve every id against the team.
+   */
+  assignedUserId?: string | null;
+  assignedUserName?: string | null;
   createdAt: string;
 }
 

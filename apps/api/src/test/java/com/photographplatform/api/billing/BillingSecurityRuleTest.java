@@ -1,6 +1,7 @@
 package com.photographplatform.api.billing;
 
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.OwnershipGuard;
 import com.photographplatform.api.billing.controller.BillingController;
 import com.photographplatform.api.billing.dto.BillingStatusResponse;
 import com.photographplatform.api.billing.dto.CheckoutSessionResponse;
@@ -189,7 +190,7 @@ class BillingSecurityRuleTest {
     void aLockedAccountCanStillReachBillingToPayItsWayOut() throws Exception {
         WriteAccessInterceptor interceptor = interceptorWithLockedTenant();
         HandlerMethod checkout = new HandlerMethod(
-            new BillingController(billingService),
+            new BillingController(billingService, mock(OwnershipGuard.class)),
             BillingController.class.getMethod(
                 "checkout",
                 com.photographplatform.api.billing.dto.StartCheckoutRequest.class,
@@ -257,7 +258,7 @@ class BillingSecurityRuleTest {
     private static BillingStatusResponse stubStatus() {
         return new BillingStatusResponse(
             "STARTER", "TRIALING", OffsetDateTime.now().plusDays(7), null,
-            true, false, true, null);
+            true, false, true, null, false);
     }
 
     /**

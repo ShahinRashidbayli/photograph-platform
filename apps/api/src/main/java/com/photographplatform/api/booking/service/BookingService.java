@@ -24,7 +24,10 @@ import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -72,7 +75,12 @@ public class BookingService {
 
         Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
             bookings.stream().map(Booking::getId).toList());
-        return bookings.stream().map(b -> toResponse(b, paymentStates.get(b.getId()))).toList();
+        // One query for the whole page, not one per row — the same reason
+        // payment states are resolved in a batch just above.
+        Map<UUID, String> names = assigneeNames(bookings);
+        return bookings.stream()
+            .map(b -> toResponse(b, paymentStates.get(b.getId()), names))
+            .toList();
     }
 
     /**
@@ -281,6 +289,7 @@ public class BookingService {
         booking.setLocation(Normalize.trimToNull(request.location()));
         applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
+        booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
 
         Booking saved = bookingRepository.save(booking);
 
@@ -341,11 +350,57 @@ public class BookingService {
         return pkg.getPriceCents();
     }
 
+    /**
+     * Validates who a booking is being assigned to.
+     *
+     * <p>Checked rather than trusted: the id arrives from the client, and
+     * without this a studio could assign its bookings to an account in someone
+     * else's tenant — which would then appear on that person's schedule, and
+     * in a report they had no part in.
+     *
+     * @param assignedUserId the requested assignee, or null to clear
+     * @return the same id once it is known to be staff in this tenant
+     */
+    private UUID resolveAssignee(UUID assignedUserId, UUID tenantId) {
+        if (assignedUserId == null) {
+            return null;
+        }
+        return userRepository.findById(assignedUserId)
+            .filter(u -> u.getTenantId().equals(tenantId))
+            // Customers share the tenant but do not shoot bookings.
+            .filter(u -> u.getStaffRole() != null)
+            .map(User::getId)
+            .orElseThrow(() -> new NotFoundException("That photographer is not in your studio"));
+    }
+
+    /** Assignee display names, resolved in one query for a whole page. */
+    private Map<UUID, String> assigneeNames(List<Booking> bookings) {
+        Set<UUID> ids = bookings.stream()
+            .map(Booking::getAssignedUserId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findAllById(ids).stream()
+            .collect(Collectors.toMap(User::getId,
+                u -> u.getFullName() != null && !u.getFullName().isBlank()
+                    ? u.getFullName() : u.getEmail()));
+    }
+
     private BookingResponse toResponse(Booking booking) {
         return toResponse(booking, paymentStateResolver.resolve(booking.getId()));
     }
 
     private BookingResponse toResponse(Booking booking, Summary payment) {
+        return toResponse(booking, payment, null);
+    }
+
+    /**
+     * @param names pre-resolved assignee names for a whole page, or null for a
+     *              single booking — which then looks its own up
+     */
+    private BookingResponse toResponse(Booking booking, Summary payment, Map<UUID, String> names) {
         return new BookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -361,8 +416,26 @@ public class BookingService {
             payment.state().name(),
             payment.paidCents(),
             booking.getInternalNotes(),
+            booking.getAssignedUserId(),
+            names != null
+                ? names.get(booking.getAssignedUserId())
+                : assigneeName(booking.getAssignedUserId()),
             booking.getCreatedAt()
         );
+    }
+
+    /**
+     * One assignee's name. Fine for a single booking; a list goes through
+     * {@link #assigneeNames} instead so it does not issue one query per row.
+     */
+    private String assigneeName(UUID userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId)
+            .map(u -> u.getFullName() != null && !u.getFullName().isBlank()
+                ? u.getFullName() : u.getEmail())
+            .orElse(null);
     }
 
     private CustomerBookingResponse toCustomerResponse(Booking booking, Summary payment) {

@@ -121,6 +121,8 @@ export const bookings = {
   'bookings.detail.total': 'Total',
   'bookings.detail.amountPaid': '{amount} paid',
   'bookings.detail.amountRemaining': '{amount} remaining',
+  'bookings.detail.assignedTo': 'Photographer',
+  'bookings.detail.unassigned': 'Not assigned yet',
   'bookings.detail.notes': 'Notes',
   'bookings.detail.noNotes': 'No notes added yet.',
 

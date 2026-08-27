@@ -118,6 +118,8 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.detail.total': 'Gesamt',
   'bookings.detail.amountPaid': '{amount} bezahlt',
   'bookings.detail.amountRemaining': '{amount} offen',
+  'bookings.detail.assignedTo': 'Fotograf',
+  'bookings.detail.unassigned': 'Noch nicht zugewiesen',
   'bookings.detail.notes': 'Notizen',
   'bookings.detail.noNotes': 'Noch keine Notizen hinterlegt.',
 

@@ -34,6 +34,8 @@ export const analytics: Record<keyof EnAnalytics, string> = {
   'analytics.reports.bookings': 'Buchungen',
   'analytics.reports.byMonth': 'Buchungen pro Monat',
   'analytics.reports.byStatus': 'Wie sie ausgingen',
+  'analytics.reports.byPhotographer': 'Wer hat was fotografiert',
+  'analytics.reports.unassigned': 'Nicht zugewiesen',
   'analytics.reports.packages': 'Pakete, die sich verkaufen',
   'analytics.reports.leads': 'Anfragen',
   'analytics.reports.converted': 'Wurden zu Buchungen',

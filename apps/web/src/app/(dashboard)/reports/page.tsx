@@ -101,6 +101,21 @@ export default function ReportsPage() {
             </ChartCard>
           )}
 
+          {/* Only worth a panel once the work is actually split. A studio of
+              one would see a single bar saying it did everything. */}
+          {b.byPhotographer.length > 1 && (
+            <ChartCard title={t('analytics.reports.byPhotographer')}>
+              <RankedBars
+                rows={b.byPhotographer.map((p) => ({
+                  label: p.name ?? t('analytics.reports.unassigned'),
+                  value: p.count,
+                  hint: format.eur(p.revenueCents),
+                }))}
+                format={(v) => format.number(v)}
+              />
+            </ChartCard>
+          )}
+
           {b.topPackages.length > 0 && (
             <ChartCard title={t('analytics.reports.packages')}>
               <RankedBars

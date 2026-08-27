@@ -5,6 +5,7 @@ import com.photographplatform.api.analytics.dto.AnalyticsResponse.BookingSummary
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.MonthlyAmount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.MonthlyCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PackageCount;
+import com.photographplatform.api.analytics.dto.AnalyticsResponse.PhotographerCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.RevenueSummary;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.StatusCount;
 import com.photographplatform.api.common.security.SecurityUtils;
@@ -211,8 +212,34 @@ public class AnalyticsService {
             WHERE l.tenant_id = ? AND EXTRACT(YEAR FROM l.created_at) = ?
             """, Long.class, tenantId, year));
 
+        // Cancelled and declined are left out for the same reason as the package
+        // mix: this answers "who did the work", and work somebody backed out of
+        // was not done. Unassigned bookings keep their own row so the split
+        // still reconciles against the year.
+        List<PhotographerCount> byPhotographer = jdbc.queryForList("""
+            SELECT u.full_name                              AS name,
+                   u.email                                  AS email,
+                   COUNT(*)                                 AS cnt,
+                   COALESCE(SUM(b.total_amount_cents), 0)   AS revenue
+            FROM bookings b
+            LEFT JOIN users u ON u.id = b.assigned_user_id AND u.tenant_id = b.tenant_id
+            WHERE b.tenant_id = ?
+              AND EXTRACT(YEAR FROM b.event_date) = ?
+              AND b.status NOT IN ('CANCELLED', 'DECLINED')
+            GROUP BY u.full_name, u.email
+            ORDER BY cnt DESC, revenue DESC
+            """, tenantId, year).stream()
+            .map(r -> {
+                String name = (String) r.get("name");
+                if (name == null || name.isBlank()) {
+                    name = (String) r.get("email");
+                }
+                return new PhotographerCount(name, (int) num(r.get("cnt")), num(r.get("revenue")));
+            })
+            .toList();
+
         return new BookingSummary(
-            total, byStatus, months, topPackages, leadsReceived, leadsConverted);
+            total, byStatus, months, topPackages, leadsReceived, leadsConverted, byPhotographer);
     }
 
     /** Postgres hands back Long, Integer or BigDecimal depending on the aggregate. */

@@ -41,6 +41,8 @@ export const analytics = {
   'analytics.reports.bookings': 'Bookings',
   'analytics.reports.byMonth': 'Bookings by month',
   'analytics.reports.byStatus': 'Where they ended up',
+  'analytics.reports.byPhotographer': 'Who shot what',
+  'analytics.reports.unassigned': 'Unassigned',
   'analytics.reports.packages': 'Packages that sell',
   'analytics.reports.leads': 'Enquiries',
   'analytics.reports.converted': 'Became bookings',

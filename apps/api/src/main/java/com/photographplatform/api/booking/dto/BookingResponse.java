@@ -21,5 +21,12 @@ public record BookingResponse(
     String paymentState,
     Integer amountPaidCents,
     String internalNotes,
+    /**
+     * The photographer shooting this, or null while nobody has been assigned.
+     * The name comes with it so a list does not have to resolve every id
+     * against the team separately.
+     */
+    UUID assignedUserId,
+    String assignedUserName,
     OffsetDateTime createdAt
 ) {}

@@ -100,7 +100,7 @@ public class InvoiceService {
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Tenant not found"));
 
-        BookingStatus bookingStatus = BookingStatus.parse(booking.getStatus());
+        BookingStatus bookingStatus = booking.getStatus();
         if (bookingStatus == BookingStatus.DECLINED || bookingStatus == BookingStatus.CANCELLED) {
             throw new ConflictException(
                 "Cannot issue an invoice for a " + bookingStatus.name().toLowerCase(Locale.ROOT) + " booking");

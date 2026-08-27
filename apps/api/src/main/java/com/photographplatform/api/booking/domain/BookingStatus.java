@@ -45,6 +45,14 @@ public enum BookingStatus {
         CANCELLED,  EnumSet.noneOf(BookingStatus.class)
     );
 
+    /**
+     * Statuses a shoot in this state cannot clash with, because it is not
+     * happening. Named here rather than spelled as string literals inside two
+     * separate conflict queries, which is where it lived and where the two
+     * could quietly drift apart.
+     */
+    public static final Set<BookingStatus> NOT_HAPPENING = EnumSet.of(CANCELLED, DECLINED);
+
     public static BookingStatus parse(String value) {
         if (value == null) {
             throw new ConflictException("Booking status is required");

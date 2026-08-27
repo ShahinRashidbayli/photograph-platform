@@ -103,7 +103,7 @@ public class BookingMapper {
             booking.getPackageId(),
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
-            booking.getStatus(),
+            booking.getStatus().name(),
             p.state().name(),
             p.paidCents(),
             booking.getCreatedAt()
@@ -123,7 +123,7 @@ public class BookingMapper {
             booking.getPackageId(),
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
-            booking.getStatus(),
+            booking.getStatus().name(),
             payment.state().name(),
             payment.paidCents(),
             booking.getInternalNotes(),

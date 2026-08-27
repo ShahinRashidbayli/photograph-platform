@@ -4,6 +4,7 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingPaymentState;
+import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
@@ -21,6 +22,7 @@ import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -110,7 +112,7 @@ class BookingServiceTest {
 
         ArgumentCaptor<Booking> saved = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(saved.capture());
-        assertThat(saved.getValue().getStatus()).isEqualTo("ENQUIRY");
+        assertThat(saved.getValue().getStatus()).isEqualTo(BookingStatus.ENQUIRY);
 
         verify(auditService).log(
             eq("BOOKING_CREATED"), eq("BOOKING"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
@@ -155,8 +157,8 @@ class BookingServiceTest {
     void changeStatusAdvancesThroughLegalTransition() {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
-        booking.setStatus("ENQUIRY");
-        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
+        booking.setStatus(BookingStatus.ENQUIRY);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         BookingResponse response = bookingService.changeStatus(id, "CONFIRMED", IP);
@@ -171,8 +173,8 @@ class BookingServiceTest {
     void changeStatusRejectsIllegalTransitionWith409() {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
-        booking.setStatus("ENQUIRY");
-        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
+        booking.setStatus(BookingStatus.ENQUIRY);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         // ENQUIRY may only advance to CONFIRMED or CANCELLED — jumping to COMPLETED is illegal.
         assertThatThrownBy(() -> bookingService.changeStatus(id, "COMPLETED", IP))
@@ -184,7 +186,7 @@ class BookingServiceTest {
     @Test
     void changeStatusRejectsUnknownBookingWith404() {
         UUID id = UUID.randomUUID();
-        when(bookingRepository.findById(id)).thenReturn(Optional.empty());
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> bookingService.changeStatus(id, "CONFIRMED", IP))
             .isInstanceOf(NotFoundException.class);
@@ -201,9 +203,9 @@ class BookingServiceTest {
         UUID foreignResource = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
         booking.setTenantId(TENANT_ID);
-        booking.setStatus("ENQUIRY");
-        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
-        when(studioResourceRepository.findAllById(any())).thenReturn(List.of());
+        booking.setStatus(BookingStatus.ENQUIRY);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+        when(studioResourceRepository.findExistingIds(any())).thenReturn(Set.of());
 
         assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(List.of(foreignResource)), IP))
             .isInstanceOf(NotFoundException.class)
@@ -219,8 +221,8 @@ class BookingServiceTest {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
         booking.setTenantId(TENANT_ID);
-        booking.setStatus("CANCELLED");
-        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
+        booking.setStatus(BookingStatus.CANCELLED);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(null), IP))
             .isInstanceOf(ConflictException.class)

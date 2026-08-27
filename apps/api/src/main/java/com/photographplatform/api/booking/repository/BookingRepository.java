@@ -1,8 +1,11 @@
 package com.photographplatform.api.booking.repository;
 
 import com.photographplatform.api.booking.domain.Booking;
+import com.photographplatform.api.booking.domain.BookingStatus;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -24,16 +27,34 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
      * away from disagreeing.
      */
 
+    /**
+     * The booking, if it belongs to this tenant.
+     *
+     * <p>Row-level security already scopes {@code findById} — V11 puts a
+     * FORCE'd policy on {@code bookings} keyed on {@code app.tenant_id}, and
+     * an unset setting matches nothing, so it fails closed. This exists
+     * anyway, for two reasons. It states the authorization rule where a reader
+     * of the service can see it, instead of leaving "why is this safe" to be
+     * answered by a migration three hundred lines long. And it makes the
+     * booking path consistent with the assignee check next to it, which
+     * <em>cannot</em> lean on RLS at all: V11 deliberately leaves {@code users}
+     * without a policy, so two adjacent lookups in the same method had two
+     * different rules and no way to tell which was which.
+     */
+    Optional<Booking> findByIdAndTenantId(UUID id, UUID tenantId);
+
     Slice<Booking> findAllBy(Pageable pageable);
 
-    Slice<Booking> findByStatus(String status, Pageable pageable);
+    Slice<Booking> findByStatus(BookingStatus status, Pageable pageable);
 
     /**
      * What else this photographer is already booked for that day.
      *
-     * <p>Cancelled and declined are excluded: a shoot that is not happening
-     * cannot clash with one that is, and warning about it would train the
-     * photographer to ignore the warning.
+     * <p>{@link BookingStatus#NOT_HAPPENING} is excluded: a shoot that is not
+     * happening cannot clash with one that is, and warning about it would
+     * train the photographer to ignore the warning. Passed as a parameter
+     * rather than written into the query, so this and the resource-clash
+     * query cannot come to disagree about which states those are.
      *
      * <p>Tenant scoping comes from RLS on this path — it is a JPA query, and
      * every repository here relies on the same policy.
@@ -49,13 +70,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         WHERE b.assignedUserId = :userId
           AND b.eventDate = :date
           AND (:excludeId IS NULL OR b.id <> :excludeId)
-          AND b.status NOT IN ('CANCELLED', 'DECLINED')
+          AND b.status NOT IN :notHappening
         ORDER BY b.eventTime ASC NULLS LAST
         """)
     List<Booking> findSameDayForPhotographer(
         @Param("userId") UUID userId,
         @Param("date") LocalDate date,
-        @Param("excludeId") UUID excludeId);
+        @Param("excludeId") UUID excludeId,
+        @Param("notHappening") Collection<BookingStatus> notHappening);
 
     // Customer-facing lookups are keyed on the booking's client_email rather
     // than client_id: a booking may exist before its Client directory row does
@@ -65,7 +87,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Slice<Booking> findByClientEmailIgnoreCase(String clientEmail, Pageable pageable);
 
     Slice<Booking> findByClientEmailIgnoreCaseAndStatus(
-        String clientEmail, String status, Pageable pageable);
+        String clientEmail, BookingStatus status, Pageable pageable);
 
     /**
      * Unpaged — used only to resolve which bookings (and so which invoices) a

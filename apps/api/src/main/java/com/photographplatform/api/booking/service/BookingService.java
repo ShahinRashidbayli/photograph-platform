@@ -14,7 +14,6 @@ import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.resource.domain.BookingResource;
-import com.photographplatform.api.resource.domain.StudioResource;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -91,7 +89,7 @@ public class BookingService {
     public List<BookingResponse> listForPhotographer(String status, int page, int size) {
         Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
         List<Booking> bookings = (status != null && !status.isBlank())
-            ? bookingRepository.findByStatus(BookingStatus.parse(status).name(), pageable).getContent()
+            ? bookingRepository.findByStatus(BookingStatus.parse(status), pageable).getContent()
             : bookingRepository.findAllBy(pageable).getContent();
 
         PageLookups lookups = mapper.forPage(bookings);
@@ -129,7 +127,7 @@ public class BookingService {
         applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), tenantId));
-        booking.setStatus(BookingStatus.ENQUIRY.name());
+        booking.setStatus(BookingStatus.ENQUIRY);
 
         Set<UUID> resources = requireOwnResources(request.resourceIds());
 
@@ -180,7 +178,7 @@ public class BookingService {
         booking.setLocation(Normalize.trimToNull(overrides.location()));
         applyPricing(booking, overrides.packageId(), overrides.totalAmountCents(), overrides.depositAmountCents());
         booking.setInternalNotes(Normalize.trimToNull(overrides.internalNotes()));
-        booking.setStatus(BookingStatus.ENQUIRY.name());
+        booking.setStatus(BookingStatus.ENQUIRY);
 
         Booking saved = bookingRepository.save(booking);
 
@@ -228,7 +226,7 @@ public class BookingService {
         booking.setEventType(Normalize.trimToNull(inquiry.getEventType()));
         booking.setLocation(Normalize.trimToNull(inquiry.getLocation()));
         applyPricing(booking, null, null, null);
-        booking.setStatus(BookingStatus.ENQUIRY.name());
+        booking.setStatus(BookingStatus.ENQUIRY);
 
         Booking saved = bookingRepository.save(booking);
 
@@ -256,7 +254,7 @@ public class BookingService {
         Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
         List<Booking> bookings = (rawStatus != null && !rawStatus.isBlank())
             ? bookingRepository
-                .findByClientEmailIgnoreCaseAndStatus(email, BookingStatus.parse(rawStatus).name(), pageable)
+                .findByClientEmailIgnoreCaseAndStatus(email, BookingStatus.parse(rawStatus), pageable)
                 .getContent()
             : bookingRepository.findByClientEmailIgnoreCase(email, pageable).getContent();
 
@@ -280,14 +278,13 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse changeStatus(UUID bookingId, String rawNewStatus, String ipAddress) {
-        Booking booking = bookingRepository.findById(bookingId)
-            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+        Booking booking = requireOwnBooking(bookingId);
 
-        BookingStatus current = BookingStatus.parse(booking.getStatus());
+        BookingStatus current = booking.getStatus();
         BookingStatus next = BookingStatus.parse(rawNewStatus);
         current.assertCanTransitionTo(next);
 
-        booking.setStatus(next.name());
+        booking.setStatus(next);
         // Explicit save on an entity that is already managed: dirty checking
         // would write it regardless. Kept because every unit test here mocks
         // the repository, so this call is the only observable write — dropping
@@ -331,10 +328,9 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse updateBooking(UUID bookingId, UpdateBookingRequest request, String ipAddress) {
-        Booking booking = bookingRepository.findById(bookingId)
-            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+        Booking booking = requireOwnBooking(bookingId);
 
-        BookingStatus status = BookingStatus.parse(booking.getStatus());
+        BookingStatus status = booking.getStatus();
         if (status.isClosedForEdits()) {
             throw new ConflictException(
                 "Cannot edit a " + status.name() + " booking — the shoot is closed.");
@@ -443,10 +439,11 @@ public class BookingService {
             resourceIds == null || resourceIds.isEmpty()
                 ? List.of()
                 : studioResourceRepository
-                    .findClashes(resourceIds, eventDate, excludeBookingId).stream()
+                    .findClashes(resourceIds, eventDate, excludeBookingId, BookingStatus.NOT_HAPPENING)
+                    .stream()
                     .map(c -> new BookingConflictResponse.ResourceClash(
                         c.getResourceName(), c.getBookingId(), c.getClientName(),
-                        c.getEventTime(), c.getStatus()))
+                        c.getEventTime(), c.getStatus().name()))
                     .toList();
 
         if (assignedUserId == null) {
@@ -455,10 +452,11 @@ public class BookingService {
             return new BookingConflictResponse(List.of(), resourceClashes);
         }
         List<BookingConflictResponse.Conflict> conflicts = bookingRepository
-            .findSameDayForPhotographer(assignedUserId, eventDate, excludeBookingId)
+            .findSameDayForPhotographer(
+                assignedUserId, eventDate, excludeBookingId, BookingStatus.NOT_HAPPENING)
             .stream()
             .map(b -> new BookingConflictResponse.Conflict(
-                b.getId(), b.getClientName(), b.getEventTime(), b.getStatus()))
+                b.getId(), b.getClientName(), b.getEventTime(), b.getStatus().name()))
             .toList();
         return new BookingConflictResponse(conflicts, resourceClashes);
     }
@@ -517,14 +515,26 @@ public class BookingService {
         if (wanted.isEmpty()) {
             return wanted;
         }
-        Set<UUID> found = studioResourceRepository.findAllById(wanted).stream()
-            .map(StudioResource::getId)
-            .collect(Collectors.toSet());
-        if (found.size() != wanted.size()) {
+        Set<UUID> found = studioResourceRepository.findExistingIds(wanted);
+        if (!found.containsAll(wanted)) {
             UUID missing = wanted.stream().filter(id -> !found.contains(id)).findFirst().orElseThrow();
             throw new NotFoundException("Resource not found: " + missing);
         }
         return wanted;
+    }
+
+    /**
+     * The booking, or a 404 — never another tenant's.
+     *
+     * <p>Scoped in the query rather than left to row-level security. RLS does
+     * cover it (see {@code BookingRepository#findByIdAndTenantId}), but a
+     * mutation that can move money and cancel a shoot should say what it is
+     * allowed to touch, in the same place a reader looks to find out.
+     */
+    private Booking requireOwnBooking(UUID bookingId) {
+        return bookingRepository
+            .findByIdAndTenantId(bookingId, SecurityUtils.requireCurrentTenantId())
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
     }
 
     /**

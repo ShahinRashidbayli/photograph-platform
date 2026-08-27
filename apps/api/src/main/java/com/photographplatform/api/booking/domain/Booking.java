@@ -2,6 +2,8 @@ package com.photographplatform.api.booking.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -71,8 +73,19 @@ public class Booking {
     @Column(name = "deposit_amount_cents", nullable = false)
     private Integer depositAmountCents = 0;
 
+    /**
+     * Stored as text via {@code @Enumerated(STRING)} rather than mapped to a
+     * {@code String} field: the column and its CHECK constraint are unchanged
+     * — Hibernate writes {@code name()} into the same varchar — but the type
+     * system now knows what the values are. It used to be a String, so every
+     * read went through {@code BookingStatus.parse} and every write through
+     * {@code .name()}, which put a parse of trusted, already-validated data on
+     * paths that could not fail and pushed the enum out to the edges of a
+     * class whose whole subject is the lifecycle.
+     */
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private String status = "ENQUIRY";
+    private BookingStatus status = BookingStatus.ENQUIRY;
 
     /**
      * The photographer shooting this, or null while nobody has decided.
@@ -212,11 +225,11 @@ public class Booking {
         this.depositAmountCents = depositAmountCents;
     }
 
-    public String getStatus() {
+    public BookingStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(BookingStatus status) {
         this.status = status;
     }
 

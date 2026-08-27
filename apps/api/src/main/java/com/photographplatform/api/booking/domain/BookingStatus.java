@@ -61,6 +61,24 @@ public enum BookingStatus {
         }
     }
 
+    /**
+     * States where the shoot is over or called off, and editing its facts —
+     * date, price, location — no longer describes anything that will happen.
+     * {@code BookingService#updateBooking} refuses these, the way {@code
+     * LeadService#updateLead} refuses a terminal lead.
+     *
+     * <p>Deliberately its own set rather than "has no legal transition left":
+     * this enum's javadoc calls {@code COMPLETED} terminal but {@link #ALLOWED}
+     * still permits {@code COMPLETED -> CANCELLED}, so the two disagree about
+     * what terminal means. Editing a completed shoot is wrong either way — it
+     * has been delivered and very likely invoiced — so the edit guard says what
+     * it means directly instead of inheriting that ambiguity. Resolving the
+     * disagreement itself is a change to the state machine, not to this guard.
+     */
+    public boolean isClosedForEdits() {
+        return this == COMPLETED || this == DECLINED || this == CANCELLED;
+    }
+
     public boolean canTransitionTo(BookingStatus next) {
         return ALLOWED.getOrDefault(this, EnumSet.noneOf(BookingStatus.class)).contains(next);
     }

@@ -47,6 +47,16 @@ public class BookingPaymentStateResolver {
     }
 
     public record Summary(BookingPaymentState state, int invoicedCents, int paidCents) {
+
+        /**
+         * A booking with nothing billed against it. Named because three places
+         * built the same triple inline, and because it is what callers should
+         * fall back to rather than risking a null Summary reaching {@code
+         * state()}.
+         */
+        public static Summary none() {
+            return new Summary(BookingPaymentState.NOT_INVOICED, 0, 0);
+        }
     }
 
     /**
@@ -59,8 +69,7 @@ public class BookingPaymentStateResolver {
      * through here.
      */
     public Summary resolve(UUID bookingId) {
-        return resolveAll(List.of(bookingId))
-            .getOrDefault(bookingId, new Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
+        return resolveAll(List.of(bookingId)).getOrDefault(bookingId, Summary.none());
     }
 
     /**
@@ -71,6 +80,13 @@ public class BookingPaymentStateResolver {
      * {@code BookingService#listForPhotographer} and {@code #getOwnBookings},
      * which previously called {@link #resolve(UUID)} once per row in the
      * page — an N+1 that showed up as 1-2 extra queries per booking.
+     *
+     * <p><strong>Contract:</strong> the returned map holds an entry for every
+     * id passed in, never a subset — a booking with no invoice maps to {@link
+     * Summary#none()} rather than being absent. Callers map a whole page
+     * through this, and one missing key would be a null {@code Summary} whose
+     * {@code state()} takes down the entire list rather than one row. Pinned by
+     * {@code BookingPaymentStateResolverTest}.
      */
     public Map<UUID, Summary> resolveAll(Collection<UUID> bookingIds) {
         if (bookingIds.isEmpty()) {
@@ -92,7 +108,7 @@ public class BookingPaymentStateResolver {
         for (UUID bookingId : bookingIds) {
             List<Invoice> bookingInvoices = invoicesByBooking.get(bookingId);
             if (bookingInvoices == null || bookingInvoices.isEmpty()) {
-                result.put(bookingId, new Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
+                result.put(bookingId, Summary.none());
                 continue;
             }
             int paid = bookingInvoices.stream()

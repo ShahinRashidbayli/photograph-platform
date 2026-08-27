@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -138,6 +139,25 @@ public class GlobalExceptionHandler {
         return respond(
             HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.VALIDATION_FAILED, message, request,
             details.isEmpty() ? null : details);
+    }
+
+    /**
+     * Optimistic-lock failure (V30): the row moved under a check-then-act.
+     *
+     * <p>409 rather than 500 because nothing is broken and nothing about the
+     * request was invalid — two people acted on the same booking, lead or
+     * inquiry at once and this one lost. Its own code, because the right client
+     * response is "reload and try again", which is not what the other 409s
+     * mean.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+        OptimisticLockingFailureException ex, HttpServletRequest request) {
+        LOG.info("Concurrent modification on {}", request.getRequestURI());
+        return respond(
+            HttpStatus.CONFLICT, ErrorCode.CONCURRENT_MODIFICATION,
+            "Someone else changed this while you were editing it — reload and try again.",
+            request);
     }
 
     /**

@@ -4,16 +4,29 @@ import com.photographplatform.api.booking.domain.Booking;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
-    Page<Booking> findByStatus(String status, Pageable pageable);
 
-    Page<Booking> findByOrderByEventDateAsc(Pageable pageable);
+    /*
+     * The list methods return Slice, not Page. A Page runs a second COUNT query
+     * to populate totals, and every caller here immediately discarded them: the
+     * endpoints answer a JSON array, and the clients page by asking for N rows
+     * and stopping when they get fewer than N back. That is exactly what a
+     * Slice knows and a Page pays extra for.
+     *
+     * Ordering comes from the Pageable the service builds, so it is not spelled
+     * into the method names as well — two sources for one ORDER BY is one edit
+     * away from disagreeing.
+     */
+
+    Slice<Booking> findAllBy(Pageable pageable);
+
+    Slice<Booking> findByStatus(String status, Pageable pageable);
 
     /**
      * What else this photographer is already booked for that day.
@@ -26,13 +39,16 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
      * every repository here relies on the same policy.
      *
      * @param excludeId the booking being edited, so it does not clash with
-     *                  itself; pass a random UUID when creating a new one
+     *                  itself; null when creating a new one, which excludes
+     *                  nothing. It used to be a caller-minted {@code
+     *                  UUID.randomUUID()} standing in for "no exclusion" — a
+     *                  real-looking id that meant the opposite of a real id.
      */
     @Query("""
         SELECT b FROM Booking b
         WHERE b.assignedUserId = :userId
           AND b.eventDate = :date
-          AND b.id <> :excludeId
+          AND (:excludeId IS NULL OR b.id <> :excludeId)
           AND b.status NOT IN ('CANCELLED', 'DECLINED')
         ORDER BY b.eventTime ASC NULLS LAST
         """)
@@ -46,9 +62,10 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     // (e.g. created straight from a lead), and the authenticated customer's
     // identity is their email. Case-insensitive because emails are stored
     // lower-cased on write but callers should not depend on that.
-    Page<Booking> findByClientEmailIgnoreCaseOrderByEventDateAsc(String clientEmail, Pageable pageable);
+    Slice<Booking> findByClientEmailIgnoreCase(String clientEmail, Pageable pageable);
 
-    Page<Booking> findByClientEmailIgnoreCaseAndStatus(String clientEmail, String status, Pageable pageable);
+    Slice<Booking> findByClientEmailIgnoreCaseAndStatus(
+        String clientEmail, String status, Pageable pageable);
 
     /**
      * Unpaged — used only to resolve which bookings (and so which invoices) a

@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -22,6 +23,16 @@ public class InquiryRequest {
 
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
+
+    /**
+     * Optimistic-lock counter (V30). Present so a lifecycle change is a
+     * conditional write rather than a last-writer-wins overwrite — see the
+     * migration for the interleavings this closes. Nothing reads it; Hibernate
+     * owns it entirely, hence no setter.
+     */
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;

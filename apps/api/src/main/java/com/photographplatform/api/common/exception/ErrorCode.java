@@ -42,6 +42,13 @@ public final class ErrorCode {
     /** A unique constraint rejected the write — usually a race on the same key. */
     public static final String ALREADY_EXISTS = "ALREADY_EXISTS";
 
+    /**
+     * Someone else changed the row between this caller reading it and writing
+     * it. Distinct from {@link #CONFLICT}: nothing about the request was wrong,
+     * and a plain retry against the fresh state is the correct client response.
+     */
+    public static final String CONCURRENT_MODIFICATION = "CONCURRENT_MODIFICATION";
+
     /** Rate limit or lockout. */
     public static final String TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS";
 

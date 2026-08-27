@@ -50,6 +50,13 @@ public class LeadConversionService {
      * a duplicate booking. Booking creation and the lead status flip happen in
      * the same transaction so a failure midway never leaves the lead
      * advertising "BOOKED" without a matching booking row.
+     *
+     * <p>That promise used to hold only for calls that arrived one after the
+     * other. Two landing together both read a lead that was not yet BOOKED,
+     * both passed the check, and one lead produced two bookings. {@code Lead}
+     * now carries an {@code @Version} (V30), so the second flip fails with a
+     * 409 instead, and {@code uq_bookings_one_per_lead} refuses the duplicate
+     * at the database even if some future caller forgets the check entirely.
      */
     @Transactional
     public BookingResponse convertLead(UUID leadId, ConvertLeadRequest overrides, String ipAddress) {
@@ -67,7 +74,7 @@ public class LeadConversionService {
         lead.setStatus(LeadStatus.BOOKED);
         leadRepository.save(lead);
 
-        auditService.log(
+        auditService.logChange(
             "LEAD_CONVERTED",
             "LEAD",
             lead.getId(),

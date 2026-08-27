@@ -8,7 +8,9 @@ import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.util.Normalize;
+import com.photographplatform.api.common.util.Paging;
 import com.photographplatform.api.lead.domain.Lead;
+import com.photographplatform.api.lead.domain.LeadScore;
 import com.photographplatform.api.lead.domain.LeadStatus;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
 import com.photographplatform.api.lead.dto.LeadResponse;
@@ -19,8 +21,8 @@ import com.photographplatform.api.tenant.domain.Tenant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,8 @@ public class LeadService {
      */
     public static final UUID ANONYMOUS_ACTOR_ID =
         UUID.fromString("00000000-0000-0000-0000-000000000000");
+
+    private static final Sort NEWEST_FIRST = Sort.by("createdAt").descending();
 
     private final LeadRepository leadRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -84,7 +88,7 @@ public class LeadService {
 
         UUID actorId = SecurityUtils.requireCurrentUserId();
         UUID tenantId = SecurityUtils.currentTenantId();
-        auditService.log(
+        auditService.logChange(
             "LEAD_REJECTED",
             "LEAD",
             lead.getId(),
@@ -178,7 +182,7 @@ public class LeadService {
 
         UUID actorId = SecurityUtils.requireCurrentUserId();
         UUID tenantId = SecurityUtils.currentTenantId();
-        auditService.log(
+        auditService.logChange(
             "LEAD_UPDATED",
             "LEAD",
             lead.getId(),
@@ -236,7 +240,7 @@ public class LeadService {
 
         UUID actorId = SecurityUtils.requireCurrentUserId();
         UUID tenantId = SecurityUtils.currentTenantId();
-        auditService.log(
+        auditService.logChange(
             "LEAD_REPLIED",
             "LEAD",
             lead.getId(),
@@ -322,26 +326,42 @@ public class LeadService {
         return mapper.toResponse(saved);
     }
 
+    /**
+     * The photographer's lead list, optionally filtered by score and status.
+     *
+     * <p>Both filters are parsed rather than passed through. An unrecognised
+     * value used to reach the repository verbatim and match nothing, so {@code
+     * ?score=HIGHH} and "you have no high-scoring leads" were the same
+     * response — and the caller had no way to tell a typo from an empty
+     * pipeline.
+     */
     @Transactional(readOnly = true)
     public List<LeadResponse> getLeads(String score, String status, int page, int size) {
-        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = Paging.of(page, size, NEWEST_FIRST);
+        String parsedScore = score == null || score.isBlank() ? null : LeadScore.parse(score).name();
+        String parsedStatus = status == null || status.isBlank() ? null : LeadStatus.parse(status).name();
 
-        Page<Lead> result;
-        if (score != null && status != null) {
-            result = leadRepository.findByScoreAndStatus(score, status, pageable);
-        } else if (score != null) {
-            result = leadRepository.findByScore(score, pageable);
-        } else if (status != null) {
-            result = leadRepository.findByStatus(status, pageable);
+        Slice<Lead> result;
+        if (parsedScore != null && parsedStatus != null) {
+            result = leadRepository.findByScoreAndStatus(parsedScore, parsedStatus, pageable);
+        } else if (parsedScore != null) {
+            result = leadRepository.findByScore(parsedScore, pageable);
+        } else if (parsedStatus != null) {
+            result = leadRepository.findByStatus(parsedStatus, pageable);
         } else {
-            result = leadRepository.findAll(pageable);
+            result = leadRepository.findAllBy(pageable);
         }
         return result.stream().map(mapper::toResponse).toList();
     }
 
+    /**
+     * The dashboard's "latest leads" strip. {@code limit} goes through the same
+     * bound as a page size — it is the same thing under another name, and
+     * nothing stopped {@code ?limit=100000} before.
+     */
     @Transactional(readOnly = true)
     public List<LeadResponse> getRecentLeads(int limit) {
-        return leadRepository.findAll(PageRequest.of(0, limit, Sort.by("createdAt").descending()))
+        return leadRepository.findAllBy(Paging.of(0, limit, NEWEST_FIRST))
             .stream()
             .map(mapper::toResponse)
             .toList();
@@ -380,7 +400,7 @@ public class LeadService {
         // would bloat the audit table and an audit row's purpose is "when /
         // who", not "what was the prose". The flag pair makes it easy to
         // reconstruct the lifecycle.
-        auditService.log(
+        auditService.logChange(
             "LEAD_NOTES_UPDATED",
             "LEAD",
             lead.getId(),

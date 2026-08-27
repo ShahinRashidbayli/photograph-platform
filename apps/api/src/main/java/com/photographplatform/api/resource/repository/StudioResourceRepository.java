@@ -25,6 +25,8 @@ public interface StudioResourceRepository extends JpaRepository<StudioResource, 
      *
      * <p>Cancelled and declined are excluded for the same reason as the
      * photographer check: a shoot that is not happening holds nothing.
+     *
+     * @param excludeId the booking being edited, or null to exclude nothing
      */
     @Query("""
         SELECT r.name AS resourceName, b.id AS bookingId, b.clientName AS clientName,
@@ -34,7 +36,7 @@ public interface StudioResourceRepository extends JpaRepository<StudioResource, 
         JOIN StudioResource r ON r.id = br.resourceId
         WHERE br.resourceId IN :resourceIds
           AND b.eventDate = :date
-          AND b.id <> :excludeId
+          AND (:excludeId IS NULL OR b.id <> :excludeId)
           AND b.status NOT IN ('CANCELLED', 'DECLINED')
         ORDER BY r.name ASC, b.eventTime ASC NULLS LAST
         """)

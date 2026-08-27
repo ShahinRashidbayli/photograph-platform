@@ -66,8 +66,17 @@ public class AuditService {
         }
     }
 
+    /**
+     * Logs a change, recording what the value was and what it became.
+     *
+     * <p>Named apart from {@link #log} rather than overloading it: at a call
+     * site the two extra arguments were a pair of bare strings whose meaning —
+     * old first, new second — was visible only by counting commas against the
+     * declaration. One test had to keep a dead method around purely to tell
+     * Mockito which overload it meant.
+     */
     @Async
-    public void log(
+    public void logChange(
         String action,
         String entityType,
         UUID entityId,

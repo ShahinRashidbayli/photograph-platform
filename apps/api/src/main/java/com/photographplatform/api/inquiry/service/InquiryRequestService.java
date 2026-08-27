@@ -10,7 +10,9 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
+import com.photographplatform.api.common.util.Paging;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
+import com.photographplatform.api.inquiry.domain.InquiryStatus;
 import com.photographplatform.api.inquiry.dto.CreateInquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
@@ -34,8 +36,7 @@ import com.photographplatform.api.common.security.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class InquiryRequestService {
 
     private static final Logger LOG = LoggerFactory.getLogger(InquiryRequestService.class);
+
+    private static final Sort NEWEST_FIRST = Sort.by("createdAt").descending();
 
     /**
      * Bounds inquiry spam from an authenticated customer. Generous enough that a
@@ -155,18 +158,24 @@ public class InquiryRequestService {
         return toResponse(saved, customer);
     }
 
-    /** The photographer's inbox — every inquiry in the tenant, newest first. */
+    /**
+     * The photographer's inbox — every inquiry in the tenant, newest first.
+     *
+     * <p>An unrecognised {@code status} is refused rather than filtered on: it
+     * used to reach the repository as-is, so {@code ?status=PENDINGG} answered
+     * an empty inbox — the same response as "nothing is waiting for you".
+     */
     @Transactional(readOnly = true)
     public List<InquiryRequestResponse> listForPhotographer(String status, int page, int size) {
-        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<InquiryRequest> result = status == null || status.isBlank()
-            ? inquiryRepository.findAll(pageable)
-            : inquiryRepository.findByStatus(status, pageable);
+        Pageable pageable = Paging.of(page, size, NEWEST_FIRST);
+        List<InquiryRequest> inquiries = (status == null || status.isBlank()
+            ? inquiryRepository.findAllBy(pageable)
+            : inquiryRepository.findByStatus(InquiryStatus.parse(status).name(), pageable)
+        ).getContent();
 
         // Batch-load the customers for this page in one query rather than a
         // findById per inquiry (the old N+1). A missing user row still degrades
         // to an inquiry without contact details rather than blanking the inbox.
-        List<InquiryRequest> inquiries = result.getContent();
         Set<UUID> customerIds = inquiries.stream()
             .map(InquiryRequest::getCustomerId)
             .collect(Collectors.toSet());
@@ -192,23 +201,29 @@ public class InquiryRequestService {
      * BOOKING_CREATED}. Rejecting moves it to {@code REJECTED}. Either way the
      * customer gets an email. The repository is tenant-scoped by RLS, so the
      * id can only ever resolve within the caller's own tenant.
+     *
+     * <p>The PENDING check is only meaningful because {@code InquiryRequest}
+     * carries an {@code @Version} (V30). Two accepts arriving together both saw
+     * PENDING, both passed, and one inquiry produced two bookings and two
+     * "your inquiry was accepted" emails. The second write now fails with a
+     * 409, and {@code uq_bookings_one_per_inquiry} refuses the duplicate
+     * booking at the database as a backstop.
      */
     @Transactional
     public InquiryRequestResponse updateStatus(UUID id, String targetStatus, String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
 
-        String target = targetStatus == null ? "" : Normalize.upper(targetStatus);
-        if (!"ACCEPTED".equals(target) && !"REJECTED".equals(target)) {
-            throw new ConflictException("Unsupported status transition: " + targetStatus);
-        }
+        InquiryStatus target = InquiryStatus.parseTarget(targetStatus);
 
         InquiryRequest inquiry = inquiryRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Inquiry not found: " + id));
 
-        if (!"PENDING".equals(inquiry.getStatus())) {
+        InquiryStatus current = InquiryStatus.parse(inquiry.getStatus());
+        if (current.isTerminal()) {
             throw new ConflictException(
-                "This inquiry has already been " + Normalize.lower(inquiry.getStatus()).replace('_', ' ') + ".");
+                "This inquiry has already been "
+                    + Normalize.lower(current.name()).replace('_', ' ') + ".");
         }
 
         // The inquiry carries only a customer_id; the booking (and the email)
@@ -216,17 +231,19 @@ public class InquiryRequestService {
         User customer = userRepository.findById(inquiry.getCustomerId())
             .orElseThrow(() -> new NotFoundException("Customer not found for inquiry: " + id));
 
-        boolean accepted = "ACCEPTED".equals(target);
+        boolean accepted = target == InquiryStatus.BOOKING_CREATED;
         if (accepted) {
             bookingService.createFromInquiry(inquiry, customer, ipAddress);
-            inquiry.setStatus("BOOKING_CREATED");
-        } else {
-            inquiry.setStatus("REJECTED");
         }
+        inquiry.setStatus(target.name());
         InquiryRequest saved = inquiryRepository.save(inquiry);
 
-        auditService.log("INQUIRY_" + target, "INQUIRY_REQUEST", saved.getId(),
-            tenantId, actorId, ipAddress);
+        // The audit action names the decision the photographer made, not the
+        // state it resolved to: "INQUIRY_ACCEPTED" is what the existing rows
+        // say, and renaming it to match the enum would split the history of one
+        // action across two names.
+        auditService.log(accepted ? "INQUIRY_ACCEPTED" : "INQUIRY_REJECTED",
+            "INQUIRY_REQUEST", saved.getId(), tenantId, actorId, ipAddress);
 
         notifyCustomerOfDecision(customer, accepted);
 
@@ -239,7 +256,7 @@ public class InquiryRequestService {
         UUID customerId = SecurityUtils.requireCurrentUserId();
         User customer = userRepository.findById(customerId)
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
-        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = Paging.of(page, size, NEWEST_FIRST);
         return inquiryRepository.findByCustomerId(customerId, pageable)
             .stream()
             .map(inquiry -> toResponse(inquiry, customer))

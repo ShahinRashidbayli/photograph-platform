@@ -231,7 +231,7 @@ public class InvoiceService {
         original.markStornied();
         invoiceRepository.save(original);
 
-        auditService.log("INVOICE_STORNIERT", "INVOICE", storno.getId(), tenantId, actorId, ipAddress,
+        auditService.logChange("INVOICE_STORNIERT", "INVOICE", storno.getId(), tenantId, actorId, ipAddress,
             original.getInvoiceNumber(), storno.getInvoiceNumber());
 
         return toResponse(storno, stornoLines);

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -132,7 +132,7 @@ class BookingSecurityRuleTest {
 
     @Test
     void photographerTokenIsAllowedIntoPhotographerBookings() throws Exception {
-        when(bookingRepository.findByOrderByEventDateAsc(any())).thenReturn(Page.empty());
+        when(bookingRepository.findAllBy(any())).thenReturn(new SliceImpl<>(List.of()));
         mvc.perform(get("/api/photographerBookings")
                 .header("Authorization", "Bearer " + photographerToken()))
             .andExpect(status().isOk());

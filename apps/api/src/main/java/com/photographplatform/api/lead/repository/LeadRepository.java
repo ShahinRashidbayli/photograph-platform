@@ -3,18 +3,27 @@ package com.photographplatform.api.lead.repository;
 import com.photographplatform.api.lead.domain.Lead;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.QueryHints;
 import jakarta.persistence.QueryHint;
 
 public interface LeadRepository extends JpaRepository<Lead, UUID> {
-    Page<Lead> findByScore(String score, Pageable pageable);
 
-    Page<Lead> findByStatus(String status, Pageable pageable);
+    /*
+     * Slice, not Page: the endpoint answers a JSON array and never carried the
+     * totals a Page pays a second COUNT query to produce. See
+     * BookingRepository for the same reasoning.
+     */
 
-    Page<Lead> findByScoreAndStatus(String score, String status, Pageable pageable);
+    Slice<Lead> findAllBy(Pageable pageable);
+
+    Slice<Lead> findByScore(String score, Pageable pageable);
+
+    Slice<Lead> findByStatus(String status, Pageable pageable);
+
+    Slice<Lead> findByScoreAndStatus(String score, String status, Pageable pageable);
 
     /**
      * Cursor-backed stream of every lead in the tenant, for the CSV export.

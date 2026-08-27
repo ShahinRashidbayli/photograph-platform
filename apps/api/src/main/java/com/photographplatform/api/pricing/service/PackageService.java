@@ -48,7 +48,7 @@ public class PackageService {
         UUID tenantId = SecurityUtils.currentTenantId();
         // Pricing changes drive every future invoice — without this audit row
         // there's no way to answer "why was this booking €1,800?" months later.
-        auditService.log(
+        auditService.logChange(
             "PACKAGE_CREATED",
             "PACKAGE",
             saved.getId(),
@@ -83,7 +83,7 @@ public class PackageService {
         // Use the request id (not pkg.getId()) so the audit row is stable even
         // when the entity is reattached / lazy-loaded — they're the same value
         // since we just loaded by it.
-        auditService.log(
+        auditService.logChange(
             "PACKAGE_UPDATED",
             "PACKAGE",
             id,
@@ -109,7 +109,7 @@ public class PackageService {
         Package pkg = loadOrThrow(id);
         UUID actorId = SecurityUtils.requireCurrentUserId();
         UUID tenantId = SecurityUtils.currentTenantId();
-        auditService.log(
+        auditService.logChange(
             "PACKAGE_DELETED",
             "PACKAGE",
             id,

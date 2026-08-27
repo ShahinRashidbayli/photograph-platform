@@ -1,5 +1,6 @@
 package com.photographplatform.api.lead.service;
 
+import com.photographplatform.api.lead.domain.LeadScore;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -90,11 +91,11 @@ public class LeadScoringService {
     public String rollup(String budgetRange, String eventType, LocalDate eventDate) {
         ScoreBreakdown b = breakdown(budgetRange, eventType, eventDate);
         if (b.budget() >= 90 && b.type() == 100 && b.time() == 100) {
-            return "HIGH";
+            return LeadScore.HIGH.name();
         }
         if (b.budget() == 60 || b.time() >= 70) {
-            return "MED";
+            return LeadScore.MED.name();
         }
-        return "LOW";
+        return LeadScore.LOW.name();
     }
 }

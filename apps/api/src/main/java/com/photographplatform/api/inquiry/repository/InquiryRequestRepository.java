@@ -2,8 +2,8 @@ package com.photographplatform.api.inquiry.repository;
 
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -15,12 +15,20 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface InquiryRequestRepository extends JpaRepository<InquiryRequest, UUID> {
 
-    Page<InquiryRequest> findByStatus(String status, Pageable pageable);
+    /*
+     * Slice, not Page: the inbox endpoint answers a JSON array and never
+     * carried the totals a Page pays a second COUNT query to produce. Same
+     * reasoning as BookingRepository.
+     */
+
+    Slice<InquiryRequest> findAllBy(Pageable pageable);
+
+    Slice<InquiryRequest> findByStatus(String status, Pageable pageable);
 
     /**
      * The customer's own inquiries. Scoped by customer id on top of the RLS
      * tenant isolation, so one customer can never read another's request even
      * though they share the same photographer.
      */
-    Page<InquiryRequest> findByCustomerId(UUID customerId, Pageable pageable);
+    Slice<InquiryRequest> findByCustomerId(UUID customerId, Pageable pageable);
 }

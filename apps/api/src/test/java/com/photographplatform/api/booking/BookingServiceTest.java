@@ -6,9 +6,13 @@ import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingPaymentState;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
+import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
+import com.photographplatform.api.booking.service.BookingMapper;
 import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.resource.repository.BookingResourceRepository;
+import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
@@ -16,6 +20,7 @@ import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +58,7 @@ class BookingServiceTest {
     private ClientRepository clientRepository;
     private PackageRepository packageRepository;
     private AuditService auditService;
+    private StudioResourceRepository studioResourceRepository;
     private BookingService bookingService;
 
     @BeforeEach
@@ -65,9 +72,12 @@ class BookingServiceTest {
         when(paymentStateResolver.resolve(any())).thenReturn(
             new BookingPaymentStateResolver.Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
 
+        studioResourceRepository = mock(StudioResourceRepository.class);
+        BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
         bookingService = new BookingService(
             bookingRepository, clientRepository, userRepository, auditService, packageRepository,
-            paymentStateResolver);
+            paymentStateResolver, studioResourceRepository, bookingResourceRepository,
+            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -83,7 +93,8 @@ class BookingServiceTest {
     private static CreateBookingRequest request(UUID clientId, UUID packageId, Integer totalCents) {
         return new CreateBookingRequest(
             "Maria Kellner", "Maria@Example.com", LocalDate.now().plusDays(30),
-            null, "WEDDING", "Berlin", clientId, packageId, totalCents, null, "  notes  ");
+            null, "WEDDING", "Berlin", clientId, packageId, totalCents, null, "  notes  ",
+            null, null);
     }
 
     @Test
@@ -151,7 +162,7 @@ class BookingServiceTest {
         BookingResponse response = bookingService.changeStatus(id, "CONFIRMED", IP);
 
         assertThat(response.status()).isEqualTo("CONFIRMED");
-        verify(auditService).log(
+        verify(auditService).logChange(
             eq("BOOKING_STATUS_CHANGED"), eq("BOOKING"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP),
             eq("ENQUIRY"), eq("CONFIRMED"));
     }
@@ -177,5 +188,67 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> bookingService.changeStatus(id, "CONFIRMED", IP))
             .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void updateRefusesAResourceFromAnotherStudio() {
+        // RLS does not cover this one. V28 scopes booking_resources through the
+        // *booking's* tenant, not the resource's, and a foreign key check runs
+        // outside row-level security — so another studio's room could be
+        // attached here and would then turn up in this tenant's clash
+        // warnings. The RLS-scoped lookup is what makes a foreign id absent.
+        UUID id = UUID.randomUUID();
+        UUID foreignResource = UUID.randomUUID();
+        Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
+        booking.setTenantId(TENANT_ID);
+        booking.setStatus("ENQUIRY");
+        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
+        when(studioResourceRepository.findAllById(any())).thenReturn(List.of());
+
+        assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(List.of(foreignResource)), IP))
+            .isInstanceOf(NotFoundException.class)
+            .hasMessageContaining(foreignResource.toString());
+    }
+
+    @Test
+    void updateRefusesABookingThatIsAlreadyClosed() {
+        // Repricing or re-dating a shoot that was delivered or called off does
+        // not describe anything that will happen, and on a completed booking it
+        // silently disagrees with the invoice already issued against it.
+        // LeadService#updateLead has refused the equivalent all along.
+        UUID id = UUID.randomUUID();
+        Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
+        booking.setTenantId(TENANT_ID);
+        booking.setStatus("CANCELLED");
+        when(bookingRepository.findById(id)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(null), IP))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("CANCELLED");
+
+        // Nothing was written on the way to the refusal.
+        assertThat(booking.getClientName()).isEqualTo("Maria");
+    }
+
+    @Test
+    void listRefusesAStatusFilterThatIsNotAStatus() {
+        // ?status=CONFIRMEDD used to answer an empty list, which is
+        // indistinguishable from "you have no confirmed bookings".
+        assertThatThrownBy(() -> bookingService.listForPhotographer("CONFIRMEDD", 0, 20))
+            .isInstanceOf(ConflictException.class);
+        verifyNoInteractions(bookingRepository);
+    }
+
+    @Test
+    void listRefusesAPageSizeNoClientAsksFor() {
+        assertThatThrownBy(() -> bookingService.listForPhotographer(null, 0, 100_000))
+            .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(bookingRepository);
+    }
+
+    private static UpdateBookingRequest updateRequest(List<UUID> resourceIds) {
+        return new UpdateBookingRequest(
+            "Maria Kellner", "maria@example.com", LocalDate.now().plusDays(30),
+            null, "WEDDING", "Berlin", null, 50_000, null, null, null, resourceIds);
     }
 }

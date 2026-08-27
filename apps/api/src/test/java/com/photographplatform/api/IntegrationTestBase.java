@@ -113,6 +113,7 @@ public abstract class IntegrationTestBase {
         DELETE FROM delivery_photos;
         DELETE FROM galleries;
         DELETE FROM bookings;
+        DELETE FROM studio_resources;
         DELETE FROM clients;
         DELETE FROM packages;
         DELETE FROM leads;

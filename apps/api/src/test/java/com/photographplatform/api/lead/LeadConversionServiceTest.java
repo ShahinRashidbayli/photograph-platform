@@ -13,12 +13,12 @@ import com.photographplatform.api.lead.repository.LeadRepository;
 import com.photographplatform.api.lead.service.LeadConversionService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -29,7 +29,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,7 +107,7 @@ class LeadConversionServiceTest {
 
         // The conversion audit row must carry the prior status so a future
         // reader can reconstruct the lifecycle without joining tables.
-        verify(auditService).log(
+        verify(auditService).logChange(
             eq("LEAD_CONVERTED"),
             eq("LEAD"),
             eq(lead.getId()),
@@ -131,7 +130,7 @@ class LeadConversionServiceTest {
 
         // Crucially: no booking is created and no audit row is written.
         verify(bookingService, never()).createFromLead(any(), any(), anyString());
-        verify(auditService, never()).log(
+        verify(auditService, never()).logChange(
             anyString(), anyString(), any(), any(), any(), anyString(), anyString(), anyString());
     }
 
@@ -201,14 +200,8 @@ class LeadConversionServiceTest {
             "anna@example.de",
             LocalDate.now().plusDays(90),
             null, "WEDDING", null, null, 0, 0,
-            "ENQUIRY", "NOT_INVOICED", 0, null, null, null,
+            "ENQUIRY", "NOT_INVOICED", 0, null, null, null, List.of(),
             OffsetDateTime.now()
         );
-    }
-
-    // Audit logger has two overloads; satisfy the verifier for the 8-arg form.
-    @SuppressWarnings("unused")
-    private void unusedOverloadAnchor(ArgumentCaptor<String> captor) {
-        verify(auditService, times(0)).log(anyString(), anyString(), any(), any(), any(), anyString());
     }
 }

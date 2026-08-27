@@ -186,7 +186,7 @@ class PackageServiceTest {
         PackageResponse created = packageService.create(
             new PackageRequest("Standard", 180000, null, null, null, null, null), IP);
 
-        verify(auditService).log(
+        verify(auditService).logChange(
             eq("PACKAGE_CREATED"),
             eq("PACKAGE"),
             eq(created.id()),
@@ -208,7 +208,7 @@ class PackageServiceTest {
 
         // Old/new price as strings let a future audit reader reconstruct the
         // pricing timeline without joining other tables.
-        verify(auditService).log(
+        verify(auditService).logChange(
             eq("PACKAGE_UPDATED"),
             eq("PACKAGE"),
             eq(id),
@@ -229,7 +229,7 @@ class PackageServiceTest {
         packageService.delete(id, IP);
 
         verify(packageRepository, times(1)).delete(existing);
-        verify(auditService).log(
+        verify(auditService).logChange(
             eq("PACKAGE_DELETED"),
             eq("PACKAGE"),
             eq(id),

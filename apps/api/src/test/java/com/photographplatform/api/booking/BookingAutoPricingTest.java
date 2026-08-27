@@ -7,9 +7,11 @@ import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingMapper;
 import com.photographplatform.api.booking.service.BookingService;
+import com.photographplatform.api.resource.repository.BookingResourceRepository;
+import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
-import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
@@ -69,9 +71,12 @@ class BookingAutoPricingTest {
             new com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary(
                 com.photographplatform.api.booking.domain.BookingPaymentState.NOT_INVOICED, 0, 0));
 
+        StudioResourceRepository studioResourceRepository = mock(StudioResourceRepository.class);
+        BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
         bookingService = new BookingService(
             bookingRepository, clientRepository, userRepository, auditService, packageRepository,
-            paymentStateResolver
+            paymentStateResolver, studioResourceRepository, bookingResourceRepository,
+            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver)
         );
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -101,9 +106,31 @@ class BookingAutoPricingTest {
         BookingResponse resp = bookingService.createBooking(req, "1.2.3.4");
 
         assertThat(resp.totalAmountCents()).isEqualTo(250000);
-        // Package lookup is wasted work when the price is explicit; if we ever
-        // optimise that away this expectation flips, but for now we accept the
-        // extra read to keep the code branch-free.
+        // The package is still looked up, and that is deliberate rather than
+        // wasted work: package_id is written either way, so this is the only
+        // thing that checks the caller may write it. The comment here used to
+        // claim the code was branch-free while resolvePrice returned early —
+        // and the early return is exactly what let an unvalidated package_id
+        // through.
+        verify(packageRepository).findById(packageId);
+    }
+
+    @Test
+    void unknownPackageIsRejectedEvenWhenThePriceIsExplicit() {
+        // The hole this closes: with an explicit total, resolvePrice returned
+        // before ever looking the package up, so package_id was persisted
+        // unchecked. An id that does not exist then died at the foreign key and
+        // surfaced as 409 "Resource already exists"; an id belonging to another
+        // tenant satisfied the foreign key and was stored in silence. The
+        // lookup is RLS-scoped, so both are now the same honest 404.
+        UUID packageId = UUID.randomUUID();
+        when(packageRepository.findById(packageId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+            bookingService.createBooking(req(packageId, 250000), "1.2.3.4")
+        ).isInstanceOf(NotFoundException.class);
+
+        verify(bookingRepository, never()).save(any(Booking.class));
     }
 
     @Test
@@ -154,9 +181,14 @@ class BookingAutoPricingTest {
         // than its total — a negative outstanding balance that the payment
         // state resolver and invoice totals both read as money owed to the
         // client. It must fail at the same place it fails on edit.
+        //
+        // IllegalArgumentException, which the global handler answers as 422:
+        // the payload contradicts itself, no state stands in the way. This was
+        // a 409 until the review — the one place in the codebase where
+        // hand-rolled validation did not answer 422.
         assertThatThrownBy(() ->
             bookingService.createBooking(req(null, 100_000, 150_000), "1.2.3.4")
-        ).isInstanceOf(ConflictException.class);
+        ).isInstanceOf(IllegalArgumentException.class);
 
         verify(bookingRepository, never()).save(any(Booking.class));
     }
@@ -187,6 +219,8 @@ class BookingAutoPricingTest {
             packageId,
             totalCents,
             depositCents,
+            null,
+            null,
             null
         );
     }

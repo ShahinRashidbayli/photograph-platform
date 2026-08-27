@@ -1,25 +1,28 @@
 package com.photographplatform.api.audit.service;
 
-import com.photographplatform.api.audit.domain.AuditLog;
-import com.photographplatform.api.audit.repository.AuditLogRepository;
+import com.photographplatform.api.audit.domain.AuditEntry;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+/**
+ * Records that something happened.
+ *
+ * <p>Publishes rather than writes: {@link AuditLogWriter} turns the entry into
+ * a row after the caller's transaction commits, so the trail cannot claim an
+ * operation that was rolled back. Publishing is an in-memory hand-off — no
+ * database round-trip, no thread hand-off, nothing that can fail — which is
+ * what lets every call site keep treating auditing as free.
+ */
 @Service
 public class AuditService {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AuditService.class);
+    private final ApplicationEventPublisher events;
 
-    private final AuditLogRepository auditLogRepository;
-
-    public AuditService(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
+    public AuditService(ApplicationEventPublisher events) {
+        this.events = events;
     }
 
-    @Async
     public void log(
         String action,
         String entityType,
@@ -28,46 +31,11 @@ public class AuditService {
         UUID actorId,
         String ipAddress
     ) {
-        AuditLog entry = AuditLog.builder(action)
-            .entityType(entityType)
-            .entityId(entityId)
-            .tenantId(tenantId)
-            .actorId(actorId)
-            .ipAddress(ipAddress)
-            .build();
-        auditLogRepository.save(entry);
+        events.publishEvent(new AuditEntry(action, entityType, entityId, tenantId, actorId, ipAddress));
     }
 
     /**
-     * Logs, and never lets the attempt fail the caller.
-     *
-     * <p>Three auth services each carried a private {@code tryAudit} wrapping
-     * {@link #log} in the same try/catch with the same warning. The rule they
-     * were expressing — an audit row must never be the reason a registration,
-     * a login or a password reset fails — belongs to auditing, not to each
-     * caller remembering it.
-     *
-     * <p>{@link #log} is {@code @Async}, so the throw this guards against is
-     * not the insert itself but scheduling it: a saturated executor, or a
-     * shutting-down context. Rare, and never worth failing a sign-in over.
-     */
-    public void logQuietly(
-        String action,
-        String entityType,
-        UUID entityId,
-        UUID tenantId,
-        UUID actorId,
-        String ipAddress
-    ) {
-        try {
-            log(action, entityType, entityId, tenantId, actorId, ipAddress);
-        } catch (RuntimeException ex) {
-            LOG.warn("Audit log failed for {} on {}", action, entityId, ex);
-        }
-    }
-
-    /**
-     * Logs a change, recording what the value was and what it became.
+     * Records a change, keeping what the value was and what it became.
      *
      * <p>Named apart from {@link #log} rather than overloading it: at a call
      * site the two extra arguments were a pair of bare strings whose meaning —
@@ -75,7 +43,6 @@ public class AuditService {
      * declaration. One test had to keep a dead method around purely to tell
      * Mockito which overload it meant.
      */
-    @Async
     public void logChange(
         String action,
         String entityType,
@@ -86,15 +53,34 @@ public class AuditService {
         String oldValue,
         String newValue
     ) {
-        AuditLog entry = AuditLog.builder(action)
-            .entityType(entityType)
-            .entityId(entityId)
-            .tenantId(tenantId)
-            .actorId(actorId)
-            .ipAddress(ipAddress)
-            .oldValue(oldValue)
-            .newValue(newValue)
-            .build();
-        auditLogRepository.save(entry);
+        events.publishEvent(new AuditEntry(
+            action, entityType, entityId, tenantId, actorId, ipAddress, oldValue, newValue));
+    }
+
+    /**
+     * Says at the call site that an audit row must never be the reason this
+     * operation fails — a registration, a login, a password reset.
+     *
+     * <p>Three auth services each carried a private {@code tryAudit} wrapping
+     * the write in the same try/catch; the rule they were expressing belongs to
+     * auditing, not to each caller remembering it.
+     *
+     * <p>Structurally this is now the same as {@link #log}: publishing cannot
+     * throw, and the write happens after commit on another thread where a
+     * failure is caught and logged. Kept because it still says something the
+     * type system does not — that this particular call is on a path where
+     * losing the row is preferable to failing the request — and because the day
+     * auditing grows a synchronous mode, these are the call sites that must not
+     * get it.
+     */
+    public void logQuietly(
+        String action,
+        String entityType,
+        UUID entityId,
+        UUID tenantId,
+        UUID actorId,
+        String ipAddress
+    ) {
+        log(action, entityType, entityId, tenantId, actorId, ipAddress);
     }
 }

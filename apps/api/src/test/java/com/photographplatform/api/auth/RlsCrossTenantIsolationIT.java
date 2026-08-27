@@ -18,6 +18,10 @@ import com.photographplatform.api.portfolio.repository.CategoryRepository;
 import com.photographplatform.api.portfolio.repository.PhotoRepository;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
+import com.photographplatform.api.resource.domain.BookingResource;
+import com.photographplatform.api.resource.domain.StudioResource;
+import com.photographplatform.api.resource.repository.BookingResourceRepository;
+import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
@@ -67,6 +71,8 @@ class RlsCrossTenantIsolationIT extends IntegrationTestBase {
     @Autowired private GalleryRepository galleryRepository;
     @Autowired private DeliveryPhotoRepository deliveryPhotoRepository;
     @Autowired private InquiryRequestRepository inquiryRequestRepository;
+    @Autowired private StudioResourceRepository studioResourceRepository;
+    @Autowired private BookingResourceRepository bookingResourceRepository;
     @Autowired private EntityManager entityManager;
     @Autowired private PlatformTransactionManager txManager;
 
@@ -130,6 +136,50 @@ class RlsCrossTenantIsolationIT extends IntegrationTestBase {
             UUID.randomUUID(), "HOCHZEIT", "OVER_2000", LocalDate.now().plusDays(60),
             "Munich", "Hi", "HIGH", "BIO_LINK"), tenantB)).getId());
         assertIsolated(inquiryRequestRepository, tenantA, inquiryA, tenantB, inquiryB);
+
+        UUID resourceA = as(tenantA, () -> studioResourceRepository.save(
+            new StudioResource(tenantA, "Studio A", "ROOM")).getId());
+        UUID resourceB = as(tenantB, () -> studioResourceRepository.save(
+            new StudioResource(tenantB, "Studio B", "ROOM")).getId());
+        assertIsolated(studioResourceRepository, tenantA, resourceA, tenantB, resourceB);
+
+        // booking_resources is the one table here with no tenant_id of its own:
+        // its policy is an EXISTS against the parent booking (V28). That is a
+        // different shape of rule from every other policy in this schema, so it
+        // is the one most worth proving rather than assuming.
+        as(tenantA, () -> bookingResourceRepository.save(new BookingResource(bookingA, resourceA)));
+        as(tenantB, () -> bookingResourceRepository.save(new BookingResource(bookingB, resourceB)));
+        assertBookingResourceIsolated(bookingA, bookingB, tenantA, tenantB);
+    }
+
+    /**
+     * booking_resources has a composite key and no tenant column, so neither
+     * generic helper fits: visibility is asserted through the link's own
+     * columns.
+     */
+    private void assertBookingResourceIsolated(
+        UUID ownBookingId, UUID otherBookingId, UUID tenantA, UUID tenantB) {
+        assertThat((Long) as(tenantA, this::countBookingResources)).isEqualTo(1L);
+        assertThat((Boolean) as(tenantA, () -> bookingResourceVisible(otherBookingId))).isFalse();
+        assertThat((Boolean) as(tenantA, () -> bookingResourceVisible(ownBookingId))).isTrue();
+
+        assertThat((Long) as(tenantB, this::countBookingResources)).isEqualTo(1L);
+        assertThat((Boolean) as(tenantB, () -> bookingResourceVisible(ownBookingId))).isFalse();
+        assertThat((Boolean) as(tenantB, () -> bookingResourceVisible(otherBookingId))).isTrue();
+    }
+
+    private Long countBookingResources() {
+        return ((Number) entityManager
+            .createNativeQuery("SELECT count(*) FROM booking_resources")
+            .getSingleResult()).longValue();
+    }
+
+    private Boolean bookingResourceVisible(UUID bookingId) {
+        return !entityManager
+            .createNativeQuery("SELECT booking_id FROM booking_resources WHERE booking_id = ?")
+            .setParameter(1, bookingId)
+            .getResultList()
+            .isEmpty();
     }
 
     /** Runs {@code action} in its own fresh transaction, bound to {@code tenantId}. */

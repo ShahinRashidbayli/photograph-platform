@@ -41,8 +41,13 @@ import org.springframework.transaction.annotation.Transactional;
  * tenants' history on a developer machine, and would have kept doing so on any
  * environment that connects as an owning role.
  *
- * <p>Every JPA repository in this codebase already carries the same explicit
- * predicate. These follow that convention rather than inventing a weaker one.
+ * <p>This is <em>not</em> the convention elsewhere, contrary to what an earlier
+ * version of this comment claimed: the repositories over RLS-protected tables
+ * carry no tenant predicate at all and rely on the policy alone, which is a
+ * coherent choice — the integration suite connects as {@code fotolio_app}, so
+ * RLS is genuinely exercised there. The belt-and-braces here is kept because
+ * these are hand-written aggregates rather than derived queries, and because
+ * this screen is the one that reads a tenant's entire financial history.
  */
 @Service
 public class AnalyticsService {

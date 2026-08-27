@@ -4,6 +4,7 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
+import com.photographplatform.api.booking.domain.BookingPricing;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
 import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
@@ -26,7 +27,6 @@ import com.photographplatform.api.common.util.Paging;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.ConvertLeadRequest;
-import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
@@ -124,10 +124,10 @@ public class BookingService {
         booking.setEventTime(request.eventTime());
         booking.setEventType(Normalize.trimToNull(request.eventType()));
         booking.setLocation(Normalize.trimToNull(request.location()));
-        applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
+        booking.applyPricing(pricingFor(
+            request.packageId(), request.totalAmountCents(), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
-        booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), tenantId));
-        booking.setStatus(BookingStatus.ENQUIRY);
+        booking.assignTo(resolveAssignee(request.assignedUserId(), tenantId));
 
         Set<UUID> resources = requireOwnResources(request.resourceIds());
 
@@ -176,9 +176,9 @@ public class BookingService {
         booking.setEventType(Normalize.trimToNull(lead.getEventType()));
         booking.setEventTime(overrides.eventTime());
         booking.setLocation(Normalize.trimToNull(overrides.location()));
-        applyPricing(booking, overrides.packageId(), overrides.totalAmountCents(), overrides.depositAmountCents());
+        booking.applyPricing(pricingFor(
+            overrides.packageId(), overrides.totalAmountCents(), overrides.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(overrides.internalNotes()));
-        booking.setStatus(BookingStatus.ENQUIRY);
 
         Booking saved = bookingRepository.save(booking);
 
@@ -201,12 +201,10 @@ public class BookingService {
      * afterwards. Always created in {@code ENQUIRY}, and linked back to the
      * inquiry via {@code inquiryId} so the funnel joins end to end.
      *
-     * <p>Pricing goes through {@link #applyPricing} with nothing supplied, the
-     * same as every other create path, rather than leaning on the entity's
-     * field initialisers. An inquiry carries no price, so the result is 0/0
-     * either way — but the rule about which of the three amounts may be set
-     * without the others stays in exactly one place, which is the reason
-     * {@code applyPricing} exists at all.
+     * <p>Priced through {@link BookingPricing#unpriced()} rather than left to
+     * the entity's field initialisers: an inquiry carries no price, so the
+     * result is 0/0 either way, but every create path says what it means about
+     * money in the same vocabulary.
      */
     @Transactional
     public BookingResponse createFromInquiry(InquiryRequest inquiry, User customer, String ipAddress) {
@@ -225,8 +223,7 @@ public class BookingService {
         booking.setInquiryId(inquiry.getId());
         booking.setEventType(Normalize.trimToNull(inquiry.getEventType()));
         booking.setLocation(Normalize.trimToNull(inquiry.getLocation()));
-        applyPricing(booking, null, null, null);
-        booking.setStatus(BookingStatus.ENQUIRY);
+        booking.applyPricing(BookingPricing.unpriced());
 
         Booking saved = bookingRepository.save(booking);
 
@@ -282,9 +279,7 @@ public class BookingService {
 
         BookingStatus current = booking.getStatus();
         BookingStatus next = BookingStatus.parse(rawNewStatus);
-        current.assertCanTransitionTo(next);
-
-        booking.setStatus(next);
+        booking.changeStatus(next);
         // Explicit save on an entity that is already managed: dirty checking
         // would write it regardless. Kept because every unit test here mocks
         // the repository, so this call is the only observable write — dropping
@@ -322,18 +317,18 @@ public class BookingService {
      * anything that will happen, and on a completed booking it silently
      * disagrees with the invoice already issued against it.
      *
-     * <p>Pricing follows the same {@link #resolvePrice} rule as creation: an
-     * explicit total wins, otherwise the linked package price, otherwise 0. A
-     * deposit greater than the resolved total is rejected as invalid input.
+     * <p>Pricing follows the same rule as creation — see {@link
+     * BookingPricing}, which owns it: an explicit total wins, otherwise the
+     * linked package price, otherwise 0, and a deposit larger than the total is
+     * refused as invalid input.
      */
     @Transactional
     public BookingResponse updateBooking(UUID bookingId, UpdateBookingRequest request, String ipAddress) {
         Booking booking = requireOwnBooking(bookingId);
 
-        BookingStatus status = booking.getStatus();
-        if (status.isClosedForEdits()) {
+        if (!booking.isEditable()) {
             throw new ConflictException(
-                "Cannot edit a " + status.name() + " booking — the shoot is closed.");
+                "Cannot edit a " + booking.getStatus() + " booking — the shoot is closed.");
         }
 
         booking.setClientName(request.clientName().trim());
@@ -342,9 +337,10 @@ public class BookingService {
         booking.setEventTime(request.eventTime());
         booking.setEventType(Normalize.trimToNull(request.eventType()));
         booking.setLocation(Normalize.trimToNull(request.location()));
-        applyPricing(booking, request.packageId(), request.totalAmountCents(), request.depositAmountCents());
+        booking.applyPricing(pricingFor(
+            request.packageId(), request.totalAmountCents(), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
-        booking.setAssignedUserId(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
+        booking.assignTo(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
         Set<UUID> resources = requireOwnResources(request.resourceIds());
 
         Booking saved = bookingRepository.save(booking);
@@ -363,59 +359,31 @@ public class BookingService {
     }
 
     /**
-     * Set {@code package_id}, {@code total_amount_cents} and {@code
-     * deposit_amount_cents} together, because they are only valid together: a
-     * deposit larger than the total is a negative outstanding balance, which
-     * {@link BookingPaymentStateResolver} and the invoice totals both read as
-     * money the photographer owes the client.
+     * Resolve the caller's pricing intent, refusing a {@code packageId} that is
+     * not this tenant's.
      *
-     * <p>Shared by every write path. The rule previously lived only in {@link
-     * #updateBooking}, so a booking could be *created* with deposit > total and
-     * then be rejected on the first edit that touched nothing but the location.
+     * <p>The arithmetic and the rules about which amounts may coexist live in
+     * {@link BookingPricing}, whose constructor is what makes an invalid
+     * combination unrepresentable. What is left here is the part that needs the
+     * database: whether the package exists, and at what price.
+     *
+     * <p>The package is looked up <em>whether or not</em> its price is used,
+     * and that is the point. This used to return early on an explicit total, so
+     * {@code package_id} was written without anyone having checked it: an
+     * unknown id then failed at the foreign key and surfaced as a baffling 409
+     * "Resource already exists", and — worse — another tenant's package id
+     * satisfies that foreign key perfectly and was stored without a word. The
+     * lookup goes through RLS, which is what makes a cross-tenant id a 404.
      */
-    private void applyPricing(Booking booking, UUID packageId, Integer totalCents, Integer depositCents) {
-        int total = resolvePrice(packageId, totalCents);
-        int deposit = depositCents != null ? depositCents : 0;
-        if (deposit > total) {
-            // Invalid input, not a state conflict: nothing about the booking
-            // stands in the way, the payload just contradicts itself. This
-            // codebase answers hand-rolled validation with 422 everywhere else
-            // (see GlobalExceptionHandler's class javadoc); it used to answer
-            // 409 here alone.
-            throw new IllegalArgumentException("Deposit cannot exceed the total amount");
+    private BookingPricing pricingFor(UUID packageId, Integer totalCents, Integer depositCents) {
+        Integer packagePrice = null;
+        if (packageId != null) {
+            packagePrice = packageRepository.findById(packageId)
+                // Failing closed beats silently zero-pricing a wedding.
+                .orElseThrow(() -> new NotFoundException("Package not found: " + packageId))
+                .getPriceCents();
         }
-        booking.setPackageId(packageId);
-        booking.setTotalAmountCents(total);
-        booking.setDepositAmountCents(deposit);
-    }
-
-    /**
-     * Decide what to store in {@code total_amount_cents}, and refuse a {@code
-     * packageId} that is not this tenant's.
-     *
-     * <p>Caller's explicit price always wins: if {@code totalAmountCents} was
-     * supplied the photographer is overriding the package default (extra hour,
-     * referral discount, custom quote) and that intent must not be silently
-     * replaced. Only when no price was supplied do we fall back to the
-     * package's {@code price_cents}.
-     *
-     * <p>The package is looked up <em>whether or not</em> the price is used,
-     * which is the whole reason the lookup is unconditional. It used to return
-     * early on an explicit total, so {@code package_id} was written without
-     * anyone having checked it existed: an unknown id then failed at the
-     * foreign key and surfaced as a baffling 409 "Resource already exists",
-     * and — worse — another tenant's package id satisfies that foreign key
-     * perfectly and was stored without a word. The lookup goes through RLS, so
-     * doing it always is also what makes cross-tenant ids a 404.
-     */
-    private int resolvePrice(UUID packageId, Integer explicitTotalCents) {
-        if (packageId == null) {
-            return explicitTotalCents != null ? explicitTotalCents : 0;
-        }
-        Package pkg = packageRepository.findById(packageId)
-            .orElseThrow(() -> new NotFoundException("Package not found: " + packageId));
-        // Failing closed beats silently zero-pricing a wedding.
-        return explicitTotalCents != null ? explicitTotalCents : pkg.getPriceCents();
+        return BookingPricing.resolve(packageId, packagePrice, totalCents, depositCents);
     }
 
     /**
@@ -502,7 +470,7 @@ public class BookingService {
      * absent.
      *
      * <p>Runs before the booking is written, alongside {@link #resolveAssignee}
-     * and {@link #resolvePrice}, so a rejected selection leaves nothing behind.
+     * and {@link #pricingFor}, so a rejected selection leaves nothing behind.
      *
      * @return the de-duplicated selection, or null when the caller is not
      *     editing the links at all

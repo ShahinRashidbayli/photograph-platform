@@ -117,6 +117,51 @@ public class Booking {
         this.eventDate = eventDate;
     }
 
+    // ── behaviour ────────────────────────────────────────────────────────────
+
+    /**
+     * Move to the next lifecycle state, or refuse.
+     *
+     * <p>Here rather than in the service because it is the one rule that is
+     * true of a booking wherever it is written from. The service still owns
+     * <em>who</em> may ask and what gets audited; it no longer owns whether the
+     * move is legal.
+     *
+     * @throws com.photographplatform.api.common.exception.ConflictException on
+     *     an illegal transition, or on re-entering the current state
+     */
+    public void changeStatus(BookingStatus next) {
+        status.assertCanTransitionTo(next);
+        this.status = next;
+    }
+
+    /**
+     * Whether this booking's facts may still be edited. False once the shoot is
+     * delivered or called off: repricing or re-dating it then describes nothing
+     * that will happen, and on a completed booking it silently disagrees with
+     * the invoice already issued against it.
+     */
+    public boolean isEditable() {
+        return !status.isClosedForEdits();
+    }
+
+    /**
+     * Set the package and the two amounts together, because they are only
+     * valid together — see {@link BookingPricing}, which is what enforces it.
+     */
+    public void applyPricing(BookingPricing pricing) {
+        this.packageId = pricing.packageId();
+        this.totalAmountCents = pricing.totalCents();
+        this.depositAmountCents = pricing.depositCents();
+    }
+
+    /** @param userId the staff member shooting this, or null to clear it */
+    public void assignTo(UUID userId) {
+        this.assignedUserId = userId;
+    }
+
+    // ── accessors ────────────────────────────────────────────────────────────
+
     public UUID getId() {
         return id;
     }
@@ -205,40 +250,20 @@ public class Booking {
         return packageId;
     }
 
-    public void setPackageId(UUID packageId) {
-        this.packageId = packageId;
-    }
-
     public Integer getTotalAmountCents() {
         return totalAmountCents;
-    }
-
-    public void setTotalAmountCents(Integer totalAmountCents) {
-        this.totalAmountCents = totalAmountCents;
     }
 
     public Integer getDepositAmountCents() {
         return depositAmountCents;
     }
 
-    public void setDepositAmountCents(Integer depositAmountCents) {
-        this.depositAmountCents = depositAmountCents;
-    }
-
     public BookingStatus getStatus() {
         return status;
     }
 
-    public void setStatus(BookingStatus status) {
-        this.status = status;
-    }
-
     public UUID getAssignedUserId() {
         return assignedUserId;
-    }
-
-    public void setAssignedUserId(UUID assignedUserId) {
-        this.assignedUserId = assignedUserId;
     }
 
     public String getInternalNotes() {

@@ -157,7 +157,6 @@ class BookingServiceTest {
     void changeStatusAdvancesThroughLegalTransition() {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
-        booking.setStatus(BookingStatus.ENQUIRY);
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -173,7 +172,6 @@ class BookingServiceTest {
     void changeStatusRejectsIllegalTransitionWith409() {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
-        booking.setStatus(BookingStatus.ENQUIRY);
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         // ENQUIRY may only advance to CONFIRMED or CANCELLED — jumping to COMPLETED is illegal.
@@ -203,7 +201,6 @@ class BookingServiceTest {
         UUID foreignResource = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
         booking.setTenantId(TENANT_ID);
-        booking.setStatus(BookingStatus.ENQUIRY);
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
         when(studioResourceRepository.findExistingIds(any())).thenReturn(Set.of());
 
@@ -221,7 +218,7 @@ class BookingServiceTest {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
         booking.setTenantId(TENANT_ID);
-        booking.setStatus(BookingStatus.CANCELLED);
+        booking.changeStatus(BookingStatus.CANCELLED);
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> bookingService.updateBooking(id, updateRequest(null), IP))

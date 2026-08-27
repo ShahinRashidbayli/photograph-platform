@@ -60,7 +60,18 @@ public class InquiryRequestService {
 
     private static final Logger LOG = LoggerFactory.getLogger(InquiryRequestService.class);
 
-    private static final Sort NEWEST_FIRST = Sort.by("createdAt").descending();
+    /**
+     * Ordered by {@code createdAt}, then by id.
+     *
+     * <p>The tie-breaker is not decoration. Postgres promises no order among
+     * rows a sort cannot separate, and a studio's bookings cluster hard on a
+     * date — a Saturday in June is not two bookings, it is twenty. Without a
+     * second key the same row can appear on two pages and another on none,
+     * which the clients here read as duplicated and missing bookings rather
+     * than as an unstable sort.
+     */
+    private static final Sort NEWEST_FIRST =
+        Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
 
     /**
      * Bounds inquiry spam from an authenticated customer. Generous enough that a

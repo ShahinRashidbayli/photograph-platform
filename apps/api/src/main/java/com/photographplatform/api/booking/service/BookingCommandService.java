@@ -19,6 +19,7 @@ import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -102,10 +103,13 @@ public class BookingCommandService {
         booking.assignTo(resolveAssignee(request.assignedUserId(), tenantId));
         booking.linkCustomer(customerAccounts.forEmail(booking.getClientEmail(), tenantId));
 
-        Set<UUID> resources = requireOwnResources(request.resourceIds());
+        Optional<Set<UUID>> resources = requireOwnResources(request.resourceIds());
 
         Booking saved = bookingRepository.save(booking);
-        replaceResources(saved.getId(), resources);
+        // linkResources, not replaceResources: there is nothing yet to replace,
+        // and the delete-then-flush that path opens with is two round trips per
+        // create against an empty set of rows.
+        resources.ifPresent(r -> linkResources(saved.getId(), r));
 
         auditService.log("BOOKING_CREATED", "BOOKING", saved.getId(), tenantId, actorId, ipAddress);
 
@@ -129,21 +133,20 @@ public class BookingCommandService {
 
         BookingStatus current = booking.getStatus();
         BookingStatus next = BookingStatus.parse(rawNewStatus);
+        // No save(): the entity is managed, so dirty checking writes it, and
+        // the version check that makes this safe happens at flush either way.
+        // There used to be an explicit call here purely because the unit tests
+        // mock the repository and could not otherwise see a write — production
+        // code shaped by its test double. BookingConcurrencyIT asserts what the
+        // row actually holds afterwards, and what it still holds when the
+        // transition is refused, which is what those assertions were reaching
+        // for.
         booking.changeStatus(next);
-
-        // Explicit save on an entity that is already managed: dirty checking
-        // would write it regardless. Kept because every unit test here mocks
-        // the repository, so this call is the only observable write — dropping
-        // it turns "verify(repo, never()).save(...)", the assertion that a
-        // rejected transition persists nothing, into a tautology that passes
-        // whatever the code does. What it actually leaves in the database is
-        // covered by BookingConcurrencyIT.
-        Booking saved = bookingRepository.save(booking);
 
         auditService.logChange(
             "BOOKING_STATUS_CHANGED",
             "BOOKING",
-            saved.getId(),
+            booking.getId(),
             SecurityUtils.currentTenantId(),
             SecurityUtils.requireCurrentUserId(),
             ipAddress,
@@ -151,7 +154,7 @@ public class BookingCommandService {
             next.name()
         );
 
-        return mapper.withLookups(saved);
+        return mapper.withLookups(booking);
     }
 
     /**
@@ -188,29 +191,53 @@ public class BookingCommandService {
         booking.setEventType(Normalize.trimToNull(request.eventType()));
         booking.setLocation(Normalize.trimToNull(request.location()));
         booking.applyPricing(pricingResolver.resolve(
-            request.packageId(), request.totalAmountCents(), request.depositAmountCents()));
+            request.packageId(), statedTotal(request, booking), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.assignTo(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
 
-        Set<UUID> resources = requireOwnResources(request.resourceIds());
-
-        Booking saved = bookingRepository.save(booking);
-        replaceResources(saved.getId(), resources);
+        Optional<Set<UUID>> resources = requireOwnResources(request.resourceIds());
+        resources.ifPresent(r -> replaceResources(booking.getId(), r));
 
         UUID tenantId = SecurityUtils.currentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        if (!previousEmail.equalsIgnoreCase(saved.getClientEmail())) {
+        if (!previousEmail.equalsIgnoreCase(booking.getClientEmail())) {
             // Its own audit row, with both addresses. On an unlinked booking
             // this still decides who can see it, its invoices and its payments
             // — and recorded as a plain BOOKING_UPDATED there was nothing in
             // the trail to tell that apart from a corrected typo.
             auditService.logChange(
-                "BOOKING_CLIENT_EMAIL_CHANGED", "BOOKING", saved.getId(), tenantId, actorId,
-                ipAddress, previousEmail, saved.getClientEmail());
+                "BOOKING_CLIENT_EMAIL_CHANGED", "BOOKING", booking.getId(), tenantId, actorId,
+                ipAddress, previousEmail, booking.getClientEmail());
         }
-        auditService.log("BOOKING_UPDATED", "BOOKING", saved.getId(), tenantId, actorId, ipAddress);
+        auditService.log("BOOKING_UPDATED", "BOOKING", booking.getId(), tenantId, actorId, ipAddress);
 
-        return mapper.withLookups(saved);
+        return mapper.withLookups(booking);
+    }
+
+    /**
+     * What the edit says the total should be, treating "nothing stated" as
+     * "leave it".
+     *
+     * <p>A null total means different things on the two paths, and conflating
+     * them lost money. On create there is nothing to preserve, so no package
+     * and no price is a booking nobody has quoted yet: zero. On edit the same
+     * pair used to zero a booking that already had a price — and the form
+     * sends exactly that pair whenever the price field is blank and no package
+     * is picked (see {@code CreateBookingModal}, which sends {@code null} so
+     * the package price can apply). A CONFIRMED shoot with an issued invoice
+     * and a paid deposit would come back priced at 0, its deposit then larger
+     * than its total, which is the negative balance {@link
+     * com.photographplatform.api.booking.domain.BookingPricing} exists to
+     * refuse — reached by the one path that could not check for it.
+     *
+     * <p>So null is "I am not stating a price", not "the price is nothing".
+     * Zeroing a booking on purpose means sending 0, which says so.
+     */
+    private Integer statedTotal(UpdateBookingRequest request, Booking booking) {
+        if (request.totalAmountCents() != null || request.packageId() != null) {
+            return request.totalAmountCents();
+        }
+        return booking.getTotalAmountCents();
     }
 
     // ── the three ownership checks ───────────────────────────────────────────
@@ -269,16 +296,18 @@ public class BookingCommandService {
      * <p>Runs before the booking is written, alongside the other two checks, so
      * a rejected selection leaves nothing behind.
      *
-     * @return the de-duplicated selection, or null when the caller is not
-     *     editing the links at all
+     * @return the de-duplicated selection, or empty when the caller is not
+     *     editing the links at all — which is a different thing from an empty
+     *     selection, and was a nullable {@code Set} that every caller had to
+     *     remember to check
      */
-    private Set<UUID> requireOwnResources(List<UUID> resourceIds) {
+    private Optional<Set<UUID>> requireOwnResources(List<UUID> resourceIds) {
         if (resourceIds == null) {
-            return null;
+            return Optional.empty();
         }
         Set<UUID> wanted = new LinkedHashSet<>(resourceIds);
         if (wanted.isEmpty()) {
-            return wanted;
+            return Optional.of(wanted);
         }
         Set<UUID> found = studioResourceRepository.findExistingIds(wanted);
         if (!found.containsAll(wanted)) {
@@ -286,7 +315,7 @@ public class BookingCommandService {
                 .filter(id -> !found.contains(id)).findFirst().orElseThrow();
             throw new NotFoundException("Resource not found: " + missing);
         }
-        return wanted;
+        return Optional.of(wanted);
     }
 
     /**
@@ -302,19 +331,21 @@ public class BookingCommandService {
      *                    and an empty set clears them
      */
     private void replaceResources(UUID bookingId, Set<UUID> resourceIds) {
-        if (resourceIds == null) {
-            return;
-        }
         bookingResourceRepository.deleteByBookingId(bookingId);
         // Flush before inserting: the composite primary key means re-adding a
         // resource that was already linked would collide with the row this
         // transaction has queued for deletion but not yet sent. Covered by
         // BookingConcurrencyIT.
         bookingResourceRepository.flush();
-        if (!resourceIds.isEmpty()) {
-            bookingResourceRepository.saveAll(resourceIds.stream()
-                .map(rid -> new BookingResource(bookingId, rid))
-                .toList());
+        linkResources(bookingId, resourceIds);
+    }
+
+    private void linkResources(UUID bookingId, Set<UUID> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return;
         }
+        bookingResourceRepository.saveAll(resourceIds.stream()
+            .map(rid -> new BookingResource(bookingId, rid))
+            .toList());
     }
 }

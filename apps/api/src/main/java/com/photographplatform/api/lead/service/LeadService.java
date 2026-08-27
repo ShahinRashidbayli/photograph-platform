@@ -41,7 +41,18 @@ public class LeadService {
     public static final UUID ANONYMOUS_ACTOR_ID =
         UUID.fromString("00000000-0000-0000-0000-000000000000");
 
-    private static final Sort NEWEST_FIRST = Sort.by("createdAt").descending();
+    /**
+     * Ordered by {@code createdAt}, then by id.
+     *
+     * <p>The tie-breaker is not decoration. Postgres promises no order among
+     * rows a sort cannot separate, and a studio's bookings cluster hard on a
+     * date — a Saturday in June is not two bookings, it is twenty. Without a
+     * second key the same row can appear on two pages and another on none,
+     * which the clients here read as duplicated and missing bookings rather
+     * than as an unstable sort.
+     */
+    private static final Sort NEWEST_FIRST =
+        Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
 
     private final LeadRepository leadRepository;
     private final ApplicationEventPublisher eventPublisher;

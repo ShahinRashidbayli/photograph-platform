@@ -180,7 +180,12 @@ class BookingCommandServiceTest {
         assertThatThrownBy(() -> commandService.changeStatus(id, "COMPLETED", IP))
             .isInstanceOf(ConflictException.class);
 
-        verify(bookingRepository, never()).save(any());
+        // The entity is untouched. This used to verify that save() was never
+        // called, which only held because the service called save() explicitly
+        // for the benefit of this mock; what it was really asserting is that a
+        // refused transition changes nothing, and that is what it now says.
+        // BookingConcurrencyIT asserts the same thing about the stored row.
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.ENQUIRY);
     }
 
     @Test

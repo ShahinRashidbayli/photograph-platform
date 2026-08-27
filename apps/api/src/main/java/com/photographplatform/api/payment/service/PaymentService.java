@@ -315,7 +315,7 @@ public class PaymentService {
         var user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
         boolean owned = invoice.getBookingId() != null
-            && bookingRepository.isOwnedBy(invoice.getBookingId(), user.getId(), user.getEmail());
+            && bookingRepository.isOwnedBy(invoice.getBookingId(), user.getId(), Normalize.email(user.getEmail()));
         if (!owned) {
             // 404, not 403: an invoice this caller does not own is not theirs
             // to learn the existence of.

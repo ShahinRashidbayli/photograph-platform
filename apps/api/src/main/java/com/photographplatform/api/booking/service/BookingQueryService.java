@@ -12,6 +12,7 @@ import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
 import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.Paging;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import java.time.LocalDate;
@@ -36,7 +37,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class BookingQueryService {
 
-    private static final Sort BY_EVENT_DATE = Sort.by("eventDate").ascending();
+    /**
+     * Ordered by {@code eventDate}, then by id.
+     *
+     * <p>The tie-breaker is not decoration. Postgres promises no order among
+     * rows a sort cannot separate, and a studio's bookings cluster hard on a
+     * date — a Saturday in June is not two bookings, it is twenty. Without a
+     * second key the same row can appear on two pages and another on none,
+     * which the clients here read as duplicated and missing bookings rather
+     * than as an unstable sort.
+     */
+    private static final Sort BY_EVENT_DATE =
+        Sort.by(Sort.Order.asc("eventDate"), Sort.Order.asc("id"));
 
     private final BookingRepository bookingRepository;
     private final StudioResourceRepository studioResourceRepository;
@@ -92,14 +104,19 @@ public class BookingQueryService {
     public List<CustomerBookingResponse> getOwnBookings(String rawStatus, int page, int size) {
         User user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
+        // Normalised on both sides. Bookings store the address through
+        // Normalize.email on the way in; comparing a raw one against it would
+        // answer an empty list rather than an error, which is the same failure
+        // an unparsed status filter used to have.
+        String email = Normalize.email(user.getEmail());
 
         Pageable pageable = Paging.of(page, size, BY_EVENT_DATE);
         List<Booking> bookings = (rawStatus != null && !rawStatus.isBlank())
             ? bookingRepository
                 .findOwnedByAndStatus(
-                    user.getId(), user.getEmail(), BookingStatus.parse(rawStatus), pageable)
+                    user.getId(), email, BookingStatus.parse(rawStatus), pageable)
                 .getContent()
-            : bookingRepository.findOwnedBy(user.getId(), user.getEmail(), pageable).getContent();
+            : bookingRepository.findOwnedBy(user.getId(), email, pageable).getContent();
 
         Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
             bookings.stream().map(Booking::getId).toList());

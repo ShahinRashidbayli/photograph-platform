@@ -9,6 +9,7 @@ import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.invoice.domain.Invoice;
 import com.photographplatform.api.invoice.domain.InvoiceLineItem;
 import com.photographplatform.api.invoice.domain.InvoiceStatus;
@@ -275,7 +276,7 @@ public class InvoiceService {
     public List<InvoiceResponse> listForCustomer() {
         var user = userRepository.findById(SecurityUtils.requireCurrentUserId())
             .orElseThrow(() -> new UnauthorizedException("Authentication required"));
-        List<UUID> bookingIds = bookingRepository.findOwnedBy(user.getId(), user.getEmail())
+        List<UUID> bookingIds = bookingRepository.findOwnedBy(user.getId(), Normalize.email(user.getEmail()))
             .stream().map(Booking::getId).toList();
         if (bookingIds.isEmpty()) {
             return List.of();

@@ -162,6 +162,51 @@ class BookingConcurrencyIT extends IntegrationTestBase {
         assertThat(storedStatus(fx, bookingId)).isEqualTo(BookingStatus.CONFIRMED);
     }
 
+    @Test
+    void aRefusedTransitionLeavesTheStoredRowAlone() {
+        Fixture fx = createTenant();
+        UUID bookingId = asUser(fx, () ->
+            commandService.createBooking(request(null), IP)).id();
+
+        // ENQUIRY may only advance to CONFIRMED or CANCELLED.
+        assertThatThrownBy(() ->
+            asUser(fx, () -> commandService.changeStatus(bookingId, "COMPLETED", IP)))
+            .isInstanceOf(ConflictException.class);
+
+        assertThat(storedStatus(fx, bookingId)).isEqualTo(BookingStatus.ENQUIRY);
+    }
+
+    /**
+     * The edit form sends a null total whenever the price field is blank and no
+     * package is picked. On an already-priced booking that used to resolve to
+     * zero — and a CONFIRMED shoot with a paid deposit came back priced at
+     * nothing, its deposit larger than its total.
+     */
+    @Test
+    void anEditThatStatesNoPriceLeavesTheExistingOneAlone() {
+        Fixture fx = createTenant();
+        UUID bookingId = asUser(fx, () ->
+            commandService.createBooking(request(null), IP)).id();
+
+        BookingResponse updated = asUser(fx, () ->
+            commandService.updateBooking(bookingId, updateWithoutPrice(), IP));
+
+        assertThat(updated.totalAmountCents()).isEqualTo(50_000);
+        assertThat(storedTotalCents(fx, bookingId)).isEqualTo(50_000);
+    }
+
+    /** Zeroing one on purpose still works — by saying zero. */
+    @Test
+    void anEditThatStatesZeroPricesTheBookingAtZero() {
+        Fixture fx = createTenant();
+        UUID bookingId = asUser(fx, () ->
+            commandService.createBooking(request(null), IP)).id();
+
+        asUser(fx, () -> commandService.updateBooking(bookingId, updateWithTotal(0), IP));
+
+        assertThat(storedTotalCents(fx, bookingId)).isZero();
+    }
+
     /**
      * The delete-then-insert in {@code replaceResources} re-adds a resource the
      * booking already held. Its composite primary key means the insert collides
@@ -236,6 +281,24 @@ class BookingConcurrencyIT extends IntegrationTestBase {
         return new CreateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
             null, "WEDDING", "Berlin", null, null, 50_000, null, null, null, resourceIds);
+    }
+
+    private Integer storedTotalCents(Fixture fx, UUID bookingId) {
+        return asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(status ->
+            bookingRepository.findById(bookingId).orElseThrow().getTotalAmountCents()));
+    }
+
+    /** What the form sends when the price field is blank and no package is picked. */
+    private UpdateBookingRequest updateWithoutPrice() {
+        return new UpdateBookingRequest(
+            "Maria Kellner", "maria@example.test", EVENT_DATE,
+            null, "WEDDING", "Hamburg", null, null, null, null, null, null);
+    }
+
+    private UpdateBookingRequest updateWithTotal(Integer totalCents) {
+        return new UpdateBookingRequest(
+            "Maria Kellner", "maria@example.test", EVENT_DATE,
+            null, "WEDDING", "Berlin", null, totalCents, null, null, null, null);
     }
 
     private UpdateBookingRequest update(List<UUID> resourceIds) {

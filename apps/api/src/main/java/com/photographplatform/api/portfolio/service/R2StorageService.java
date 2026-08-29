@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -22,6 +23,53 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 @Service
 @ConditionalOnProperty(name = "app.r2.endpoint")
 public class R2StorageService {
+
+    /**
+     * Budgets for the calls that read or write a whole object at once.
+     *
+     * <h2>Why these exist</h2>
+     * The S3 client is built with the SDK's defaults, which for the sync
+     * client means a 30-second socket timeout and up to three attempts — over
+     * a minute and a half before a call gives up, and only if the socket goes
+     * quiet rather than merely slow.
+     *
+     * <p>That would be survivable if these calls were isolated, and they are
+     * not. {@code InvoiceService} uploads the rendered PDF <em>while holding
+     * the {@code invoice_counters} row lock</em> that its gap-free numbering
+     * depends on: that lock is taken by the allocating {@code INSERT .. ON
+     * CONFLICT} and released only at commit, so every concurrent invoice for
+     * that tenant queues behind this upload, and an R2 stall stops the studio
+     * issuing invoices at all. {@code GalleryRetentionService} deletes objects
+     * inside its per-tenant transaction for the same reason. Both also hold a
+     * connection out of a pool of ten (see {@code spring.datasource.hikari}),
+     * whose own acquisition timeout is five seconds — so a slow object store
+     * does not degrade uploads, it exhausts the pool and takes unrelated
+     * requests down with it. This is the same reasoning {@code StripeConfig}
+     * spells out for the payment client, and it applies here for the same
+     * reason.
+     *
+     * <p>So: fail in seconds, not minutes. The attempt timeout is what a single
+     * try gets; the call timeout bounds the whole thing including the SDK's
+     * retry, which is what actually caps how long a lock can be held.
+     */
+    private static final AwsRequestOverrideConfiguration SMALL_OBJECT_BUDGET =
+        AwsRequestOverrideConfiguration.builder()
+            .apiCallAttemptTimeout(Duration.ofSeconds(10))
+            .apiCallTimeout(Duration.ofSeconds(20))
+            .build();
+
+    /**
+     * The same, for the one bounded call that can legitimately move tens of
+     * megabytes: reading a camera original back for thumbnailing, capped at
+     * {@code app.r2.max-upload-bytes} (50 MB). Generous enough that a slow but
+     * working link finishes, finite so a dead one does not pin an {@code
+     * @Async} worker forever.
+     */
+    private static final AwsRequestOverrideConfiguration LARGE_OBJECT_BUDGET =
+        AwsRequestOverrideConfiguration.builder()
+            .apiCallAttemptTimeout(Duration.ofSeconds(30))
+            .apiCallTimeout(Duration.ofSeconds(60))
+            .build();
 
     private final S3Presigner presigner;
     private final S3Client s3Client;
@@ -112,6 +160,7 @@ public class R2StorageService {
             software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
                 .bucket(props.getBucket())
                 .key(r2Key)
+                .overrideConfiguration(LARGE_OBJECT_BUDGET)
                 .build();
         ResponseBytes<GetObjectResponse> resp = s3Client.getObjectAsBytes(getRequest);
         return resp.asByteArray();
@@ -127,6 +176,15 @@ public class R2StorageService {
      * container down. The caller owns the stream and must close it.
      */
     public InputStream openStream(String r2Key) {
+        // Deliberately without a call budget, unlike every other method here.
+        // An api-call timeout covers the time spent reading the response
+        // stream, and this stream is read for as long as the client's ZIP
+        // takes to download — minutes, legitimately. Bounding it would abort
+        // exactly the transfers it is meant to protect. Nothing is at risk
+        // either: this path holds no lock and no database connection (see
+        // GalleryService#prepareDownload, which returns keys and streams
+        // afterwards, outside any transaction) — only one of the sixteen
+        // threads WebAsyncConfig sizes for precisely this.
         software.amazon.awssdk.services.s3.model.GetObjectRequest getRequest =
             software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
                 .bucket(props.getBucket())
@@ -155,6 +213,8 @@ public class R2StorageService {
         s3Client.deleteObjects(DeleteObjectsRequest.builder()
             .bucket(props.getBucket())
             .delete(Delete.builder().objects(ids).build())
+            // Runs inside the retention job's per-tenant transaction.
+            .overrideConfiguration(SMALL_OBJECT_BUDGET)
             .build());
     }
 
@@ -168,6 +228,8 @@ public class R2StorageService {
             .key(r2Key)
             .contentType(contentType)
             .contentLength((long) bytes.length)
+            // Runs under the invoice_counters row lock on the invoice path.
+            .overrideConfiguration(SMALL_OBJECT_BUDGET)
             .build();
         s3Client.putObject(putRequest, RequestBody.fromBytes(bytes));
     }

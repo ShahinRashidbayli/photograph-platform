@@ -84,10 +84,11 @@ const INQUIRIES = [
   },
 ];
 
+const fetchAllPages = jest.fn((url: string) =>
+  Promise.resolve(url.includes('inquiries') ? INQUIRIES : LEADS)
+);
 jest.mock('@/lib/paging', () => ({
-  fetchAllPages: jest.fn((url: string) =>
-    Promise.resolve(url.includes('inquiries') ? INQUIRIES : LEADS)
-  ),
+  fetchAllPages: (...args: unknown[]) => fetchAllPages(...(args as [string])),
 }));
 
 jest.mock('@/hooks/useBookings', () => ({
@@ -114,6 +115,7 @@ describe('notification panel', () => {
     useAuthStore.setState({ user: PHOTOGRAPHER });
     push.mockClear();
     patch.mockClear();
+    fetchAllPages.mockClear();
   });
 
   afterEach(() => {
@@ -142,6 +144,26 @@ describe('notification panel', () => {
     expect(screen.getByText('Maria Kellner')).toBeInTheDocument();
     // Clicking the bell navigates nowhere — that was the complaint.
     expect(push).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The panel shows what is still waiting, so that is what it should ask for.
+   *
+   * <p>It used to ask for everything and filter in the browser — from the
+   * dashboard *layout*, so on every screen, in every open tab, every 60
+   * seconds, walking the studio's whole lead and inquiry history a hundred
+   * rows per round trip to render a list that is almost always short. Both
+   * endpoints take `?status=`, and the waiting set is bounded by how fast the
+   * photographer works rather than by how long they have been in business.
+   *
+   * <p>Pinned because the failure is invisible: the panel looks identical
+   * either way, and the cost only shows up on the busiest account.
+   */
+  it('asks the server for the waiting rows rather than the whole history', async () => {
+    await openBell();
+
+    expect(fetchAllPages).toHaveBeenCalledWith('/api/leads', { status: 'NEW' });
+    expect(fetchAllPages).toHaveBeenCalledWith('/api/inquiries', { status: 'PENDING' });
   });
 
   it('lists only what is actually waiting', async () => {

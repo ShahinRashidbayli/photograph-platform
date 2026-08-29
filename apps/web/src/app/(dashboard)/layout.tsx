@@ -567,9 +567,25 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       // badge stopped counting new leads once the 20 most recent rows were
       // no longer all NEW — i.e. it under-reported exactly when there was a
       // backlog to flag.
+      //
+      // Filtered server-side, because paging alone made this the most
+      // expensive thing the app does. This runs in the dashboard *layout*, so
+      // it is live on every screen, in every open tab, every 60 seconds — and
+      // it was walking the studio's entire lead and inquiry history, a page of
+      // 100 per round trip, to end up displaying the handful of rows that are
+      // still waiting. A studio with 800 leads and 400 inquiries paid twelve
+      // sequential requests a minute for a list that is almost always short.
+      //
+      // The API already answers the narrower question (`?status=`, see
+      // LeadController and InquiryController), and the un-triaged set is
+      // bounded by how fast the photographer works rather than by how long
+      // they have been in business. The client-side status filter below is
+      // kept as well: it costs nothing over an already-filtered list, and it
+      // means a server that ignored the parameter would still render the right
+      // panel rather than a bell claiming every lead ever received.
       Promise.all([
-        fetchAllPages<LeadRow>('/api/leads').catch(() => null),
-        fetchAllPages<InquiryRow>('/api/inquiries').catch(() => null),
+        fetchAllPages<LeadRow>('/api/leads', { status: 'NEW' }).catch(() => null),
+        fetchAllPages<InquiryRow>('/api/inquiries', { status: 'PENDING' }).catch(() => null),
       ]).then(([leads, inquiries]) => {
         if (cancelled) return;
         // If both calls failed, leave the previous list untouched.

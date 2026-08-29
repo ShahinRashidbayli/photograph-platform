@@ -26,7 +26,6 @@ import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.io.OutputStream;
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -119,7 +118,11 @@ public class InvoiceService {
             .toList();
         InvoiceTaxCalculator.Totals totals = InvoiceTaxCalculator.calculate(inputs, tenant.getTaxMode());
 
-        Numbering numbering = allocateNumber(tenantId);
+        // One instant, read once, used for both the number and the date printed
+        // on the document. See allocateNumber for why these must not be two
+        // separate readings of "now".
+        OffsetDateTime issuedAt = OffsetDateTime.now(clock);
+        Numbering numbering = allocateNumber(tenantId, issuedAt);
 
         Invoice invoice = new Invoice(
             tenantId,
@@ -143,7 +146,7 @@ public class InvoiceService {
             totals.taxCents(),
             totals.totalCents(),
             null,
-            OffsetDateTime.now(clock)
+            issuedAt
         );
 
         List<InvoiceLineItem> lineItems = buildLineItems(tenantId, invoice.getId(), totals);
@@ -189,7 +192,8 @@ public class InvoiceService {
 
         List<InvoiceLineItem> originalLines = lineItemRepository.findByInvoiceIdOrderBySortOrderAsc(invoiceId);
 
-        Numbering numbering = allocateNumber(tenantId);
+        OffsetDateTime issuedAt = OffsetDateTime.now(clock);
+        Numbering numbering = allocateNumber(tenantId, issuedAt);
 
         Invoice storno = new Invoice(
             tenantId,
@@ -213,7 +217,7 @@ public class InvoiceService {
             -original.getTaxCents(),
             -original.getTotalCents(),
             original.getId(),
-            OffsetDateTime.now(clock)
+            issuedAt
         );
 
         List<InvoiceLineItem> stornoLines = originalLines.stream()
@@ -328,8 +332,27 @@ public class InvoiceService {
     private record Numbering(int issueYear, int sequenceNumber, String invoiceNumber) {
     }
 
-    private Numbering allocateNumber(UUID tenantId) {
-        int issueYear = OffsetDateTime.now(ZoneOffset.UTC).getYear();
+    /**
+     * @param issuedAt the instant this invoice is being issued at — the same
+     *     one written to {@code issued_at}, not a second reading of "now"
+     */
+    private Numbering allocateNumber(UUID tenantId, OffsetDateTime issuedAt) {
+        // The business's own calendar year, via InvoiceDate — the same
+        // conversion the PDF's Rechnungsdatum and the DATEV Belegdatum use.
+        //
+        // This read UTC, and that was a real contradiction rather than a
+        // stylistic one. InvoiceDateTest pins 2026-12-31T23:30Z to
+        // 2027-01-01 in Berlin (CET), so an invoice issued in that window was
+        // numbered 2026-00NN and stamped issue_year 2026, while printing
+        // 01.01.2027 on its face and posting Belegdatum 0101. The 2026 DATEV
+        // export then carried a document dated outside the fiscal-year window
+        // its own header declares, the 2027 export missed it entirely, and a
+        // 2027 document had consumed a number out of the 2026 sequence — which
+        // is exactly the gap-free ordering GoBD is about.
+        //
+        // Deriving both from one instant, in one zone, is what makes the number
+        // and the date on the document incapable of disagreeing.
+        int issueYear = InvoiceDate.of(issuedAt).getYear();
         int sequenceNumber = numberAllocator.nextSequenceNumber(tenantId, issueYear);
         return new Numbering(
             issueYear, sequenceNumber,
@@ -340,6 +363,27 @@ public class InvoiceService {
      * Renders the invoice to PDF, uploads it to R2 and records the key + hash
      * on the (still unsaved) entity. Must run before the insert — see the
      * class javadoc for why there is no post-insert window to attach it.
+     *
+     * <h2>This runs under the counter lock — keep it short</h2>
+     * {@link #allocateNumber} has already run, and its {@code INSERT .. ON
+     * CONFLICT DO UPDATE} holds an exclusive row lock on this tenant's {@code
+     * invoice_counters} row until the transaction commits. That lock is what
+     * makes the sequence gap-free, and it cannot be shortened: releasing it
+     * early would let a rolled-back invoice consume a number, which is the
+     * GoBD violation the allocator exists to prevent.
+     *
+     * <p>What can be kept short is the work done while holding it — and this
+     * method is all of it: an HTML render, a PDF layout, and a round trip to
+     * object storage. Every other invoice for the same tenant queues behind
+     * that, holding one of ten pooled connections each. It is bounded only
+     * because {@code R2StorageService} gives its uploads an explicit call
+     * budget; before that, a stalled R2 could hold this lock for as long as
+     * the SDK's default retries lasted, and the studio simply could not issue
+     * an invoice.
+     *
+     * <p>So: nothing else belongs between {@code allocateNumber} and the
+     * commit. No second upload, no email, no third-party call. If something
+     * here needs to grow, move it after the transaction, not into it.
      */
     private void renderAndAttachPdf(UUID tenantId, Invoice invoice, List<InvoiceLineItem> lines, Invoice original) {
         String html = InvoicePdfTemplate.render(invoice, lines, original);

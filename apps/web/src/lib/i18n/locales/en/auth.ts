@@ -1,45 +1,57 @@
 /**
- * Sign-in, registration and the customer magic-link flow.
+ * Sign-in, registration and the customer login-code flow.
  *
  * English is the source of truth — these keys define the `Auth` half of
  * `TranslationKey`, and every other locale is compile-checked against it.
  */
 export const auth = {
-  // ── Customer magic-link login ─────────────────────────────────────────────
+  // ── Customer sign-in by emailed code ──────────────────────────────────────
+  // A code, not a link: clients arrive from an Instagram bio link, so the page
+  // is inside Instagram's in-app browser and a link would send them out to
+  // their mail app and back through a different browser. The wording below
+  // leans on "stay on this page" for exactly that reason.
   'customerLogin.visualTitle': 'Your photos, your moments',
   'customerLogin.visualSubtitle':
     'Sign in to track your booking, view your gallery and message your photographer.',
   'customerLogin.photographerSignIn': 'Photographer sign in',
   'customerLogin.title': 'Sign in as a client',
   'customerLogin.subtitle':
-    "Enter your email and your photographer's subdomain — we'll send you a one-time link to sign in. No password needed.",
+    "Enter your email and your photographer's subdomain — we'll send you a 6-digit code. No password needed.",
   'customerLogin.emailLabel': 'Email address',
   'customerLogin.subdomainLabel': 'Photographer subdomain',
   'customerLogin.subdomainHelper': 'The subdomain your photographer shared with you.',
   'customerLogin.subdomainHelperLocked': "You're signing in on your photographer's site.",
   'customerLogin.fullNameLabel': 'Full name (optional)',
   'customerLogin.fullNameHelper': 'Only used the first time you sign in.',
-  'customerLogin.submit': 'Send me a magic link →',
-  'customerLogin.submitLoading': 'Sending link…',
+  'customerLogin.submit': 'Send me a code →',
+  'customerLogin.submitLoading': 'Sending code…',
   'customerLogin.footer':
     'First time here? No sign-up needed — entering your details sets up your account automatically.',
   'customerLogin.errorRequired': 'Email and photographer subdomain are required',
   'customerLogin.errorEmail': 'Please enter a valid email address',
-  'customerLogin.errorSubdomain': 'Please enter a valid photographer subdomain (e.g. anna-foto)',
-  'customerLogin.errorSend': 'Could not send magic link. Please try again.',
-  'customerLogin.sentTitle': 'Check your inbox',
+  'customerLogin.errorSubdomain':
+    'Please enter a valid photographer subdomain (e.g. anna-foto)',
+  'customerLogin.errorSend': 'Could not send the code. Please try again.',
+  'customerLogin.sentTitle': 'Enter your code',
   'customerLogin.sentBody':
-    'If {email} is registered with that photographer, we just sent you a sign-in link. It’s valid for 15 minutes.',
-  'customerLogin.sentHint': "Didn't get it? Check your spam folder, or request a new one below.",
-  'customerLogin.resend': 'Resend link',
-  'customerLogin.resendLoading': 'Resending…',
+    'If {email} is registered with that photographer, we just sent a 6-digit code. It expires in 10 minutes.',
+  'customerLogin.sentHint':
+    'Keep this page open — open your email, then come back and type the code here.',
+  'customerLogin.codeLabel': '6-digit code',
+  'customerLogin.codeSubmit': 'Sign in →',
+  'customerLogin.codeSubmitLoading': 'Signing in…',
+  'customerLogin.errorCodeFormat': 'Please enter the 6-digit code from your email',
+  'customerLogin.errorCodeInvalid': "That code isn't valid. Request a new one below.",
+  'customerLogin.changeEmail': '← Use a different email',
+  'customerLogin.resend': 'Send a new code',
+  'customerLogin.resendLoading': 'Sending…',
   'customerLogin.resendDone': 'Sent! Check your inbox again.',
   'customerLogin.resendIn': 'Resend in {wait}',
-  'customerLogin.resendError': 'Could not send another link. Please try again.',
+  'customerLogin.resendError': 'Could not send another code. Please try again.',
   'customerLogin.resendLimited':
-    'You’ve already requested several links. Please wait a little before asking for another.',
+    'You’ve already requested several codes. Please wait a little before asking for another.',
   'customerLogin.resendLimitedFor':
-    'You’ve already requested several links. You can ask for another in {wait}.',
+    'You’ve already requested several codes. You can ask for another in {wait}.',
 
   // ── Photographer login ────────────────────────────────────────────────────
   'login.crossLink': 'Client sign in',
@@ -124,7 +136,7 @@ export const auth = {
   'verifyEmail.goToDashboard': 'Go to dashboard',
   'verifyEmail.signIn': 'Sign in',
 
-  // ── Customer magic-link sign-in (link from the inbox) ─────────────────────
+  // ── Customer login-code sign-in (code typed back into the tab) ────────────
   'customerVerify.visualTitle': 'Signing you in.',
   'customerVerify.visualSubtitle': 'No password to remember — the link in your inbox is the key.',
   'customerVerify.loadingTitle': 'Signing you in',

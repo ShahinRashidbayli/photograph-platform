@@ -44,12 +44,14 @@ function deriveSubdomainFromHost(): string | null {
   return null;
 }
 
-// How long the resend button holds after a link goes out. The server allows 5
+// How long the resend button holds after a code goes out. The server allows 5
 // requests an hour; this stops someone burning that allowance on four clicks in
 // ten seconds and then being unable to ask again for an hour.
 const RESEND_COOLDOWN_SECONDS = 30;
 
-type FocusField = 'email' | 'subdomain' | 'fullName' | null;
+type FocusField = 'email' | 'subdomain' | 'fullName' | 'code' | null;
+
+const CODE_LENGTH = 6;
 
 function CustomerLoginInner() {
   const searchParams = useSearchParams();
@@ -85,6 +87,14 @@ function CustomerLoginInner() {
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [, tick] = useReducer((n: number) => n + 1, 0);
   const [focused, setFocused] = useState<FocusField>(null);
+
+  // Step 2 lives on this same page rather than behind an emailed link. The
+  // client arrived from an Instagram bio link, so this tab is inside
+  // Instagram's in-app browser — sending them to their mail app and back
+  // through Safari or Chrome is where the funnel bleeds. They read the code
+  // and come back to this tab, which is still exactly where they left it.
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   // Host-derived subdomain wins over the ?subdomain hint and is authoritative,
   // so we lock the field. Done in an effect (not useState init) because the
@@ -133,7 +143,7 @@ function CustomerLoginInner() {
     setError('');
     setLoading(true);
     try {
-      await api.post('/api/auth/customer/magic-link/request', {
+      await api.post('/api/auth/customer/login-code/request', {
         email: trimmedEmail,
         subdomain: trimmedSubdomain,
         fullName: fullName.trim() || null,
@@ -156,12 +166,45 @@ function CustomerLoginInner() {
     }
   };
 
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== CODE_LENGTH) {
+      setError(t('customerLogin.errorCodeFormat'));
+      return;
+    }
+
+    setError('');
+    setVerifying(true);
+    try {
+      await api.post('/api/auth/customer/login-code/verify', {
+        email: email.trim().toLowerCase(),
+        subdomain: subdomain.trim().toLowerCase(),
+        code,
+      });
+      // The session lands as cookies on this response. A full navigation (not a
+      // router push) so the app shell boots with the cookies already attached.
+      window.location.href = '/bookings';
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        t('customerLogin.errorCodeInvalid');
+      setError(msg);
+      // Clear so the next attempt starts from an empty box rather than the
+      // client having to select and delete six wrong digits on a phone.
+      setCode('');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleResend = async () => {
     setResendBusy(true);
     setResendDone(false);
     setResendError('');
+    setError('');
+    setCode('');
     try {
-      await api.post('/api/auth/customer/magic-link/request', {
+      await api.post('/api/auth/customer/login-code/request', {
         email: email.trim().toLowerCase(),
         subdomain: subdomain.trim().toLowerCase(),
         fullName: fullName.trim() || null,
@@ -348,23 +391,77 @@ function CustomerLoginInner() {
           </div>
           <h2 style={s.title}>{t('customerLogin.sentTitle')}</h2>
           <p style={s.subtitle}>{t('customerLogin.sentBody', { email })}</p>
-          <div style={{ ...s.alertInfo, marginTop: 24 }}>{t('customerLogin.sentHint')}</div>
+          <div style={{ ...s.alertInfo, marginTop: 20 }}>{t('customerLogin.sentHint')}</div>
+
+          {error && <div style={{ ...s.alertError, marginTop: 16 }}>{error}</div>}
+
+          <form onSubmit={handleVerify} style={{ marginTop: 20 }}>
+            <div style={s.formGroup}>
+              <label style={s.label} htmlFor="login-code">
+                {t('customerLogin.codeLabel')}
+              </label>
+              <input
+                id="login-code"
+                // inputMode numeric brings up the digit keypad on mobile, and
+                // one-time-code lets iOS and Android offer the code straight
+                // from the notification — so on a phone the client often never
+                // opens their mail app at all.
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d*"
+                maxLength={CODE_LENGTH}
+                value={code}
+                // Strip non-digits rather than rejecting: pasted codes often
+                // carry a stray space from the email client.
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
+                }
+                onFocus={() => setFocused('code')}
+                onBlur={() => setFocused(null)}
+                style={{
+                  ...inputStyle('code'),
+                  textAlign: 'center',
+                  fontSize: '1.6rem',
+                  letterSpacing: '0.5em',
+                  // The trailing letter-space would otherwise push the digits
+                  // visually off-centre.
+                  textIndent: '0.5em',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                }}
+                aria-describedby="login-code-hint"
+                autoFocus
+              />
+              <div id="login-code-hint" style={s.helperText}>
+                {t('customerLogin.sentHint')}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                ...s.button,
+                ...s.buttonPrimary,
+                ...(verifying || code.length !== CODE_LENGTH ? s.buttonDisabled : {}),
+              }}
+              disabled={verifying || code.length !== CODE_LENGTH}
+            >
+              {verifying
+                ? t('customerLogin.codeSubmitLoading')
+                : t('customerLogin.codeSubmit')}
+            </button>
+          </form>
+
           <button
             type="button"
             style={{
               ...s.button,
-              ...s.buttonPrimary,
-              marginTop: 16,
+              background: 'transparent',
+              color: colors.textMuted,
+              marginTop: 12,
               ...(resendDisabled ? s.buttonDisabled : {}),
             }}
             disabled={resendDisabled}
             onClick={handleResend}
-            onMouseEnter={(e) => {
-              if (!resendDisabled) Object.assign(e.currentTarget.style, s.buttonPrimaryHover);
-            }}
-            onMouseLeave={(e) => {
-              if (!resendDisabled) Object.assign(e.currentTarget.style, s.buttonPrimary);
-            }}
           >
             {resendBusy
               ? t('customerLogin.resendLoading')
@@ -383,6 +480,25 @@ function CustomerLoginInner() {
               <div style={{ ...s.alertInfo, marginTop: 12 }}>{t('customerLogin.resendDone')}</div>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            style={{
+              ...s.button,
+              background: 'transparent',
+              color: colors.textMuted,
+              marginTop: 4,
+            }}
+            onClick={() => {
+              setSubmitted(false);
+              setCode('');
+              setError('');
+              setResendDone(false);
+              setResendError('');
+            }}
+          >
+            {t('customerLogin.changeEmail')}
+          </button>
         </div>
       )}
     </AuthSplitLayout>

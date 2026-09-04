@@ -16,13 +16,14 @@ import api from '@/lib/api';
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-async function requestLink(user: ReturnType<typeof setupUser>) {
+async function requestCode(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
   await user.type(screen.getByLabelText('Photographer subdomain'), 'anna-foto');
-  await user.click(screen.getByRole('button', { name: 'Send me a magic link →' }));
+  await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
 }
 
-const resendButton = () => screen.getByRole('button', { name: /Resend/ });
+const resendButton = () =>
+  screen.getByRole('button', { name: /Send a new code|Resend in/ });
 
 beforeEach(() => {
   mockedApi.post.mockReset();
@@ -31,14 +32,14 @@ beforeEach(() => {
 describe('CustomerLoginPage', () => {
   const render = () => renderWithProviders(<CustomerLoginPage />, { lang: 'en' });
 
-  it('confirms the link was sent without confirming the account exists', async () => {
+  it('confirms the code was sent without confirming the account exists', async () => {
     const user = setupUser();
     mockedApi.post.mockResolvedValue({ status: 204 } as never);
     render();
 
-    await requestLink(user);
+    await requestCode(user);
 
-    expect(await screen.findByText('Check your inbox')).toBeInTheDocument();
+    expect(await screen.findByText('Enter your code')).toBeInTheDocument();
     // "If … is registered" — the wording must stay conditional.
     expect(screen.getByText(/If maria@example\.test is registered/)).toBeInTheDocument();
   });
@@ -48,12 +49,12 @@ describe('CustomerLoginPage', () => {
    * clicks burn the allowance in ten seconds and the user then cannot ask again
    * for an hour.
    */
-  it('holds the resend button after a link goes out', async () => {
+  it('holds the resend button after a code goes out', async () => {
     const user = setupUser();
     mockedApi.post.mockResolvedValue({ status: 204 } as never);
     render();
 
-    await requestLink(user);
+    await requestCode(user);
 
     const button = await waitFor(resendButton);
     expect(button).toBeDisabled();
@@ -64,10 +65,10 @@ describe('CustomerLoginPage', () => {
    * The bug: every failure reported success, on the reasoning that the endpoint
    * is 204-always. That contract is about not revealing whether an address
    * exists; it says nothing about rate limits or an outage. So the button
-   * claimed a link had been sent while nothing had, and the user waited for a
+   * claimed a code had been sent while nothing had, and the user waited for a
    * mail that was never coming.
    */
-  it('does not claim a link was sent when the resend actually failed', async () => {
+  it('does not claim a code was sent when the resend actually failed', async () => {
     // Fake timers so the test does not actually sit out the 30-second hold.
     // Installed before `setup`, and handed to userEvent, or its own internal
     // waits would never fire.
@@ -76,7 +77,7 @@ describe('CustomerLoginPage', () => {
       const user = setupUser({ advanceTimers: jest.advanceTimersByTime });
       mockedApi.post.mockResolvedValueOnce({ status: 204 } as never);
       render();
-      await requestLink(user);
+      await requestCode(user);
       await waitFor(resendButton);
 
       // Let the hold expire so the resend can be attempted at all.
@@ -89,7 +90,7 @@ describe('CustomerLoginPage', () => {
       await user.click(resendButton());
 
       expect(
-        await screen.findByText('Could not send another link. Please try again.')
+        await screen.findByText('Could not send another code. Please try again.')
       ).toBeInTheDocument();
       expect(screen.queryByText('Sent! Check your inbox again.')).not.toBeInTheDocument();
     } finally {
@@ -110,7 +111,7 @@ describe('CustomerLoginPage', () => {
       const user = setupUser({ advanceTimers: jest.advanceTimersByTime });
       mockedApi.post.mockResolvedValue({ status: 204 } as never);
       render();
-      await requestLink(user);
+      await requestCode(user);
       await waitFor(resendButton);
       expect(resendButton()).toBeDisabled();
 
@@ -139,11 +140,11 @@ describe('CustomerLoginPage', () => {
     });
     render();
 
-    await requestLink(user);
+    await requestCode(user);
 
     expect(
       await screen.findByText(
-        'You’ve already requested several links. You can ask for another in 10 minutes.'
+        'You’ve already requested several codes. You can ask for another in 10 minutes.'
       )
     ).toBeInTheDocument();
   });
@@ -155,11 +156,11 @@ describe('CustomerLoginPage', () => {
     });
     render();
 
-    await requestLink(user);
+    await requestCode(user);
 
     expect(
       await screen.findByText(
-        'You’ve already requested several links. Please wait a little before asking for another.'
+        'You’ve already requested several codes. Please wait a little before asking for another.'
       )
     ).toBeInTheDocument();
   });

@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
 import { BrandingSettings } from './BrandingSettings';
+import { LegalDetailsSection } from './LegalDetailsSection';
 import { ResourceSettings } from './ResourceSettings';
 import { TeamSettings } from './TeamSettings';
 import {
@@ -431,6 +432,10 @@ export default function SettingsPage() {
           rewrite) the tax numbers that go on invoices, or the Stripe account
           their own money lands in. The API enforces that too. */}
       {isPhotographer && <BillingProfileSection />}
+      {/* Impressum/Datenschutz identity sits next to the billing profile:
+          both are the photographer's own legal details, and neither is a
+          client's business. Photographer-only for the same reason. */}
+      {isPhotographer && <LegalDetailsSection theme={theme} />}
       {isPhotographer && (
         // useSearchParams needs a Suspense boundary — Stripe sends the browser
         // back here with ?stripe=return after hosted onboarding.

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import RequestForm from './RequestForm';
+import { PhotographerLegalFooter } from '@/components/legal/PhotographerLegalFooter';
 
 export const revalidate = 300; // Matches /p/[subdomain] — same upstream payload.
 
@@ -69,6 +70,15 @@ export default async function PublicRequestPage({ params }: Props) {
           Send {photographer.displayName} a few details about your shoot — they will reply shortly.
         </p>
         <RequestForm subdomain={subdomain} />
+        {/*
+          §5 DDG requires the Impressum to be reachable from every page of a
+          commercial presence — and this page, where personal data is actually
+          collected, is the one where it matters most.
+        */}
+        <PhotographerLegalFooter
+          subdomain={subdomain}
+          displayName={photographer.displayName}
+        />
       </div>
     </main>
   );

@@ -878,8 +878,28 @@ function Footer({
           gap: 16,
         }}
       >
-        <div>
-          © {new Date().getFullYear()} {photographer.displayName}. All rights reserved.
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+          <span>
+            © {new Date().getFullYear()} {photographer.displayName}. All rights reserved.
+          </span>
+          {/*
+            §5 DDG: a commercial page must link its Impressum from every page,
+            clearly labelled. The German words are load-bearing — courts have
+            held that "Legal" or "About" does not discharge the duty — so these
+            two labels stay untranslated regardless of the visitor's language.
+          */}
+          <Link
+            href={`/p/${encodeURIComponent(photographer.subdomain)}/impressum`}
+            style={{ color: palette.textSubtle, textUnderlineOffset: 3 }}
+          >
+            Impressum
+          </Link>
+          <Link
+            href={`/p/${encodeURIComponent(photographer.subdomain)}/datenschutz`}
+            style={{ color: palette.textSubtle, textUnderlineOffset: 3 }}
+          >
+            Datenschutz
+          </Link>
         </div>
         {poweredBy && (
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

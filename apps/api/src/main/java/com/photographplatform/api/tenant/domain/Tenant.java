@@ -103,6 +103,45 @@ public class Tenant {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    // ── Legal identity (§5 DDG Impressum, Art. 13 GDPR privacy notice) ────────
+    // The photographer — not the platform — is the data controller for their
+    // clients' enquiries, so their public pages must carry their own details.
+    // All nullable: see V12__tenant_legal_details.sql for why completeness is a
+    // service-layer rule rather than a column constraint.
+
+    @Column(name = "legal_name", length = 200)
+    private String legalName;
+
+    @Column(name = "legal_street", length = 200)
+    private String legalStreet;
+
+    @Column(name = "legal_postal_code", length = 20)
+    private String legalPostalCode;
+
+    @Column(name = "legal_city", length = 120)
+    private String legalCity;
+
+    @Column(name = "legal_country", length = 80)
+    private String legalCountry = "Deutschland";
+
+    @Column(name = "legal_email", length = 320)
+    private String legalEmail;
+
+    @Column(name = "legal_phone", length = 50)
+    private String legalPhone;
+
+    @Column(name = "legal_vat_id", length = 50)
+    private String legalVatId;
+
+    @Column(name = "legal_register", length = 200)
+    private String legalRegister;
+
+    @Column(name = "legal_responsible", length = 200)
+    private String legalResponsible;
+
+    @Column(name = "privacy_contact_email", length = 320)
+    private String privacyContactEmail;
+
     protected Tenant() {
     }
 
@@ -394,5 +433,99 @@ public class Tenant {
     /** §14 Abs. 4 Nr. 2 UStG — Steuernummer or USt-IdNr., at least one. */
     public boolean hasTaxIdentifier() {
         return (taxId != null && !taxId.isBlank()) || (vatId != null && !vatId.isBlank());
+    }
+
+    // ── Legal identity ────────────────────────────────────────────────────────
+
+    public String getLegalName() {
+        return legalName;
+    }
+
+    public void setLegalName(String legalName) {
+        this.legalName = legalName;
+    }
+
+    public String getLegalStreet() {
+        return legalStreet;
+    }
+
+    public void setLegalStreet(String legalStreet) {
+        this.legalStreet = legalStreet;
+    }
+
+    public String getLegalPostalCode() {
+        return legalPostalCode;
+    }
+
+    public void setLegalPostalCode(String legalPostalCode) {
+        this.legalPostalCode = legalPostalCode;
+    }
+
+    public String getLegalCity() {
+        return legalCity;
+    }
+
+    public void setLegalCity(String legalCity) {
+        this.legalCity = legalCity;
+    }
+
+    public String getLegalCountry() {
+        return legalCountry;
+    }
+
+    public void setLegalCountry(String legalCountry) {
+        this.legalCountry = legalCountry;
+    }
+
+    public String getLegalEmail() {
+        return legalEmail;
+    }
+
+    public void setLegalEmail(String legalEmail) {
+        this.legalEmail = legalEmail;
+    }
+
+    public String getLegalPhone() {
+        return legalPhone;
+    }
+
+    public void setLegalPhone(String legalPhone) {
+        this.legalPhone = legalPhone;
+    }
+
+    public String getLegalVatId() {
+        return legalVatId;
+    }
+
+    public void setLegalVatId(String legalVatId) {
+        this.legalVatId = legalVatId;
+    }
+
+    public String getLegalRegister() {
+        return legalRegister;
+    }
+
+    public void setLegalRegister(String legalRegister) {
+        this.legalRegister = legalRegister;
+    }
+
+    /** §18 Abs. 2 MStV; falls back to the provider name for a sole trader. */
+    public String getLegalResponsible() {
+        return legalResponsible == null || legalResponsible.isBlank()
+            ? legalName : legalResponsible;
+    }
+
+    public void setLegalResponsible(String legalResponsible) {
+        this.legalResponsible = legalResponsible;
+    }
+
+    /** Art. 13(1)(b) GDPR contact; falls back to the Impressum address. */
+    public String getPrivacyContactEmail() {
+        return privacyContactEmail == null || privacyContactEmail.isBlank()
+            ? legalEmail : privacyContactEmail;
+    }
+
+    public void setPrivacyContactEmail(String privacyContactEmail) {
+        this.privacyContactEmail = privacyContactEmail;
     }
 }

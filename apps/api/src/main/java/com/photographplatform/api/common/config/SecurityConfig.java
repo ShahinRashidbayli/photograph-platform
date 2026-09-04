@@ -147,7 +147,7 @@ public class SecurityConfig {
                 // own tenant, and an explicit gate means a future endpoint added
                 // under /api/customer/** can't silently inherit a wider audience
                 // than intended. (Note this is /api/customer/**, distinct from
-                // the permitAll /api/auth/customer/** magic-link routes above.)
+                // the permitAll /api/auth/customer/** login-code routes above.)
                 .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                 .anyRequest().authenticated()
             )
@@ -219,8 +219,8 @@ public class SecurityConfig {
             "/api/auth/resend-verification",
             "/api/auth/password/forgot",
             "/api/auth/password/reset",
-            "/api/auth/customer/magic-link/request",
-            "/api/auth/customer/magic-link/verify",
+            "/api/auth/customer/login-code/request",
+            "/api/auth/customer/login-code/verify",
             "/actuator/health"
         );
 

@@ -10,13 +10,25 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * One-time magic-link login token for customer (passwordless) auth.
- * The plaintext token is sent in the email; only its SHA-256 hash is
- * persisted, mirroring {@link EmailVerificationToken} and {@link RefreshToken}.
+ * One-time login code for customer (passwordless) auth.
+ *
+ * <p>The plaintext code is sent in the email; only {@code sha256(userId + ":" +
+ * code)} is persisted, mirroring {@link EmailVerificationToken} and
+ * {@link RefreshToken} — with the user id folded in as a per-row salt because a
+ * six-digit code is small enough to reverse from an unsalted hash. See
+ * {@code V32__login_code_attempts.sql} for the full reasoning and
+ * {@code CustomerAuthService} for the attempt cap that bounds guessing.
+ *
+ * <p>Retains the {@code magic_link_tokens} table name while the class carries
+ * the new one. The table holds the same primitive it always did — a short-lived,
+ * single-use, hashed login secret — and renaming a table under a foreign key
+ * costs a migration to buy nothing. The Java name is free to be accurate, and
+ * paying for the cheap half of a rename is better than keeping a class called
+ * after a mechanism the code no longer has.
  */
 @Entity
 @Table(schema = "public", name = "magic_link_tokens")
-public class MagicLinkToken {
+public class LoginCode {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -34,13 +46,16 @@ public class MagicLinkToken {
     @Column(name = "used_at")
     private OffsetDateTime usedAt;
 
+    @Column(name = "attempts", nullable = false)
+    private int attempts = 0;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
-    protected MagicLinkToken() {
+    protected LoginCode() {
     }
 
-    public MagicLinkToken(UUID userId, String tokenHash, OffsetDateTime expiresAt) {
+    public LoginCode(UUID userId, String tokenHash, OffsetDateTime expiresAt) {
         this.userId = userId;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
@@ -76,5 +91,14 @@ public class MagicLinkToken {
 
     public boolean isExpired() {
         return expiresAt.isBefore(OffsetDateTime.now());
+    }
+
+    public int getAttempts() {
+        return attempts;
+    }
+
+    /** Records a failed guess. The caller enforces the cap. */
+    public void recordFailedAttempt() {
+        this.attempts++;
     }
 }

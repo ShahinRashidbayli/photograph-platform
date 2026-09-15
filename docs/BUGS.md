@@ -132,14 +132,23 @@ security holes.
 
 ## Follow-ups (note only; not this pass's scope)
 
-- **FU-1 (critical): CI has never run integration tests or the quality gates.**
-  The last CI run was 2026-07-22 (~2 months ago); this branch's 116 commits
-  never triggered CI (`ci.yml` triggers only on push/PR to `develop`/`main`;
-  no `workflow_dispatch`). `*IT` includes were added 2026-08-15 and `mvn verify`
-  in CI on 2026-08-24 — both *after* the last green run, which used `mvn test`
-  and 51s. So no `*IT` test and neither the JaCoCo floor nor SpotBugs has ever
-  executed in CI. Had CI run, the 900s `Retry-After` stall (BUG-001) would have
-  hung it. Decide: add `feat/**` (or `workflow_dispatch`) to `ci.yml` triggers.
+- **FU-1 (critical): ~~CI has never run integration tests or the quality
+  gates~~ — FIXED, `ed81509`.** The last CI run had been 2026-07-22; this
+  branch's 116 commits never triggered it (`ci.yml` fired only on push/PR to
+  `develop`/`main`, no `workflow_dispatch`). `*IT` includes (2026-08-15) and
+  `mvn verify` in CI (2026-08-24) both landed *after* that last run, which used
+  `mvn test` and took 51s — so no `*IT` test, no coverage floor and no SpotBugs
+  had ever executed in CI. Now: `push: ['**']`, `pull_request` on any target,
+  `workflow_dispatch`, and the three `setup-java` steps read `.java-version`.
+  First real run — [35031263249](https://github.com/ShahinRashidbayli/photograph-platform/actions/runs/35031263249),
+  2026-09-15: **532 tests, 4 failures, 0 errors, 2m28s**. Testcontainers works
+  on the runner (Postgres suites green; the quay.io MinIO pull succeeded, so
+  `R2StorageServiceIT` ran there too). JDK resolved to Temurin 21.0.12 from
+  `.java-version`, enforcer passed. The 4 failures are exactly BUG-007 (×3) and
+  BUG-010 — no new failures, no infrastructure errors. Format, Lint, Test Web
+  and Dependency audit are green (which also proves `npm ci` resolves
+  `@testing-library/dom` again after the `.npmrc` fix). JaCoCo/SpotBugs still
+  do not run: the build stops at the `test` phase while those 4 fail.
 - **FU-2: JaCoCo floor comment unverifiable.** `pom.xml` claims "452 tests, LINE
   64.72% / BRANCH 48.57%" but a full `verify` had never completed. First green
   run measured **LINE 58.01% / BRANCH 44.17%** (below the 63%/46% floors — but

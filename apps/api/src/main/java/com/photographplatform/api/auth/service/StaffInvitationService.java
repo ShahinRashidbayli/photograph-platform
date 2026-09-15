@@ -7,6 +7,7 @@ import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.StaffInvitationRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.ConflictException;
+import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.PlanUpgradeRequiredException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -399,6 +400,11 @@ public class StaffInvitationService {
      */
     @Transactional
     public void leaveStudio(UUID tenantId, UUID actorId, String ipAddress) {
+        // Staff only — and here rather than only in SecurityConfig because of
+        // what this method does when it is reached. It finds the caller, sees
+        // they are not the owner, and deletes their row: for a customer that
+        // was their own account, filed in the trail as STAFF_LEFT. See BUG-008.
+        SecurityUtils.requireStaff("Only studio staff can leave a studio");
         User actor = userRepository.findById(actorId)
             .filter(u -> u.getTenantId().equals(tenantId))
             .orElseThrow(() -> new UnauthorizedException("Not your studio"));

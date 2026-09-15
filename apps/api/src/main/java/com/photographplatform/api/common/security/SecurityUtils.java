@@ -74,6 +74,30 @@ public final class SecurityUtils {
      * callers, since PHOTOGRAPHER/ADMIN callers are already tenant-scoped by
      * RLS and may access any invoice in their tenant.
      */
+    /**
+     * Refuses a caller who is not one of the studio's own staff.
+     *
+     * <p>Defence in depth, not the primary gate: the URL rules in
+     * {@code SecurityConfig} decide who reaches a handler, and they are what
+     * runs in production. This exists because those rules live in one
+     * configuration class, several packages away from the code they protect,
+     * and BUG-004/BUG-008 are both what that distance costs — a whole prefix
+     * went unruled while the services behind it asked only which *tenant* the
+     * caller belonged to, which a customer of that same tenant answers
+     * correctly.
+     *
+     * <p>Call it before anything is read or written, so a refusal cannot be
+     * used to learn whether a given id exists.
+     *
+     * @param message what the caller is told; name the action, not the rule
+     * @throws UnauthorizedException if the caller is not PHOTOGRAPHER or ADMIN
+     */
+    public static void requireStaff(String message) {
+        if (!currentUserHasRole("PHOTOGRAPHER") && !currentUserHasRole("ADMIN")) {
+            throw new UnauthorizedException(message);
+        }
+    }
+
     public static boolean currentUserHasRole(String role) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {

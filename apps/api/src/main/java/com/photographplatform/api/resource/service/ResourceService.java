@@ -2,7 +2,6 @@ package com.photographplatform.api.resource.service;
 
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
-import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.resource.domain.StudioResource;
@@ -65,10 +64,7 @@ public class ResourceService {
      * and the damage this is about is on the write path.
      */
     private static void requireStaff() {
-        if (!SecurityUtils.currentUserHasRole("PHOTOGRAPHER")
-            && !SecurityUtils.currentUserHasRole("ADMIN")) {
-            throw new UnauthorizedException("Only studio staff can change resources");
-        }
+        SecurityUtils.requireStaff("Only studio staff can change resources");
     }
 
     @Transactional

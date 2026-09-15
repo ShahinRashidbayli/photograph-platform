@@ -21,6 +21,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -83,82 +84,7 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authEntryPoints.authenticationEntryPoint())
                 .accessDeniedHandler(authEntryPoints.accessDeniedHandler()))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/public/**", "/actuator/health", "/error").permitAll()
-                // Portfolio management (upload, complete, publish, delete, owner
-                // photo list) mutates the photographer's public-facing content.
-                // CUSTOMER-role accounts are issued JWTs scoped to the same
-                // tenant (see CustomerAuthService), so authentication alone is
-                // not enough — restrict to the tenant's own staff.
-                .requestMatchers("/api/portfolio/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // The rest of the photographer admin surface — client directory,
-                // lead inbox, gallery management and booking management — exposes
-                // other people's PII (emails, phones, internal notes) and lets the
-                // caller mutate bookings. CUSTOMER tokens authenticate fine and
-                // share the tenant, so without an explicit role gate any customer
-                // could read the whole tenant's clients/leads/bookings. The
-                // customer's own bookings are served separately by
-                // /api/customerBookings, which scopes to the caller's identity.
-                .requestMatchers(
-                    "/api/clients/**",
-                    "/api/leads/**",
-                    "/api/galleries/**",
-                    "/api/packages/**",
-                    "/api/photographerBookings",
-                    "/api/bookings/**",
-                    // The inquiry inbox lists other customers' names, emails,
-                    // budgets and messages — same PII exposure as the lead inbox,
-                    // same gate.
-                    "/api/inquiries/**",
-                    // Contracts hold the other party's name and email plus the
-                    // photographer's own drafts. The customer's view of the
-                    // same documents is /api/customer/contracts/**, which is
-                    // scoped to the caller's own address — this one is not.
-                    "/api/contracts/**",
-                    // Which unbuilt ideas this studio has asked for. Tenant-wide
-                    // and the owner's business, like every other answer here.
-                    "/api/roadmap/**"
-                ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // Tenant-level settings: the business identity printed on every
-                // invoice (including the tenant's tax numbers) and the Stripe
-                // Connect payout link. Tenant-wide, not per-user — a CUSTOMER
-                // shares the tenant and must never read or rewrite it. The
-                // customer's own account settings live under /api/auth/me.
-                .requestMatchers("/api/settings/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // Fotolio's own subscription — what the photographer pays US.
-                // Tenant-wide and strictly the account owner's business: a
-                // CUSTOMER shares the tenant, so without this rule a client
-                // could read their photographer's plan and billing state, or
-                // open a Stripe portal session against their customer record.
-                // (Their own invoices are a different thing entirely and live
-                // under /api/invoices.)
-                .requestMatchers("/api/billing/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // Recording a manual (bank-transfer) payment is the photographer
-                // taking their own word for money having arrived — never a
-                // customer action. Declared before the broader payments matcher
-                // below so this narrower, stricter rule wins.
-                .requestMatchers(HttpMethod.POST, "/api/invoices/*/payments/manual")
-                    .hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // A customer completes their own invoice's payment with Stripe.js
-                // (PaymentController#createIntent) and reads its paid/outstanding
-                // summary (PaymentController#summary) — both must be reachable by
-                // CUSTOMER, unlike the rest of the invoice surface below.
-                // PaymentService scopes each lookup to the caller's own booking
-                // for CUSTOMER callers (see SecurityUtils#currentUserHasRole).
-                .requestMatchers("/api/invoices/*/payments/**").hasAnyRole("PHOTOGRAPHER", "ADMIN", "CUSTOMER")
-                // Invoices carry the buyer's name/email and the tenant's own tax
-                // details — same financial-PII exposure as the client directory.
-                .requestMatchers("/api/invoices/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
-                // The customer's own surface. Gated to CUSTOMER rather than left
-                // to anyRequest() so the role boundary is symmetric: a
-                // photographer has no business filing an inquiry against their
-                // own tenant, and an explicit gate means a future endpoint added
-                // under /api/customer/** can't silently inherit a wider audience
-                // than intended. (Note this is /api/customer/**, distinct from
-                // the permitAll /api/auth/customer/** login-code routes above.)
-                .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
-                .anyRequest().authenticated()
-            )
+            .authorizeHttpRequests(SecurityConfig::authorizationRules)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             // Runs after JwtAuthFilter — verifies that any authenticated request
             // has a tenant in context and pushes the tenant into MDC for log
@@ -287,6 +213,141 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12);
+    }
+
+    /**
+     * Who may reach what.
+     *
+     * <p>Lifted out of {@link #filterChain(HttpSecurity)} so the rules read as
+     * one list rather than as a clause in the middle of the chain assembly —
+     * and because this is the part of the configuration that has to be read
+     * carefully when anything is added.
+     */
+    private static void authorizationRules(
+        AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+        auth.requestMatchers("/api/auth/**", "/api/public/**", "/actuator/health", "/error").permitAll()
+            // Portfolio management (upload, complete, publish, delete, owner
+            // photo list) mutates the photographer's public-facing content.
+            // CUSTOMER-role accounts are issued JWTs scoped to the same
+            // tenant (see CustomerAuthService), so authentication alone is
+            // not enough — restrict to the tenant's own staff.
+            .requestMatchers("/api/portfolio/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // The rest of the photographer admin surface — client directory,
+            // lead inbox, gallery management and booking management — exposes
+            // other people's PII (emails, phones, internal notes) and lets the
+            // caller mutate bookings. CUSTOMER tokens authenticate fine and
+            // share the tenant, so without an explicit role gate any customer
+            // could read the whole tenant's clients/leads/bookings. The
+            // customer's own bookings are served separately by
+            // /api/customerBookings, which scopes to the caller's identity.
+            .requestMatchers(
+                "/api/clients/**",
+                "/api/leads/**",
+                "/api/galleries/**",
+                "/api/packages/**",
+                "/api/photographerBookings",
+                "/api/bookings/**",
+                // The inquiry inbox lists other customers' names, emails,
+                // budgets and messages — same PII exposure as the lead inbox,
+                // same gate.
+                "/api/inquiries/**",
+                // Contracts hold the other party's name and email plus the
+                // photographer's own drafts. The customer's view of the
+                // same documents is /api/customer/contracts/**, which is
+                // scoped to the caller's own address — this one is not.
+                "/api/contracts/**",
+                // Which unbuilt ideas this studio has asked for. Tenant-wide
+                // and the owner's business, like every other answer here.
+                "/api/roadmap/**"
+            ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // Tenant-level settings: the business identity printed on every
+            // invoice (including the tenant's tax numbers) and the Stripe
+            // Connect payout link. Tenant-wide, not per-user — a CUSTOMER
+            // shares the tenant and must never read or rewrite it. The
+            // customer's own account settings live under /api/auth/me.
+            .requestMatchers("/api/settings/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // Fotolio's own subscription — what the photographer pays US.
+            // Tenant-wide and strictly the account owner's business: a
+            // CUSTOMER shares the tenant, so without this rule a client
+            // could read their photographer's plan and billing state, or
+            // open a Stripe portal session against their customer record.
+            // (Their own invoices are a different thing entirely and live
+            // under /api/invoices.)
+            .requestMatchers("/api/billing/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // Recording a manual (bank-transfer) payment is the photographer
+            // taking their own word for money having arrived — never a
+            // customer action. Declared before the broader payments matcher
+            // below so this narrower, stricter rule wins.
+            .requestMatchers(HttpMethod.POST, "/api/invoices/*/payments/manual")
+                .hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // A customer completes their own invoice's payment with Stripe.js
+            // (PaymentController#createIntent) and reads its paid/outstanding
+            // summary (PaymentController#summary) — both must be reachable by
+            // CUSTOMER, unlike the rest of the invoice surface below.
+            // PaymentService scopes each lookup to the caller's own booking
+            // for CUSTOMER callers (see SecurityUtils#currentUserHasRole).
+            .requestMatchers("/api/invoices/*/payments/**").hasAnyRole("PHOTOGRAPHER", "ADMIN", "CUSTOMER")
+            // Invoices carry the buyer's name/email and the tenant's own tax
+            // details — same financial-PII exposure as the client directory.
+            .requestMatchers("/api/invoices/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // The customer's own surface. Gated to CUSTOMER rather than left
+            // to anyRequest() so the role boundary is symmetric: a
+            // photographer has no business filing an inquiry against their
+            // own tenant, and an explicit gate means a future endpoint added
+            // under /api/customer/** can't silently inherit a wider audience
+            // than intended. (Note this is /api/customer/**, distinct from
+            // the permitAll /api/auth/customer/** login-code routes above.)
+            .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
+
+            // ── The four prefixes that used to have no rule at all ──────
+            // Each inherited anyRequest().authenticated() and was therefore
+            // reachable by a CUSTOMER, whose JWT is minted against this same
+            // tenant. Confirmed with a real customer token against a running
+            // API, not inferred — docs/BUGS.md BUG-002..005, BUG-008.
+
+            // The studio's Impressum and VAT id: the imprint a regulator or a
+            // claimant reads, and the one a customer could not merely read but
+            // rewrite (PUT answered 200). The public read-only view is
+            // /api/public/legal/{subdomain}, permitAll above.
+            .requestMatchers("/api/tenant/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // The staff roster: colleagues' names, addresses and seat
+            // counts, and the owner's own email. Every mutation here
+            // already calls OwnershipGuard, so the hole was the GET — but
+            // the rule covers the prefix so a future team endpoint cannot
+            // arrive unguarded. POST /api/team/leave is included
+            // deliberately: it deletes the caller's account, which for a
+            // customer is neither a thing they are nor a thing they should
+            // be able to do through the staff surface.
+            .requestMatchers("/api/team/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // Rooms and kit. Writable, and ResourceService scopes by tenant
+            // only, so a customer could create and edit the studio's own
+            // inventory.
+            .requestMatchers("/api/resources/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // The studio's revenue. The service already calls
+            // requireCapabilityForCurrentTenant(ANALYTICS) — but that is a
+            // *plan* gate, not a *role* gate, so on a tenant whose plan
+            // includes analytics every authenticated caller passed it.
+            .requestMatchers("/api/analytics/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+
+            // ── Deliberately open to any authenticated caller ───────────
+            // Both answer about the caller, not about the studio, and both
+            // are scoped to whoever is asking: a photographer hitting
+            // customerBookings gets their own (empty) list, and the plan an
+            // entitlement check reports is already in /api/auth/me.
+            // Written out rather than left to a default, because that is
+            // the distinction this whole block exists to make.
+            .requestMatchers("/api/customerBookings").authenticated()
+            .requestMatchers("/api/entitlements").authenticated()
+
+            // Deny by default. This was authenticated(), which made an
+            // unruled endpoint invisible as a mistake rather than a failure:
+            // it simply served every logged-in account, customers included,
+            // and four prefixes drifted in exactly that way. EndpointRoleMatrixIT
+            // holds the other half — every registered route must be classified
+            // there, so "write a rule" cannot be skipped quietly either.
+            // Consequence: an unhandled path now answers 403, not 404, since
+            // authorization is decided before dispatch. See BUG-011.
+            .anyRequest().denyAll();
     }
 
     @Bean

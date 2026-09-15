@@ -138,6 +138,15 @@ This is the prerequisite for _any_ real payment.
 Each is a new module that clips onto the keystones above. None needs an
 architectural change. Full feasibility: `VISION_AND_EXTENSIBILITY.md` §4.
 
+> **The order below is no longer only a guess.** `/roadmap` shows all six to
+> signed-in photographers as explicitly unbuilt and records which ones each
+> studio would use (`roadmap` module, `V35__feature_interest.sql`,
+> `GET /api/roadmap/interest`). Read the tally before starting one:
+> `SELECT feature, count(*) FROM feature_interest GROUP BY 1 ORDER BY 2 DESC;`
+> Nothing on that page is presented as existing — see the page's own comment
+> for why sample-data previews are banned here.
+
+- [x] **Contracts & e-sign** (**Pro anchor #2 — on the landing page as "soon"**) — new `contract` module: `Contract` entity owning its own lifecycle (`DRAFT → SENT → SIGNED`, `CANCELLED` from either of the first two), einfache elektronische Signatur per eIDAS Art. 3(10), SHA-256 of the body taken **at signature** so tampering is detectable afterwards, PDF with a signature block, `ContractSignedEvent` → photographer email. Migration `V34__contracts.sql`. Gate: `CONTRACTS` (Pro), applied to the photographer's **writes only** — a customer is never refused a signature because the photographer's plan lapsed after sending. FE: `BookingContracts` panel on the booking detail (draft/edit/send/withdraw/PDF, hidden without the capability) and the client `/documents` page rebuilt on `/api/customer/contracts` — which is also what let it be **re-linked in the client sidebar**, since it no longer renders invented sample documents. Chosen over Instagram because it has no external dependency: Instagram DM needs Meta App Review, which is weeks of waiting, not weeks of building.
 - [ ] **Instagram growth** (vision #5, **Pro anchor — already sold, must ship**) — `ROADMAP.md` §4.5: DM auto-reply webhook, bio-link request flow, story/post stickers. `source=INSTAGRAM` is already modelled. Gate: `INSTAGRAM_AUTOMATION` (Pro).
 - [ ] **Map / location scouting** (vision #2, **the differentiator — no competitor has it**) — new `location` module (geo data), FE map component, UGC moderation. Photographers share scouted spots & angles.
 - [ ] **Studio marketplace** (vision #6, highest revenue potential) — new `STUDIO` role + `studio` module; studios list space & hourly rates; photographers search/book; reuse the `booking` module; payments via Phase 2/3.

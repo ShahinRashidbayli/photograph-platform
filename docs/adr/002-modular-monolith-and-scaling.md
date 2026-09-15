@@ -34,8 +34,8 @@ The considered options:
   wrong for this team size and stage.
 - **SOA + ESB** — heavyweight enterprise integration; wrong scale.
 - **Serverless / FaaS for the whole app** — does not fit a stateful
-  Spring Boot app with schema-per-tenant routing and long-lived JPA/connection
-  pools.
+  Spring Boot app with per-transaction tenant binding and long-lived
+  JPA/connection pools.
 - **Modular monolith** — one deploy, one database, clear in-process module
   boundaries, with the *option* to extract a module later without rewriting its
   business logic.

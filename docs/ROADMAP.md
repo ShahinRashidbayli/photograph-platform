@@ -35,7 +35,7 @@ Master Sənəd — v4.1
 Stack
 Spring Boot 3 + Next.js 14
 DB
-PostgreSQL schema-per-tenant
+PostgreSQL, Row-Level Security per tenant
 Hosting
 Railway → GCP
 MVP Xərc

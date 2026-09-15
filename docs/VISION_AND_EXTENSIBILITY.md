@@ -28,9 +28,16 @@ feature modules, each with the same internal shape:
 Modules today: `audit, auth, booking, client, gallery, inquiry, lead,
 notification, photo, portfolio, pricing, tenant, user` (+ `common`).
 
-Adding a feature = adding a package with the same five parts. Multi-tenancy is
-**schema-per-tenant**. No architectural change is required to add any feature in
-the vision. This is the strongest property of the codebase.
+Adding a feature = adding a package with the same five parts. This is the
+strongest property of the codebase.
+
+Multi-tenancy is **Row-Level Security**, not schema-per-tenant — `V11` replaced
+the schemas with a `tenant_id` column plus an `app.tenant_id` GUC set per
+transaction (`TenantRoutingDataSource`). That matters for the vision: it means
+every query is scoped to one tenant, so the four **cross-tenant** ideas below
+(map, studio marketplace, coaching, workshops) need a decision RLS does not
+provide on its own. See [`adr/003-community-cross-tenant-data.md`](adr/003-community-cross-tenant-data.md)
+— it is the precondition for #1, #2, #3 and #6. Ideas #4 and #5 are unaffected.
 
 ### Frontend — Next.js app-router ✅
 

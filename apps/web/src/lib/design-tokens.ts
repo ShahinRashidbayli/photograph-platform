@@ -150,6 +150,15 @@ export const getColors = (theme: Theme) => {
     primaryText: isDark ? '#A5B4FC' : '#4F46E5',
     primaryBorder: isDark ? 'rgba(99, 102, 241, 0.38)' : '#C7D2FE',
     primarySolid: '#6366F1',
+    // A deepening sweep of the primary, for the one surface on a screen that
+    // carries its headline figure. Kept as a token rather than written at the
+    // call site because a gradient is the easiest thing in a design to end up
+    // with four slightly different versions of, and because the direction has
+    // to differ by theme: `primaryStrong` gets *lighter* in dark mode, so
+    // reusing it here would run the sweep backwards on half the app's users.
+    primaryGradient: isDark
+      ? 'linear-gradient(135deg, #4F46E5 0%, #4338CA 55%, #3730A3 100%)'
+      : 'linear-gradient(135deg, #6366F1 0%, #4F46E5 55%, #4338CA 100%)',
     primarySolidHover: isDark ? '#818CF8' : '#4F46E5',
 
     // ─── Success (positive outcome — green-600) ────────────────
@@ -184,11 +193,50 @@ export const getColors = (theme: Theme) => {
     neutralText: isDark ? '#D4D4D8' : '#475569',
     neutralBorder: isDark ? 'rgba(161, 161, 170, 0.26)' : '#E2E8F0',
 
-    // ─── Shadows ───────────────────────────────────────────────
+    // ─── Elevation ─────────────────────────────────────────────
+    // A four-step ramp, not a set of one-off shadows. Every step is two
+    // layers: a tight *contact* shadow that pins the element to the surface
+    // under it, and a wide, soft *ambient* one that gives it height. A single
+    // blurred layer is what makes a card read as a grey smudge rather than as
+    // something lifted — the contact layer is the part the eye actually uses
+    // to judge "this sits on top of that".
+    //
+    // The ramp is the whole point. Elevation only reads as depth when the
+    // steps are ordered and few: sixteen hand-written `boxShadow` strings
+    // across the app meant a dropdown could sit lower than the card it opened
+    // from, and nothing in the code said that was wrong.
+    //
+    //   raised   — resting cards and panels, barely off the page
+    //   floating — hover, and anything that lifts in response to a pointer
+    //   popover  — dropdowns, menus, the notification panel
+    //   modal    — dialogs over a scrim, the only step that should feel far
+    //
+    // Dark mode carries more of the weight in opacity than in spread: a large
+    // black blur on a near-black surface is invisible, so the steps deepen
+    // rather than widen.
+    shadowRaised: isDark
+      ? '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.45)'
+      : '0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.06)',
+    shadowFloating: isDark
+      ? '0 2px 4px rgba(0, 0, 0, 0.55), 0 10px 24px -8px rgba(0, 0, 0, 0.6)'
+      : '0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12)',
+    shadowPopover: isDark
+      ? '0 4px 8px rgba(0, 0, 0, 0.6), 0 16px 40px -12px rgba(0, 0, 0, 0.7)'
+      : '0 4px 8px rgba(15, 23, 42, 0.06), 0 16px 40px -12px rgba(15, 23, 42, 0.18)',
+    shadowModal: isDark
+      ? '0 8px 16px rgba(0, 0, 0, 0.65), 0 32px 72px -20px rgba(0, 0, 0, 0.8)'
+      : '0 8px 16px rgba(15, 23, 42, 0.08), 0 32px 72px -20px rgba(15, 23, 42, 0.26)',
+
+    // The two names the app already used, now pointing at ramp steps so every
+    // existing surface picks up the two-layer treatment without being edited.
+    // Prefer the ramp names above in new code; these stay because renaming 40
+    // call sites would be a change with no visible result.
     overlayShadow: isDark
-      ? '0 1px 2px rgba(0, 0, 0, 0.5)'
-      : '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04)',
-    elevatedShadow: isDark ? '0 8px 24px rgba(0, 0, 0, 0.55)' : '0 8px 24px rgba(15, 23, 42, 0.06)',
+      ? '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.45)'
+      : '0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.06)',
+    elevatedShadow: isDark
+      ? '0 2px 4px rgba(0, 0, 0, 0.55), 0 10px 24px -8px rgba(0, 0, 0, 0.6)'
+      : '0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12)',
   };
 };
 

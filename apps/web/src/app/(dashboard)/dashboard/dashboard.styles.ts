@@ -126,6 +126,75 @@ export const getDashboardStyles = (theme: DashboardTheme): Record<string, React.
       gap: '8px',
       transition: 'transform 0.18s ease, box-shadow 0.18s ease',
     },
+    // One card on the row carries the figure the photographer opened the page
+    // for. The other three stay on the plain surface on purpose: the whole
+    // effect of a hero card is that it is the only one, and four gradients is
+    // just a louder flat row.
+    metricCardFeatured: {
+      position: 'relative',
+      overflow: 'hidden',
+      padding: '14px 16px',
+      backgroundImage: c.primaryGradient,
+      borderRadius: '14px',
+      border: '1px solid transparent',
+      boxShadow: c.shadowFloating,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+    },
+    // Two soft discs bleeding off the top-right corner. They are what stop a
+    // gradient card reading as a flat coloured rectangle — the highlight gives
+    // the surface somewhere to catch light.
+    metricGlow: {
+      position: 'absolute',
+      top: '-38px',
+      right: '-26px',
+      width: '150px',
+      height: '150px',
+      borderRadius: '50%',
+      // A radial fade rather than a flat disc: a solid circle at 10% white
+      // still draws its own edge across the card, which reads as a shape sitting
+      // on the surface instead of as light falling on it.
+      background:
+        'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 55%, rgba(255,255,255,0) 72%)',
+      pointerEvents: 'none',
+    },
+    metricGlowInner: {
+      position: 'absolute',
+      top: '-70px',
+      right: '-64px',
+      width: '150px',
+      height: '150px',
+      borderRadius: '50%',
+      background:
+        'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 58%, rgba(255,255,255,0) 74%)',
+      pointerEvents: 'none',
+    },
+    metricLabelFeatured: {
+      fontSize: '0.7rem',
+      color: 'rgba(255, 255, 255, 0.82)',
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      fontWeight: 700,
+      position: 'relative',
+    },
+    metricValueFeatured: {
+      fontSize: '1.9rem',
+      fontWeight: 800,
+      color: '#FFFFFF',
+      letterSpacing: '-0.025em',
+      lineHeight: 1.05,
+      position: 'relative',
+    },
+    metricTrendFeatured: {
+      fontSize: '0.76rem',
+      fontWeight: 600,
+      color: 'rgba(255, 255, 255, 0.86)',
+      lineHeight: 1.3,
+      letterSpacing: '0.005em',
+      position: 'relative',
+    },
     metricTopRow: {
       display: 'flex',
       justifyContent: 'space-between',

@@ -49,7 +49,7 @@ export function Modal({ label, onClose, children, maxWidth = 520, onSubmit }: Mo
     background: c.surface,
     border: `1px solid ${c.border}`,
     borderRadius: 16,
-    boxShadow: c.overlayShadow,
+    boxShadow: c.shadowModal,
     color: c.text,
     width: '100%',
     maxWidth,

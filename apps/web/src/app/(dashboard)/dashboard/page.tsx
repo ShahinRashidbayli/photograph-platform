@@ -287,6 +287,7 @@ export default function DashboardPage() {
         <MetricCard
           styles={styles}
           colors={colors}
+          featured
           label={t('dashboard.kpi.totalRevenue')}
           value={format.eur(kpis.revenue)}
           trend={t('dashboard.kpi.collected', { amount: format.eur(kpis.collected) })}
@@ -484,24 +485,52 @@ type MetricCardProps = {
   // Contextual line under the value, always derived from real data.
   trend?: string;
   trendColor?: string;
+  /**
+   * Renders the card as the row's hero — brand gradient, white type, a size up.
+   *
+   * <p>Exactly one card per row should set it. The device only works because
+   * it is unique on the screen: it says "this is the number you came for", and
+   * a second one says nothing at all.
+   */
+  featured?: boolean;
 };
 
-function MetricCard({ styles, colors, label, value, trend, trendColor }: MetricCardProps) {
+function MetricCard({
+  styles,
+  colors,
+  label,
+  value,
+  trend,
+  trendColor,
+  featured = false,
+}: MetricCardProps) {
   const [hover, setHover] = useState(false);
   return (
     <div
       style={{
-        ...styles.metricCard,
+        ...(featured ? styles.metricCardFeatured : styles.metricCard),
         transform: hover ? 'translateY(-2px)' : 'translateY(0)',
-        boxShadow: hover ? colors.elevatedShadow : colors.overlayShadow,
+        boxShadow: hover ? colors.shadowPopover : colors.shadowRaised,
       }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <span style={styles.metricLabel}>{label}</span>
-      <div style={styles.metricValue}>{value}</div>
+      {featured && (
+        <>
+          <span aria-hidden style={styles.metricGlow} />
+          <span aria-hidden style={styles.metricGlowInner} />
+        </>
+      )}
+      <span style={featured ? styles.metricLabelFeatured : styles.metricLabel}>{label}</span>
+      <div style={featured ? styles.metricValueFeatured : styles.metricValue}>{value}</div>
       {trend && (
-        <div style={{ ...styles.metricTrend, color: trendColor ?? styles.metricTrend?.color }}>
+        <div
+          style={
+            featured
+              ? styles.metricTrendFeatured
+              : { ...styles.metricTrend, color: trendColor ?? styles.metricTrend?.color }
+          }
+        >
           {trend}
         </div>
       )}

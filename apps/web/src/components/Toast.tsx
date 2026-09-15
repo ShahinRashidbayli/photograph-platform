@@ -75,7 +75,7 @@ export function Toast({
         border: `1px solid ${tone === 'danger' ? c.dangerBorder : c.border}`,
         background: c.isDark ? '#1C1C22' : '#0F172A',
         color: '#F8FAFC',
-        boxShadow: '0 12px 32px rgba(15, 23, 42, 0.28)',
+        boxShadow: c.shadowPopover,
         fontSize: fontSize.md,
       }}
     >

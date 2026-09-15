@@ -2,6 +2,7 @@ package com.photographplatform.api.resource.service;
 
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.resource.domain.StudioResource;
@@ -45,8 +46,34 @@ public class ResourceService {
         return resources.stream().map(ResourceService::toResponse).toList();
     }
 
+    /**
+     * Writing to the studio's inventory is staff work.
+     *
+     * <p>The URL rule in {@code SecurityConfig} is the gate that runs in
+     * production, and it is in place. This is a second lock on the same door,
+     * and it is here because of how BUG-004 happened: the rule lives in one
+     * file several prefixes away from the code it protects, and
+     * {@code /api/resources} went unruled entirely while this service asked
+     * only which tenant the caller belonged to — which a customer of that same
+     * tenant satisfies. A service that decides for itself who may write to it
+     * cannot be reopened by an editing mistake in a configuration class.
+     *
+     * <p>Checked before the row is loaded, so a refusal cannot be used to tell
+     * an existing resource id from one that was never issued.
+     *
+     * <p>Reads are deliberately not guarded here: the URL rule covers them,
+     * and the damage this is about is on the write path.
+     */
+    private static void requireStaff() {
+        if (!SecurityUtils.currentUserHasRole("PHOTOGRAPHER")
+            && !SecurityUtils.currentUserHasRole("ADMIN")) {
+            throw new UnauthorizedException("Only studio staff can change resources");
+        }
+    }
+
     @Transactional
     public ResourceResponse create(ResourceRequest request) {
+        requireStaff();
         StudioResource resource = new StudioResource(
             SecurityUtils.requireCurrentTenantId(),
             request.name().trim(),
@@ -57,6 +84,7 @@ public class ResourceService {
 
     @Transactional
     public ResourceResponse update(UUID id, ResourceRequest request) {
+        requireStaff();
         StudioResource resource = repository.findById(id)
             .orElseThrow(() -> new NotFoundException("Resource not found"));
         resource.setName(request.name().trim());

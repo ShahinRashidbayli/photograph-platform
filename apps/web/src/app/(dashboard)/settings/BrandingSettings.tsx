@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
+import { UpgradeCard } from '@/components/UpgradeCard';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { Alert, Button, Card, EmptyState, Field, Input, useColors } from '@/components/ui';
+import { Alert, Button, Card, Field, Input, useColors } from '@/components/ui';
 
 interface Branding {
   logoUrl: string | null;
@@ -132,12 +133,11 @@ export function BrandingSettings() {
 
   if (!allowed) {
     return (
-      <Card>
-        <EmptyState
-          title={t('settings.branding.upgradeTitle')}
-          body={t('settings.branding.upgradeBody')}
-        />
-      </Card>
+      <UpgradeCard
+        capability="WHITE_LABEL_BRANDING"
+        title={t('settings.branding.upgradeTitle')}
+        body={t('settings.branding.upgradeBody')}
+      />
     );
   }
 

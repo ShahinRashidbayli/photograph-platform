@@ -40,4 +40,16 @@ export const common: Record<keyof EnCommon, string> = {
   'contact.email': 'E-Mail',
   'contact.emailTitle': 'E-Mail an {email}',
   'contact.noEmail': 'Keine E-Mail-Adresse hinterlegt',
+
+  'upgrade.cta': 'Tarife ansehen',
+  'upgrade.ctaNamed': 'Auf {plan} upgraden',
+  'upgrade.seePlans': 'Tarife ansehen',
+  'upgrade.notNow': 'Jetzt nicht',
+  'upgrade.dialogTitle': 'Dafür braucht es einen größeren Tarif',
+  'upgrade.dialogBody': 'Diese Funktion ist in Ihrem aktuellen Tarif nicht enthalten.',
+  'upgrade.dialogPlanLine': 'Verfügbar ab {plan}.',
+  'upgrade.navLocked': 'Enthalten ab {plan}',
+  'upgrade.contractsTitle': 'Verträge & E-Signatur',
+  'upgrade.contractsBody':
+    'Senden Sie aus dieser Buchung heraus einen Fotovertrag und holen Sie eine rechtsverbindliche Unterschrift ein — ohne E-Mail-Hin-und-Her.',
 };

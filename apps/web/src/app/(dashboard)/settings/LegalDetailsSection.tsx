@@ -2,6 +2,7 @@
 
 import { getColors, type Theme } from '@/lib/design-tokens';
 import api from '@/lib/api';
+import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -79,6 +80,7 @@ function toForm(data: TenantLegal): FormState {
 }
 
 export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
+  const { t, tPlural } = useTranslation();
   const c = useMemo(() => getColors(theme), [theme]);
 
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -95,9 +97,11 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
       setForm(toForm(data));
       setSubdomain(data.subdomain);
     } catch {
-      setLoadError('Rechtliche Angaben konnten nicht geladen werden.');
+      setLoadError(t('settings.legal.loadError'));
     }
-  }, []);
+    // `t` is memoised on the active language, so this stays stable per locale
+    // rather than refiring the effect on every render — see useTranslation.
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -123,7 +127,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
       setSubdomain(data.subdomain);
       setSaved(true);
     } catch {
-      setSaveError('Speichern fehlgeschlagen. Bitte erneut versuchen.');
+      setSaveError(t('settings.legal.saveError'));
     } finally {
       setSaving(false);
     }
@@ -186,13 +190,10 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
         id="settings-legal"
         style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text, margin: '0 0 6px' }}
       >
-        Rechtliche Angaben
+        {t('settings.legal.title')}
       </h2>
       <p style={{ fontSize: '0.88rem', color: c.textMuted, margin: '0 0 18px', lineHeight: 1.6 }}>
-        Diese Angaben erscheinen im Impressum und in der Datenschutzerklärung
-        Ihrer öffentlichen Seite. Sie sind gesetzlich verpflichtet (§5 DDG,
-        Art. 13 DSGVO), sie zu hinterlegen — Fotolios eigenes Impressum deckt
-        Ihre Seite nicht ab.
+        {t('settings.legal.intro')}
       </p>
 
       {loadError && (
@@ -216,8 +217,8 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
       >
         {complete ? (
           <>
-            <strong>Pflichtangaben vollständig.</strong> Ihre öffentliche Seite
-            zeigt ein gültiges Impressum.
+            <strong>{t('settings.legal.completeTitle')}</strong>{' '}
+            {t('settings.legal.completeBody')}
             {subdomain && (
               <>
                 {' '}
@@ -226,57 +227,54 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
                   target="_blank"
                   style={{ color: 'inherit', textUnderlineOffset: 3 }}
                 >
-                  Ansehen →
+                  {t('settings.legal.view')}
                 </Link>
               </>
             )}
           </>
         ) : (
           <>
-            <strong>Noch {missing.length} Pflichtangabe(n) offen.</strong> Ihre
-            öffentliche Seite weist bis dahin darauf hin, dass Impressum und
-            Datenschutzerklärung nicht veröffentlicht sind — Ihr Anfrageformular
-            nimmt aber weiterhin Anfragen entgegen. Es erhebt damit
-            personenbezogene Daten, ohne dass die nach Art. 13 DSGVO
-            geschuldeten Angaben abrufbar sind. Das Risiko einer Abmahnung
-            liegt bei Ihnen, nicht bei Fotolio.
+            <strong>
+              {tPlural('settings.legal.incompleteTitle', missing.length)}
+            </strong>{' '}
+            {t('settings.legal.incompleteBody')}
           </>
         )}
       </div>
 
       <form onSubmit={onSubmit} style={{ display: 'grid', gap: '16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {field('legalName', 'Anbieter / Name')}
-          {field('legalStreet', 'Straße und Hausnummer')}
+          {field('legalName', t('settings.legal.fieldName'))}
+          {field('legalStreet', t('settings.legal.fieldStreet'))}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
-          {field('legalPostalCode', 'PLZ')}
-          {field('legalCity', 'Ort')}
-          {field('legalCountry', 'Land')}
+          {field('legalPostalCode', t('settings.legal.fieldPostalCode'))}
+          {field('legalCity', t('settings.legal.fieldCity'))}
+          {field('legalCountry', t('settings.legal.fieldCountry'))}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {field('legalEmail', 'E-Mail', { type: 'email' })}
-          {field('legalPhone', 'Telefon', { type: 'tel' })}
+          {field('legalEmail', t('settings.legal.fieldEmail'), { type: 'email' })}
+          {field('legalPhone', t('settings.legal.fieldPhone'), { type: 'tel' })}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {field('legalVatId', 'USt-IdNr.', {
-            hint: 'Nur falls umsatzsteuerpflichtig (§27a UStG). Kleinunternehmer nach §19 UStG lassen das Feld leer.',
+          {field('legalVatId', t('settings.legal.fieldVatId'), {
+            hint: t('settings.legal.hintVatId'),
           })}
-          {field('legalRegister', 'Handelsregister', {
-            hint: 'Nur bei Eintragung, z. B. „Amtsgericht Berlin, HRB 12345“.',
+          {field('legalRegister', t('settings.legal.fieldRegister'), {
+            hint: t('settings.legal.hintRegister'),
           })}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {field('legalResponsible', 'Verantwortlich (§18 Abs. 2 MStV)', {
-            hint: 'Leer lassen, wenn identisch mit dem Anbieter.',
+          {field('legalResponsible', t('settings.legal.fieldResponsible'), {
+            hint: t('settings.legal.hintResponsible'),
           })}
-          {field('privacyContactEmail', 'Datenschutz-Kontakt', {
+          {field('privacyContactEmail', t('settings.legal.fieldPrivacyContact'), {
             type: 'email',
-            hint: 'Leer lassen, wenn identisch mit der E-Mail oben.',
+            hint: t('settings.legal.hintPrivacyContact'),
           })}
         </div>
 
@@ -302,10 +300,12 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
               opacity: saving ? 0.7 : 1,
             }}
           >
-            {saving ? 'Speichern…' : 'Speichern'}
+            {saving ? t('settings.legal.saving') : t('settings.legal.save')}
           </button>
           {saved && (
-            <span style={{ fontSize: '0.86rem', color: c.textMuted }}>Gespeichert ✓</span>
+            <span style={{ fontSize: '0.86rem', color: c.textMuted }}>
+              {t('settings.legal.saved')}
+            </span>
           )}
         </div>
       </form>

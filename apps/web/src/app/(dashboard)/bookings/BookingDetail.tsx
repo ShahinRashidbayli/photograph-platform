@@ -13,6 +13,7 @@ import {
 import type { Theme } from '@/lib/design-tokens';
 import type { Booking } from '@/types/api';
 import { BookingActionMenu } from './BookingActionMenu';
+import { BookingContracts } from './BookingContracts';
 import { BookingInvoices } from './BookingInvoices';
 import { getStatusVisual } from './bookings.filters';
 import type { getBookingsColors } from './bookings.styles';
@@ -272,6 +273,9 @@ export function BookingDetail({
             `paymentState`/`amountPaidCents` are derived server-side from these
             rows, so this is the only place they can be changed. */}
         {isPhotographer && <BookingInvoices booking={booking} theme={theme} />}
+        {/* Below invoices: the money is what the photographer opens a booking
+            for, and a contract is the thing they reach for once. */}
+        {isPhotographer && <BookingContracts booking={booking} theme={theme} />}
 
         {/* Who is shooting it. Photographer-only and shown even when nobody is
             assigned: "not yet decided" is the state a studio most needs to see,

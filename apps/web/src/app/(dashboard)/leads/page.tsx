@@ -15,6 +15,8 @@ import { ConvertLeadModal } from './ConvertLeadModal';
 import { EditNoteModal } from './EditNoteModal';
 import { InquiryRow } from './InquiryRow';
 import { InquiryDetail } from './InquiryDetail';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MobilePaneBack } from '@/components/MobilePaneBack';
 import { useLeadsInbox } from './useLeadsInbox';
 import { useLeadFilters } from './useLeadFilters';
 import { useLeadActions } from './useLeadActions';
@@ -65,6 +67,13 @@ function LeadsView() {
   } = useLeadFilters(leads, inquiries);
 
   const [selected, setSelected] = useState<Selection | null>(null);
+
+  // Below this width the 380px master column plus a detail pane leaves neither
+  // usable, so the two become separate views with a back affordance — the same
+  // treatment Bookings already had. This screen is the reason it matters most:
+  // ROADMAP §4.5 has the photographer triaging Instagram leads on a phone.
+  const isNarrow = useMediaQuery('(max-width: 900px)');
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   // Deep-link (?selected=<leadId>) still targets a lead — existing links from
@@ -355,8 +364,8 @@ function LeadsView() {
           <span>
             {bold(
               t('leads.awaitingReply'),
-              '{enquiries}',
-              tPlural('leads.enquiryCount', stats.needsReply)
+              '{leads}',
+              tPlural('leads.leadCount', stats.needsReply)
             )}
           </span>
           {/* Surface the action: jump them straight to the Active tab with
@@ -395,7 +404,12 @@ function LeadsView() {
         </div>
       ) : (
         <div style={s.container}>
-          <div style={s.listPanel}>
+          <div
+            style={{
+              ...s.listPanel,
+              ...(isNarrow && mobilePane === 'detail' ? { display: 'none' } : {}),
+            }}
+          >
             {/* Compact filter bar — pipeline tabs, search + Filter popover, and a
                 results strip showing what is applied. Source (form vs customer)
                 used to be its own segmented control here; it moved into the
@@ -456,7 +470,10 @@ function LeadsView() {
                 inboxItems.map((item) => {
                   const isActive =
                     effectiveSelected?.kind === item.kind && effectiveSelected.id === item.id;
-                  const onSelect = () => setSelected({ kind: item.kind, id: item.id });
+                  const onSelect = () => {
+                    setSelected({ kind: item.kind, id: item.id });
+                    if (isNarrow) setMobilePane('detail');
+                  };
                   const onHover = (hov: boolean) => setHoveredId(hov ? item.id : null);
                   return item.kind === 'inquiry' ? (
                     <InquiryRow
@@ -486,7 +503,21 @@ function LeadsView() {
             </div>
           </div>
 
-          <div style={s.detailPanel}>
+          <div
+            style={{
+              ...s.detailPanel,
+              ...(isNarrow && mobilePane === 'list' ? { display: 'none' } : {}),
+            }}
+          >
+            {isNarrow && (
+              <div style={{ padding: '16px 20px 0' }}>
+                <MobilePaneBack
+                  label={t('leads.backToList')}
+                  style={s.backButton}
+                  onClick={() => setMobilePane('list')}
+                />
+              </div>
+            )}
             {loading ? (
               <div style={s.emptyState}>{t('leads.loadingDetails')}</div>
             ) : selectedInquiry ? (

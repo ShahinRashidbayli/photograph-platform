@@ -136,20 +136,6 @@ export const auth = {
   'verifyEmail.goToDashboard': 'Go to dashboard',
   'verifyEmail.signIn': 'Sign in',
 
-  // ── Customer login-code sign-in (code typed back into the tab) ────────────
-  'customerVerify.visualTitle': 'Signing you in.',
-  'customerVerify.visualSubtitle': 'No password to remember — the link in your inbox is the key.',
-  'customerVerify.loadingTitle': 'Signing you in',
-  'customerVerify.loadingBody': 'One moment — we’re checking your link.',
-  'customerVerify.successTitle': 'Welcome back',
-  'customerVerify.successBody': 'You’re signed in. Taking you to your bookings…',
-  'customerVerify.errorTitle': 'Sign-in failed',
-  'customerVerify.errorMissingToken':
-    'This link is missing its token. Open it straight from the email rather than copying it, or request a new one.',
-  'customerVerify.errorInvalid':
-    'This sign-in link is invalid or has expired. Links are single-use and last 15 minutes — request a fresh one below.',
-  'customerVerify.requestNew': 'Request a new link',
-
   // ── Password recovery: request a link ─────────────────────────────────────
   'forgot.visualTitle': 'Locked out? It happens.',
   'forgot.visualSubtitle': 'We’ll get you back into your studio in no time.',

@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
+import { UpgradeCard } from '@/components/UpgradeCard';
+import { SEATS_PLAN } from '@/lib/plan-gate';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -223,9 +225,11 @@ export function TeamSettings() {
   const extraMembers = members.length > 1;
   if (singleSeat && !extraMembers) {
     return (
-      <Card>
-        <EmptyState title={t('settings.team.upgradeTitle')} body={t('settings.team.upgradeBody')} />
-      </Card>
+      <UpgradeCard
+        plan={SEATS_PLAN}
+        title={t('settings.team.upgradeTitle')}
+        body={t('settings.team.upgradeBody')}
+      />
     );
   }
 

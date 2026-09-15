@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { billingProfileKey } from '@/hooks/useInvoices';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
+import { PlanActionButton, PlanComparison } from './PlanComparison';
 import { Alert, Button, Card, Field, Input, Select, useColors } from '@/components/ui';
 import type { BillingProfile, StripeConnectStatus, TaxMode } from '@/types/api';
 
@@ -362,14 +363,14 @@ export function StripeConnectSection() {
       // Stripe expired the link before it was used; the only useful answer is
       // another one, immediately.
       handledRedirect.current = true;
-      router.replace('/settings');
+      router.replace('/settings/payments');
       void startOnboarding();
       return;
     }
 
     if (stripeParam === 'return') {
       handledRedirect.current = true;
-      router.replace('/settings');
+      router.replace('/settings/payments');
       void load(true);
       return;
     }
@@ -589,8 +590,6 @@ interface BillingStatus {
   lockReason: string | null;
 }
 
-const PLANS: readonly BillingStatus['plan'][] = ['STARTER', 'PRO', 'STUDIO'] as const;
-
 /**
  * The subscription the photographer holds with Fotolio.
  *
@@ -642,7 +641,7 @@ export function SubscriptionSection() {
       // authoritative but can land after the redirect, so the first read may
       // still say "trialing". That is why the success case polls below.
       handledRedirect.current = true;
-      router.replace('/settings');
+      router.replace('/settings/plan');
     }
     void load();
   }, [billingParam, load, router]);
@@ -812,61 +811,72 @@ export function SubscriptionSection() {
               )}
             </div>
 
-            {status.subscriptionConfigured ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <label style={{ fontSize: '0.85rem', color: c.textMuted }}>
-                    <input
-                      type="checkbox"
-                      checked={yearly}
-                      onChange={(e) => setYearly(e.target.checked)}
-                      style={{ marginRight: 8 }}
+            {/* The yearly toggle drives both the prices shown below and what
+                checkout is asked for, so it sits above the comparison and is
+                offered whenever there is something to buy. */}
+            {status.subscriptionConfigured && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <label style={{ fontSize: '0.85rem', color: c.textMuted }}>
+                  <input
+                    type="checkbox"
+                    checked={yearly}
+                    onChange={(e) => setYearly(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  {t('settings.subscription.yearly')}
+                </label>
+              </div>
+            )}
+
+            {status.devPlanSwitch && !status.subscriptionConfigured && (
+              // Labelled loudly rather than dressed up as checkout: nothing is
+              // being bought here, and a screen that implied otherwise would be
+              // the more dangerous bug.
+              <Alert tone="warning" style={{ marginBottom: 12 }}>
+                {t('settings.subscription.devSwitchWarning')}
+              </Alert>
+            )}
+
+            {/* Rendered in every state. What changes is the action under each
+                tier, not whether the photographer gets to see what the tiers
+                are — see PlanComparison for why that was the actual bug. */}
+            <PlanComparison
+              currentPlan={status.plan}
+              yearly={yearly && status.subscriptionConfigured}
+              actionFor={(plan) => {
+                if (status.subscriptionConfigured) {
+                  return (
+                    <PlanActionButton
+                      plan={plan}
+                      currentPlan={status.plan}
+                      busy={busy}
+                      onSelect={subscribe}
+                      label={t('settings.subscription.choose', { plan })}
+                      currentLabel={t('settings.subscription.currentPlan', { plan })}
                     />
-                    {t('settings.subscription.yearly')}
-                  </label>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {PLANS.map((plan) => (
-                    <Button
-                      key={plan}
-                      variant={plan === status.plan ? 'secondary' : 'primary'}
-                      onClick={() => subscribe(plan)}
-                      disabled={busy}
-                    >
-                      {plan === status.plan && status.subscriptionStatus === 'ACTIVE'
-                        ? t('settings.subscription.currentPlan', { plan })
-                        : t('settings.subscription.choose', { plan })}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            ) : status.devPlanSwitch ? (
-              // No Stripe prices, but this deployment has opted into changing
-              // the plan without paying for it. Labelled loudly rather than
-              // dressed up as checkout: nothing is being bought here, and a
-              // screen that implied otherwise would be the more dangerous bug.
-              <>
-                <Alert tone="warning" style={{ marginBottom: 12 }}>
-                  {t('settings.subscription.devSwitchWarning')}
-                </Alert>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {PLANS.map((plan) => (
-                    <Button
-                      key={plan}
-                      variant={plan === status.plan ? 'secondary' : 'primary'}
-                      onClick={() => devSetPlan(plan)}
-                      disabled={busy || plan === status.plan}
-                    >
-                      {plan === status.plan
-                        ? t('settings.subscription.currentPlan', { plan })
-                        : t('settings.subscription.switchTo', { plan })}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            ) : (
+                  );
+                }
+                if (status.devPlanSwitch) {
+                  return (
+                    <PlanActionButton
+                      plan={plan}
+                      currentPlan={status.plan}
+                      busy={busy}
+                      onSelect={devSetPlan}
+                      label={t('settings.subscription.switchTo', { plan })}
+                      currentLabel={t('settings.subscription.currentPlan', { plan })}
+                    />
+                  );
+                }
+                return null;
+              }}
+            />
+
+            {!status.subscriptionConfigured && !status.devPlanSwitch && (
               // No Stripe prices on this deployment. Say so rather than showing
-              // buttons that would 409 — a dead button reads as a bug.
+              // buttons that would 409 — a dead button reads as a bug. The
+              // comparison above still stands, so this is now a "how to buy"
+              // answer rather than the whole answer.
               <div style={{ fontSize: '0.88rem', color: c.textMuted, lineHeight: 1.55 }}>
                 {t('settings.subscription.unavailable')}
               </div>

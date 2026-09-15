@@ -14,6 +14,8 @@ import { portfolio } from './portfolio';
 import { settings } from './settings';
 import { stubs } from './stubs';
 import { analytics } from './analytics';
+import { contracts } from './contracts';
+import { roadmap } from './roadmap';
 
 /** The German dictionary. Each namespace is typed against its English twin. */
 export const de = {
@@ -33,4 +35,6 @@ export const de = {
   ...settings,
   ...stubs,
   ...analytics,
+  ...contracts,
+  ...roadmap,
 };

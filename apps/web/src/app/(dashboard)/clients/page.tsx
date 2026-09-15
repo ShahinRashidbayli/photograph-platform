@@ -9,6 +9,8 @@ import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { whatsappHref } from '@/lib/helpers';
 import { StatStrip } from '@/components/StatStrip';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MobilePaneBack } from '@/components/MobilePaneBack';
 import { getClientsColors, getClientsStyles, type ClientsTheme } from './clients.styles';
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
@@ -400,6 +402,11 @@ function ClientsView() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+
+  // Same narrow-screen treatment as Bookings and Leads: the 380px master column
+  // and the detail pane cannot share a phone, so they take turns.
+  const isNarrow = useMediaQuery('(max-width: 900px)');
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
   const [filterStatus, setFilterStatus] = useState<ClientFilter>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -512,7 +519,12 @@ function ClientsView() {
         </div>
       ) : (
         <div style={s.container}>
-          <div style={s.listPanel}>
+          <div
+            style={{
+              ...s.listPanel,
+              ...(isNarrow && mobilePane === 'detail' ? { display: 'none' } : {}),
+            }}
+          >
             <div style={s.listHeader}>
               <span style={s.listTitle}>{t('clients.listTitle')}</span>
               <span style={s.listSubtitle}>{t('clients.listSubtitle')}</span>
@@ -578,7 +590,10 @@ function ClientsView() {
                     client={client}
                     isActive={selectedClient?.id === client.id}
                     isHovered={hoveredId === client.id}
-                    onSelect={() => setSelectedClientId(client.id)}
+                    onSelect={() => {
+                      setSelectedClientId(client.id);
+                      if (isNarrow) setMobilePane('detail');
+                    }}
                     onHover={(hov) => setHoveredId(hov ? client.id : null)}
                     s={s}
                     c={c}
@@ -588,7 +603,21 @@ function ClientsView() {
             </div>
           </div>
 
-          <div style={s.detailPanel}>
+          <div
+            style={{
+              ...s.detailPanel,
+              ...(isNarrow && mobilePane === 'list' ? { display: 'none' } : {}),
+            }}
+          >
+            {isNarrow && (
+              <div style={{ padding: '16px 20px 0' }}>
+                <MobilePaneBack
+                  label={t('clients.backToList')}
+                  style={s.backButton}
+                  onClick={() => setMobilePane('list')}
+                />
+              </div>
+            )}
             {loading ? (
               <div style={s.emptyState}>{t('clients.loadingDetails')}</div>
             ) : (

@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { useTranslation } from '@/lib/i18n';
+import { UpgradeCard } from '@/components/UpgradeCard';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
-import { Alert, Button, Card, EmptyState, useColors } from '@/components/ui';
+import { Alert, Card, EmptyState, useColors } from '@/components/ui';
 
 /**
  * The frame both report screens share: title, year picker, and the three
@@ -88,17 +88,11 @@ export function ReportShell({
       </div>
 
       {locked ? (
-        <Card>
-          <EmptyState
-            title={t('analytics.lockedTitle')}
-            body={t('analytics.lockedBody')}
-            action={
-              <Link href="/settings#settings-subscription" style={{ textDecoration: 'none' }}>
-                <Button>{t('analytics.lockedCta')}</Button>
-              </Link>
-            }
-          />
-        </Card>
+        <UpgradeCard
+          capability="ANALYTICS"
+          title={t('analytics.lockedTitle')}
+          body={t('analytics.lockedBody')}
+        />
       ) : error ? (
         <Alert tone="danger">{asyncErrorText(error, t)}</Alert>
       ) : loading ? (

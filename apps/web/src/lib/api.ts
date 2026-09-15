@@ -47,6 +47,32 @@ api.interceptors.response.use(
       throw error;
     }
 
+    // Plan gate: BE answers 402 with code=PLAN_UPGRADE_REQUIRED and a details
+    // object naming the capability and the cheapest plan that grants it. Raised
+    // globally through a window event, the same way the email gate above is,
+    // because this is the one moment the photographer has actually *tried* to
+    // use the feature — the point where an upgrade prompt answers a question
+    // they just asked, rather than interrupting one they did not. Without this
+    // every gated action failed into a generic error banner.
+    if (error.response?.status === 402 && error.response?.data?.code === 'PLAN_UPGRADE_REQUIRED') {
+      const data = error.response.data;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('app:plan-upgrade-required', {
+            detail: {
+              message: typeof data?.error === 'string' ? data.error : undefined,
+              // The server's own answer, preferred over anything the client
+              // computes: `lib/plan-gate` is a copy of the tier config and this
+              // is the config itself.
+              capability: data?.details?.capability,
+              requiredPlan: data?.details?.requiredPlan,
+            },
+          })
+        );
+      }
+      throw error;
+    }
+
     if (error.response?.status !== 401 || original._retry) {
       throw error;
     }

@@ -131,21 +131,6 @@ export const auth: Record<keyof EnAuth, string> = {
   'verifyEmail.goToDashboard': 'Zum Dashboard',
   'verifyEmail.signIn': 'Anmelden',
 
-  // ── Kunden-Anmeldung per Magic Link ───────────────────────────────────────
-  'customerVerify.visualTitle': 'Sie werden angemeldet.',
-  'customerVerify.visualSubtitle':
-    'Kein Passwort nötig — der Link in Ihrem Postfach ist der Schlüssel.',
-  'customerVerify.loadingTitle': 'Sie werden angemeldet',
-  'customerVerify.loadingBody': 'Einen Moment — wir prüfen Ihren Link.',
-  'customerVerify.successTitle': 'Willkommen zurück',
-  'customerVerify.successBody': 'Sie sind angemeldet. Weiter zu Ihren Buchungen…',
-  'customerVerify.errorTitle': 'Anmeldung fehlgeschlagen',
-  'customerVerify.errorMissingToken':
-    'Diesem Link fehlt sein Token. Öffnen Sie ihn direkt aus der E-Mail, statt ihn zu kopieren, oder fordern Sie einen neuen an.',
-  'customerVerify.errorInvalid':
-    'Dieser Anmeldelink ist ungültig oder abgelaufen. Links sind einmalig gültig und laufen nach 15 Minuten ab — fordern Sie unten einen neuen an.',
-  'customerVerify.requestNew': 'Neuen Link anfordern',
-
   // ── Passwort zurücksetzen: Link anfordern ─────────────────────────────────
   'forgot.visualTitle': 'Ausgesperrt? Kommt vor.',
   'forgot.visualSubtitle': 'Wir bringen Sie im Nu zurück in Ihr Studio.',

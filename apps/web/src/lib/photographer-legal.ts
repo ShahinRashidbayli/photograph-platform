@@ -33,30 +33,34 @@ export interface PhotographerLegal {
 const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
 
 /**
- * SSR fetch of the public legal details. Mirrors the portfolio fetch: fully
- * public endpoint, subdomain is the only identifier, and every failure collapses
- * to `null` so the route can render notFound() instead of crashing.
+ * SSR fetch of the public legal details.
+ *
+ * <p>`null` means one thing only: **there is no such photographer**. Every other
+ * failure throws.
+ *
+ * <p>It used to collapse all of them to `null`, and the routes turn `null` into
+ * `notFound()` — so a 429, a restarting API or a dropped connection rendered a
+ * 404 on a page §5 DDG requires to stay reachable. Worse, that 404 is what ISR
+ * then caches for the whole `revalidate` window, so a blip of a few seconds
+ * removed a photographer's Impressum for five minutes and nothing in the app
+ * knew it had happened. Throwing instead lets the route's error boundary handle
+ * it, and Next does not cache a render that threw.
  */
 export async function fetchPhotographerLegal(
   subdomain: string
 ): Promise<PhotographerLegal | null> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/public/legal/${encodeURIComponent(subdomain)}`,
-      { next: { revalidate: 300 } }
+  const res = await fetch(
+    `${API_BASE}/api/public/legal/${encodeURIComponent(subdomain)}`,
+    { next: { revalidate: 300 } }
+  );
+  // The only answer that means "this photographer does not exist".
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(
+      `legal fetch failed for ${subdomain}: ${res.status} ${res.statusText}`
     );
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      // eslint-disable-next-line no-console
-      console.error('legal fetch failed', subdomain, res.status);
-      return null;
-    }
-    return (await res.json()) as PhotographerLegal;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('legal fetch error', subdomain, err);
-    return null;
   }
+  return (await res.json()) as PhotographerLegal;
 }
 
 /** Single-line postal address, skipping parts the photographer left blank. */

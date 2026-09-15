@@ -30,12 +30,6 @@ export const settings = {
   'settings.account.saving': 'Saving…',
   'settings.account.saved': 'Saved ✓',
 
-  'settings.plan.title': 'Plan & Billing',
-  'settings.plan.subtitle': 'Your current subscription and payment settings.',
-  'settings.plan.current': 'Current plan',
-  'settings.plan.upgrade': 'Upgrade plan',
-  'settings.plan.note':
-    'This is your own subscription to the platform. Invoices you send to clients live on each booking; what you can charge them for is set under Online payments below.',
 
   // Fotolio's own subscription. Kept verbally distinct from the Stripe Connect
   // ("payouts") strings above: those two are the easiest pair in the product to
@@ -262,6 +256,58 @@ export const settings = {
   'settings.team.statusAccepted': 'Accepted',
   'settings.team.statusRevoked': 'Withdrawn',
   'settings.team.statusExpired': 'Expired',
+
+  // Legal details. The statutory names stay German in both locales for the
+  // same reason the tax vocabulary above does: Impressum, USt-IdNr. and
+  // Handelsregister are what the law calls these things, and an English
+  // photographer filling in a German Impressum is looking for the German word.
+  'settings.legal.title': 'Legal details',
+  'settings.legal.intro':
+    'These details appear in the Impressum and privacy notice on your public page. You are legally required to publish them (§5 DDG, Art. 13 GDPR) — Fotolio’s own Impressum does not cover your page.',
+  'settings.legal.loadError': 'Could not load your legal details.',
+  'settings.legal.saveError': 'Could not save. Please try again.',
+  'settings.legal.save': 'Save',
+  'settings.legal.saving': 'Saving…',
+  'settings.legal.saved': 'Saved ✓',
+  'settings.legal.completeTitle': 'Required details complete.',
+  'settings.legal.completeBody': 'Your public page shows a valid Impressum.',
+  'settings.legal.view': 'View →',
+  'settings.legal.incompleteTitle_one': '{count} required detail still missing.',
+  'settings.legal.incompleteTitle_other': '{count} required details still missing.',
+  'settings.legal.incompleteBody':
+    'Until then your public page says openly that the Impressum and privacy notice are not published — but your request form keeps accepting enquiries. It is collecting personal data without the disclosures Art. 13 GDPR requires. The risk of a warning letter is yours, not Fotolio’s.',
+  'settings.legal.fieldName': 'Provider / name',
+  'settings.legal.fieldStreet': 'Street and number',
+  'settings.legal.fieldPostalCode': 'Postcode',
+  'settings.legal.fieldCity': 'City',
+  'settings.legal.fieldCountry': 'Country',
+  'settings.legal.fieldEmail': 'Email',
+  'settings.legal.fieldPhone': 'Phone',
+  'settings.legal.fieldVatId': 'USt-IdNr.',
+  'settings.legal.hintVatId':
+    'Only if you are VAT registered (§27a UStG). Kleinunternehmer under §19 UStG leave this blank.',
+  'settings.legal.fieldRegister': 'Handelsregister',
+  'settings.legal.hintRegister':
+    'Only if registered, e.g. “Amtsgericht Berlin, HRB 12345”.',
+  'settings.legal.fieldResponsible': 'Responsible party (§18 Abs. 2 MStV)',
+  'settings.legal.hintResponsible': 'Leave blank if the same as the provider.',
+  'settings.legal.fieldPrivacyContact': 'Data protection contact',
+  'settings.legal.hintPrivacyContact': 'Leave blank if the same as the email above.',
+
+  'settings.tab.aria': 'Settings sections',
+  'settings.tab.account': 'Account',
+  'settings.tab.studio': 'Studio',
+  'settings.tab.business': 'Business & legal',
+  'settings.tab.payments': 'Payments',
+  'settings.tab.plan': 'Plan',
+  'settings.tab.team': 'Team',
+  'settings.business.overlapNote':
+    'Both forms below ask for your business name and address — one for your invoices (§14 UStG), one for your Impressum (§5 DDG). They are stored separately, so keep them in agreement.',
+  'settings.business.footnote':
+    'Invoices use the details in the first form; your public Impressum and privacy notice use the second.',
+
+  'settings.subscription.yourPlan': 'Your plan',
+  'settings.subscription.perMonth': '/ month',
 } as const;
 
 export type EnSettings = typeof settings;

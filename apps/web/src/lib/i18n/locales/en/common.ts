@@ -40,6 +40,20 @@ export const common = {
   'contact.email': 'Email',
   'contact.emailTitle': 'Email {email}',
   'contact.noEmail': 'No email on file',
+
+  // ── Plan gates ────────────────────────────────────────────────────────────
+  // One vocabulary for "your plan does not include this", wherever it is said.
+  'upgrade.cta': 'See plans',
+  'upgrade.ctaNamed': 'Upgrade to {plan}',
+  'upgrade.seePlans': 'See plans',
+  'upgrade.notNow': 'Not now',
+  'upgrade.dialogTitle': 'This needs a bigger plan',
+  'upgrade.dialogBody': 'This feature is not included in your current plan.',
+  'upgrade.dialogPlanLine': 'Available from {plan} upwards.',
+  'upgrade.navLocked': 'Included from {plan}',
+  'upgrade.contractsTitle': 'Contracts & e-sign',
+  'upgrade.contractsBody':
+    'Send a shoot agreement from this booking and collect a legally binding signature, without the email back-and-forth.',
 } as const;
 
 export type EnCommon = typeof common;

@@ -49,6 +49,7 @@ export const clients = {
   'clientDetail.notesCancel': 'Cancel',
   'clientDetail.notesPlaceholder': 'Add a private note about this client…',
   'clientDetail.notesError': 'Couldn’t save the note. Please try again.',
+  'clients.backToList': 'All clients',
 } as const;
 
 export type EnClients = typeof clients;

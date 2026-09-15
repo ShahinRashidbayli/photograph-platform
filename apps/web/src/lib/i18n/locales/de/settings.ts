@@ -32,12 +32,6 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.account.saving': 'Wird gespeichert…',
   'settings.account.saved': 'Gespeichert ✓',
 
-  'settings.plan.title': 'Tarif & Abrechnung',
-  'settings.plan.subtitle': 'Dein aktuelles Abonnement und deine Zahlungseinstellungen.',
-  'settings.plan.current': 'Aktueller Tarif',
-  'settings.plan.upgrade': 'Tarif wechseln',
-  'settings.plan.note':
-    'Das ist dein eigenes Abonnement für die Plattform. Rechnungen an deine Kunden liegen bei der jeweiligen Buchung; was du ihnen berechnen kannst, stellst du unten unter „Online-Zahlungen“ ein.',
 
   // Fotolios eigenes Abo. Bewusst anders benannt als die Connect-/Auszahlungs-
   // Texte weiter oben: die beiden werden am leichtesten verwechselt.
@@ -263,4 +257,51 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.team.statusAccepted': 'Angenommen',
   'settings.team.statusRevoked': 'Zurückgezogen',
   'settings.team.statusExpired': 'Abgelaufen',
+
+  'settings.legal.title': 'Rechtliche Angaben',
+  'settings.legal.intro':
+    'Diese Angaben erscheinen im Impressum und in der Datenschutzerklärung Ihrer öffentlichen Seite. Sie sind gesetzlich verpflichtet (§5 DDG, Art. 13 DSGVO), sie zu hinterlegen — Fotolios eigenes Impressum deckt Ihre Seite nicht ab.',
+  'settings.legal.loadError': 'Rechtliche Angaben konnten nicht geladen werden.',
+  'settings.legal.saveError': 'Speichern fehlgeschlagen. Bitte erneut versuchen.',
+  'settings.legal.save': 'Speichern',
+  'settings.legal.saving': 'Speichern…',
+  'settings.legal.saved': 'Gespeichert ✓',
+  'settings.legal.completeTitle': 'Pflichtangaben vollständig.',
+  'settings.legal.completeBody': 'Ihre öffentliche Seite zeigt ein gültiges Impressum.',
+  'settings.legal.view': 'Ansehen →',
+  'settings.legal.incompleteTitle_one': 'Noch {count} Pflichtangabe offen.',
+  'settings.legal.incompleteTitle_other': 'Noch {count} Pflichtangaben offen.',
+  'settings.legal.incompleteBody':
+    'Ihre öffentliche Seite weist bis dahin darauf hin, dass Impressum und Datenschutzerklärung nicht veröffentlicht sind — Ihr Anfrageformular nimmt aber weiterhin Anfragen entgegen. Es erhebt damit personenbezogene Daten, ohne dass die nach Art. 13 DSGVO geschuldeten Angaben abrufbar sind. Das Risiko einer Abmahnung liegt bei Ihnen, nicht bei Fotolio.',
+  'settings.legal.fieldName': 'Anbieter / Name',
+  'settings.legal.fieldStreet': 'Straße und Hausnummer',
+  'settings.legal.fieldPostalCode': 'PLZ',
+  'settings.legal.fieldCity': 'Ort',
+  'settings.legal.fieldCountry': 'Land',
+  'settings.legal.fieldEmail': 'E-Mail',
+  'settings.legal.fieldPhone': 'Telefon',
+  'settings.legal.fieldVatId': 'USt-IdNr.',
+  'settings.legal.hintVatId':
+    'Nur falls umsatzsteuerpflichtig (§27a UStG). Kleinunternehmer nach §19 UStG lassen das Feld leer.',
+  'settings.legal.fieldRegister': 'Handelsregister',
+  'settings.legal.hintRegister': 'Nur bei Eintragung, z. B. „Amtsgericht Berlin, HRB 12345“.',
+  'settings.legal.fieldResponsible': 'Verantwortlich (§18 Abs. 2 MStV)',
+  'settings.legal.hintResponsible': 'Leer lassen, wenn identisch mit dem Anbieter.',
+  'settings.legal.fieldPrivacyContact': 'Datenschutz-Kontakt',
+  'settings.legal.hintPrivacyContact': 'Leer lassen, wenn identisch mit der E-Mail oben.',
+
+  'settings.tab.aria': 'Einstellungsbereiche',
+  'settings.tab.account': 'Konto',
+  'settings.tab.studio': 'Studio',
+  'settings.tab.business': 'Firma & Recht',
+  'settings.tab.payments': 'Zahlungen',
+  'settings.tab.plan': 'Tarif',
+  'settings.tab.team': 'Team',
+  'settings.business.overlapNote':
+    'Beide Formulare unten fragen nach Firmenname und Anschrift — eines für Ihre Rechnungen (§14 UStG), eines für Ihr Impressum (§5 DDG). Sie werden getrennt gespeichert, halten Sie sie deshalb übereinstimmend.',
+  'settings.business.footnote':
+    'Rechnungen verwenden die Angaben aus dem ersten Formular; Ihr öffentliches Impressum und die Datenschutzerklärung das zweite.',
+
+  'settings.subscription.yourPlan': 'Ihr Tarif',
+  'settings.subscription.perMonth': '/ Monat',
 };

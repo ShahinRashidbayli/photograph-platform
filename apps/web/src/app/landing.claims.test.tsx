@@ -100,11 +100,18 @@ describe('shipped features are not advertised as unbuilt', () => {
     expectNoBadge('Your logo on client pages');
   });
 
+  // Contracts shipped with the `contract` module: draft, send, einfache
+  // elektronische Signatur, PDF. The badge came off the three places that
+  // advertised it — the Pro plan row, the pipeline step and the feature card.
+  it('Contracts & e-sign carries no badge', () => {
+    expectNoBadge('Contracts & e-sign');
+  });
+
   // The other direction matters just as much: the badge has to keep working for
   // the things that genuinely are not built, or the honest-roadmap device the
-  // page is built around stops meaning anything.
+  // page is built around stops meaning anything. Instagram DM is still unbuilt
+  // — it needs Meta App Review before it can work at all.
   it('still badges what has not shipped', () => {
-    expectBadge('Contracts & e-sign');
     expectBadge('Auto-reply to Instagram DMs');
   });
 });

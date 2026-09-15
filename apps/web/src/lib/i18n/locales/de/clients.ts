@@ -53,4 +53,5 @@ export const clients: Record<keyof EnClients, string> = {
   'clientDetail.notesCancel': 'Abbrechen',
   'clientDetail.notesPlaceholder': 'Private Notiz zu diesem Kunden hinzufügen…',
   'clientDetail.notesError': 'Notiz konnte nicht gespeichert werden. Bitte erneut versuchen.',
+  'clients.backToList': 'Alle Kunden',
 };

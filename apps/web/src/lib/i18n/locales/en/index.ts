@@ -14,6 +14,8 @@ import { portfolio } from './portfolio';
 import { settings } from './settings';
 import { stubs } from './stubs';
 import { analytics } from './analytics';
+import { contracts } from './contracts';
+import { roadmap } from './roadmap';
 
 /**
  * The English dictionary, assembled from one file per surface. Keys stay flat
@@ -37,4 +39,6 @@ export const en = {
   ...settings,
   ...stubs,
   ...analytics,
+  ...contracts,
+  ...roadmap,
 };

@@ -214,6 +214,21 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       minWidth: 0,
     },
 
+    backButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '6px 12px',
+      marginLeft: '-12px',
+      borderRadius: '8px',
+      border: 'none',
+      background: 'transparent',
+      color: c.textMuted,
+      fontSize: '0.88rem',
+      fontWeight: 600,
+      fontFamily: 'inherit',
+      cursor: 'pointer',
+    },
     detailPanel: {
       display: 'flex',
       flexDirection: 'column',

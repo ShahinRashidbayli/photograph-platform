@@ -1,12 +1,23 @@
 name: CI
 
 on:
-  # `main` was push-only, so a pull request INTO main ran no checks at all —
-  # the one moment they matter most. Both long-lived branches are gated now.
+  # Every branch, not just the long-lived two.
+  #
+  # Gating only `develop` and `main` meant a feature branch could carry 116
+  # commits without a single check running — which is exactly what happened
+  # here: the last run before this change was 2026-07-22, and the `*IT`
+  # includes (2026-08-15) and `mvn verify` in the API job (2026-08-24) both
+  # landed after it. So no integration test, no coverage floor and no SpotBugs
+  # run had ever executed in CI at all. A gate that only fires at merge time
+  # finds problems at the least useful moment; this fires while the branch is
+  # still being written.
   pull_request:
-    branches: [develop, main]
   push:
-    branches: [main, develop]
+    branches: ['**']
+  # Nothing could re-run the pipeline without a new commit. Needed to re-check
+  # a branch after an infrastructure fix (a flaky Testcontainers pull, an
+  # expired cache) without inventing an empty commit for it.
+  workflow_dispatch:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Job dependency graph:
@@ -29,7 +40,10 @@ jobs:
       # Java: Checkstyle
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4
@@ -106,7 +120,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4
@@ -218,7 +235,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4

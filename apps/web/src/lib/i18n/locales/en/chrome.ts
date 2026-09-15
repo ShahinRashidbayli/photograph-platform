@@ -7,13 +7,32 @@
 export const chrome = {
   // ── Dashboard chrome (sidebar, header, banners) ───────────────────────────
   'nav.section.content': 'Content',
+  // The two halves of the sidebar. Deliberately not "Studio" for the first
+  // one, which is what the design sketch said: STUDIO is also the top plan
+  // tier, badged on rows a few pixels below this control, and one word cannot
+  // mean both "the half of the app that is yours" and "the tier you are on".
+  'nav.mode.workspace': 'Workspace',
+  'nav.mode.community': 'Community',
+  'nav.mode.aria': 'Which half of the product to navigate',
   'nav.section.analytics': 'Analytics',
   'nav.overview': 'Overview',
   'nav.bookings': 'Bookings',
   'nav.leads': 'Leads',
+  'nav.instagram': 'Instagram',
   'nav.clients': 'Clients',
   'nav.portfolio': 'Portfolio',
   'nav.galleries': 'Galleries',
+  // The owned halves: a space you rent out, the coaching and workshops you
+  // sell. Named from the studio's side, which is what separates them from
+  // Studios and Learning below.
+  'nav.space': 'My space',
+  'nav.offerings': 'My offerings',
+  // Community — other photographers' things.
+  'nav.locations': 'Locations',
+  'nav.studios': 'Studios',
+  'nav.learning': 'Learning',
+  'nav.gear': 'Gear guide',
+  'nav.documents': 'Documents',
   'nav.reports': 'Reports',
   'nav.revenue': 'Revenue',
   'nav.myBookings': 'My Bookings',

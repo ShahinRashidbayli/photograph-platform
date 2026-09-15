@@ -9,13 +9,27 @@ import type { EnChrome } from '../en/chrome';
 export const chrome: Record<keyof EnChrome, string> = {
   // ── Dashboard chrome (sidebar, header, banners) ───────────────────────────
   'nav.section.content': 'Inhalte',
+  'nav.mode.workspace': 'Arbeitsbereich',
+  'nav.mode.community': 'Community',
+  'nav.mode.aria': 'Welche Hälfte des Produkts navigiert wird',
   'nav.section.analytics': 'Auswertungen',
   'nav.overview': 'Übersicht',
   'nav.bookings': 'Buchungen',
   'nav.leads': 'Leads',
+  'nav.instagram': 'Instagram',
   'nav.clients': 'Kunden',
   'nav.portfolio': 'Portfolio',
   'nav.galleries': 'Galerien',
+  'nav.space': 'Mein Raum',
+  'nav.offerings': 'Mein Angebot',
+  // "Locations" ist im deutschen Fotografen-Sprachgebrauch der übliche
+  // Begriff — "Orte" liest sich hier wie eine Übersetzung, nicht wie das Wort,
+  // das in der Branche benutzt wird.
+  'nav.locations': 'Locations',
+  'nav.studios': 'Studios',
+  'nav.learning': 'Lernen',
+  'nav.gear': 'Ausrüstung',
+  'nav.documents': 'Dokumente',
   'nav.reports': 'Berichte',
   'nav.revenue': 'Umsatz',
   'nav.myBookings': 'Meine Buchungen',

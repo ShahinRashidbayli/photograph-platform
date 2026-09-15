@@ -6,13 +6,26 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -158,6 +171,71 @@ public abstract class IntegrationTestBase {
             }
         } catch (SQLException e) {
             throw new IllegalStateException("Cross-tenant count failed: " + sql, e);
+        }
+    }
+
+    /**
+     * The {@link TestRestTemplate} instances already stripped of their retry
+     * behaviour, by identity: one per cached application context, swapped once
+     * rather than on every test method so each context keeps a single
+     * connection pool.
+     */
+    private static final Set<TestRestTemplate> RETRIES_DISABLED =
+        Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    @Autowired(required = false)
+    private TestRestTemplate testRestTemplate;
+
+    @Value("${spring.http.client.read-timeout:10s}")
+    private Duration testClientReadTimeout;
+
+    /**
+     * Stops the test HTTP client from retrying, and from sleeping for the
+     * duration a 429 asks for.
+     *
+     * <p>Apache HttpClient5 is on the test classpath (transitively, via
+     * stripe-java), so {@code TestRestTemplate} sends its requests through it.
+     * Its default {@code DefaultHttpRequestRetryStrategy} retries once — and
+     * on a 429 or 503 it waits for exactly as long as the response's
+     * {@code Retry-After} header names. The rate-limit tests here answer
+     * {@code Retry-After: 900}, so a client that had already received the
+     * response the assertion wanted then slept for fifteen minutes before
+     * re-sending a request that could only be refused again.
+     *
+     * <p>That is why no {@code *IT} class has ever produced a surefire report
+     * in this repository: {@code AuthControllerIT} alone parks a run for
+     * roughly forty minutes (300 + 300 + 900 + 900 seconds), so every full
+     * local run was killed before reaching the integration tests.
+     *
+     * <p>The header is correct — it is what a real client should read — so the
+     * fix belongs on the test client, not on the rate limiter. Nothing about
+     * what is asserted changes: a test client wants the first response, never
+     * a second attempt at it.
+     *
+     * <p>Only the {@code HttpClient} is replaced. Cookie policy, redirect
+     * handling and authentication live in the {@code RequestConfig} that
+     * {@code TestRestTemplate}'s own request factory re-applies to every
+     * request in {@code createHttpContext}, so the semantics these tests were
+     * written against are untouched. The socket timeout is rebuilt from the
+     * same property Spring Boot used, so a server that stops answering still
+     * fails the test instead of hanging it.
+     */
+    @BeforeEach
+    void disableTestClientRetries() {
+        if (testRestTemplate == null || !RETRIES_DISABLED.add(testRestTemplate)) {
+            return;
+        }
+        ClientHttpRequestFactory factory = testRestTemplate.getRestTemplate().getRequestFactory();
+        if (factory instanceof HttpComponentsClientHttpRequestFactory httpComponents) {
+            SocketConfig socketConfig = SocketConfig.custom()
+                .setSoTimeout((int) testClientReadTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .build();
+            httpComponents.setHttpClient(HttpClients.custom()
+                .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
+                    .setDefaultSocketConfig(socketConfig)
+                    .build())
+                .disableAutomaticRetries()
+                .build());
         }
     }
 

@@ -31,13 +31,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class TenantLegalController {
 
     /**
-     * Generous enough that a visitor reading both legal pages, or a page
-     * revalidating its ISR cache, never notices — and low enough that walking
-     * the subdomain space to harvest addresses is not a single afternoon's
-     * work. An Impressum is public, but "public" means readable by a visitor,
-     * not bulk-collectable into a mailing list.
+     * A brake on repeated reads of <em>one</em> photographer's record, not on
+     * the caller.
+     *
+     * <h2>Why this is not keyed per IP</h2>
+     * It was, at 60 per 10 minutes, on the theory that it made walking the
+     * subdomain space to harvest addresses expensive. It did not, and it broke
+     * the pages instead. Nothing reaches this endpoint from a visitor's
+     * browser: {@code /p/{subdomain}/impressum} and {@code /datenschutz} are
+     * server-rendered, so every request arrives from the Next.js host and lands
+     * in the <em>same</em> bucket. Sixty requests is roughly fifteen
+     * photographers' worth of ISR revalidation, after which every tenant's
+     * legal pages 404 together — one photographer's traffic taking down another
+     * photographer's Impressum, which is the one page they are legally obliged
+     * to keep reachable.
+     *
+     * <p>So the key is the subdomain. That bounds how often any single record
+     * is re-read while leaving tenants independent of each other. It is
+     * deliberately <em>not</em> an anti-harvesting measure any more, because
+     * per-subdomain keying cannot be one: a sweep gets a fresh budget per
+     * subdomain by construction. Harvesting has to be answered in front of the
+     * SSR cache, where the real client is still visible — not here, where every
+     * caller wears the same address.
      */
-    private static final int PUBLIC_READ_MAX_PER_WINDOW = 60;
+    private static final int PUBLIC_READ_MAX_PER_WINDOW = 240;
     private static final Duration PUBLIC_READ_WINDOW = Duration.ofMinutes(10);
 
     private final TenantLegalService tenantLegalService;
@@ -54,13 +71,8 @@ public class TenantLegalController {
 
     /** Feeds {@code /p/{subdomain}/impressum} and {@code /datenschutz}. */
     @GetMapping("/public/legal/{subdomain}")
-    public ResponseEntity<TenantLegalResponse> getPublicLegal(
-        @PathVariable String subdomain,
-        HttpServletRequest httpRequest
-    ) {
-        // Limited per IP rather than per subdomain: the abuse worth stopping is
-        // one client sweeping many photographers, not many visitors reading one.
-        rateLimiter.check("legal:read:ip:" + ClientIp.from(httpRequest),
+    public ResponseEntity<TenantLegalResponse> getPublicLegal(@PathVariable String subdomain) {
+        rateLimiter.check("legal:read:sub:" + subdomain.trim().toLowerCase(),
             PUBLIC_READ_MAX_PER_WINDOW, PUBLIC_READ_WINDOW,
             "Too many requests. Please try again shortly.");
         Tenant tenant = publicTenantResolver.requireBySubdomain(subdomain);

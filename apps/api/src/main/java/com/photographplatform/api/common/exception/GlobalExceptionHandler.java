@@ -18,6 +18,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Every error this API answers, in one shape.
@@ -64,6 +65,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(
         NotFoundException ex, HttpServletRequest request) {
         return respond(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /**
+     * No controller claimed the path, so Spring handed it to the static
+     * resource handler, which found no file either. That is a plain 404 — a
+     * client asking for a route this build does not have — but without this
+     * handler it fell through to the catch-all below and was logged as an
+     * unhandled 500 with a full stack trace, which buries real failures and
+     * tells the caller the server broke when it did not.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(
+        NoResourceFoundException ex, HttpServletRequest request) {
+        LOG.debug("No handler for {} {}", request.getMethod(), request.getRequestURI());
+        return respond(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND,
+            "That endpoint does not exist.", request);
     }
 
     @ExceptionHandler(ConflictException.class)
@@ -193,10 +210,10 @@ public class GlobalExceptionHandler {
         // constructor. Omitted rather than sent as null, so the field's
         // presence is what tells the two kinds of upgrade prompt apart.
         Map<String, Object> details = ex.getCapability() == null
-            ? Map.of("requiredPlan", ex.getRequiredPlan().name())
+            ? Map.of("requiredPlan", ex.getRequiredPlan())
             : Map.of(
-                "capability", ex.getCapability().name(),
-                "requiredPlan", ex.getRequiredPlan().name());
+                "capability", ex.getCapability(),
+                "requiredPlan", ex.getRequiredPlan());
         return respond(
             HttpStatus.PAYMENT_REQUIRED, ErrorCode.PLAN_UPGRADE_REQUIRED, ex.getMessage(), request,
             details);

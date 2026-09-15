@@ -154,7 +154,8 @@ public class EntitlementService {
      */
     public void requireCapability(Tenant tenant, Capability capability) {
         if (!forTenant(tenant).has(capability)) {
-            throw new PlanUpgradeRequiredException(capability, cheapestPlanWith(capability));
+            throw PlanUpgradeRequiredException.missingCapability(
+                capability.name(), cheapestPlanWith(capability).name());
         }
     }
 

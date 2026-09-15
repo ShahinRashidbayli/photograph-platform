@@ -10,12 +10,16 @@ import com.photographplatform.api.payment.config.PaymentProperties;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.SubscriptionStatus;
 import com.photographplatform.api.tenant.domain.Tenant;
+import java.io.InputStream;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -126,8 +130,8 @@ class EntitlementServiceTest {
                 PlanUpgradeRequiredException upgrade = (PlanUpgradeRequiredException) ex;
                 // Contracts exist on Pro AND Studio — the prompt must offer the
                 // cheaper one, or it reads as an upsell rather than an answer.
-                assertThat(upgrade.getRequiredPlan()).isEqualTo(Plan.PRO);
-                assertThat(upgrade.getCapability()).isEqualTo(Capability.CONTRACTS);
+                assertThat(upgrade.getRequiredPlan()).isEqualTo(Plan.PRO.name());
+                assertThat(upgrade.getCapability()).isEqualTo(Capability.CONTRACTS.name());
             });
     }
 
@@ -322,6 +326,63 @@ class EntitlementServiceTest {
         assertThatThrownBy(props::validate)
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("gallery-retention-days");
+    }
+
+    /**
+     * The guard that keeps {@link Capability} meaning one thing.
+     *
+     * <p>A value no tier grants is not plan-gated, and the likely reason it got
+     * here is that someone needed somewhere to put "this studio also rents out
+     * its space" — a tenant offering, which is declared rather than bought
+     * (ADR-003 §5). Caught at boot rather than in review, because the cost of
+     * missing it is that {@code GET /api/entitlements} quietly starts answering
+     * two different questions.
+     */
+    @Test
+    void bootFailsWhenACapabilityIsGrantedByNoTier() {
+        EntitlementProperties props = new EntitlementProperties();
+        props.setTiers(new java.util.EnumMap<>(java.util.Map.of(
+            Plan.STARTER, tier(60, 1, 50, EnumSet.noneOf(Capability.class)),
+            Plan.PRO, tier(365, 1, 250, EnumSet.of(Capability.CONTRACTS)),
+            Plan.STUDIO, tier(730, 3, 1024, EnumSet.of(Capability.CONTRACTS)))));
+
+        assertThatThrownBy(props::validate)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("ANALYTICS")
+            .hasMessageContaining("offering");
+    }
+
+    /**
+     * The same guard, run against the table that actually ships.
+     *
+     * <p>The check above proves {@code validate()} catches it; this proves the
+     * shipped {@code application.yml} passes it. Worth its own test because
+     * {@code validate()} only runs at boot: without this, adding a
+     * {@code Capability} and forgetting the yml is green locally and fails on
+     * deploy instead of in {@code mvn test}.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void everyCapabilityInTheShippedTableIsGranted() throws Exception {
+        Map<String, Object> yaml;
+        try (InputStream in = getClass().getResourceAsStream("/application.yml")) {
+            assertThat(in).as("application.yml on the test classpath").isNotNull();
+            yaml = new Yaml().load(in);
+        }
+        Map<String, Object> tiers = (Map<String, Object>)
+            ((Map<String, Object>) ((Map<String, Object>) yaml.get("app")).get("plans")).get("tiers");
+
+        Set<String> granted = new java.util.HashSet<>();
+        for (Object tier : tiers.values()) {
+            Object capabilities = ((Map<String, Object>) tier).get("capabilities");
+            if (capabilities instanceof java.util.List<?> list) {
+                list.forEach(c -> granted.add(String.valueOf(c)));
+            }
+        }
+
+        assertThat(granted)
+            .as("app.plans.tiers.*.capabilities in application.yml")
+            .containsAll(EnumSet.allOf(Capability.class).stream().map(Enum::name).toList());
     }
 
     @Test

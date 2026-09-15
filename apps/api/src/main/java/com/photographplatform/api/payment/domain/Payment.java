@@ -1,5 +1,6 @@
 package com.photographplatform.api.payment.domain;
 
+import com.photographplatform.api.common.domain.RevenueSource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -37,6 +38,21 @@ public class Payment {
 
     @Column(nullable = false, length = 20)
     private String status = PaymentStatus.PENDING.name();
+
+    /**
+     * Which business this payment belongs to — see {@link
+     * com.photographplatform.api.invoice.domain.Invoice#getSource()} and
+     * ADR-003 §6. Fixed at {@code CLIENT_BOOKING}: everything this module
+     * charges today is a client paying their photographer.
+     *
+     * <p>It matters more here than on the invoice, because {@code
+     * application_fee_cents} beside it will one day be non-zero for two
+     * unrelated reasons — the Starter commission on a client's payment, and the
+     * platform's cut of a rental between two photographers. Without this
+     * column those are indistinguishable after the fact.
+     */
+    @Column(nullable = false, updatable = false, length = 30)
+    private String source = RevenueSource.CLIENT_BOOKING.name();
 
     /**
      * Updatable, by exactly one writer: {@link #correctAmountToReceived}.
@@ -147,6 +163,10 @@ public class Payment {
 
     public void setStatus(PaymentStatus status) {
         this.status = status.name();
+    }
+
+    public RevenueSource getSource() {
+        return RevenueSource.valueOf(source);
     }
 
     public Integer getAmountCents() {

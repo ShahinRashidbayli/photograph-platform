@@ -1,5 +1,6 @@
 package com.photographplatform.api.invoice.domain;
 
+import com.photographplatform.api.common.domain.RevenueSource;
 import com.photographplatform.api.tenant.domain.TaxMode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -46,6 +47,23 @@ public class Invoice implements Persistable<UUID> {
 
     @Column(nullable = false, length = 20)
     private String status = InvoiceStatus.ISSUED.name();
+
+    /**
+     * Which business this invoice belongs to (ADR-003 §6).
+     *
+     * <p>Fixed at {@code CLIENT_BOOKING} because that is the only kind this
+     * module issues: a client paying their photographer. It is a field rather
+     * than an assumption so that when the marketplace starts moving money
+     * between two photographers, the invoices that came before it already say
+     * which they were — {@code AnalyticsService} sums this table into a figure
+     * called "revenue", and two businesses in one number answer neither.
+     *
+     * <p>Not a constructor parameter: every caller today would pass the same
+     * value, and a parameter nobody varies is a parameter someone eventually
+     * passes wrong.
+     */
+    @Column(nullable = false, updatable = false, length = 30)
+    private String source = RevenueSource.CLIENT_BOOKING.name();
 
     @Column(name = "tax_mode", nullable = false, updatable = false, length = 20)
     private String taxMode;
@@ -308,6 +326,10 @@ public class Invoice implements Persistable<UUID> {
 
     public InvoiceStatus getStatus() {
         return InvoiceStatus.valueOf(status);
+    }
+
+    public RevenueSource getSource() {
+        return RevenueSource.valueOf(source);
     }
 
     /** Only legal mutation on an issued invoice — see class javadoc. */

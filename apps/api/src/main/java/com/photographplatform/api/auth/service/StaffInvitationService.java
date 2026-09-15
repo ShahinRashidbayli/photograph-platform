@@ -169,9 +169,9 @@ public class StaffInvitationService {
 
         int seats = entitlementService.forTenant(tenant).seats();
         if (seatsUsed(tenantId) >= seats) {
-            throw new PlanUpgradeRequiredException(
+            throw PlanUpgradeRequiredException.limitReached(
                 "Your plan includes " + seats + (seats == 1 ? " seat" : " seats"),
-                Plan.STUDIO);
+                Plan.STUDIO.name());
         }
 
         // Re-inviting replaces rather than adds: two live tokens for one

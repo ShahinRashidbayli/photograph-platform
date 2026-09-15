@@ -109,7 +109,15 @@ public class SecurityConfig {
                     // The inquiry inbox lists other customers' names, emails,
                     // budgets and messages — same PII exposure as the lead inbox,
                     // same gate.
-                    "/api/inquiries/**"
+                    "/api/inquiries/**",
+                    // Contracts hold the other party's name and email plus the
+                    // photographer's own drafts. The customer's view of the
+                    // same documents is /api/customer/contracts/**, which is
+                    // scoped to the caller's own address — this one is not.
+                    "/api/contracts/**",
+                    // Which unbuilt ideas this studio has asked for. Tenant-wide
+                    // and the owner's business, like every other answer here.
+                    "/api/roadmap/**"
                 ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
                 // Tenant-level settings: the business identity printed on every
                 // invoice (including the tenant's tax numbers) and the Stripe

@@ -101,8 +101,12 @@ public class StripeConnectService {
                     // refreshUrl when that happens; the settings page answers
                     // it by asking for another link, so an expired link is a
                     // redirect rather than a dead end.
-                    .setRefreshUrl(webBaseUrl + "/settings?stripe=refresh")
-                    .setReturnUrl(webBaseUrl + "/settings?stripe=return")
+                    // Points at the Payments panel, which is where the Connect
+                    // card lives since Settings was split into routes. The old
+                    // /settings URL forwards here as well, so a link minted
+                    // before the split still lands on the right panel.
+                    .setRefreshUrl(webBaseUrl + "/settings/payments?stripe=refresh")
+                    .setReturnUrl(webBaseUrl + "/settings/payments?stripe=return")
                     .build());
             return new StripeOnboardingLinkResponse(link.getUrl());
         } catch (StripeException ex) {

@@ -207,8 +207,8 @@ public class BillingService {
             // Stripe replaces the placeholder; the settings page uses it to
             // poll until the webhook has landed, so a photographer who returns
             // faster than the webhook does not see "still in trial".
-            .setSuccessUrl(webBaseUrl + "/settings?billing=success&session={CHECKOUT_SESSION_ID}")
-            .setCancelUrl(webBaseUrl + "/settings?billing=cancelled")
+            .setSuccessUrl(webBaseUrl + "/settings/plan?billing=success&session={CHECKOUT_SESSION_ID}")
+            .setCancelUrl(webBaseUrl + "/settings/plan?billing=cancelled")
             .build();
     }
 
@@ -240,7 +240,7 @@ public class BillingService {
             Session session = requireStripe().billingPortal().sessions().create(
                 SessionCreateParams.builder()
                     .setCustomer(customerId)
-                    .setReturnUrl(webBaseUrl + "/settings?billing=portal")
+                    .setReturnUrl(webBaseUrl + "/settings/plan?billing=portal")
                     .build());
             return new CheckoutSessionResponse(session.getUrl());
         } catch (StripeException ex) {

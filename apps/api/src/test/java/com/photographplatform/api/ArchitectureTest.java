@@ -154,4 +154,36 @@ class ArchitectureTest {
 
         rule.check(classes);
     }
+
+    // ── the community boundary (ADR-003) ─────────────────────────────────────
+
+    /**
+     * Community data is a second data domain, not a relaxation of the first.
+     *
+     * <p>Its tables carry no RLS tenant policy — that is the whole point, since
+     * a locations map or a studio search has to read other tenants' rows
+     * (ADR-003 §2). The consequence is that {@code owner_tenant_id} is checked
+     * by hand, in the service layer, on every write. So a caller that reaches a
+     * community repository directly is not merely coupling to the wrong layer:
+     * it is skipping the only authorisation there is.
+     *
+     * <p>Stated separately from the layer rules for that reason — the failure
+     * message should say "authorisation", not "layering".
+     *
+     * <p>Nothing matches yet; no community feature is built. The rule is written
+     * now on purpose, so the fence is already standing when the first one lands
+     * rather than being remembered afterwards.
+     */
+    @Test
+    @DisplayName("community repositories stay inside the community module")
+    void communityRepositoriesAreModulePrivate() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .noClasses().that().resideOutsideOfPackage("..api.community..")
+            .should().dependOnClassesThat().resideInAPackage("..api.community.repository..")
+            .because("community rows have no RLS backstop — owner_tenant_id is checked in "
+                + "the community service, and a caller that goes around it goes around the "
+                + "only check there is (ADR-003 §2.4, §3)");
+
+        rule.check(classes);
+    }
 }

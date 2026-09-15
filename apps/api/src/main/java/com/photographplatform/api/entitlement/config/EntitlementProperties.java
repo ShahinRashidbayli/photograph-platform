@@ -89,6 +89,33 @@ public class EntitlementProperties {
                         + "owner's own login occupies a seat.");
             }
         }
+
+        // Every Capability has to be granted by some tier, because that is what
+        // the type means: "the boolean, plan-gated features".
+        //
+        // A value no tier grants is one of two mistakes, and both are worth a
+        // failed boot. Either it is dead — a feature nobody on any plan can
+        // reach — or it is a *tenant offering* ("we also rent out our space",
+        // "we teach") that has been declared in the wrong type. The second is
+        // the one to worry about: an offering is something a studio switches on
+        // about itself, not something it buys, and folding it in here would
+        // make `plan → capabilities` — and GET /api/entitlements with it — mean
+        // two different things at once. That is exactly how the scattered
+        // `if (plan === 'PRO')` PRICING.md §6.3 warns about comes back wearing
+        // a new name. See ADR-003 §5: offerings get their own type and their
+        // own column when the first one lands.
+        Set<Capability> granted = EnumSet.noneOf(Capability.class);
+        for (PlanConfig config : tiers.values()) {
+            granted.addAll(config.getCapabilities());
+        }
+        Set<Capability> ungranted = EnumSet.allOf(Capability.class);
+        ungranted.removeAll(granted);
+        if (!ungranted.isEmpty()) {
+            throw new IllegalStateException(
+                "No tier in app.plans.tiers grants " + ungranted + ". A Capability is what a plan "
+                    + "buys, so one that no plan buys is either dead or is a tenant offering in the "
+                    + "wrong type (ADR-003 §5). Grant it to a tier, or model it as an offering.");
+        }
     }
 
     /** One tier's row in the table. */

@@ -231,6 +231,49 @@
 
     <build>
         <plugins>
+            <!--
+              Enforcer — refuse to build on the wrong JDK, in the first phase,
+              with a sentence that says what is wrong.
+
+              `maven.compiler.release` already compiles against the JDK 21 API,
+              so calling something newer fails here rather than in production.
+              It does not check what the build RUNS on, and the two gates bound
+              to `verify` do: JaCoCo 0.8.12 cannot instrument class file major
+              version 69 (JDK 25) and fails with "Unsupported class file major
+              version 69" after the whole test suite has run, while SpotBugs
+              needs its ASM override for the same reason. Developers here have
+              newer JDKs on the PATH than the build targets — a local `mvn
+              verify` on JDK 25 therefore spends its time, then dies on the
+              toolchain, and coverage silently measures nothing on the way.
+
+              [21,22) is the range CI installs (.github/workflows/ci.yml) and
+              what the Dockerfile's JRE pins, so local and CI agree.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>require-java-21</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>This build requires Java 21 (the version CI and the runtime image use). Point JAVA_HOME at a JDK 21 install, e.g.
+  export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+See .java-version at the repository root.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Spring Boot executable JAR -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>

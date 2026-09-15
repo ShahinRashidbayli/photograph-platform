@@ -221,6 +221,27 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+          Apache HttpClient5 — already in the tree, now declared.
+
+          It arrives transitively through stripe-java at runtime scope, and
+          Spring's RestClient picks it up as the transport simply because it is
+          on the classpath. That was fine while nothing configured it. It is not
+          fine now that EmailHttpClientConfig switches its retry strategy off
+          (BUG-006): compiling against a dependency we only inherit means a
+          stripe-java upgrade that stopped shipping it would break the build,
+          and — worse — dropping to a different transport would silently restore
+          the Retry-After sleep this is here to prevent.
+
+          No new code enters the build: same artifact, same version (managed by
+          the Spring Boot BOM), moved from inherited-and-runtime to
+          declared-and-compile.
+        -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
+
         <!-- Stripe — Card + SEPA Payment Intents, webhook signature verification. -->
         <dependency>
             <groupId>com.stripe</groupId>

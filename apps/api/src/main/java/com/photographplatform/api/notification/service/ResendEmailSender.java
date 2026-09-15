@@ -1,10 +1,12 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.notification.config.EmailHttpClientConfig;
 import com.photographplatform.api.notification.config.EmailProperties;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -22,8 +24,16 @@ public class ResendEmailSender implements EmailSender {
     private final RestClient restClient;
     private final EmailProperties props;
 
-    public ResendEmailSender(RestClient.Builder builder, EmailProperties props) {
-        this.restClient = builder.build();
+    /**
+     * Takes the non-retrying client rather than building one from the shared
+     * builder: a provider's 429 names a delay in {@code Retry-After}, and the
+     * default client waits it out on the sending thread. See
+     * {@link EmailHttpClientConfig}.
+     */
+    public ResendEmailSender(
+        @Qualifier(EmailHttpClientConfig.EMAIL_REST_CLIENT) RestClient restClient,
+        EmailProperties props) {
+        this.restClient = restClient;
         this.props = props;
     }
 

@@ -101,10 +101,12 @@ export function useUpdateContract(bookingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; title: string; body: string }) =>
-      (await api.put<Contract>(`/api/contracts/${input.id}`, {
-        title: input.title,
-        body: input.body,
-      })).data,
+      (
+        await api.put<Contract>(`/api/contracts/${input.id}`, {
+          title: input.title,
+          body: input.body,
+        })
+      ).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingContractsKey(bookingId) }),
   });
 }
@@ -112,8 +114,7 @@ export function useUpdateContract(bookingId: string) {
 export function useSendContract(bookingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) =>
-      (await api.post<Contract>(`/api/contracts/${id}/send`)).data,
+    mutationFn: async (id: string) => (await api.post<Contract>(`/api/contracts/${id}/send`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingContractsKey(bookingId) }),
   });
 }
@@ -138,10 +139,12 @@ export function useSignContract() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; typedName: string }) =>
-      (await api.post<Contract>(`/api/customer/contracts/${input.id}/sign`, {
-        typedName: input.typedName,
-        agreed: true,
-      })).data,
+      (
+        await api.post<Contract>(`/api/customer/contracts/${input.id}/sign`, {
+          typedName: input.typedName,
+          agreed: true,
+        })
+      ).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: customerContractsKey() }),
   });
 }

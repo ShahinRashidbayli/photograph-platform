@@ -413,9 +413,7 @@ function CustomerLoginInner() {
                 value={code}
                 // Strip non-digits rather than rejecting: pasted codes often
                 // carry a stray space from the email client.
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
-                }
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))}
                 onFocus={() => setFocused('code')}
                 onBlur={() => setFocused(null)}
                 style={{
@@ -445,9 +443,7 @@ function CustomerLoginInner() {
               }}
               disabled={verifying || code.length !== CODE_LENGTH}
             >
-              {verifying
-                ? t('customerLogin.codeSubmitLoading')
-                : t('customerLogin.codeSubmit')}
+              {verifying ? t('customerLogin.codeSubmitLoading') : t('customerLogin.codeSubmit')}
             </button>
           </form>
 

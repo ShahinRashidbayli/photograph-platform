@@ -66,8 +66,7 @@ export const contracts = {
   'contracts.sign.heading': 'Sign this contract',
   'contracts.sign.nameLabel': 'Type your full name to sign',
   'contracts.sign.namePlaceholder': 'Your full name',
-  'contracts.sign.agree':
-    'I have read this contract and agree to be bound by it.',
+  'contracts.sign.agree': 'I have read this contract and agree to be bound by it.',
   'contracts.sign.submit': 'Sign contract',
   'contracts.sign.submitting': 'Signing…',
   'contracts.sign.error': 'Could not sign this contract. Please try again.',
@@ -75,12 +74,12 @@ export const contracts = {
   'contracts.sign.legalNote':
     'Typing your name and confirming counts as an einfache elektronische Signatur (Art. 3 No. 10 eIDAS). Your name, the time and your IP address are recorded as evidence of the signature.',
   'contracts.sign.from': 'From {name}',
-  'contracts.sign.withdrawn':
-    'Your photographer withdrew this contract. There is nothing to sign.',
+  'contracts.sign.withdrawn': 'Your photographer withdrew this contract. There is nothing to sign.',
 
   'contracts.pageSubtitle': 'Every contract in your studio. Start one from a booking.',
   'contracts.emptyTitle': 'No contracts yet',
-  'contracts.emptyBody': 'Contracts are drafted from a booking, so open the booking you want one for.',
+  'contracts.emptyBody':
+    'Contracts are drafted from a booking, so open the booking you want one for.',
   'contracts.goToBookings': 'Go to bookings',
   'contracts.filterAll': 'All',
   'contracts.openBooking': 'Open booking',

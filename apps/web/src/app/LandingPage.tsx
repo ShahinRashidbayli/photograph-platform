@@ -198,7 +198,6 @@ const GALLERY_FRAMES: {
   { no: '31', ar: '1 / 1' },
 ];
 
-
 export default function LandingPage() {
   const { theme } = useThemeStore();
   const c = getColors(theme);

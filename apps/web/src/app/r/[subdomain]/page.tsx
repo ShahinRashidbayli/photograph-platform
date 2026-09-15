@@ -75,10 +75,7 @@ export default async function PublicRequestPage({ params }: Props) {
           commercial presence — and this page, where personal data is actually
           collected, is the one where it matters most.
         */}
-        <PhotographerLegalFooter
-          subdomain={subdomain}
-          displayName={photographer.displayName}
-        />
+        <PhotographerLegalFooter subdomain={subdomain} displayName={photographer.displayName} />
       </div>
     </main>
   );

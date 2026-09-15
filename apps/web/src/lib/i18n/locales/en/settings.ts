@@ -30,7 +30,6 @@ export const settings = {
   'settings.account.saving': 'Saving…',
   'settings.account.saved': 'Saved ✓',
 
-
   // Fotolio's own subscription. Kept verbally distinct from the Stripe Connect
   // ("payouts") strings above: those two are the easiest pair in the product to
   // confuse, and reading one as the other means either believing you can take
@@ -287,8 +286,7 @@ export const settings = {
   'settings.legal.hintVatId':
     'Only if you are VAT registered (§27a UStG). Kleinunternehmer under §19 UStG leave this blank.',
   'settings.legal.fieldRegister': 'Handelsregister',
-  'settings.legal.hintRegister':
-    'Only if registered, e.g. “Amtsgericht Berlin, HRB 12345”.',
+  'settings.legal.hintRegister': 'Only if registered, e.g. “Amtsgericht Berlin, HRB 12345”.',
   'settings.legal.fieldResponsible': 'Responsible party (§18 Abs. 2 MStV)',
   'settings.legal.hintResponsible': 'Leave blank if the same as the provider.',
   'settings.legal.fieldPrivacyContact': 'Data protection contact',

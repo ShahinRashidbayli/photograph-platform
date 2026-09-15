@@ -20,7 +20,14 @@ function Definitions({ rows }: Readonly<{ rows: Row[] }>) {
   const filled = rows.filter((r) => r.v && r.v.trim().length > 0);
   if (filled.length === 0) return null;
   return (
-    <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, auto) 1fr', gap: '8px 20px', margin: 0 }}>
+    <dl
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(140px, auto) 1fr',
+        gap: '8px 20px',
+        margin: 0,
+      }}
+    >
       {filled.map((r) => (
         <div key={r.k} style={{ display: 'contents' }}>
           <dt style={{ fontWeight: 600, color: C.muted, fontSize: '0.9rem' }}>{r.k}</dt>
@@ -34,7 +41,9 @@ function Definitions({ rows }: Readonly<{ rows: Row[] }>) {
 function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <section style={{ marginTop: 28 }}>
-      <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 12px', color: C.text }}>{title}</h2>
+      <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 12px', color: C.text }}>
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -73,7 +82,9 @@ export function PhotographerLegalPage({
           ← Zurück zum Portfolio
         </Link>
 
-        <h1 style={{ fontSize: 30, fontWeight: 700, margin: '16px 0 4px', color: C.text }}>{title}</h1>
+        <h1 style={{ fontSize: 30, fontWeight: 700, margin: '16px 0 4px', color: C.text }}>
+          {title}
+        </h1>
         <p style={{ color: C.muted, margin: '0 0 24px', fontSize: '0.95rem' }}>{name}</p>
 
         <div
@@ -98,9 +109,8 @@ export function PhotographerLegalPage({
                 lineHeight: 1.5,
               }}
             >
-              <strong>Diese Angaben sind noch nicht vollständig.</strong> Der
-              Anbieter hat die gesetzlich erforderlichen Pflichtangaben nach §5
-              DDG noch nicht hinterlegt.
+              <strong>Diese Angaben sind noch nicht vollständig.</strong> Der Anbieter hat die
+              gesetzlich erforderlichen Pflichtangaben nach §5 DDG noch nicht hinterlegt.
             </div>
           )}
 
@@ -141,8 +151,8 @@ export function PhotographerLegalPage({
 
               <Section title="EU-Streitschlichtung">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Die Europäische Kommission stellt eine Plattform zur
-                  Online-Streitbeilegung bereit:{' '}
+                  Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung
+                  bereit:{' '}
                   <a
                     href="https://ec.europa.eu/consumers/odr/"
                     target="_blank"
@@ -151,9 +161,8 @@ export function PhotographerLegalPage({
                   >
                     ec.europa.eu/consumers/odr
                   </a>
-                  . Wir sind nicht verpflichtet und nicht bereit, an einem
-                  Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle
-                  teilzunehmen.
+                  . Wir sind nicht verpflichtet und nicht bereit, an einem Streitbeilegungsverfahren
+                  vor einer Verbraucherschlichtungsstelle teilzunehmen.
                 </p>
               </Section>
             </>
@@ -171,43 +180,40 @@ export function PhotographerLegalPage({
 
               <Section title="Welche Daten wir erheben">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Wenn Sie das Anfrageformular ausfüllen, verarbeiten wir Ihren
-                  Namen, Ihre E-Mail-Adresse, optional Ihre Telefonnummer sowie
-                  die Angaben zu Ihrem gewünschten Termin (Datum, Art des
-                  Termins, Budgetrahmen, Nachricht). Diese Angaben benötigen wir,
-                  um Ihre Anfrage zu beantworten.
+                  Wenn Sie das Anfrageformular ausfüllen, verarbeiten wir Ihren Namen, Ihre
+                  E-Mail-Adresse, optional Ihre Telefonnummer sowie die Angaben zu Ihrem gewünschten
+                  Termin (Datum, Art des Termins, Budgetrahmen, Nachricht). Diese Angaben benötigen
+                  wir, um Ihre Anfrage zu beantworten.
                 </p>
               </Section>
 
               <Section title="Rechtsgrundlage">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b
-                  DSGVO — zur Durchführung vorvertraglicher Maßnahmen, die auf
-                  Ihre Anfrage hin erfolgen.
+                  Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO — zur
+                  Durchführung vorvertraglicher Maßnahmen, die auf Ihre Anfrage hin erfolgen.
                 </p>
               </Section>
 
               <Section title="Speicherdauer">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Anfragen werden gelöscht, sobald sie für die Bearbeitung nicht
-                  mehr erforderlich sind, spätestens jedoch nach Ablauf etwaiger
-                  handels- und steuerrechtlicher Aufbewahrungsfristen.
+                  Anfragen werden gelöscht, sobald sie für die Bearbeitung nicht mehr erforderlich
+                  sind, spätestens jedoch nach Ablauf etwaiger handels- und steuerrechtlicher
+                  Aufbewahrungsfristen.
                 </p>
               </Section>
 
               <Section title="Auftragsverarbeitung">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Für den Betrieb dieser Seite nutzen wir Fotolio als
-                  Auftragsverarbeiter gemäß Art. 28 DSGVO.
+                  Für den Betrieb dieser Seite nutzen wir Fotolio als Auftragsverarbeiter gemäß Art.
+                  28 DSGVO.
                 </p>
               </Section>
 
               <Section title="Ihre Rechte">
                 <p style={{ margin: 0, color: C.muted, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                  Sie haben das Recht auf Auskunft (Art. 15), Berichtigung (Art.
-                  16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art.
-                  18) und Datenübertragbarkeit (Art. 20) sowie ein
-                  Widerspruchsrecht (Art. 21). Zudem können Sie sich bei einer
+                  Sie haben das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art.
+                  17), Einschränkung der Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20)
+                  sowie ein Widerspruchsrecht (Art. 21). Zudem können Sie sich bei einer
                   Datenschutz-Aufsichtsbehörde beschweren (Art. 77).
                 </p>
               </Section>

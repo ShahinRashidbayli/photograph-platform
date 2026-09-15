@@ -46,9 +46,7 @@ export function PhotographerLegalFooter({
         justifyContent: 'space-between',
       }}
     >
-      <span style={{ fontSize: '0.85rem', color: muted }}>
-        {displayName ?? subdomain}
-      </span>
+      <span style={{ fontSize: '0.85rem', color: muted }}>{displayName ?? subdomain}</span>
       <nav style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <Link href={`${base}/impressum`} style={linkStyle}>
           Impressum

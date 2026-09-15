@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { getColors, type Theme } from '@/lib/design-tokens';
 import api from '@/lib/api';
@@ -178,9 +178,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
         onChange={(e) => set(key, e.target.value)}
         style={input}
       />
-      {opts.hint && (
-        <span style={{ fontSize: '0.76rem', color: c.textMuted }}>{opts.hint}</span>
-      )}
+      {opts.hint && <span style={{ fontSize: '0.76rem', color: c.textMuted }}>{opts.hint}</span>}
     </div>
   );
 
@@ -217,8 +215,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
       >
         {complete ? (
           <>
-            <strong>{t('settings.legal.completeTitle')}</strong>{' '}
-            {t('settings.legal.completeBody')}
+            <strong>{t('settings.legal.completeTitle')}</strong> {t('settings.legal.completeBody')}
             {subdomain && (
               <>
                 {' '}
@@ -234,32 +231,54 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
           </>
         ) : (
           <>
-            <strong>
-              {tPlural('settings.legal.incompleteTitle', missing.length)}
-            </strong>{' '}
+            <strong>{tPlural('settings.legal.incompleteTitle', missing.length)}</strong>{' '}
             {t('settings.legal.incompleteBody')}
           </>
         )}
       </div>
 
       <form onSubmit={onSubmit} style={{ display: 'grid', gap: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+          }}
+        >
           {field('legalName', t('settings.legal.fieldName'))}
           {field('legalStreet', t('settings.legal.fieldStreet'))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: '16px',
+          }}
+        >
           {field('legalPostalCode', t('settings.legal.fieldPostalCode'))}
           {field('legalCity', t('settings.legal.fieldCity'))}
           {field('legalCountry', t('settings.legal.fieldCountry'))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+          }}
+        >
           {field('legalEmail', t('settings.legal.fieldEmail'), { type: 'email' })}
           {field('legalPhone', t('settings.legal.fieldPhone'), { type: 'tel' })}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+          }}
+        >
           {field('legalVatId', t('settings.legal.fieldVatId'), {
             hint: t('settings.legal.hintVatId'),
           })}
@@ -268,7 +287,13 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
           })}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+          }}
+        >
           {field('legalResponsible', t('settings.legal.fieldResponsible'), {
             hint: t('settings.legal.hintResponsible'),
           })}

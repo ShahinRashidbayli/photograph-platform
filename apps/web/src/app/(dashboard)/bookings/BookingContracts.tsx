@@ -347,7 +347,11 @@ function ContractEditor({
         // Monospace and pre-wrap because the text is rendered into the PDF
         // exactly as typed — the editor should show the same line breaks the
         // signed document will have.
-        style={{ ...field, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: 1.55 }}
+        style={{
+          ...field,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          lineHeight: 1.55,
+        }}
       />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>

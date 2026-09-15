@@ -22,8 +22,7 @@ async function requestCode(user: ReturnType<typeof setupUser>) {
   await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
 }
 
-const resendButton = () =>
-  screen.getByRole('button', { name: /Send a new code|Resend in/ });
+const resendButton = () => screen.getByRole('button', { name: /Send a new code|Resend in/ });
 
 beforeEach(() => {
   mockedApi.post.mockReset();

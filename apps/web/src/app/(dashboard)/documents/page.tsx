@@ -54,10 +54,7 @@ export default function DocumentsPage() {
 
       {!isLoading && !isError && list.length === 0 && (
         <Card>
-          <EmptyState
-            title={t('contracts.sign.emptyTitle')}
-            body={t('contracts.sign.emptyBody')}
-          />
+          <EmptyState title={t('contracts.sign.emptyTitle')} body={t('contracts.sign.emptyBody')} />
         </Card>
       )}
 
@@ -259,7 +256,14 @@ function ContractDetail({ contract, onBack }: { contract: Contract; onBack: () =
             {/* Said before the button, not after. What is being recorded is the
                 kind of thing a person is entitled to know before they act, not
                 something to disclose once they already have. */}
-            <p style={{ fontSize: '0.78rem', color: c.textMuted, lineHeight: 1.5, margin: '0 0 14px' }}>
+            <p
+              style={{
+                fontSize: '0.78rem',
+                color: c.textMuted,
+                lineHeight: 1.5,
+                margin: '0 0 14px',
+              }}
+            >
               {t('contracts.sign.legalNote')}
             </p>
 

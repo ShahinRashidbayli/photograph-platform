@@ -29,8 +29,7 @@ export const auth = {
     'First time here? No sign-up needed — entering your details sets up your account automatically.',
   'customerLogin.errorRequired': 'Email and photographer subdomain are required',
   'customerLogin.errorEmail': 'Please enter a valid email address',
-  'customerLogin.errorSubdomain':
-    'Please enter a valid photographer subdomain (e.g. anna-foto)',
+  'customerLogin.errorSubdomain': 'Please enter a valid photographer subdomain (e.g. anna-foto)',
   'customerLogin.errorSend': 'Could not send the code. Please try again.',
   'customerLogin.sentTitle': 'Enter your code',
   'customerLogin.sentBody':

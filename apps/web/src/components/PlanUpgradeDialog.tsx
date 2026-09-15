@@ -47,8 +47,8 @@ export function PlanUpgradeDialog() {
 
   if (!detail) return null;
 
-  const required = (detail.requiredPlan
-    ?? (detail.capability ? planThatGrants(detail.capability) : null)) as Plan | null;
+  const required = (detail.requiredPlan ??
+    (detail.capability ? planThatGrants(detail.capability) : null)) as Plan | null;
 
   return (
     <Modal label={t('upgrade.dialogTitle')} maxWidth={460} onClose={() => setDetail(null)}>
@@ -78,7 +78,9 @@ export function PlanUpgradeDialog() {
         {detail.message || t('upgrade.dialogBody')}
       </p>
       {required && (
-        <p style={{ fontSize: '0.88rem', color: c.textMuted, lineHeight: 1.55, margin: '0 0 18px' }}>
+        <p
+          style={{ fontSize: '0.88rem', color: c.textMuted, lineHeight: 1.55, margin: '0 0 18px' }}
+        >
           {t('upgrade.dialogPlanLine' as never, { plan: required })}
         </p>
       )}

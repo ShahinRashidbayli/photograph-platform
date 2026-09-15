@@ -42,10 +42,7 @@ export function UpgradeCard({
   const content = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span
-          aria-hidden="true"
-          style={{ display: 'inline-flex', color: c.textMuted }}
-        >
+        <span aria-hidden="true" style={{ display: 'inline-flex', color: c.textMuted }}>
           <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
             <rect
               x="2.5"
@@ -89,9 +86,7 @@ export function UpgradeCard({
       <div>
         <Link href={UPGRADE_HREF} style={{ textDecoration: 'none' }}>
           <Button size={compact ? 'sm' : 'md'}>
-            {required
-              ? t('upgrade.ctaNamed' as never, { plan: required })
-              : t('upgrade.cta')}
+            {required ? t('upgrade.ctaNamed' as never, { plan: required }) : t('upgrade.cta')}
           </Button>
         </Link>
       </div>

@@ -46,19 +46,14 @@ const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
  * knew it had happened. Throwing instead lets the route's error boundary handle
  * it, and Next does not cache a render that threw.
  */
-export async function fetchPhotographerLegal(
-  subdomain: string
-): Promise<PhotographerLegal | null> {
-  const res = await fetch(
-    `${API_BASE}/api/public/legal/${encodeURIComponent(subdomain)}`,
-    { next: { revalidate: 300 } }
-  );
+export async function fetchPhotographerLegal(subdomain: string): Promise<PhotographerLegal | null> {
+  const res = await fetch(`${API_BASE}/api/public/legal/${encodeURIComponent(subdomain)}`, {
+    next: { revalidate: 300 },
+  });
   // The only answer that means "this photographer does not exist".
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(
-      `legal fetch failed for ${subdomain}: ${res.status} ${res.statusText}`
-    );
+    throw new Error(`legal fetch failed for ${subdomain}: ${res.status} ${res.statusText}`);
   }
   return (await res.json()) as PhotographerLegal;
 }

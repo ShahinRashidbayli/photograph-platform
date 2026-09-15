@@ -41,8 +41,7 @@ export const contracts: Record<keyof EnContracts, string> = {
   'contracts.cancelConfirmBody':
     'Ihr Kunde kann ihn dann nicht mehr unterzeichnen. Der Datensatz bleibt erhalten und wird nicht gelöscht.',
 
-  'contracts.tampered':
-    'Achtung: Dieser Text stimmt nicht mehr mit dem unterzeichneten überein.',
+  'contracts.tampered': 'Achtung: Dieser Text stimmt nicht mehr mit dem unterzeichneten überein.',
 
   'contracts.sign.title': 'Dokumente',
   'contracts.sign.subtitle': 'Verträge, die Ihr Fotograf Ihnen gesendet hat.',
@@ -54,8 +53,7 @@ export const contracts: Record<keyof EnContracts, string> = {
   'contracts.sign.heading': 'Diesen Vertrag unterzeichnen',
   'contracts.sign.nameLabel': 'Geben Sie Ihren vollständigen Namen ein, um zu unterzeichnen',
   'contracts.sign.namePlaceholder': 'Ihr vollständiger Name',
-  'contracts.sign.agree':
-    'Ich habe diesen Vertrag gelesen und erkläre mich damit einverstanden.',
+  'contracts.sign.agree': 'Ich habe diesen Vertrag gelesen und erkläre mich damit einverstanden.',
   'contracts.sign.submit': 'Vertrag unterzeichnen',
   'contracts.sign.submitting': 'Wird unterzeichnet…',
   'contracts.sign.error':
@@ -67,9 +65,11 @@ export const contracts: Record<keyof EnContracts, string> = {
   'contracts.sign.withdrawn':
     'Ihr Fotograf hat diesen Vertrag zurückgezogen. Es gibt nichts zu unterzeichnen.',
 
-  'contracts.pageSubtitle': 'Alle Verträge Ihres Studios. Einen neuen starten Sie aus einer Buchung.',
+  'contracts.pageSubtitle':
+    'Alle Verträge Ihres Studios. Einen neuen starten Sie aus einer Buchung.',
   'contracts.emptyTitle': 'Noch keine Verträge',
-  'contracts.emptyBody': 'Verträge entstehen aus einer Buchung — öffnen Sie die Buchung, für die Sie einen brauchen.',
+  'contracts.emptyBody':
+    'Verträge entstehen aus einer Buchung — öffnen Sie die Buchung, für die Sie einen brauchen.',
   'contracts.goToBookings': 'Zu den Buchungen',
   'contracts.filterAll': 'Alle',
   'contracts.openBooking': 'Buchung öffnen',

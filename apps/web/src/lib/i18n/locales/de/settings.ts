@@ -32,7 +32,6 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.account.saving': 'Wird gespeichert…',
   'settings.account.saved': 'Gespeichert ✓',
 
-
   // Fotolios eigenes Abo. Bewusst anders benannt als die Connect-/Auszahlungs-
   // Texte weiter oben: die beiden werden am leichtesten verwechselt.
   'settings.subscription.title': 'Dein Fotolio-Abo',

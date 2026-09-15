@@ -281,6 +281,21 @@ jobs:
     name: Docker images
     runs-on: ubuntu-latest
     needs: [format, lint, test-api, test-web]
+    # Only where an image could actually be deployed from.
+    #
+    # Since CI started running on every branch, this job was building two
+    # container images on every push to every feature branch — minutes of
+    # runner time, and a GHA build cache shared across branches, for an
+    # artifact nothing consumes until the work reaches a deployable branch.
+    # The compile-level checks (`build`) still run everywhere; it is only the
+    # image build that waits.
+    #
+    # Note the trade-off: a Dockerfile broken on a feature branch is now
+    # caught when it lands on develop/main rather than on the branch itself.
+    # `workflow_dispatch` is the escape hatch for checking it earlier.
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
       - uses: actions/checkout@v4
 

@@ -62,8 +62,8 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
         registerPhotographer("anna@example.test", "anna-foto");
         registerPhotographer("bruno@example.test", "bruno-foto");
 
-        requestMagicLink(SHARED_CLIENT, "anna-foto");
-        requestMagicLink(SHARED_CLIENT, "bruno-foto");
+        requestLoginCode(SHARED_CLIENT, "anna-foto");
+        requestLoginCode(SHARED_CLIENT, "bruno-foto");
 
         // Without this the test proves nothing: if the flow quietly reused one
         // row, the collision it is supposed to reproduce never happened.
@@ -88,7 +88,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
 
         // Anna hires Bruno. Her address now exists twice: staff row in her own
         // tenant, customer row in his.
-        requestMagicLink("anna@example.test", "bruno-foto");
+        requestLoginCode("anna@example.test", "bruno-foto");
 
         ResponseEntity<String> page =
             rest.getForEntity("/api/public/portfolio/anna-foto", String.class);
@@ -106,7 +106,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
     @Test
     void anExistingClientCanRegisterAsAPhotographer() {
         registerPhotographer("anna@example.test", "anna-foto");
-        requestMagicLink(SHARED_CLIENT, "anna-foto");
+        requestLoginCode(SHARED_CLIENT, "anna-foto");
 
         ResponseEntity<String> registration = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Shared Client", SHARED_CLIENT, TEST_PASSWORD,
@@ -140,13 +140,29 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
-    /** Just-in-time customer signup — this is what mints the extra row. */
-    private void requestMagicLink(String email, String subdomain) {
+    /**
+     * Just-in-time customer signup — this is what mints the extra row.
+     *
+     * <p>Asking for a sign-in code is the whole flow here: the customer account
+     * is created on request, before any code is entered, so nothing below needs
+     * to read a mailbox or complete a login. Only the account has to exist.
+     *
+     * <p>This used to post to {@code /api/auth/customer/magic-link/request},
+     * which stopped existing when customer sign-in moved to six-digit codes.
+     * The route was gone, the CSRF filter answered 403 to the unknown path
+     * before dispatch could 404 it, and every assertion in this class failed on
+     * a helper rather than on the behaviour it was written to protect — for
+     * weeks, unnoticed, because no *IT class was reaching a runner at all. See
+     * BUG-001 and BUG-007.
+     */
+    private void requestLoginCode(String email, String subdomain) {
         ResponseEntity<Void> resp = rest.postForEntity(
-            "/api/auth/customer/magic-link/request",
+            "/api/auth/customer/login-code/request",
             new CustomerMagicLinkRequest(email, subdomain, "Client"),
             Void.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(resp.getStatusCode())
+            .as("requesting a sign-in code should create the customer account")
+            .isEqualTo(HttpStatus.NO_CONTENT);
     }
 
     private ResponseEntity<AuthResponse> login(String email) {

@@ -42,8 +42,14 @@ services:
   # presigned URL directly, cross-origin from localhost:3000. Wide-open here is
   # fine — it is a throwaway dev container; R2 needs its own CORS policy set on
   # the bucket (see infra/README.md).
+  #
+  # Pulled from quay.io, not Docker Hub: MinIO's Hub repos (minio/minio,
+  # minio/mc) now refuse anonymous pulls — `docker compose up` on a fresh
+  # machine dies with "pull access denied ... may require 'docker login'".
+  # quay.io is MinIO's other official mirror and still serves the same tags
+  # to everyone, so a checkout comes up without anybody holding an account.
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: fotolio_dev
@@ -63,7 +69,7 @@ services:
   # One-shot: create the bucket the API expects, then exit. Idempotent, so it
   # is safe on every `docker compose up`.
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy

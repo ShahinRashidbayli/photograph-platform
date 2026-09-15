@@ -79,14 +79,14 @@ describe('while the inbox is still loading', () => {
     for (const tab of screen.getAllByRole('tab')) {
       expect(tab.textContent).not.toMatch(/\d/);
     }
-    expect(screen.queryByText(/enquir/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ leads?\b/i)).not.toBeInTheDocument();
   });
 
   it('shows them again once it has', () => {
     setup({ loading: false });
 
     expect(screen.getByRole('tab', { name: /Active/ })).toHaveTextContent('3');
-    expect(screen.getByText(/3 enquiries/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 leads/i)).toBeInTheDocument();
   });
 });
 
@@ -203,8 +203,8 @@ describe('sort control', () => {
   });
 
   it.each([
-    [1, /1 enquiry/i],
-    [0, /0 enquir/i],
+    [1, /1 lead\b/i],
+    [0, /0 leads/i],
   ])('states a result count of %s', (resultCount, expected) => {
     setup({ resultCount });
 

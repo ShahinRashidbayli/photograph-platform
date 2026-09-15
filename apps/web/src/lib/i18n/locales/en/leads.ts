@@ -30,14 +30,14 @@ export const leads = {
   'leadScoreShort.MED': 'Med',
   'leadScoreShort.LOW': 'Low',
   'leadUrgency.noDate': 'No date yet',
-  'leadUrgency.noDateTitle': 'This enquiry did not name a date',
+  'leadUrgency.noDateTitle': 'This lead did not name a date',
   'leadUrgency.past': 'Past',
   'leadUrgency.daysAway': '{count}d away',
   'leadUrgency.title': 'Event in {count} days',
 
   // ── Leads page ────────────────────────────────────────────────────────────
   'leads.title': 'Leads',
-  'leads.subtitle': 'Qualify enquiries, track priorities, and convert prospects into bookings.',
+  'leads.subtitle': 'Qualify leads, track priorities, and convert prospects into bookings.',
   // Source axis: anonymous form leads vs authenticated-customer inquiries.
   'leads.source.all': 'All',
   'leads.source.form': 'Form',
@@ -52,21 +52,27 @@ export const leads = {
   'leads.loadingDetails': 'Loading lead details…',
   'leads.convertToBooking': 'Convert to booking',
   'leads.viewInBookings': 'View in Bookings',
-  // `{name}` / `{enquiries}` mark the segment rendered in bold — the code
+  // `{name}` / `{leads}` mark the segment rendered in bold — the code
   // splits the translated string on the placeholder, so each language keeps
   // its own word order.
   'leads.converted': 'Converted {name} to a booking.',
-  'leads.enquiryCount_one': '{count} enquiry',
-  'leads.enquiryCount_other': '{count} enquiries',
-  'leads.awaitingReply': '{enquiries} awaiting your reply.',
+  // "Lead" is the umbrella for everything in this inbox, whichever way it
+  // arrived. It used to say "enquiry" here while the tabs, the buttons and the
+  // empty states all said "lead" — and worse, "Inquiry" is already the name of
+  // one of the two sources feeding this list (a request from a signed-in
+  // customer, as opposed to a form lead), so "5 enquiries" could be read as
+  // either the whole list or half of it. One word per thing: a row is a lead,
+  // and `Inquiry` stays reserved for where it came from.
+  'leads.leadCount_one': '{count} lead',
+  'leads.leadCount_other': '{count} leads',
+  'leads.awaitingReply': '{leads} awaiting your reply.',
   'leads.review': 'Review',
   'leads.reject.title': 'Reject this lead?',
   'leads.reject.message':
-    "{name}'s enquiry will be moved to Rejected. They won't be notified automatically. You can still see it in the Rejected tab.",
+    "{name}'s lead will be moved to Rejected. They won't be notified automatically. You can still see it in the Rejected tab.",
   'leads.reject.confirm': 'Reject lead',
   'leads.empty.noneTitle': 'No leads yet',
-  'leads.empty.noneBody':
-    'New enquiries from your public booking page will appear here automatically.',
+  'leads.empty.noneBody': 'New leads from your public booking page will appear here automatically.',
   'leads.empty.noMatchTitle': 'No leads match',
   'leads.empty.allResolvedBooked':
     'All your leads are in Booked ({booked}). Switch tabs to see them.',
@@ -117,7 +123,7 @@ export const leads = {
   'leadDetail.reject': 'Reject',
   'leadDetail.markReplied': 'Mark replied',
   'leadDetail.markRepliedTitle':
-    "Move this enquiry out of 'Needs reply' — you've responded off-platform.",
+    "Move this lead out of 'Needs reply' — you've responded off-platform.",
   'leadDetail.editNote': 'Edit note',
   'leadDetail.addNote': 'Add note',
 
@@ -128,7 +134,7 @@ export const leads = {
 
   'leadActivity.loading': 'Loading activity…',
   'leadActivity.empty': 'No activity recorded yet.',
-  'leadActivity.created': 'Enquiry received',
+  'leadActivity.created': 'Lead received',
   'leadActivity.createdDetail': 'Came in through your public booking page.',
   'leadActivity.converted': 'Converted to a booking',
   'leadActivity.convertedDetail': 'Lead moved to BOOKED.',
@@ -137,7 +143,7 @@ export const leads = {
   // ── Add-lead modal ────────────────────────────────────────────────────────
   'addLead.aria': 'Add a new lead',
   'addLead.title': 'New lead',
-  'addLead.subtitle': 'Add an enquiry that came in off-platform (phone, WhatsApp, walk-in).',
+  'addLead.subtitle': 'Add a lead that came in off-platform (phone, WhatsApp, walk-in).',
   'addLead.name': 'Client name *',
   'addLead.email': 'Email *',
   'addLead.phone': 'Phone',
@@ -149,7 +155,7 @@ export const leads = {
   'addLead.submit': 'Save lead',
   'addLead.errName': 'Name is required.',
   'addLead.errEmail': 'Email is required.',
-  'addLead.errMessage': 'Add a short note about the enquiry.',
+  'addLead.errMessage': 'Add a short note about the lead.',
   'addLead.errSubmit': 'Could not save the lead. Please try again.',
   // Input wording for the budget picker — phrased as ranges to choose from,
   // unlike `leadBudget.*` which labels an already-set value.
@@ -178,6 +184,7 @@ export const leads = {
   'editNote.placeholder': 'Anything you want to remember about this lead?',
   'editNote.submit': 'Save note',
   'editNote.errSubmit': 'Could not save the note. Please try again.',
+  'leads.backToList': 'All leads',
 } as const;
 
 export type EnLeads = typeof leads;

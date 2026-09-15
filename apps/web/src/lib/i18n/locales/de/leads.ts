@@ -29,7 +29,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'leadScoreShort.MED': 'Mittel',
   'leadScoreShort.LOW': 'Niedrig',
   'leadUrgency.noDate': 'Kein Datum',
-  'leadUrgency.noDateTitle': 'Diese Anfrage nennt kein Datum',
+  'leadUrgency.noDateTitle': 'Dieser Lead nennt kein Datum',
   'leadUrgency.past': 'Vergangen',
   'leadUrgency.daysAway': 'in {count} T.',
   'leadUrgency.title': 'Termin in {count} Tagen',
@@ -37,7 +37,7 @@ export const leads: Record<keyof EnLeads, string> = {
   // ── Leads page ────────────────────────────────────────────────────────────
   'leads.title': 'Leads',
   'leads.subtitle':
-    'Qualifizieren Sie Anfragen, verfolgen Sie Prioritäten und wandeln Sie Interessenten in Buchungen um.',
+    'Qualifizieren Sie Leads, verfolgen Sie Prioritäten und wandeln Sie Interessenten in Buchungen um.',
   // Quellen-Achse: anonyme Formular-Leads vs. Anfragen angemeldeter Kunden.
   'leads.source.all': 'Alle',
   'leads.source.form': 'Formular',
@@ -54,17 +54,17 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.convertToBooking': 'In Buchung umwandeln',
   'leads.viewInBookings': 'In Buchungen ansehen',
   'leads.converted': '{name} wurde in eine Buchung umgewandelt.',
-  'leads.enquiryCount_one': '{count} Anfrage',
-  'leads.enquiryCount_other': '{count} Anfragen',
-  'leads.awaitingReply': '{enquiries} warten auf Ihre Antwort.',
+  'leads.leadCount_one': '{count} Lead',
+  'leads.leadCount_other': '{count} Leads',
+  'leads.awaitingReply': '{leads} warten auf Ihre Antwort.',
   'leads.review': 'Prüfen',
   'leads.reject.title': 'Diesen Lead ablehnen?',
   'leads.reject.message':
-    'Die Anfrage von {name} wird nach „Abgelehnt“ verschoben. Die Person wird nicht automatisch benachrichtigt. Sie finden sie weiterhin im Tab „Abgelehnt“.',
+    'Der Lead von {name} wird nach „Abgelehnt“ verschoben. Die Person wird nicht automatisch benachrichtigt. Sie finden sie weiterhin im Tab „Abgelehnt“.',
   'leads.reject.confirm': 'Lead ablehnen',
   'leads.empty.noneTitle': 'Noch keine Leads',
   'leads.empty.noneBody':
-    'Neue Anfragen von Ihrer öffentlichen Buchungsseite erscheinen hier automatisch.',
+    'Neue Leads von Ihrer öffentlichen Buchungsseite erscheinen hier automatisch.',
   'leads.empty.noMatchTitle': 'Keine passenden Leads',
   'leads.empty.allResolvedBooked':
     'Alle Ihre Leads sind unter „Gebucht“ ({booked}). Wechseln Sie den Tab, um sie zu sehen.',
@@ -115,7 +115,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'leadDetail.reject': 'Ablehnen',
   'leadDetail.markReplied': 'Als beantwortet markieren',
   'leadDetail.markRepliedTitle':
-    'Diese Anfrage aus „Antwort nötig“ entfernen — Sie haben außerhalb der Plattform geantwortet.',
+    'Diesen Lead aus „Antwort nötig“ entfernen — Sie haben außerhalb der Plattform geantwortet.',
   'leadDetail.editNote': 'Notiz bearbeiten',
   'leadDetail.addNote': 'Notiz hinzufügen',
 
@@ -126,7 +126,7 @@ export const leads: Record<keyof EnLeads, string> = {
 
   'leadActivity.loading': 'Aktivität wird geladen…',
   'leadActivity.empty': 'Noch keine Aktivität erfasst.',
-  'leadActivity.created': 'Anfrage eingegangen',
+  'leadActivity.created': 'Lead eingegangen',
   'leadActivity.createdDetail': 'Über Ihre öffentliche Buchungsseite eingegangen.',
   'leadActivity.converted': 'In eine Buchung umgewandelt',
   'leadActivity.convertedDetail': 'Lead wurde auf GEBUCHT gesetzt.',
@@ -136,7 +136,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'addLead.aria': 'Neuen Lead hinzufügen',
   'addLead.title': 'Neuer Lead',
   'addLead.subtitle':
-    'Erfassen Sie eine Anfrage, die außerhalb der Plattform kam (Telefon, WhatsApp, Laufkundschaft).',
+    'Erfassen Sie einen Lead, der außerhalb der Plattform kam (Telefon, WhatsApp, Laufkundschaft).',
   'addLead.name': 'Name des Kunden *',
   'addLead.email': 'E-Mail *',
   'addLead.phone': 'Telefon',
@@ -148,7 +148,7 @@ export const leads: Record<keyof EnLeads, string> = {
   'addLead.submit': 'Lead speichern',
   'addLead.errName': 'Der Name ist erforderlich.',
   'addLead.errEmail': 'Die E-Mail-Adresse ist erforderlich.',
-  'addLead.errMessage': 'Fügen Sie eine kurze Notiz zur Anfrage hinzu.',
+  'addLead.errMessage': 'Fügen Sie eine kurze Notiz zum Lead hinzu.',
   'addLead.errSubmit': 'Der Lead konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
   'addLead.budget.UNDER_200': 'Unter €200',
   'addLead.budget.200_500': '€200–500',
@@ -176,4 +176,5 @@ export const leads: Record<keyof EnLeads, string> = {
   'editNote.placeholder': 'Was möchten Sie sich zu diesem Lead merken?',
   'editNote.submit': 'Notiz speichern',
   'editNote.errSubmit': 'Die Notiz konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
+  'leads.backToList': 'Alle Anfragen',
 };

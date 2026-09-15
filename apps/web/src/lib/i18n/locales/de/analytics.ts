@@ -11,7 +11,7 @@ export const analytics: Record<keyof EnAnalytics, string> = {
   'analytics.collected': 'Eingegangen',
   'analytics.lockedTitle': 'Berichte gehören zu Studio',
   'analytics.lockedBody':
-    'Umsatz- und Buchungsberichte werten aus, was Sie bereits getan haben — Rechnungen, Zahlungen, Buchungen und Anfragen. Sie sind im Studio-Tarif enthalten.',
+    'Umsatz- und Buchungsberichte werten aus, was Sie bereits getan haben — Rechnungen, Zahlungen, Buchungen und Leads. Sie sind im Studio-Tarif enthalten.',
   'analytics.lockedCta': 'Tarif ansehen',
   'analytics.emptyTitle': 'In diesem Jahr noch nichts',
   'analytics.emptyBody':
@@ -29,7 +29,7 @@ export const analytics: Record<keyof EnAnalytics, string> = {
 
   'analytics.reports.title': 'Buchungsberichte',
   'analytics.reports.subtitle':
-    'Wann Sie ausgelastet waren, was aus Ihren Anfragen wurde und welche Pakete sich verkaufen.',
+    'Wann Sie ausgelastet waren, was aus Ihren Leads wurde und welche Pakete sich verkaufen.',
   'analytics.reports.summary': 'Das Jahr auf einen Blick',
   'analytics.reports.bookings': 'Buchungen',
   'analytics.reports.byMonth': 'Buchungen pro Monat',
@@ -37,7 +37,7 @@ export const analytics: Record<keyof EnAnalytics, string> = {
   'analytics.reports.byPhotographer': 'Wer hat was fotografiert',
   'analytics.reports.unassigned': 'Nicht zugewiesen',
   'analytics.reports.packages': 'Pakete, die sich verkaufen',
-  'analytics.reports.leads': 'Anfragen',
+  'analytics.reports.leads': 'Leads',
   'analytics.reports.converted': 'Wurden zu Buchungen',
-  'analytics.reports.conversionRate': '{percent} der Anfragen',
+  'analytics.reports.conversionRate': '{percent} der Leads',
 };

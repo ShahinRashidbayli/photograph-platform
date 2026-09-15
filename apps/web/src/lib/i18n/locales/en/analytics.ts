@@ -18,7 +18,7 @@ export const analytics = {
   // error: the customer has done nothing wrong.
   'analytics.lockedTitle': 'Reports are part of Studio',
   'analytics.lockedBody':
-    'Revenue and booking reports read the work you have already done — invoices, payments, bookings and enquiries. They are included in the Studio plan.',
+    'Revenue and booking reports read the work you have already done — invoices, payments, bookings and leads. They are included in the Studio plan.',
   'analytics.lockedCta': 'See your plan',
   'analytics.emptyTitle': 'Nothing in this year yet',
   'analytics.emptyBody':
@@ -36,7 +36,7 @@ export const analytics = {
 
   'analytics.reports.title': 'Booking reports',
   'analytics.reports.subtitle':
-    'When you were busy, what your enquiries turned into, and which packages sell.',
+    'When you were busy, what your leads turned into, and which packages sell.',
   'analytics.reports.summary': 'The year at a glance',
   'analytics.reports.bookings': 'Bookings',
   'analytics.reports.byMonth': 'Bookings by month',
@@ -44,9 +44,9 @@ export const analytics = {
   'analytics.reports.byPhotographer': 'Who shot what',
   'analytics.reports.unassigned': 'Unassigned',
   'analytics.reports.packages': 'Packages that sell',
-  'analytics.reports.leads': 'Enquiries',
+  'analytics.reports.leads': 'Leads',
   'analytics.reports.converted': 'Became bookings',
-  'analytics.reports.conversionRate': '{percent} of enquiries',
+  'analytics.reports.conversionRate': '{percent} of leads',
 } as const;
 
 export type EnAnalytics = typeof analytics;

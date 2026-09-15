@@ -565,7 +565,7 @@ export function FilterBar({
         >
           {!loading && (
             <>
-              <span>{tPlural('leads.enquiryCount', resultCount)}</span>
+              <span>{tPlural('leads.leadCount', resultCount)}</span>
               <span aria-hidden style={{ color: c.textSubtle }}>
                 ·
               </span>

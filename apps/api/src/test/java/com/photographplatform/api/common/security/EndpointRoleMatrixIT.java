@@ -66,6 +66,14 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
     private static final String ANY = "ANY_AUTHENTICATED";
     /** No token needed at all. */
     private static final String PUBLIC = "PUBLIC";
+    /**
+     * Admitted by the filter chain like any other {@code permitAll} route, but
+     * the handler itself needs a session and answers 401 without one —
+     * {@code /api/auth/me}, the refresh handshake, resending a verification
+     * mail. The distinction is real and worth keeping visible: authorization
+     * lets these through, and the application decides.
+     */
+    private static final String PUBLIC_SESSION = "PUBLIC_REQUIRES_SESSION";
 
     private static final String PHOTOGRAPHER = "PHOTOGRAPHER";
     private static final String ADMIN = "ADMIN";
@@ -97,20 +105,24 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         EXPECTED.put(endpoint, Set.of(PUBLIC));
     }
 
+    private static void publicButRequiresSession(String endpoint) {
+        EXPECTED.put(endpoint, Set.of(PUBLIC_SESSION));
+    }
+
     static {
         staffOnly("GET /api/analytics");
         publicEndpoint("POST /api/auth/customer/login-code/request");
         publicEndpoint("POST /api/auth/customer/login-code/verify");
         publicEndpoint("POST /api/auth/login");
         publicEndpoint("POST /api/auth/logout");
-        publicEndpoint("GET /api/auth/me");
-        publicEndpoint("PATCH /api/auth/me");
+        publicButRequiresSession("GET /api/auth/me");
+        publicButRequiresSession("PATCH /api/auth/me");
         publicEndpoint("POST /api/auth/me/avatar/presign");
         publicEndpoint("POST /api/auth/password/forgot");
         publicEndpoint("POST /api/auth/password/reset");
-        publicEndpoint("POST /api/auth/refresh");
+        publicButRequiresSession("POST /api/auth/refresh");
         publicEndpoint("POST /api/auth/register");
-        publicEndpoint("POST /api/auth/resend-verification");
+        publicButRequiresSession("POST /api/auth/resend-verification");
         publicEndpoint("GET /api/auth/subdomain-available");
         publicEndpoint("POST /api/auth/verify-email");
         staffOnly("GET /api/billing");
@@ -272,20 +284,19 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
      */
     @Test
     void aCustomerIsRefusedEverythingNotMeantForThem() {
-        String token = jwtService.generateToken(UUID.randomUUID(), UUID.randomUUID(), CUSTOMER);
-
         List<String> reachable = new ArrayList<>();
         for (String endpoint : registeredEndpoints()) {
             Set<String> allowed = EXPECTED.get(endpoint);
             if (allowed == null
                 || allowed.contains(PUBLIC)
+                || allowed.contains(PUBLIC_SESSION)
                 || allowed.contains(ANY)
                 || allowed.contains(CUSTOMER)) {
                 continue;
             }
-            int status = callAsCustomer(endpoint, token);
-            if (status != 403) {
-                reachable.add(endpoint + " -> " + status);
+            Answer answer = call(endpoint, tokenFor(CUSTOMER));
+            if (answer.status() != 403) {
+                reachable.add(endpoint + " -> " + answer.status());
             }
         }
 
@@ -294,7 +305,151 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
             .isEmpty();
     }
 
-    private int callAsCustomer(String endpoint, String token) {
+    /**
+     * With no token at all, everything that is not {@code permitAll} must
+     * answer 401 — not 403, and not the resource.
+     *
+     * <p>401 rather than 403 matters: the frontend's axios interceptor
+     * refreshes on 401 and does not on 403, so an endpoint that answered 403 to
+     * an expired session would leave the user stuck instead of signed back in.
+     */
+    @Test
+    void anonymousIsRefusedEverythingThatIsNotPublic() {
+        List<String> wrong = new ArrayList<>();
+        for (String endpoint : registeredEndpoints()) {
+            Set<String> allowed = EXPECTED.get(endpoint);
+            if (allowed == null || allowed.contains(PUBLIC) || allowed.contains(PUBLIC_SESSION)) {
+                continue;
+            }
+            Answer answer = call(endpoint, null);
+            if (answer.status() != 401) {
+                wrong.add(endpoint + " -> " + answer.status());
+            }
+        }
+
+        assertThat(wrong)
+            .as("Endpoints that are not public must answer 401 to an anonymous caller")
+            .isEmpty();
+    }
+
+    /**
+     * And the reverse: the public surface has to stay open.
+     *
+     * <p>`denyAll()` is one edit away from swallowing a permitAll matcher, and
+     * the symptom would be a public portfolio page, a lead form or a Stripe
+     * webhook that quietly stops working. What each handler then answers is its
+     * own business — a webhook with no signature is a 400, a login with an empty
+     * body a 422 — so only the two authorization answers are ruled out.
+     */
+    @Test
+    void publicEndpointsStayOpenToAnonymousCallers() {
+        List<String> closed = new ArrayList<>();
+        for (String endpoint : registeredEndpoints()) {
+            Set<String> allowed = EXPECTED.get(endpoint);
+            boolean open = Set.of(PUBLIC).equals(allowed);
+            boolean sessionScoped = Set.of(PUBLIC_SESSION).equals(allowed);
+            if (!open && !sessionScoped) {
+                continue;
+            }
+            Answer answer = call(endpoint, null);
+            // A session-scoped route may answer 401 — that is its handler
+            // talking, not the filter chain. Neither flavour may be refused
+            // by authorization.
+            boolean refused = answer.status() == 403 || (open && answer.status() == 401);
+            if (refused) {
+                closed.add(endpoint + " -> " + answer.status());
+            }
+        }
+
+        assertThat(closed)
+            .as("Public endpoints must not answer 401 or 403 to an anonymous caller")
+            .isEmpty();
+    }
+
+    /**
+     * Every role the matrix grants must actually get through.
+     *
+     * <p>This is the half a deny-by-default change can break silently: a rule
+     * that is missing, misspelled or shadowed by an earlier matcher refuses the
+     * people the feature is for, and no amount of "customers are refused"
+     * testing notices.
+     *
+     * <p>Only an <em>authorization</em> 403 counts as a failure here. The same
+     * status also comes back from the email-verification interceptor, which
+     * these synthetic users trip because they do not exist in the database —
+     * that one carries {@code code: EMAIL_NOT_VERIFIED} while the access-denied
+     * handler answers {@code code: FORBIDDEN}. Distinguishing them is the whole
+     * reason the API sends a code at all.
+     */
+    @Test
+    void everyGrantedRoleIsLetThrough() {
+        List<String> refused = new ArrayList<>();
+        for (String endpoint : registeredEndpoints()) {
+            for (String role : rolesToProbe(EXPECTED.get(endpoint))) {
+                Answer answer = call(endpoint, tokenFor(role));
+                if (answer.isAuthorizationDenial()) {
+                    refused.add(endpoint + " as " + role);
+                }
+            }
+        }
+
+        assertThat(refused)
+            .as("The role matrix grants these, but the filter chain refused them")
+            .isEmpty();
+    }
+
+    /**
+     * Where the matrix narrows an endpoint to ADMIN alone, a PHOTOGRAPHER must
+     * not reach it.
+     *
+     * <p>There is no such endpoint today — every staff surface grants both — so
+     * this asserts nothing yet and says so rather than pretending to. It is here
+     * because the distinction is one someone will eventually draw, and the
+     * moment they do the assertion starts running against it.
+     */
+    @Test
+    void adminOnlyEndpointsAreClosedToPhotographers() {
+        List<String> adminOnly = registeredEndpoints().stream()
+            .filter(endpoint -> Set.of(ADMIN).equals(EXPECTED.get(endpoint)))
+            .sorted()
+            .toList();
+
+        List<String> reachable = adminOnly.stream()
+            .filter(endpoint -> call(endpoint, tokenFor(PHOTOGRAPHER)).status() != 403)
+            .toList();
+
+        assertThat(reachable)
+            .as("ADMIN-only endpoints must refuse a PHOTOGRAPHER")
+            .isEmpty();
+    }
+
+    /**
+     * The roles worth sending at an endpoint: the ones the matrix grants, with
+     * {@link #ANY} expanded to one staff role and one customer, since "any
+     * authenticated caller" is only true if it holds for both.
+     */
+    private static Set<String> rolesToProbe(Set<String> allowed) {
+        if (allowed == null || allowed.contains(PUBLIC) || allowed.contains(PUBLIC_SESSION)) {
+            return Set.of();
+        }
+        if (allowed.contains(ANY)) {
+            return Set.of(PHOTOGRAPHER, CUSTOMER);
+        }
+        return allowed;
+    }
+
+    private String tokenFor(String role) {
+        return jwtService.generateToken(UUID.randomUUID(), UUID.randomUUID(), role);
+    }
+
+    /** What the chain answered, and enough of it to tell 403s apart. */
+    private record Answer(int status, String body) {
+        boolean isAuthorizationDenial() {
+            return status == 403 && body != null && body.contains("\"code\":\"FORBIDDEN\"");
+        }
+    }
+
+    private Answer call(String endpoint, String token) {
         String[] parts = endpoint.split(" ", 2);
         HttpMethod method = HttpMethod.valueOf(parts[0]);
         // Any syntactically valid id will do: authorization is decided in the
@@ -302,7 +457,9 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         String path = parts[1].replaceAll("\\{[^}]+}", UUID.randomUUID().toString());
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);
+        if (token != null) {
+            headers.setBearerAuth(token);
+        }
         headers.setContentType(MediaType.APPLICATION_JSON);
         if (method != HttpMethod.GET) {
             headers.add(HttpHeaders.COOKIE, "XSRF-TOKEN=" + CSRF_TOKEN);
@@ -311,7 +468,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
 
         ResponseEntity<String> response = rest.exchange(
             path, method, new HttpEntity<>("{}", headers), String.class);
-        return response.getStatusCode().value();
+        return new Answer(response.getStatusCode().value(), response.getBody());
     }
 
     private static final String CSRF_TOKEN = "endpoint-matrix-csrf-token";

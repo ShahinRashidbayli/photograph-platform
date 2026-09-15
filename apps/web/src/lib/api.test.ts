@@ -186,4 +186,33 @@ describe('api response interceptor', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener('app:email-not-verified', listener);
   });
+
+  /**
+   * The other half of the rule above, and the one worth pinning down.
+   *
+   * <p>Since the API denies by default, a permission error and a request to a
+   * path that has no handler both arrive as a plain 403 — the unhandled path
+   * no longer 404s, because authorization is decided before dispatch. If the
+   * interceptor keyed the email gate on the status alone, every one of those
+   * would raise "please verify your email" at a user whose email is verified
+   * and whose real problem is something else entirely.
+   *
+   * <p>It does not: the gate needs `code === 'EMAIL_NOT_VERIFIED'`, and the
+   * access-denied handler answers `code: 'FORBIDDEN'`. This test is what keeps
+   * that discriminator from being simplified away.
+   */
+  it.each([
+    ['a permission error', { code: 'FORBIDDEN', error: 'You do not have access to this resource.' }],
+    ['a route that does not exist', { code: 'FORBIDDEN', error: 'Forbidden' }],
+    ['a body with no code at all', {}],
+  ])('does not raise the email gate for %s', async (_case, body) => {
+    const listener = jest.fn();
+    window.addEventListener('app:email-not-verified', listener);
+    mock.onGet('/api/whatever').reply(403, body);
+
+    await expect(api.get('/api/whatever')).rejects.toBeTruthy();
+
+    expect(listener).not.toHaveBeenCalled();
+    window.removeEventListener('app:email-not-verified', listener);
+  });
 });

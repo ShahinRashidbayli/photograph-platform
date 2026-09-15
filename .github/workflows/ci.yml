@@ -208,22 +208,22 @@ jobs:
         with:
           node-version: '20'
 
-      # ⚠️ REPORTING ONLY, AND THIS IS TEMPORARY.
+      # Binding now, where it used to carry `continue-on-error: true`.
       #
-      # This step fails today. The tree carries two HIGH advisories — next, and
-      # sharp via libvips — and clearing them needs next@16, a semver-major
-      # upgrade that is its own piece of work.
+      # The reason for that flag was real: the tree held advisories whose only
+      # fix looked like a semver-major upgrade, so a binding check would have
+      # blocked every pull request on a problem unrelated to the change being
+      # merged. What was missing was a way to name a known exception, which is
+      # what the allowlist in the script provides — everything else stops the
+      # build.
       #
-      # Merging it as a required check would therefore block every pull request
-      # from the moment it lands, on a problem unrelated to whatever is being
-      # merged. That is how a security gate gets deleted rather than satisfied.
-      # So it reports for now, visibly, and the job is not silently absent.
-      #
-      # REMOVE continue-on-error once the Next upgrade lands. A reporting-only
-      # audit that nobody ever promotes is just a slower way of having no audit.
+      # As it turns out the list is empty. The two sharp advisories that were
+      # expected to sit in it were cleared without Next 16: next 15.5.24
+      # declares sharp as `^0.34.3 || ^0.35.3`, so the fixed 0.35.4 installs
+      # inside a range npm already accepts. js-yaml went the same way, a
+      # lockfile bump under eslint and jest.
       - name: npm audit (high and above)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+        run: ./scripts/audit-gate.sh
 
   # ── 6. BUILD ───────────────────────────────────────────────
   build:

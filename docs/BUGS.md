@@ -163,7 +163,14 @@ security holes.
 - **FU-4: RLS isolation test gap** — see the RLS section: contracts, invoices,
   invoice_line_items, invoice_counters, payments, feature_interest,
   gallery_expiry_reminders have policies but no cross-tenant assertion.
-- **FU-5: sharp ships in the production bundle and `/_next/image` is live** even
+- **FU-5 (partly resolved): sharp's advisories are cleared; the open question
+  is now only whether `/_next/image` should exist at all.** sharp is at 0.35.4,
+  which the libvips and libheif advisories are fixed in, and it got there
+  without Next 16 — next 15.5.24 declares it as
+  `optionalDependencies: sharp "^0.34.3 || ^0.35.3"`, a range npm accepts, so
+  unlike the postcss pin (BUG-009) this survives any install. What remains is
+  the design question below, unchanged: sharp still ships in the production
+  bundle and `/_next/image` is live even
   though the app never uses `next/image`. Today's risk is low (no backend
   endpoint returns image bytes with an image content-type; `remotePatterns: []`
   blocks remote URLs; `/public` holds only 2 committed brand assets). Latent

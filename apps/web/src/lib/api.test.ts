@@ -202,7 +202,10 @@ describe('api response interceptor', () => {
    * that discriminator from being simplified away.
    */
   it.each([
-    ['a permission error', { code: 'FORBIDDEN', error: 'You do not have access to this resource.' }],
+    [
+      'a permission error',
+      { code: 'FORBIDDEN', error: 'You do not have access to this resource.' },
+    ],
     ['a route that does not exist', { code: 'FORBIDDEN', error: 'Forbidden' }],
     ['a body with no code at all', {}],
   ])('does not raise the email gate for %s', async (_case, body) => {

@@ -39,17 +39,28 @@
              negotiates the API version, restoring compatibility. -->
         <testcontainers.version>1.21.4</testcontainers.version>
         <!--
-          Coverage floor, measured from a full `mvn verify` (452 tests,
-          Testcontainers suites included) rather than chosen as a target:
-          LINE 64.72%, BRANCH 48.57%. Each floor sits a point or two below that,
-          so an ordinary refactor does not fail the build but a real regression
-          does.
+          Coverage floor, measured rather than chosen as a target.
+
+          Measured 2026-09-16 from the first fully green `mvn verify` this
+          repository has produced: 546 tests, every Testcontainers suite
+          included, LINE 62.57% and BRANCH 46.15%. The floors sit just under
+          those, so an ordinary refactor does not fail the build and a real
+          regression does.
+
+          The previous comment claimed 452 tests at LINE 64.72% / BRANCH 48.57%.
+          That could not be reproduced and could not have been measured as
+          described: no `*IT` class had ever completed a run — surefire only
+          started including them in 2026-08-15, and every attempt since then
+          died on the Retry-After stall fixed in 5ed7ba6. Whatever produced
+          those numbers, it was not the suite this file gates. The line floor is
+          therefore going *down* half a point here — not to make a build pass,
+          but because 0.63 was never a number this project had actually reached.
 
           Raise these when a run clears a higher number with room to spare.
           Never lower them to make a build pass — that converts the one signal
           here into decoration.
         -->
-        <jacoco.line.minimum>0.63</jacoco.line.minimum>
+        <jacoco.line.minimum>0.62</jacoco.line.minimum>
         <jacoco.branch.minimum>0.46</jacoco.branch.minimum>
         <!--
           Empty default so surefire's argLine below still resolves when JaCoCo

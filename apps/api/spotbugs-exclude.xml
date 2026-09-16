@@ -20,6 +20,22 @@
     </Match>
 
     <!--
+      BookingResource.Key is an @IdClass. Nothing in this codebase constructs
+      one — Hibernate instantiates it and writes bookingId/resourceId
+      reflectively when it materialises the composite key — so SpotBugs is
+      correct that no Java code writes those fields and wrong that this is a
+      defect. equals() and hashCode() read them, and BookingResourceIT drives
+      the mapping end to end against a real Postgres, which is what would fail
+      if the fields really were never populated.
+      Narrow on purpose: this class, this pattern. The moment code does
+      construct a Key, give it a constructor instead of widening this.
+    -->
+    <Match>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+        <Class name="com.photographplatform.api.resource.domain.BookingResource$Key"/>
+    </Match>
+
+    <!--
       Entities expose OffsetDateTime and UUID, which are immutable, but
       SpotBugs treats any returned object reference as potential exposure of
       internal state. The types it actually cares about (arrays, Date) are not

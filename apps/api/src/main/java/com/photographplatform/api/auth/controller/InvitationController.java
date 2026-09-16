@@ -1,6 +1,5 @@
 package com.photographplatform.api.auth.controller;
 
-import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.dto.AcceptInvitationRequest;
 import com.photographplatform.api.auth.dto.InvitationPreviewResponse;
 import com.photographplatform.api.auth.service.StaffInvitationService;
@@ -64,14 +63,16 @@ public class InvitationController {
         @Valid @RequestBody AcceptInvitationRequest request,
         HttpServletRequest httpRequest
     ) {
-        User created = invitationService.accept(
+        // accept() either throws or returns the account it just saved — there is
+        // no path through it that yields null. The null check that used to
+        // guard a 500 here was unreachable, and SpotBugs said so the first time
+        // it ran against this project.
+        invitationService.accept(
             request.token(),
             request.password(),
             request.fullName(),
             ClientIp.from(httpRequest));
         // The account exists; the client sends the visitor to /login.
-        return created == null
-            ? ResponseEntity.internalServerError().build()
-            : ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().build();
     }
 }

@@ -2,6 +2,7 @@ package com.photographplatform.api.auth;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.LoginCode;
+import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.LoginCodeRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -332,5 +334,48 @@ class CustomerLoginCodeServiceTest {
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    // ── the limit that survives a Redis outage ────────────────────────────────
+
+    /**
+     * Every request-side limit on this flow lives in Redis, and
+     * {@code RateLimiter} fails open on purpose: a Redis outage should degrade
+     * the product, not take login down with it. The cost of that choice is that
+     * the same outage removes the 5-per-email-per-hour ceiling, and the only
+     * thing left is the per-code cap of five wrong guesses — which an attacker
+     * escapes simply by asking for another code. Unlimited rounds of five
+     * guesses against a six-digit secret is not a rate limit.
+     *
+     * <p>So the per-email ceiling is counted in Postgres as well, from the codes
+     * already issued to that user. The database is the one place that cannot be
+     * unavailable while the flow still works: issuing a code writes a row there.
+     *
+     * <p>{@code rateLimiter} is a permissive mock here, which is exactly the
+     * shape of a Redis outage — every check passes.
+     */
+    @Test
+    @DisplayName("the per-email ceiling still applies when Redis is failing open")
+    void tooManyCodesInAnHourIsRefusedWithoutRedis() {
+        when(tokenRepository.countByUserIdAndCreatedAtAfter(eq(USER_ID), any()))
+            .thenReturn(5L);
+
+        assertThatThrownBy(() -> service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP))
+            .isInstanceOf(TooManyRequestsException.class);
+
+        verify(tokenRepository, never()).save(any(LoginCode.class));
+        verify(emailService, never()).send(any());
+    }
+
+    /** Below the ceiling nothing changes — a guard that refuses everyone is not one. */
+    @Test
+    @DisplayName("an ordinary request is unaffected by the Postgres-side ceiling")
+    void requestsBelowTheCeilingStillIssueACode() {
+        when(tokenRepository.countByUserIdAndCreatedAtAfter(eq(USER_ID), any()))
+            .thenReturn(4L);
+
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+
+        verify(tokenRepository).save(any(LoginCode.class));
     }
 }

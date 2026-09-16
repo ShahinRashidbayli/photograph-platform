@@ -29,6 +29,16 @@ public interface LoginCodeRepository extends JpaRepository<LoginCode, UUID> {
      * be one live code at a time) and when a fresh one is issued, so an earlier
      * code cannot be replayed after the customer clicks Resend.
      */
+    /**
+     * How many codes this user has been issued since {@code since}.
+     *
+     * <p>Backs the per-email ceiling that has to hold when Redis does not.
+     * Counts every row, used or not: the question is how many were *sent*, and
+     * a code that was used or superseded was still an email and still a guess
+     * the attacker got to make.
+     */
+    long countByUserIdAndCreatedAtAfter(UUID userId, OffsetDateTime since);
+
     @Modifying
     @Query("update LoginCode t set t.usedAt = :now "
         + "where t.userId = :userId and t.usedAt is null")

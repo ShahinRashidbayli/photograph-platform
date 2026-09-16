@@ -10,6 +10,7 @@ import com.photographplatform.api.auth.repository.LoginCodeRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.notification.dto.EmailMessage;
@@ -22,6 +23,8 @@ import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -192,6 +195,26 @@ public class CustomerAuthService {
             return;
         }
 
+        // The ceiling that survives a Redis outage.
+        //
+        // Every limit above this line is Redis-backed, and RateLimiter fails
+        // open on purpose — a Redis outage should degrade the product, not take
+        // login down with it. The cost is that the same outage lifts the
+        // per-email ceiling, leaving only the five-guesses-per-code cap, which
+        // an attacker escapes by asking for another code. Counted here from the
+        // codes already issued, because issuing one writes a row anyway: the
+        // database cannot be unavailable while this flow still works.
+        //
+        // After the user lookup, not before, because it is keyed on the user.
+        // The Redis check above still runs first and still does the cheap work
+        // of turning away a flood before any query.
+        long issuedInWindow = tokenRepository.countByUserIdAndCreatedAtAfter(
+            user.getId(), OffsetDateTime.now(clock).minus(REQUEST_WINDOW));
+        if (issuedInWindow >= REQUEST_MAX_PER_EMAIL_PER_HOUR) {
+            throw new TooManyRequestsException(
+                "Too many login attempts. Please try again later.", REQUEST_WINDOW);
+        }
+
         issueAndSendCode(user);
 
         auditService.logQuietly("CUSTOMER_LOGIN_CODE_REQUESTED", "USER", user.getId(),
@@ -256,7 +279,15 @@ public class CustomerAuthService {
             throw new UnauthorizedException(INVALID_CODE);
         }
 
-        if (!token.getTokenHash().equals(hashLoginCode(user.getId(), code.trim()))) {
+        // Constant-time, like the CSRF check in SecurityConfig. The attacker
+        // supplies `code` and therefore the hash being compared, so a
+        // short-circuiting equals() is measurable in principle. The attempt
+        // cap makes it impractical here — but the cap is the reason this is
+        // safe, not the comparison, and the two should not have to be
+        // reasoned about together.
+        if (!MessageDigest.isEqual(
+            token.getTokenHash().getBytes(StandardCharsets.UTF_8),
+            hashLoginCode(user.getId(), code.trim()).getBytes(StandardCharsets.UTF_8))) {
             token.recordFailedAttempt();
             // Burn the code once the budget is spent, so an attacker gets five
             // guesses per *email sent* rather than five per minute forever.

@@ -14,4 +14,11 @@ import com.photographplatform.api.notification.dto.EmailMessage;
  */
 public interface EmailSender {
     void send(EmailMessage message);
+
+    /**
+     * The transport's name, for logs. Not the class name: what matters when
+     * reading a delivery failure is which provider was asked, and that is a
+     * configuration value the reader can act on.
+     */
+    String providerName();
 }

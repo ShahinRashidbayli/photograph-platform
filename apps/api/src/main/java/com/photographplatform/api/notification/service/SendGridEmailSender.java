@@ -69,6 +69,12 @@ public class SendGridEmailSender implements EmailSender {
             .retrieve()
             .toBodilessEntity();
 
-        LOG.info("Email sent via SendGrid to='{}' subject='{}'", message.to(), message.subject());
+        LOG.info("Email sent provider={} type={} tenant={}",
+            providerName(), message.type(), message.tenantId());
+    }
+
+    @Override
+    public String providerName() {
+        return "sendgrid";
     }
 }

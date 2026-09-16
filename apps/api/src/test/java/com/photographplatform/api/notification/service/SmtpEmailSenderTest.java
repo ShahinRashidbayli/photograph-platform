@@ -2,11 +2,13 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.notification.config.EmailProperties;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,7 +58,8 @@ class SmtpEmailSenderTest {
         when(mail.createMimeMessage()).thenReturn(mime);
 
         new SmtpEmailSender(providerOf(mail), PROPS)
-            .send(new EmailMessage("kunde@example.test", "Ihre Rechnung", "<p>Grüße</p>"));
+            .send(new EmailMessage("kunde@example.test", "Ihre Rechnung", "<p>Grüße</p>",
+                EmailType.INQUIRY_REPLY, UUID.randomUUID()));
 
         ArgumentCaptor<MimeMessage> sent = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mail).send(sent.capture());

@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Façade every caller uses to send transactional email. Delegates the actual
@@ -18,6 +19,14 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class EmailService {
+
+    /*
+     * Logs name the transport, the kind of message and the tenant — never the
+     * recipient, the subject or the body. Those used to be logged on both the
+     * success and the failure path, and the sign-in code travels in a subject,
+     * so a live credential reached the application log on every send. See
+     * BUG-014 in docs/BUGS.md.
+     */
 
     private static final Logger LOG = LoggerFactory.getLogger(EmailService.class);
 
@@ -57,9 +66,17 @@ public class EmailService {
     public void send(EmailMessage message) {
         try {
             sender.send(message);
+        } catch (RestClientResponseException e) {
+            // The provider answered and refused. Its status is the one thing
+            // that says whether this is ours to fix (401: bad key, 429: over
+            // rate) or theirs to wait out (5xx).
+            LOG.error("Email send failed provider={} type={} tenant={} status={}",
+                sender.providerName(), message.type(), message.tenantId(),
+                e.getStatusCode().value(), e);
         } catch (Exception e) {
-            LOG.error("Failed to send email to='{}' subject='{}': {}", message.to(),
-                message.subject(), e.getMessage(), e);
+            LOG.error("Email send failed provider={} type={} tenant={} status=none: {}",
+                sender.providerName(), message.type(), message.tenantId(),
+                e.getMessage(), e);
         }
     }
 }

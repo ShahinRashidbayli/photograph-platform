@@ -18,6 +18,7 @@ import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -365,7 +366,8 @@ public class InquiryRequestService {
             EmailTemplate.heading(subject)
                 + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(displayName(customer)) + ",")
                 + EmailTemplate.paragraph(message));
-        emailService.send(new EmailMessage(customer.getEmail(), subject, html));
+        emailService.send(new EmailMessage(customer.getEmail(), subject, html,
+            EmailType.INQUIRY_REPLY, customer.getTenantId()));
     }
 
     private InquiryRequestResponse toResponse(InquiryRequest inquiry, User customer) {

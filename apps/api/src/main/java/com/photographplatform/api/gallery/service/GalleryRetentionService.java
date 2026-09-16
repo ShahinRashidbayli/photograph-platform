@@ -139,6 +139,7 @@ public class GalleryRetentionService {
         }
 
         notifications.sendExpiryWarning(
+            tenant.getId(),
             booking.getClientEmail(),
             booking.getClientName(),
             displayName(tenant),

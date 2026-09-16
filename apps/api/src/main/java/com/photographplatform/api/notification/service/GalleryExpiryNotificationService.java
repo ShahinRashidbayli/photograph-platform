@@ -3,9 +3,11 @@ package com.photographplatform.api.notification.service;
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Row;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -41,11 +43,15 @@ public class GalleryExpiryNotificationService {
     }
 
     /**
+     * @param tenantId whose studio this gallery belongs to — carried so a failed
+     *                 send can be attributed in the log without naming the
+     *                 recipient
      * @param daysLeft which warning this is, in days before expiry — it decides
      *                 the tone, because "in two weeks" and "tomorrow" are not
      *                 the same message about someone's wedding photos
      */
     public void sendExpiryWarning(
+        UUID tenantId,
         String clientEmail,
         String clientName,
         String photographerName,
@@ -78,7 +84,9 @@ public class GalleryExpiryNotificationService {
         emailService.send(new EmailMessage(
             clientEmail,
             subject(daysLeft, expiryDate),
-            EmailTemplate.document(preheader(daysLeft), body)));
+            EmailTemplate.document(preheader(daysLeft), body),
+            EmailType.GALLERY_EXPIRY,
+            tenantId));
     }
 
     private String headline(int daysLeft) {

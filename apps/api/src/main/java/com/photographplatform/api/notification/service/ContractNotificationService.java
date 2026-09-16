@@ -2,6 +2,7 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.contract.event.ContractSignedEvent;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Tone;
 import java.util.List;
@@ -43,7 +44,9 @@ public class ContractNotificationService {
             emailService.send(new EmailMessage(
                 event.getPhotographerEmail(),
                 "✍️ Contract signed — " + event.getTitle(),
-                buildBody(event)
+                buildBody(event),
+                EmailType.CONTRACT_SIGNED,
+                event.getTenantId()
             ));
         } catch (Exception e) {
             LOG.error("Failed to send contract-signed notification for contract {}: {}",

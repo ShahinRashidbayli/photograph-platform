@@ -2,6 +2,7 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Tone;
 import java.util.List;
@@ -39,7 +40,11 @@ public class LeadNotificationService {
             EmailMessage message = new EmailMessage(
                 event.getPhotographerEmail(),
                 buildSubject(event.getScore(), event.getClientName()),
-                buildBody(event)
+                buildBody(event),
+                EmailType.LEAD_NOTIFICATION,
+                // LeadCreatedEvent does not carry the tenant — see the follow-up
+                // in docs/BUGS.md; a failed send logs tenant=unknown.
+                null
             );
             emailService.send(message);
         } catch (Exception e) {

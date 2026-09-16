@@ -3,6 +3,7 @@ package com.photographplatform.api.notification.service;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import java.util.List;
 import org.slf4j.Logger;
@@ -40,7 +41,10 @@ public class AutoReplyService {
             emailService.send(new EmailMessage(
                 event.getClientEmail(),
                 "Vielen Dank für Ihre Anfrage – " + photographer,
-                buildBody(event, photographer)));
+                buildBody(event, photographer),
+                EmailType.LEAD_AUTO_REPLY,
+                // LeadCreatedEvent does not carry the tenant — see docs/BUGS.md.
+                null));
         } catch (Exception e) {
             LOG.error("Failed to send auto-reply for lead {}: {}", event.getLeadId(), e.getMessage(), e);
         }

@@ -16,6 +16,7 @@ import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Plan;
@@ -454,7 +455,8 @@ public class StaffInvitationService {
                 + EmailTemplate.note("This invitation expires in 7 days. If you were not "
                     + "expecting it, you can safely ignore this email."));
         try {
-            emailService.send(new EmailMessage(email, "You have been invited to " + studio, html));
+            emailService.send(new EmailMessage(email, "You have been invited to " + studio, html,
+                EmailType.STAFF_INVITATION, tenant.getId()));
         } catch (RuntimeException ex) {
             // Best-effort, like every other outbound mail here: the invitation
             // exists and the owner can resend it.

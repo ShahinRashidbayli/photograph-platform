@@ -87,7 +87,8 @@ public class SmtpEmailSender implements EmailSender {
         }
 
         sender.send(mime);
-        LOG.info("Email sent via SMTP to='{}' subject='{}'", message.to(), message.subject());
+        LOG.info("Email sent provider={} type={} tenant={}",
+            providerName(), message.type(), message.tenantId());
     }
 
     private InternetAddress fromAddress()
@@ -96,5 +97,10 @@ public class SmtpEmailSender implements EmailSender {
         return name != null && !name.isBlank()
             ? new InternetAddress(props.from(), name, StandardCharsets.UTF_8.name())
             : new InternetAddress(props.from());
+    }
+
+    @Override
+    public String providerName() {
+        return "smtp";
     }
 }

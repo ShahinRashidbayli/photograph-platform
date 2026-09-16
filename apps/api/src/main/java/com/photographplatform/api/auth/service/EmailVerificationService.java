@@ -7,6 +7,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.common.util.HtmlEscape;
@@ -176,7 +177,8 @@ public class EmailVerificationService {
                     + "you can safely ignore this email."));
         try {
             emailService.send(new EmailMessage(
-                user.getEmail(), "Confirm your Fotolio email", html));
+                user.getEmail(), "Confirm your Fotolio email", html,
+                EmailType.EMAIL_VERIFICATION, user.getTenantId()));
         } catch (RuntimeException ex) {
             // Email delivery is best-effort — log loudly but never fail the caller.
             LOG.warn("Failed to send verification email to {}", user.getEmail(), ex);

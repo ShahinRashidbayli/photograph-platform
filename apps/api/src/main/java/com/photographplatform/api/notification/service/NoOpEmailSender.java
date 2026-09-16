@@ -19,6 +19,12 @@ public class NoOpEmailSender implements EmailSender {
 
     @Override
     public void send(EmailMessage message) {
-        LOG.info("EMAIL (no-op mode) to='{}' subject='{}'", message.to(), message.subject());
+        LOG.info("Email sent provider={} type={} tenant={}",
+            providerName(), message.type(), message.tenantId());
+    }
+
+    @Override
+    public String providerName() {
+        return "none";
     }
 }

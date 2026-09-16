@@ -13,6 +13,7 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -373,7 +374,8 @@ public class CustomerAuthService {
                     + "you can safely ignore this email."));
         try {
             emailService.send(new EmailMessage(
-                user.getEmail(), "Your sign-in code: " + code, html));
+                user.getEmail(), "Your sign-in code: " + code, html,
+                EmailType.LOGIN_CODE, user.getTenantId()));
         } catch (RuntimeException ex) {
             LOG.warn("Failed to send login-code email to {}", user.getEmail(), ex);
         }

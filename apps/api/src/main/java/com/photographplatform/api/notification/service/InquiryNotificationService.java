@@ -2,6 +2,7 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Tone;
 import java.time.format.DateTimeFormatter;
@@ -49,7 +50,11 @@ public class InquiryNotificationService {
             emailService.send(new EmailMessage(
                 event.getPhotographerEmail(),
                 buildSubject(event),
-                buildBody(event)
+                buildBody(event),
+                EmailType.INQUIRY_NOTIFICATION,
+                // InquiryCreatedEvent does not carry the tenant — see the
+                // follow-up in docs/BUGS.md; a failed send logs tenant=unknown.
+                null
             ));
         } catch (Exception e) {
             // Best-effort, exactly like the lead alert: the inquiry is already

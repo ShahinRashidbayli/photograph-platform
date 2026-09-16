@@ -11,6 +11,7 @@ import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.service.EmailService;
 import java.time.Clock;
@@ -230,7 +231,8 @@ public class PasswordResetService {
                     + "request a password reset, you can safely ignore this email — your password "
                     + "stays unchanged."));
         try {
-            emailService.send(new EmailMessage(user.getEmail(), "Reset your Fotolio password", html));
+            emailService.send(new EmailMessage(user.getEmail(), "Reset your Fotolio password", html,
+                EmailType.PASSWORD_RESET, user.getTenantId()));
         } catch (RuntimeException ex) {
             // Best-effort, like every other send: the token is already committed,
             // and surfacing the failure here would leak that the account exists.

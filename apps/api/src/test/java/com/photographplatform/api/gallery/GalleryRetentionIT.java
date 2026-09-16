@@ -89,7 +89,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
 
         assertThat(warned).isEqualTo(1);
         verify(notifications).sendExpiryWarning(
-            anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
+            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
         assertThat(sentThresholds(fx, galleryId)).containsExactlyInAnyOrder(5, 15);
     }
 
@@ -108,7 +108,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
 
         assertThat(secondRun).isZero();
         verify(notifications, times(1)).sendExpiryWarning(
-            anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
+            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
     }
 
     /**
@@ -125,7 +125,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
 
         verify(notifications, times(1)).sendExpiryWarning(
-            anyString(), anyString(), anyString(), anyString(), anyString(), any(),
+            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(),
             org.mockito.ArgumentMatchers.eq(3));
         // Both are recorded, so the stale 15-day warning can never fire later.
         assertThat(sentThresholds(fx, galleryId)).containsExactlyInAnyOrder(5, 15);

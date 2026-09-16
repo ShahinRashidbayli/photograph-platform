@@ -167,8 +167,11 @@ security holes.
 - **FU-4: RLS isolation test gap** — see the RLS section: contracts, invoices,
   invoice_line_items, invoice_counters, payments, feature_interest,
   gallery_expiry_reminders have policies but no cross-tenant assertion.
-- **FU-5 (partly resolved): sharp's advisories are cleared; the open question
-  is now only whether `/_next/image` should exist at all.** sharp is at 0.35.4,
+- **FU-5: ~~sharp~~ — RESOLVED.** Advisories cleared by sharp 0.35.4 (no Next 16
+  needed), and `/_next/image` is now closed: `images.unoptimized: true` removes the
+  route, verified against a production build — `/_next/image?url=...` answers 404
+  while `/brand/auth-visual.jpg` still serves 200. sharp stays in the bundle; the
+  way in is gone. Original finding, for the record: sharp is at 0.35.4,
   which the libvips and libheif advisories are fixed in, and it got there
   without Next 16 — next 15.5.24 declares it as
   `optionalDependencies: sharp "^0.34.3 || ^0.35.3"`, a range npm accepts, so
@@ -232,10 +235,19 @@ security holes.
   downstream anything becomes user-facing latency. It applies to audit writes
   and notifications too, not just email, so this is a deliberate decision to
   take rather than a line to change.
-- **FU-12: three domain events do not carry the tenant.** `LeadCreatedEvent`
-  and `InquiryCreatedEvent` hold the photographer's email and subdomain but no
-  `tenantId`, so the email failures they trigger log `tenant=null` and cannot be
-  attributed to a studio. Adding the field to those events is the fix.
+- **FU-12: two domain events do not carry the tenant — and it stays a
+  follow-up, not a bug.** (The earlier note said three; the audit found two.
+  `ContractSignedEvent` does carry `tenantId`.) `LeadCreatedEvent` and
+  `InquiryCreatedEvent` hold the photographer's email and subdomain but no
+  `tenantId`. Classified against the rule "is anything filtered or displayed by
+  tenant": no. All three listeners — `LeadNotificationService`,
+  `AutoReplyService`, `InquiryNotificationService` — read only from the event.
+  None touches a repository, `TenantContext` or `SecurityUtils`, and the
+  recipient address travels in the event itself, so no query is scoped by a
+  tenant that isn't there and no wrong-tenant data can be reached. The only
+  consequence is that a failed send for those two paths logs `tenant=null` and
+  cannot be attributed to a studio. Adding the field to the two events is the
+  fix when someone is next in there.
 - **FU-7: Date/time** — `Booking` stores `LocalDate eventDate` + `LocalTime
   eventTime` with no zone; timestamps are `OffsetDateTime`. No concrete DST bug
   found yet; a booking near a DST boundary is the scenario to probe in a later

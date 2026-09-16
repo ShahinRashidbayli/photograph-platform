@@ -101,6 +101,24 @@ const nextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
   images: {
     remotePatterns: [],
+    /**
+     * Turns off the image optimizer, which removes the /_next/image route
+     * entirely — verified: it answers 404 rather than optimizing.
+     *
+     * Nothing here uses next/image (zero imports), so the route served no
+     * feature. What it did serve was sharp, which decodes whatever bytes it is
+     * given: the libvips and libheif advisories against it are all triggered by
+     * processing a crafted image. Today's exposure was small — `remotePatterns`
+     * is empty so remote URLs are refused, and the only local files are two
+     * committed brand images — but the route fetches same-origin paths through
+     * the /api/* rewrite as well, so the day a gallery photo is proxied through
+     * this origin, or a remote pattern is added for R2, it becomes a decoder
+     * for bytes a stranger uploaded.
+     *
+     * sharp itself still ships in the bundle; removing the library is a
+     * different job. This removes the way in.
+     */
+    unoptimized: true,
   },
   // Proxy /api/* to the Spring Boot backend so the browser sees a single origin.
   // This makes httpOnly cookies work without cross-origin CORS complexity.

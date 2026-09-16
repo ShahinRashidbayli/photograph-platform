@@ -162,11 +162,17 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
     void malformedCodeIsRejectedAtTheEdge() {
         // Bean validation rejects it before the service can count it as a failed
         // attempt, so junk input cannot burn a real customer's code for them.
+        //
+        // 422, not 400: GlobalExceptionHandler answers every
+        // MethodArgumentNotValidException with UNPROCESSABLE_ENTITY and
+        // code=VALIDATION_FAILED, uniformly across the API. The endpoint was
+        // never the odd one out here — this expectation was.
         ResponseEntity<String> resp = rest.postForEntity(
             "/api/auth/customer/login-code/verify",
             new CustomerLoginCodeVerifyRequest("someone@example.com", "anna-foto", "abc"),
             String.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(resp.getBody()).contains("VALIDATION_FAILED");
     }
 
     @Test

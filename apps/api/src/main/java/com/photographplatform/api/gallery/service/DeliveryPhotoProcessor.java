@@ -2,7 +2,10 @@ package com.photographplatform.api.gallery.service;
 
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.common.config.AsyncConfig;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.media.BoundedImageDecoder;
+import com.photographplatform.api.common.media.BoundedImageDecoder.DecodedImage;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
 import com.photographplatform.api.gallery.repository.DeliveryPhotoRepository;
@@ -12,12 +15,10 @@ import com.photographplatform.api.portfolio.service.ThumbnailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import javax.imageio.ImageIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -92,7 +93,7 @@ public class DeliveryPhotoProcessor {
      *                 {@link ThumbnailService} for why this is not left to the
      *                 async decorator alone
      */
-    @Async
+    @Async(AsyncConfig.IMAGE_EXECUTOR)
     public void process(UUID photoId, String tenantId) {
         if (storage.isEmpty()) {
             LOG.info("R2 not configured; skipping derivatives for delivery photo {}", photoId);
@@ -140,7 +141,7 @@ public class DeliveryPhotoProcessor {
      * <p>Idempotent: photos that already have a derivative are skipped, so a
      * repeated toggle costs nothing.
      */
-    @Async
+    @Async(AsyncConfig.IMAGE_EXECUTOR)
     public void backfillWatermarks(UUID galleryId, String tenantId) {
         if (storage.isEmpty()) {
             LOG.info("R2 not configured; skipping watermark backfill for gallery {}", galleryId);
@@ -183,12 +184,13 @@ public class DeliveryPhotoProcessor {
 
         R2StorageService r2 = storage.orElseThrow();
         try {
-            BufferedImage source = decode(r2.downloadBytes(photo.getR2Key()));
-            if (source == null) {
+            DecodedImage decoded = BoundedImageDecoder.decode(r2.downloadBytes(photo.getR2Key()));
+            if (decoded == null) {
                 LOG.warn("Could not decode delivery photo {} (key={})",
                     photo.getId(), photo.getR2Key());
                 return;
             }
+            BufferedImage source = decoded.image();
 
             String thumbKey = null;
             if (needsThumbnail) {
@@ -209,7 +211,7 @@ public class DeliveryPhotoProcessor {
                 // object that does not exist, and the partial-index backfill
                 // query (watermark_key IS NULL) would never pick the photo up
                 // to retry. Bailing out keeps it on the work list.
-                BufferedImage markedImage = decode(marked);
+                DecodedImage markedImage = BoundedImageDecoder.decode(marked);
                 if (markedImage == null) {
                     LOG.warn("Could not re-read the watermarked copy of delivery photo {}; "
                         + "leaving it unmarked so the next backfill retries it", photo.getId());
@@ -221,7 +223,7 @@ public class DeliveryPhotoProcessor {
                 r2.uploadBytes(
                     ThumbnailService.thumbnailKeyFor(watermarkKey),
                     JPEG,
-                    ThumbnailService.renderThumbnail(markedImage));
+                    ThumbnailService.renderThumbnail(markedImage.image()));
             }
 
             // Re-read inside the write transaction rather than saving the
@@ -230,8 +232,10 @@ public class DeliveryPhotoProcessor {
             // persisting the stale snapshot would silently roll that back.
             String finalThumbKey = thumbKey;
             String finalWatermarkKey = watermarkKey;
-            int width = source.getWidth();
-            int height = source.getHeight();
+            // The file's dimensions, not the decoded raster's: a large original
+            // is decoded subsampled.
+            int width = decoded.sourceWidth();
+            int height = decoded.sourceHeight();
             txTemplate.executeWithoutResult(status -> {
                 DeliveryPhoto fresh = deliveryPhotoRepository.findById(photo.getId()).orElse(null);
                 if (fresh == null) {
@@ -255,10 +259,6 @@ public class DeliveryPhotoProcessor {
             LOG.error("Failed to build derivatives for delivery photo {}: {}",
                 photo.getId(), e.getMessage(), e);
         }
-    }
-
-    private static BufferedImage decode(byte[] bytes) throws IOException {
-        return ImageIO.read(new ByteArrayInputStream(bytes));
     }
 
     /**

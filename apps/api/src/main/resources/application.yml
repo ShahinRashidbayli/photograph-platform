@@ -228,6 +228,10 @@ app:
     # can write into the shared bucket in one request.
     max-upload-bytes: ${R2_MAX_UPLOAD_BYTES:52428800}
     max-avatar-bytes: ${R2_MAX_AVATAR_BYTES:5242880}
+  media:
+    # Threads decoding and watermarking uploads. Each can hold ~100 MB of
+    # decoded image, so this bounds that heap; see AsyncConfig#imageTaskExecutor.
+    processing-threads: ${MEDIA_PROCESSING_THREADS:2}
   # The plan → capabilities table (PRICING.md §6.3). One source of truth, read
   # by the API's gates and served to the frontend at GET /api/entitlements so
   # the two can never disagree about what a tier includes.

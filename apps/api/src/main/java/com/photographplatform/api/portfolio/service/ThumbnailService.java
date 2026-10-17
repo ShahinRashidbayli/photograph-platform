@@ -1,31 +1,39 @@
 package com.photographplatform.api.portfolio.service;
 
+import com.photographplatform.api.common.config.AsyncConfig;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.media.BoundedImageDecoder;
+import com.photographplatform.api.common.media.BoundedImageDecoder.DecodedImage;
 import com.photographplatform.api.portfolio.domain.Photo;
 import com.photographplatform.api.portfolio.repository.PhotoRepository;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
-import javax.imageio.ImageIO;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Generates a 400px JPEG thumbnail for a freshly-uploaded photo. Runs
  * asynchronously off the request thread — the upload-complete endpoint
  * fires this and returns immediately.
  *
- * <p>Tenant context is captured by {@code AsyncConfig} (see {@code @Async}
- * propagation), but we re-set it explicitly here as defence-in-depth: the
- * DB write goes through the tenant-routed datasource and would otherwise
- * land in whatever schema happens to be on the pooled connection.
+ * <h2>Transactions</h2>
+ * Opened explicitly, around the two database touches only. The method used to
+ * be {@code @Transactional} as a whole, which held a pooled connection through
+ * the R2 download, the decode and the upload — seconds per photo, on a pool of
+ * ten. It also opened that transaction before the method body ran, so the
+ * {@code TenantContext.setTenant} below came after {@code TenantRoutingDataSource}
+ * had already bound {@code app.tenant_id} for the transaction: the explicit
+ * tenant only worked because the async decorator had happened to set the same
+ * one first. Setting the tenant and then opening each transaction makes the
+ * order the code reads in the order that actually applies.
  */
 @Service
 public class ThumbnailService {
@@ -37,14 +45,16 @@ public class ThumbnailService {
 
     private final Optional<R2StorageService> storage;
     private final PhotoRepository photoRepository;
+    private final TransactionTemplate txTemplate;
 
-    public ThumbnailService(Optional<R2StorageService> storage, PhotoRepository photoRepository) {
+    public ThumbnailService(Optional<R2StorageService> storage, PhotoRepository photoRepository,
+                            PlatformTransactionManager txManager) {
         this.storage = storage;
         this.photoRepository = photoRepository;
+        this.txTemplate = new TransactionTemplate(txManager);
     }
 
-    @Async
-    @Transactional
+    @Async(AsyncConfig.IMAGE_EXECUTOR)
     public void generateThumbnail(UUID photoId, String tenantId) {
         if (storage.isEmpty()) {
             LOG.info("R2 not configured; skipping thumbnail for photo {}", photoId);
@@ -53,35 +63,43 @@ public class ThumbnailService {
 
         TenantContext.setTenant(tenantId);
         try {
-            Photo photo = photoRepository.findById(photoId).orElse(null);
-            if (photo == null) {
+            String r2Key = txTemplate.execute(status ->
+                photoRepository.findById(photoId).map(Photo::getR2Key).orElse(null));
+            if (r2Key == null) {
                 LOG.warn("Photo {} not found for thumbnail generation", photoId);
                 return;
             }
 
-            byte[] originalBytes = storage.get().downloadBytes(photo.getR2Key());
-
-            // Read once to capture dimensions, then resize from the same buffer.
-            BufferedImage src = ImageIO.read(new ByteArrayInputStream(originalBytes));
-            if (src == null) {
-                LOG.warn("Could not decode image for photo {} (key={})", photoId, photo.getR2Key());
+            DecodedImage decoded = BoundedImageDecoder.decode(storage.get().downloadBytes(r2Key));
+            if (decoded == null) {
+                LOG.warn("Could not decode image for photo {} (key={})", photoId, r2Key);
                 return;
             }
 
-            byte[] thumbnail = renderThumbnail(src);
+            byte[] thumbnail = renderThumbnail(decoded.image());
 
-            String thumbKey = thumbnailKeyFor(photo.getR2Key());
+            String thumbKey = thumbnailKeyFor(r2Key);
             storage.get().uploadBytes(thumbKey, THUMB_CONTENT_TYPE, thumbnail);
 
-            // Backfill dimensions if the client didn't supply them at complete-time.
-            if (photo.getWidth() == null) {
-                photo.setWidth(src.getWidth());
-            }
-            if (photo.getHeight() == null) {
-                photo.setHeight(src.getHeight());
-            }
-            photo.setThumbnailKey(thumbKey);
-            photoRepository.save(photo);
+            // Re-read for the write rather than saving the copy loaded above:
+            // the photo can be edited or deleted while this ran.
+            txTemplate.executeWithoutResult(status -> {
+                Photo photo = photoRepository.findById(photoId).orElse(null);
+                if (photo == null) {
+                    return;
+                }
+                // Backfill dimensions if the client didn't supply them at
+                // complete-time — the file's own, not the decoded raster's,
+                // which may have been subsampled.
+                if (photo.getWidth() == null) {
+                    photo.setWidth(decoded.sourceWidth());
+                }
+                if (photo.getHeight() == null) {
+                    photo.setHeight(decoded.sourceHeight());
+                }
+                photo.setThumbnailKey(thumbKey);
+                photoRepository.save(photo);
+            });
 
             LOG.info("Thumbnail generated for photo {} ({} bytes)", photoId, thumbnail.length);
         } catch (IOException e) {

@@ -50,7 +50,10 @@ RUN chmod +x /app/docker-entrypoint.sh && chown -R fotolio:fotolio /app
 
 USER fotolio
 
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport -Djava.awt.headless=true"
+# ExitOnOutOfMemoryError: an OOM thrown on one thread leaves the rest of the
+# JVM running half-broken (health checks can still pass), so exit and let the
+# platform restart a clean process instead.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true"
 ENV SERVER_PORT=8080
 EXPOSE 8080
 

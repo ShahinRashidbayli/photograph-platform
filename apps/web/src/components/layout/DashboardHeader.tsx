@@ -32,7 +32,6 @@ export function DashboardHeader({
     subText: string;
     cardBg: string;
     surfaceHover: string;
-    shadowRaised: string;
     shadowPopover: string;
   };
   isOpen: boolean;
@@ -109,10 +108,14 @@ export function DashboardHeader({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '12px 20px',
+        // Fixed, border included, to match the sidebar's brand row — the two
+        // only read as one band if they are the same height to the pixel.
+        // No shadow: it would bleed past the sidebar's border where they meet.
+        height: 60,
+        flexShrink: 0,
+        padding: '0 20px',
         background: colors.headerBg,
         borderBottom: `1px solid ${colors.border}`,
-        boxShadow: colors.shadowRaised,
         transition: 'background 0.3s ease, border-color 0.3s ease',
         position: 'sticky',
         top: 0,
@@ -151,8 +154,10 @@ export function DashboardHeader({
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        {/* Fotolio Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {/* Fotolio Logo — mobile only; on desktop the sidebar carries it.
+            Display is left to the .header-logo rule in the dashboard layout,
+            since an inline display would override it. */}
+        <div className="header-logo">
           <FotolioLogo theme={theme} showText={true} />
         </div>
       </div>

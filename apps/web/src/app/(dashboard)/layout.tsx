@@ -19,6 +19,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
 import { UserAvatar } from '@/components/UserAvatar';
+import { FotolioLogo } from '@/components/FotolioLogo';
 import { AccountLockNotice } from '@/components/AccountLockNotice';
 import { PlanUpgradeDialog } from '@/components/PlanUpgradeDialog';
 import { planThatGrants } from '@/lib/plan-gate';
@@ -237,17 +238,22 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     sidebarBg: c.surface,
     primary: c.primary,
     surfaceHover: c.surfaceHover,
-    // Passed down so the header bar and the two panels it opens sit on the
-    // shared elevation ramp instead of each carrying its own light-mode-only
-    // shadow string.
-    shadowRaised: c.shadowRaised,
+    // Passed down so the panels the header opens sit on the shared elevation
+    // ramp instead of each carrying its own light-mode-only shadow string.
     shadowPopover: c.shadowPopover,
   };
 
+  // The sidebar runs the full height and owns the brand; the header sits only
+  // above the content column. Its bottom border therefore ends at the
+  // sidebar's right border instead of crossing it — one vertical line, one
+  // horizontal line meeting it, nothing to misalign. On narrow screens the
+  // sidebar becomes a drawer under the header and the brand moves into the
+  // header (.sidebar-brand / .header-logo below).
   return (
     <div
       style={{
-        minHeight: '100vh',
+        display: 'flex',
+        height: '100vh',
         background: colors.bg,
         color: colors.text,
         transition: 'background 0.3s ease, color 0.3s ease',
@@ -260,46 +266,58 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         body { background: ${colors.bg}; color: ${colors.text}; }
         .mobile-menu-btn { display: none; }
         .mobile-overlay { display: none; }
+        .header-logo { display: none; }
         @media (max-width: 768px) {
           aside { position: fixed; left: 0; top: 60px; height: calc(100vh - 60px); z-index: 40; transform: translateX(${isOpen ? '0' : '-100%'}); transition: transform 0.3s ease; }
           main { margin-left: 0; }
           .mobile-menu-btn { display: inline-flex; }
           .mobile-overlay { display: block; }
           .user-meta { display: none; }
+          .sidebar-brand { display: none !important; }
+          .header-logo { display: flex; align-items: center; }
         }
       `}</style>
 
-      <DashboardHeader
-        user={user}
-        theme={theme}
-        handleLogout={handleLogout}
-        colors={colors}
-        isOpen={isOpen}
-        setIsOpen={setIsOpen}
-        attentionCount={attentionCount}
-        attention={attention}
-        onAttentionHandled={refreshAttention}
-      />
-
-      <div style={{ display: 'flex', alignItems: 'stretch', height: 'calc(100vh - 60px)' }}>
-        <aside
+      <aside
+        style={{
+          width: 236,
+          flexShrink: 0,
+          background: colors.sidebarBg,
+          borderRight: `1px solid ${colors.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          transition: 'background 0.3s ease, border-color 0.3s ease',
+        }}
+        role="navigation"
+        aria-label={t('nav.aria.main')}
+      >
+        {/* Same 60px as the header, with a transparent stand-in for the
+            header's 1px border so the logo centres on the same line as the
+            header's controls. Left padding lines it up with the nav icons. */}
+        <div
+          className="sidebar-brand"
           style={{
-            width: 236,
+            height: 60,
             flexShrink: 0,
-            padding: '16px 12px',
-            background: colors.sidebarBg,
-            borderRight: `1px solid ${colors.border}`,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 24px',
+            borderBottom: '1px solid transparent',
+          }}
+        >
+          <FotolioLogo theme={theme} showText={true} />
+        </div>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            height: '100%',
-            position: 'sticky',
-            top: 60,
+            padding: '12px 12px 16px',
             overflowY: 'auto',
             overscrollBehavior: 'contain',
-            transition: 'background 0.3s ease, border-color 0.3s ease',
           }}
-          role="navigation"
-          aria-label={t('nav.aria.main')}
         >
           {navModes.length > 1 && (
             <SidebarModeSwitch
@@ -398,16 +416,30 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
               </Link>
             )}
           </div>
-        </aside>
+        </div>
+      </aside>
+
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <DashboardHeader
+          user={user}
+          theme={theme}
+          handleLogout={handleLogout}
+          colors={colors}
+          isOpen={isOpen}
+          setIsOpen={setIsOpen}
+          attentionCount={attentionCount}
+          attention={attention}
+          onAttentionHandled={refreshAttention}
+        />
 
         <main
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             overscrollBehavior: 'contain',
             background: colors.pageBg,
             transition: 'background 0.3s ease',
-            height: '100%',
           }}
           role="main"
         >

@@ -16,6 +16,7 @@ import { stubs } from './stubs';
 import { analytics } from './analytics';
 import { contracts } from './contracts';
 import { roadmap } from './roadmap';
+import { privacy } from './privacy';
 
 /**
  * The English dictionary, assembled from one file per surface. Keys stay flat
@@ -41,4 +42,5 @@ export const en = {
   ...analytics,
   ...contracts,
   ...roadmap,
+  ...privacy,
 };

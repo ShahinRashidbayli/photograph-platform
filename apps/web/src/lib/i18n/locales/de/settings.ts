@@ -296,6 +296,7 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.tab.payments': 'Zahlungen',
   'settings.tab.plan': 'Tarif',
   'settings.tab.team': 'Team',
+  'settings.tab.privacy': 'Datenschutz',
   'settings.business.overlapNote':
     'Beide Formulare unten fragen nach Firmenname und Anschrift — eines für Ihre Rechnungen (§14 UStG), eines für Ihr Impressum (§5 DDG). Sie werden getrennt gespeichert, halten Sie sie deshalb übereinstimmend.',
   'settings.business.footnote':

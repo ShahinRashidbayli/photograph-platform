@@ -71,4 +71,7 @@ export const SETTINGS_TABS: readonly SettingsTab[] = [
     photographerOnly: true,
     requiresPlan: 'STUDIO',
   },
+  // Not plan-gated: answering an erasure request is a legal duty on every
+  // plan, and a lapsed account must still be able to meet it.
+  { href: '/settings/privacy', labelKey: 'settings.tab.privacy', photographerOnly: true },
 ] as const;

@@ -16,6 +16,7 @@ import { stubs } from './stubs';
 import { analytics } from './analytics';
 import { contracts } from './contracts';
 import { roadmap } from './roadmap';
+import { privacy } from './privacy';
 
 /** The German dictionary. Each namespace is typed against its English twin. */
 export const de = {
@@ -37,4 +38,5 @@ export const de = {
   ...analytics,
   ...contracts,
   ...roadmap,
+  ...privacy,
 };

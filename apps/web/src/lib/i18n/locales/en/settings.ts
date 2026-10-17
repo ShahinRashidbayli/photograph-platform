@@ -299,6 +299,7 @@ export const settings = {
   'settings.tab.payments': 'Payments',
   'settings.tab.plan': 'Plan',
   'settings.tab.team': 'Team',
+  'settings.tab.privacy': 'Privacy',
   'settings.business.overlapNote':
     'Both forms below ask for your business name and address — one for your invoices (§14 UStG), one for your Impressum (§5 DDG). They are stored separately, so keep them in agreement.',
   'settings.business.footnote':

@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -169,24 +170,74 @@ class GalleryServiceTest {
     @Test
     void deleteRejectsUnknownGallery() {
         UUID id = UUID.randomUUID();
-        when(galleryRepository.existsById(id)).thenReturn(false);
+        when(galleryRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> galleryService.delete(id, IP))
             .isInstanceOf(NotFoundException.class);
 
-        verify(galleryRepository, never()).deleteById(any());
+        verify(galleryRepository, never()).delete(any());
     }
 
     @Test
     void deleteRemovesAndAudits() {
         UUID id = UUID.randomUUID();
-        when(galleryRepository.existsById(id)).thenReturn(true);
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
+        when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
 
         galleryService.delete(id, IP);
 
-        verify(galleryRepository).deleteById(id);
+        verify(galleryRepository).delete(gallery);
         verify(auditService).log(
             eq("GALLERY_DELETED"), eq("GALLERY"), eq(id), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
+    }
+
+    /**
+     * The rows went by cascade; the files used to stay in storage forever,
+     * unreferenced, after the photographer had been told the gallery was gone.
+     */
+    @Test
+    void deletingAGalleryAlsoDeletesEveryFileItsPhotosOwn() {
+        R2StorageService r2 = mock(R2StorageService.class);
+        GalleryService withStorage = new GalleryService(
+            galleryRepository, deliveryPhotoRepository, bookingRepository,
+            Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
+            rateLimiter, new R2Properties(), brandingService);
+        UUID id = UUID.randomUUID();
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
+        DeliveryPhoto marked = new DeliveryPhoto(id, "t/g/a.jpg", "a.jpg");
+        marked.setThumbnailKey("t/g/thumb_a.jpg");
+        marked.setWatermarkKey("t/g/wm_a.jpg");
+        DeliveryPhoto plain = new DeliveryPhoto(id, "t/g/b.jpg", "b.jpg");
+        when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any()))
+            .thenReturn(List.of(marked, plain));
+
+        withStorage.delete(id, IP);
+
+        ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
+        verify(r2).deleteObjects(keys.capture());
+        assertThat(keys.getValue()).containsExactlyInAnyOrder(
+            "t/g/a.jpg", "t/g/thumb_a.jpg", "t/g/wm_a.jpg", "t/g/thumb_wm_a.jpg", "t/g/b.jpg");
+    }
+
+    /** By then the rows are gone for good; a storage outage must not report the delete as failed. */
+    @Test
+    void aStorageFailureAfterDeletingAGalleryIsLoggedNotThrown() {
+        R2StorageService r2 = mock(R2StorageService.class);
+        doThrow(new IllegalStateException("R2 down")).when(r2).deleteObjects(any());
+        GalleryService withStorage = new GalleryService(
+            galleryRepository, deliveryPhotoRepository, bookingRepository,
+            Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
+            rateLimiter, new R2Properties(), brandingService);
+        UUID id = UUID.randomUUID();
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
+        when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
+        when(deliveryPhotoRepository.findByGalleryIdOrderBySortOrderAsc(any(), any()))
+            .thenReturn(List.of(new DeliveryPhoto(id, "t/g/a.jpg", "a.jpg")));
+
+        withStorage.delete(id, IP);
+
+        verify(galleryRepository).delete(gallery);
     }
 
     @Test

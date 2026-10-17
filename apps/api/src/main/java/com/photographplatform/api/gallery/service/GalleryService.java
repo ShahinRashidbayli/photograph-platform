@@ -198,13 +198,12 @@ public class GalleryService {
         return toResponse(requireStats(id));
     }
 
+    /** Deletes the gallery and its photos' files; see {@link GalleryRemoval}. */
     @Transactional
     public void delete(UUID id, String ipAddress) {
-        if (!galleryRepository.existsById(id)) {
-            throw new NotFoundException("Gallery not found: " + id);
-        }
-        // delivery_photos are removed by the ON DELETE CASCADE foreign key.
-        galleryRepository.deleteById(id);
+        Gallery gallery = galleryRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Gallery not found: " + id));
+        GalleryRemoval.remove(gallery, galleryRepository, deliveryPhotoRepository, storage);
         audit("GALLERY_DELETED", id, ipAddress);
     }
 
@@ -298,7 +297,7 @@ public class GalleryService {
         List<String> keys = derivativeKeys(photo);
         UUID galleryId = photo.getGalleryId();
         deliveryPhotoRepository.delete(photo);
-        afterCommit(() -> storage.ifPresent(s -> s.deleteObjects(keys)));
+        GalleryRemoval.deleteFilesAfterCommit(keys, storage, "photo " + photoId);
 
         auditService.log("GALLERY_PHOTO_DELETED", "GALLERY", galleryId,
             SecurityUtils.requireCurrentTenantId(), SecurityUtils.requireCurrentUserId(), ipAddress);

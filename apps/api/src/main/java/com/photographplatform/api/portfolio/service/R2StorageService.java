@@ -3,6 +3,7 @@ package com.photographplatform.api.portfolio.service;
 import com.photographplatform.api.portfolio.config.R2Properties;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,6 +14,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -23,6 +25,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 @Service
 @ConditionalOnProperty(name = "app.r2.endpoint")
 public class R2StorageService {
+
+    /** The most keys one {@code DeleteObjects} request accepts (S3 API limit, honoured by R2). */
+    static final int MAX_KEYS_PER_DELETE = 1000;
 
     /**
      * Budgets for the calls that read or write a whole object at once.
@@ -200,22 +205,44 @@ public class R2StorageService {
      * delete a photo's whole derivative set at once (original, thumbnail,
      * watermark) and some of those are legitimately absent — a photo deleted
      * before processing finished never had a thumbnail.
+     *
+     * <h2>Batches, and failures that do not throw</h2>
+     * {@code DeleteObjects} takes at most {@value #MAX_KEYS_PER_DELETE} keys
+     * per request. A 400-photo watermarked gallery owns 1 600, and sending them
+     * in one call made the whole request fail — every night, for the retention
+     * purge of exactly the galleries that cost the most to keep.
+     *
+     * <p>It also reports per-key failures in the response body rather than as
+     * an exception. Those used to be ignored, so a key that could not be
+     * deleted looked deleted: callers that remove storage first and rows second
+     * — the order that is supposed to make a failure retryable — went on to
+     * delete the rows anyway, and the object was orphaned for good. Any
+     * per-key error now throws.
+     *
+     * @throws IllegalStateException if storage reports any key as not deleted
      */
     public void deleteObjects(List<String> r2Keys) {
         List<ObjectIdentifier> ids = r2Keys.stream()
             .filter(Objects::nonNull)
             .filter(k -> !k.isBlank())
+            .distinct()
             .map(k -> ObjectIdentifier.builder().key(k).build())
             .toList();
-        if (ids.isEmpty()) {
-            return;
+        List<String> failed = new ArrayList<>();
+        for (int from = 0; from < ids.size(); from += MAX_KEYS_PER_DELETE) {
+            List<ObjectIdentifier> batch = ids.subList(from, Math.min(from + MAX_KEYS_PER_DELETE, ids.size()));
+            DeleteObjectsResponse response = s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                .bucket(props.getBucket())
+                .delete(Delete.builder().objects(batch).quiet(true).build())
+                // Runs inside the retention job's per-tenant transaction.
+                .overrideConfiguration(SMALL_OBJECT_BUDGET)
+                .build());
+            response.errors().forEach(error -> failed.add(error.key() + " (" + error.code() + ")"));
         }
-        s3Client.deleteObjects(DeleteObjectsRequest.builder()
-            .bucket(props.getBucket())
-            .delete(Delete.builder().objects(ids).build())
-            // Runs inside the retention job's per-tenant transaction.
-            .overrideConfiguration(SMALL_OBJECT_BUDGET)
-            .build());
+        if (!failed.isEmpty()) {
+            throw new IllegalStateException(
+                "Object storage refused to delete " + failed.size() + " of " + ids.size() + " keys: " + failed);
+        }
     }
 
     /**

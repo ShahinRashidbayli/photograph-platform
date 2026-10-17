@@ -1,5 +1,11 @@
 .PHONY: dev api web test migrate seed clean stop
 
+# Build with the JDK pinned in .java-version, not whatever JAVA_HOME the shell
+# happens to export — the enforcer rejects anything else. Falls back to the
+# shell's JAVA_HOME where java_home is missing (non-macOS) or finds no match.
+JAVA_VERSION := $(shell cat .java-version)
+export JAVA_HOME := $(or $(shell /usr/libexec/java_home -v $(JAVA_VERSION) 2>/dev/null),$(JAVA_HOME))
+
 # Start infra (postgres + redis + object storage + mail catcher) in background.
 # minio-init is a one-shot that creates the media bucket, so image upload
 # works on a fresh checkout instead of failing on placeholder R2 credentials.

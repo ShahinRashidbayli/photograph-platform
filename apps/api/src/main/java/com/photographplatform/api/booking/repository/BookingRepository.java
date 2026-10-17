@@ -124,4 +124,23 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         @Param("bookingId") UUID bookingId,
         @Param("userId") UUID userId,
         @Param("email") String email);
+
+    /**
+     * Every booking that belongs to one person, for Art. 17 erasure.
+     *
+     * <p>The {@link #OWNED_BY_CALLER} rule — the bookings that person sees when
+     * they sign in — widened by the directory entries that carry their address.
+     * Keeping to that rule matters for the same reason it exists: a booking
+     * already linked to somebody else's account is that person's, whatever
+     * address is typed into it, so it is never erased on a match of the
+     * address alone.
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.customerUserId = :userId
+           OR (b.customerUserId IS NULL
+               AND (lower(b.clientEmail) = :email OR b.clientId IN :clientIds))
+        """)
+    List<Booking> findForErasure(
+        @Param("userId") UUID userId, @Param("email") String email, @Param("clientIds") Collection<UUID> clientIds);
 }

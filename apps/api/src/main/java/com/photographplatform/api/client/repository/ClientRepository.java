@@ -82,4 +82,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
         Instant getCreatedAt();
         Long getUpcomingBookings();
     }
+
+    /** Directory entries for one address, for Art. 17 erasure. Case-insensitive, like the address itself. */
+    List<Client> findByEmailIgnoreCase(String email);
 }

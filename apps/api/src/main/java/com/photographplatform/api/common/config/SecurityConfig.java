@@ -274,6 +274,11 @@ public class SecurityConfig {
             // (Their own invoices are a different thing entirely and live
             // under /api/invoices.)
             .requestMatchers("/api/billing/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
+            // Erasing a person's data (Art. 17) across the whole studio. The
+            // studio is the controller and carries the request out; a CUSTOMER
+            // shares the tenant and could otherwise erase anyone in it. The
+            // controller narrows this further to the owner.
+            .requestMatchers("/api/privacy/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
             // Recording a manual (bank-transfer) payment is the photographer
             // taking their own word for money having arrived — never a
             // customer action. Declared before the broader payments matcher

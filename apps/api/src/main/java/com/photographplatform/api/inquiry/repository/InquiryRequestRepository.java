@@ -1,6 +1,7 @@
 package com.photographplatform.api.inquiry.repository;
 
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -31,4 +32,7 @@ public interface InquiryRequestRepository extends JpaRepository<InquiryRequest, 
      * though they share the same photographer.
      */
     Slice<InquiryRequest> findByCustomerId(UUID customerId, Pageable pageable);
+
+    /** Every inquiry one customer account filed, unpaged — for Art. 17 erasure. */
+    List<InquiryRequest> findByCustomerId(UUID customerId);
 }

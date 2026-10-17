@@ -45,4 +45,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     List<Invoice> findByBookingIdInOrderByIssuedAtDesc(Collection<UUID> bookingIds);
 
     List<Invoice> findByIssueYearOrderByIssuedAtAsc(Integer issueYear);
+
+    /** Invoices for these bookings or issued to this person — reported, never touched, by Art. 17 erasure. */
+    long countByBookingIdInOrBuyerEmailIgnoreCase(Collection<UUID> bookingIds, String email);
 }

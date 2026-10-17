@@ -20,6 +20,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Table(name = "bookings")
 public class Booking {
 
+    /** What an erased client's name reads as; see {@link #erasePersonalData()}. */
+    public static final String ERASED_CLIENT_NAME = "[gelöscht]";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -172,6 +175,27 @@ public class Booking {
     /** @param userId the staff member shooting this, or null to clear it */
     public void assignTo(UUID userId) {
         this.assignedUserId = userId;
+    }
+
+    /**
+     * Removes everything that identifies the client (Art. 17 GDPR), keeping
+     * what the studio's books and statistics still need: the date, type,
+     * package, amounts and status of a booking that did happen.
+     *
+     * <p>{@code client_email} is {@code NOT NULL}, so it becomes an address under
+     * {@code .invalid}, a TLD reserved never to resolve (RFC 2606): nothing can
+     * be sent to it. One per booking, so two erased clients never read as one
+     * returning customer, and none of them as the next person to sign up.
+     */
+    public void erasePersonalData() {
+        this.clientName = ERASED_CLIENT_NAME;
+        this.clientEmail = "erased-" + id + "@erased.invalid";
+        this.location = null;
+        this.internalNotes = null;
+        this.clientId = null;
+        this.customerUserId = null;
+        this.leadId = null;
+        this.inquiryId = null;
     }
 
     // ── accessors ────────────────────────────────────────────────────────────

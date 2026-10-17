@@ -1,13 +1,14 @@
 package com.photographplatform.api.lead.repository;
 
 import com.photographplatform.api.lead.domain.Lead;
+import jakarta.persistence.QueryHint;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.QueryHints;
-import jakarta.persistence.QueryHint;
 
 public interface LeadRepository extends JpaRepository<Lead, UUID> {
 
@@ -36,4 +37,7 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
      */
     @QueryHints(@QueryHint(name = org.hibernate.jpa.AvailableHints.HINT_FETCH_SIZE, value = "200"))
     Stream<Lead> streamAllByOrderByCreatedAtDesc();
+
+    /** Every lead from one address, for Art. 17 erasure. */
+    List<Lead> findByEmailIgnoreCase(String email);
 }

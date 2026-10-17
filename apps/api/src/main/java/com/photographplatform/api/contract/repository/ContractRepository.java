@@ -2,6 +2,7 @@ package com.photographplatform.api.contract.repository;
 
 import com.photographplatform.api.contract.domain.Contract;
 import com.photographplatform.api.contract.domain.ContractStatus;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,4 +59,7 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
     Optional<Contract> findVisibleToCustomer(@Param("id") UUID id, @Param("email") String email);
 
     boolean existsByBookingIdAndStatusIn(UUID bookingId, List<ContractStatus> statuses);
+
+    /** Contracts on these bookings or addressed to this person, for Art. 17 erasure. */
+    List<Contract> findByBookingIdInOrRecipientEmailIgnoreCase(Collection<UUID> bookingIds, String email);
 }

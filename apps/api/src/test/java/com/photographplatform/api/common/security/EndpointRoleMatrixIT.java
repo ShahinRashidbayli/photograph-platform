@@ -196,6 +196,8 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         staffOnly("POST /api/portfolio/photos/{id}/complete");
         staffOnly("POST /api/portfolio/photos/{id}/publish");
         staffOnly("POST /api/portfolio/photos/{id}/unpublish");
+        staffOnly("POST /api/privacy/erasure");
+        staffOnly("POST /api/privacy/erasure/preview");
         publicEndpoint("GET /api/public/galleries/{subdomain}/{token}");
         publicEndpoint("GET /api/public/galleries/{subdomain}/{token}/download");
         publicEndpoint("GET /api/public/invitations");

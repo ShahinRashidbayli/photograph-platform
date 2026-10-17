@@ -4,6 +4,7 @@ import com.photographplatform.api.gallery.domain.Gallery;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -154,4 +155,7 @@ public interface GalleryRepository extends JpaRepository<Gallery, UUID> {
         LocalDate getShootDate();
         Long getPhotoCount();
     }
+
+    /** The galleries delivered for these bookings, for Art. 17 erasure. */
+    List<Gallery> findByBookingIdIn(Collection<UUID> bookingIds);
 }

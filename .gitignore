@@ -15,6 +15,15 @@ node_modules/
 # Verification builds (NEXT_DIST_DIR) — kept out of `.next` so running one
 # does not corrupt a dev server that is already using it.
 .next-*/
+
+# What the end-to-end stack leaves behind: pid files and the logs of the API
+# and web server it started (scripts/e2e-stack.sh), plus Playwright's own
+# output. None of it is worth keeping, and the logs can carry test data.
+.e2e-run/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 .turbo/
 dist/
 

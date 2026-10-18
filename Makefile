@@ -1,4 +1,4 @@
-.PHONY: dev api web test migrate seed clean stop
+.PHONY: dev api web test migrate seed clean stop e2e-stack e2e-stack-down
 
 # Build with the JDK pinned in .java-version, not whatever JAVA_HOME the shell
 # happens to export — the enforcer rejects anything else. Falls back to the
@@ -76,6 +76,14 @@ plan:
 		psql -U postgres -d centralidp -v ON_ERROR_STOP=1 \
 		-c "UPDATE tenants SET plan='$(PLAN)' WHERE subdomain='$(SUBDOMAIN)';" \
 		-c "SELECT subdomain, plan FROM tenants WHERE subdomain='$(SUBDOMAIN)';"
+
+# Disposable stack for the Playwright tests, on its own ports (web 3001,
+# API 8081) so it never touches the dev server. See scripts/e2e-stack.sh.
+e2e-stack:
+	./scripts/e2e-stack.sh up
+
+e2e-stack-down:
+	./scripts/e2e-stack.sh down
 
 stop:
 	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true

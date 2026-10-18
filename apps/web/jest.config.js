@@ -24,6 +24,9 @@ const config = {
   // .next/standalone, which jest's module map then reports as a name
   // collision on every run. Nothing in there is ours to test.
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
+  // e2e/ is Playwright's (`npm run e2e`); its specs import @playwright/test,
+  // which refuses to load inside Jest.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/e2e/'],
   /**
    * Transform the few ESM-only packages msw pulls in.
    *

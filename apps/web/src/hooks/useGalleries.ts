@@ -107,10 +107,15 @@ export function useGalleryPhotos(galleryId: string) {
  * Its own query rather than {@link useBookings}: that one falls back to demo
  * bookings in development, and a gallery created against a demo booking id is
  * a 404 the photographer cannot explain.
+ *
+ * <p>`staleTime: 0`: the modal used to fetch on every open, and a booking made
+ * a moment ago on the bookings screen must be in the picker. Cached options
+ * still show at once; they are revalidated behind them.
  */
 export function useGalleryBookingOptions() {
   return useQuery({
     queryKey: galleryBookingOptionsKey(),
+    staleTime: 0,
     queryFn: async () => {
       const res = await api.get<GalleryBookingOption[]>('/api/photographerBookings?size=100');
       return Array.isArray(res.data) ? res.data : [];

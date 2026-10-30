@@ -1,18 +1,15 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import api from '@/lib/api';
+import React, { useState } from 'react';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Card, EmptyState, Field, Input, useColors } from '@/components/ui';
-
-interface Resource {
-  id: string;
-  name: string;
-  kind: 'ROOM' | 'EQUIPMENT';
-  notes: string | null;
-  active: boolean;
-}
+import {
+  useCreateResource,
+  useResources,
+  useUpdateResource,
+  type StudioResource as Resource,
+} from '@/hooks/useResources';
 
 /**
  * The studio's rooms and kit.
@@ -30,66 +27,44 @@ export function ResourceSettings() {
   const { t } = useTranslation();
   const c = useColors();
 
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
+  // The settings screen is where a retired resource is brought back, so it is
+  // the one caller that needs to see them.
+  const resourcesQuery = useResources({ includeRetired: true });
+  const createResource = useCreateResource();
+  const updateResource = useUpdateResource();
+  const resources = resourcesQuery.data ?? [];
+  const loading = resourcesQuery.isLoading;
+  const busy = createResource.isPending || updateResource.isPending;
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  const error =
+    actionError ??
+    (resourcesQuery.isError
+      ? asyncError(resourcesQuery.error, 'settings.resources.loadError')
+      : null);
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'ROOM' | 'EQUIPMENT'>('EQUIPMENT');
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await api.get<Resource[]>('/api/resources', {
-        // The settings screen is where a retired resource is brought back, so
-        // it is the one caller that needs to see them.
-        params: { includeRetired: true },
-      });
-      setResources(data);
-    } catch (err) {
-      setError(asyncError(err, 'settings.resources.loadError'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function add(e: React.FormEvent) {
+  function add(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post('/api/resources', { name: name.trim(), kind });
-      setName('');
-      await load();
-    } catch (err) {
-      setError(asyncError(err, 'settings.resources.addError'));
-    } finally {
-      setBusy(false);
-    }
+    setActionError(null);
+    createResource.mutate(
+      { name: name.trim(), kind },
+      {
+        onSuccess: () => setName(''),
+        onError: (err) => setActionError(asyncError(err, 'settings.resources.addError')),
+      }
+    );
   }
 
   /** Retire or bring back. The same endpoint the edit form uses. */
-  async function setActive(resource: Resource, active: boolean) {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.put(`/api/resources/${resource.id}`, {
-        name: resource.name,
-        kind: resource.kind,
-        notes: resource.notes,
-        active,
-      });
-      await load();
-    } catch (err) {
-      setError(asyncError(err, 'settings.resources.saveError'));
-    } finally {
-      setBusy(false);
-    }
+  function setActive(resource: Resource, active: boolean) {
+    setActionError(null);
+    updateResource.mutate(
+      { ...resource, active },
+      { onError: (err) => setActionError(asyncError(err, 'settings.resources.saveError')) }
+    );
   }
 
   if (loading) {
@@ -166,7 +141,7 @@ export function ResourceSettings() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => void setActive(r, !r.active)}
+                        onClick={() => setActive(r, !r.active)}
                         disabled={busy}
                       >
                         {r.active

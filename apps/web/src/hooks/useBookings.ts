@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { insertSortedByDate } from '@/lib/helpers';
 import type { Booking } from '@/types/api';
 
 // Pull the whole booking list in pages rather than a single capped request.
@@ -122,5 +123,130 @@ export function useBookings(isPhotographer: boolean) {
   return useQuery({
     queryKey: bookingsQueryKey(isPhotographer),
     queryFn: () => fetchBookings(isPhotographer),
+  });
+}
+
+/** The fields a booking is created or edited with — see `CreateBookingRequest` / `UpdateBookingRequest`. */
+export interface BookingPayload {
+  clientName: string;
+  clientEmail: string;
+  eventDate: string;
+  eventTime: string | null;
+  eventType: string | null;
+  location: string | null;
+  packageId: string | null;
+  totalAmountCents: number | null;
+  depositAmountCents: number;
+  internalNotes: string | null;
+  assignedUserId: string | null;
+  resourceIds: string[];
+}
+
+/**
+ * Creates a booking, or edits one when `id` is given, and files the result
+ * into the photographer's cached list at its date — so it appears at once,
+ * without a refetch. Removed and re-inserted rather than mapped, since an edit
+ * may have moved the date.
+ */
+export function useSaveBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id?: string; payload: BookingPayload }) =>
+      (input.id
+        ? await api.patch<Booking>(`/api/bookings/${input.id}`, input.payload)
+        : await api.post<Booking>('/api/bookings', input.payload)
+      ).data,
+    onSuccess: (saved) =>
+      qc.setQueryData<Booking[]>(bookingsQueryKey(true), (old = []) =>
+        insertSortedByDate(
+          old.filter((b) => b.id !== saved.id),
+          saved
+        )
+      ),
+  });
+}
+
+/**
+ * A status change, applied optimistically.
+ *
+ * <p>The new state is painted immediately and reconciled with the server's
+ * response; a failure puts back the status it had — only that field on only
+ * that booking, so a change that landed meanwhile on another one survives.
+ */
+export function useUpdateBookingStatus() {
+  const qc = useQueryClient();
+  const key = bookingsQueryKey(true);
+  const setStatus = (id: string, status: Booking['status']) =>
+    qc.setQueryData<Booking[]>(key, (old = []) =>
+      old.map((b) => (b.id === id ? { ...b, status } : b))
+    );
+  return useMutation({
+    mutationFn: async (input: { id: string; from: Booking['status']; to: Booking['status'] }) =>
+      (await api.patch<Booking>(`/api/bookings/${input.id}/status`, { status: input.to })).data,
+    onMutate: async (input) => {
+      // So a refetch already in flight cannot land after this and repaint the old status.
+      await qc.cancelQueries({ queryKey: key });
+      setStatus(input.id, input.to);
+    },
+    onSuccess: (saved) =>
+      qc.setQueryData<Booking[]>(key, (old = []) =>
+        old.map((b) => (b.id === saved.id ? saved : b))
+      ),
+    onError: (_err, input) => setStatus(input.id, input.from),
+  });
+}
+
+export interface BookingConflicts {
+  conflicts: { id: string; clientName: string; eventTime: string | null; status: string }[];
+  resourceClashes: { resourceName: string; clientName: string; eventTime: string | null }[];
+}
+
+export interface ConflictQuery {
+  eventDate: string;
+  assignedUserId: string | null;
+  resourceIds: string[];
+  /** So editing a booking does not report it clashing with itself. */
+  excludeBookingId?: string;
+}
+
+const NO_CONFLICTS: BookingConflicts = { conflicts: [], resourceClashes: [] };
+
+/**
+ * Whether the chosen photographer or resources are already booked that day.
+ * `null` asks nothing: a date is the one thing both halves need, and either a
+ * photographer or a resource is enough to have something to ask about.
+ *
+ * <p>Never an error: a warning that cannot load must not stop anyone booking
+ * work, so a failure reads as "no clashes". The previous answer stays on
+ * screen while the next one loads, instead of the warning blinking out and
+ * back on every change.
+ */
+export function useBookingConflicts(query: ConflictQuery | null) {
+  return useQuery({
+    queryKey: ['bookings', 'conflicts', query] as const,
+    enabled: query !== null,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<BookingConflicts> => {
+      if (!query) return NO_CONFLICTS;
+      try {
+        const { data } = await api.get<Partial<BookingConflicts>>('/api/bookings/conflicts', {
+          params: {
+            assignedUserId: query.assignedUserId || undefined,
+            eventDate: query.eventDate,
+            excludeBookingId: query.excludeBookingId,
+            resourceIds: query.resourceIds.length > 0 ? query.resourceIds : undefined,
+          },
+          // Repeated `resourceIds=` rather than a comma-joined value, which is
+          // what Spring binds a List<UUID> from.
+          paramsSerializer: { indexes: null },
+        });
+        return {
+          conflicts: data?.conflicts ?? [],
+          resourceClashes: data?.resourceClashes ?? [],
+        };
+      } catch {
+        return NO_CONFLICTS;
+      }
+    },
   });
 }

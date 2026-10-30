@@ -30,7 +30,7 @@ dist/
 # IDE
 .idea/
 .vscode/
-.claude/
+.claude/settings.local.json
 *.iml
 
 # Build artifacts

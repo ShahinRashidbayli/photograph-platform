@@ -1,0 +1,3 @@
+#
+#Sun Aug 23 00:07:16 AZT 2026
+no\ classes\ that\ reside\ in\ a\ package\ '..api.common..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['..api.auth..',\ '..api.billing..',\ '..api.booking..',\ '..api.client..',\ '..api.entitlement..',\ '..api.gallery..',\ '..api.inquiry..',\ '..api.invoice..',\ '..api.lead..',\ '..api.notification..',\ '..api.payment..',\ '..api.portfolio..',\ '..api.pricing..',\ '..api.tenant..'],\ because\ common\ is\ what\ every\ feature\ may\ depend\ on;\ depending\ back\ turns\ it\ into\ a\ second\ home\ for\ business\ rules=eb69f70f-5d7a-4204-b83c-a8f09748eae7

@@ -1,0 +1,15 @@
+# Named <dockerfile>.dockerignore because the build context is the repo root —
+# see apps/api/Dockerfile.dockerignore for the full reasoning.
+**/node_modules/
+**/.next/
+**/dist/
+**/.git/
+**/target/
+**/.env
+**/.env.*
+!**/.env.example
+apps/api/
+docs/
+infra/
+.github/
+*.md

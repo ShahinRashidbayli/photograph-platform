@@ -1,19 +1,32 @@
 name: CI
 
 on:
+  # Every branch, not just the long-lived two.
+  #
+  # Gating only `develop` and `main` meant a feature branch could carry 116
+  # commits without a single check running — which is exactly what happened
+  # here: the last run before this change was 2026-07-22, and the `*IT`
+  # includes (2026-08-15) and `mvn verify` in the API job (2026-08-24) both
+  # landed after it. So no integration test, no coverage floor and no SpotBugs
+  # run had ever executed in CI at all. A gate that only fires at merge time
+  # finds problems at the least useful moment; this fires while the branch is
+  # still being written.
   pull_request:
-    branches: [develop]
   push:
-    branches: [main]
+    branches: ['**']
+  # Nothing could re-run the pipeline without a new commit. Needed to re-check
+  # a branch after an infrastructure fix (a flaky Testcontainers pull, an
+  # expired cache) without inventing an empty commit for it.
+  workflow_dispatch:
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Job dependency graph:
 #
 #   format ──┐
 #   lint   ──┤──► build
 #   test-api─┤
 #   test-web─┘
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
 
@@ -27,7 +40,10 @@ jobs:
       # Java: Checkstyle
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4
@@ -46,12 +62,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Prettier (TypeScript / TSX)
@@ -69,16 +86,30 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: ESLint (TypeScript)
         run: npm run lint --workspace=apps/web
+
+      # The build job would catch a type error eventually, but it runs after
+      # every other job and takes minutes; tsc answers in seconds and says
+      # exactly which line.
+      - name: Typecheck (tsc)
+        run: npm run typecheck --workspace=apps/web
+
+      # Catches what the compiler cannot see inside translation strings:
+      # a placeholder renamed in one locale only, a plural form missing the
+      # categories its language requires, an orphaned key. All of these ship
+      # silently and surface as broken copy in front of a user.
+      - name: i18n dictionaries
+        run: npm run i18n:check --workspace=apps/web
 
   # ── 3. TEST — API ──────────────────────────────────────────
   test-api:
@@ -89,7 +120,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4
@@ -98,9 +132,32 @@ jobs:
           key: maven-${{ hashFiles('apps/api/pom.xml') }}
           restore-keys: maven-
 
-      - name: Run JUnit tests
+      # `verify`, not `test`. The JaCoCo coverage floor and the SpotBugs
+      # analysis are both bound to the verify phase, and `mvn test` stops one
+      # phase short of them — so for as long as this said `test`, both gates
+      # were fully configured in the POM and ran nowhere. A check that exists
+      # only in configuration is indistinguishable from no check, except that
+      # it looks reassuring in review.
+      #
+      # This job already pays for the expensive part (the Testcontainers
+      # suites), so the two gates cost seconds on top rather than a second
+      # Maven run.
+      - name: Run JUnit tests, coverage floor and SpotBugs
         working-directory: apps/api
-        run: mvn -B test
+        run: mvn -B verify
+
+      # Uploaded whether or not the gates passed: a coverage failure is a
+      # number, and the report is the only thing that says which lines moved.
+      - name: Upload coverage and SpotBugs reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-analysis-reports
+          path: |
+            apps/api/target/site/jacoco/
+            apps/api/target/spotbugsXml.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
   # ── 4. TEST — WEB ──────────────────────────────────────────
   test-web:
@@ -114,18 +171,61 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Run Jest tests
         run: npm run test --workspace=apps/web -- --passWithNoTests
 
-  # ── 5. BUILD ───────────────────────────────────────────────
+  # ── 5. AUDIT — dependency vulnerabilities ──────────────────
+  # Five jobs used to run here and none of them looked at what the
+  # dependencies were. `npm audit` reported two HIGH advisories that had been
+  # in the tree for some time with nothing to surface them; a green pipeline
+  # said nothing about that either way.
+  #
+  # This gates on HIGH and above only. A build that fails on every `low` in a
+  # 600-package dev tree gets bypassed within a week, and a gate people bypass
+  # is worse than no gate — it also teaches them to ignore the real ones.
+  #
+  # Java has no equivalent step on purpose: OWASP Dependency-Check needs an NVD
+  # API key and several minutes of NVD downloads, which makes it flaky as a
+  # required check. It runs on its own schedule instead — see
+  # .github/workflows/security-audit.yml — with Dependabot covering advisories
+  # published between runs.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Binding now, where it used to carry `continue-on-error: true`.
+      #
+      # The reason for that flag was real: the tree held advisories whose only
+      # fix looked like a semver-major upgrade, so a binding check would have
+      # blocked every pull request on a problem unrelated to the change being
+      # merged. What was missing was a way to name a known exception, which is
+      # what the allowlist in the script provides — everything else stops the
+      # build.
+      #
+      # As it turns out the list is empty. The two sharp advisories that were
+      # expected to sit in it were cleared without Next 16: next 15.5.24
+      # declares sharp as `^0.34.3 || ^0.35.3`, so the fixed 0.35.4 installs
+      # inside a range npm already accepts. js-yaml went the same way, a
+      # lockfile bump under eslint and jest.
+      - name: npm audit (high and above)
+        run: ./scripts/audit-gate.sh
+
+  # ── 6. BUILD ───────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -135,7 +235,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          # Read from .java-version so CI and the maven-enforcer rule in
+          # apps/api/pom.xml cannot drift apart: one file states the version,
+          # and a change there moves both.
+          java-version-file: .java-version
           distribution: temurin
 
       - uses: actions/cache@v4
@@ -149,12 +252,13 @@ jobs:
           node-version: '20'
 
       - uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: npm-
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Build API (Spring Boot JAR)
@@ -164,4 +268,85 @@ jobs:
       - name: Build Web (Next.js)
         run: npm run build --workspace=apps/web
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
+
+  # ── 7. DOCKER IMAGES ───────────────────────────────────────
+  # Builds both deployment images without pushing them. The `build` job above
+  # compiles the same source with Maven and Next directly, which is NOT the
+  # same check: it never exercises the Dockerfiles, so a broken base image, a
+  # missing runtime package or a wrong standalone-bundle path would only be
+  # discovered by a failed production deploy. Both images build from the
+  # repository root as context.
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [format, lint, test-api, test-web]
+    # Only where an image could actually be deployed from.
+    #
+    # Since CI started running on every branch, this job was building two
+    # container images on every push to every feature branch — minutes of
+    # runner time, and a GHA build cache shared across branches, for an
+    # artifact nothing consumes until the work reaches a deployable branch.
+    # The compile-level checks (`build`) still run everywhere; it is only the
+    # image build that waits.
+    #
+    # Note the trade-off: a Dockerfile broken on a feature branch is now
+    # caught when it lands on develop/main rather than on the branch itself.
+    # `workflow_dispatch` is the escape hatch for checking it earlier.
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          load: true
+          tags: fotolio-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      # API_BASE_URL is a build arg by necessity — Next bakes the /api/*
+      # rewrite destination into routes-manifest.json at build time. The image
+      # refuses to build without it, so passing a placeholder here also proves
+      # that guard still works.
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          load: true
+          tags: fotolio-web:ci
+          build-args: |
+            API_BASE_URL=http://api.internal:8080
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      # A built image that dies on boot still fails the deploy. Start each one
+      # and wait for it to answer on the port it will actually serve.
+      - name: Smoke-test web image
+        run: |
+          docker run -d --name web -p 3000:3000 fotolio-web:ci
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:3000/login; then
+              echo "web image serves /login"; exit 0
+            fi
+            sleep 2
+          done
+          echo "web image never became ready"; docker logs web; exit 1
+
+      - name: Smoke-test API image (migrate mode refuses bad config)
+        run: |
+          # No FLYWAY_URL — the entrypoint must fail loudly rather than boot
+          # and silently skip migrations.
+          if docker run --rm fotolio-api:ci migrate; then
+            echo "migrate should have failed without FLYWAY_URL"; exit 1
+          fi
+          echo "migrate mode correctly refuses incomplete config"

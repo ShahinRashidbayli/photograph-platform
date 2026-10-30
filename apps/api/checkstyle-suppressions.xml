@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<suppressions>
+    <!--
+      AutoReplyService.java contains inline HTML email templates as Java text
+      blocks. The text-block content preserves indentation (it's part of the
+      rendered output), so deeply-nested HTML lines + German body prose
+      exceed 120 chars. The 120-char rule stays strict for actual Java code;
+      this file gets a targeted LineLength suppression because the violations
+      are content, not source style.
+    -->
+    <suppress
+        files="notification[\\/]service[\\/]AutoReplyService\.java"
+        checks="LineLength"/>
+</suppressions>

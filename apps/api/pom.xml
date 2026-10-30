@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.4</version>
+        <version>3.4.7</version>
         <relativePath/>
     </parent>
 
@@ -20,7 +20,58 @@
 
     <properties>
         <java.version>21</java.version>
+        <!--
+          Stated explicitly rather than left to whatever the parent infers.
+
+          Developers here run newer JDKs than the build targets — the surefire
+          argLine below already carries a ByteBuddy workaround for exactly that.
+          `release` (unlike `source`/`target`) compiles against the JDK 21 API
+          *signatures*, so calling something that only exists in 25 fails on the
+          laptop that introduced it rather than in CI, or worse, at runtime in a
+          container running the 21 JRE the Dockerfile pins.
+        -->
+        <maven.compiler.release>21</maven.compiler.release>
         <checkstyle.version>10.18.1</checkstyle.version>
+        <!-- Override the Testcontainers version pinned by the Spring Boot 3.4.x
+             BOM (1.20.6). That release ships an older docker-java that talks a
+             Docker API version Docker Engine 29+ no longer accepts (the daemon
+             answers /info with HTTP 400). 1.21.x bundles a docker-java that
+             negotiates the API version, restoring compatibility. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
+        <!--
+          Coverage floor, measured rather than chosen as a target.
+
+          Measured 2026-09-16 from the first fully green `mvn verify` this
+          repository has produced: 546 tests, every Testcontainers suite
+          included, LINE 62.57% and BRANCH 46.15%. The floors sit just under
+          those, so an ordinary refactor does not fail the build and a real
+          regression does.
+
+          The previous comment claimed 452 tests at LINE 64.72% / BRANCH 48.57%.
+          That could not be reproduced and could not have been measured as
+          described: no `*IT` class had ever completed a run — surefire only
+          started including them in 2026-08-15, and every attempt since then
+          died on the Retry-After stall fixed in 5ed7ba6. Whatever produced
+          those numbers, it was not the suite this file gates. The line floor is
+          therefore going *down* half a point here — not to make a build pass,
+          but because 0.63 was never a number this project had actually reached.
+
+          Raise these when a run clears a higher number with room to spare.
+          Never lower them to make a build pass — that converts the one signal
+          here into decoration.
+        -->
+        <jacoco.line.minimum>0.62</jacoco.line.minimum>
+        <jacoco.branch.minimum>0.46</jacoco.branch.minimum>
+        <!--
+          Empty default so surefire's argLine below still resolves when JaCoCo
+          does not run (`-Djacoco.skip=true`, or any goal that skips
+          prepare-agent). Without a default, Maven leaves the literal
+          "${jacocoArgLine}" on the command line and every test JVM fails to
+          start with "Unrecognized option".
+        -->
+        <jacocoArgLine></jacocoArgLine>
+        <!-- See the spotbugs-maven-plugin dependency block for why this is pinned. -->
+        <asm.version>9.10.1</asm.version>
     </properties>
 
     <dependencies>
@@ -49,11 +100,70 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- H2 (tests / dev) -->
+        <!-- Flyway -->
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Testcontainers (tests) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Security -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- JWT (jjwt 0.12.x) -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.6</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Mail — JavaMailSender for the SMTP transport. Spring Boot builds
+             the sender from spring.mail.*, which is also what makes every
+             JavaMail knob (TLS, auth, timeouts) configurable without code. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Redis (rate limiting) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
         <!-- Test -->
@@ -62,14 +172,368 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ArchUnit — the layering rules, as a test rather than as a habit.
+             The dependency directions in this codebase are already clean; what
+             was missing is anything that keeps them that way. See
+             ArchitectureTest for what is enforced and what is merely frozen. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.3.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- AWS SDK v2 — S3 client (used for Cloudflare R2) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.48.0</version>
+        </dependency>
+
+        <!-- Thumbnailator — pure-Java image scaling, no native deps. Used by
+             ThumbnailService to produce 400px JPEGs from uploaded portfolio
+             photos. Outputs JPEG (not WebP) to keep the build native-free. -->
+        <dependency>
+            <groupId>net.coobird</groupId>
+            <artifactId>thumbnailator</artifactId>
+            <version>0.4.20</version>
+        </dependency>
+
+        <!-- openhtmltopdf — renders the invoice/contract HTML templates (built
+             the same way EmailTemplate.java builds emails) to PDF/A-ready
+             output. Apache-2.0, pure Java, no native deps or income-based
+             licensing (unlike the .NET-side QuestPDF the spec names). -->
+        <dependency>
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.1.73</version>
+        </dependency>
+
+        <!-- Actuator — /actuator/health only (see application.yml).
+             SecurityConfig has permitAll'd and CSRF-exempted that path since
+             before this dependency existed, so the deployment's health probe
+             was hitting a route with no handler: it fell through to the static
+             resource handler and the catch-all exception handler turned the
+             miss into a 500. A platform probe pointed at it marks every deploy
+             unhealthy. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+          Apache HttpClient5 — already in the tree, now declared.
+
+          It arrives transitively through stripe-java at runtime scope, and
+          Spring's RestClient picks it up as the transport simply because it is
+          on the classpath. That was fine while nothing configured it. It is not
+          fine now that EmailHttpClientConfig switches its retry strategy off
+          (BUG-006): compiling against a dependency we only inherit means a
+          stripe-java upgrade that stopped shipping it would break the build,
+          and — worse — dropping to a different transport would silently restore
+          the Retry-After sleep this is here to prevent.
+
+          No new code enters the build: same artifact, same version (managed by
+          the Spring Boot BOM), moved from inherited-and-runtime to
+          declared-and-compile.
+        -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
+
+        <!-- Stripe — Card + SEPA Payment Intents, webhook signature verification. -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>33.3.0</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!--
+              Enforcer — refuse to build on the wrong JDK, in the first phase,
+              with a sentence that says what is wrong.
+
+              `maven.compiler.release` already compiles against the JDK 21 API,
+              so calling something newer fails here rather than in production.
+              It does not check what the build RUNS on, and the two gates bound
+              to `verify` do: JaCoCo 0.8.12 cannot instrument class file major
+              version 69 (JDK 25) and fails with "Unsupported class file major
+              version 69" after the whole test suite has run, while SpotBugs
+              needs its ASM override for the same reason. Developers here have
+              newer JDKs on the PATH than the build targets — a local `mvn
+              verify` on JDK 25 therefore spends its time, then dies on the
+              toolchain, and coverage silently measures nothing on the way.
+
+              [21,22) is the range CI installs (.github/workflows/ci.yml) and
+              what the Dockerfile's JRE pins, so local and CI agree.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>require-java-21</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>This build requires Java 21 (the version CI and the runtime image use). Point JAVA_HOME at a JDK 21 install, e.g.
+  export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+See .java-version at the repository root.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Spring Boot executable JAR -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+              Surefire — pass DOCKER_API_VERSION as a JVM system property.
+              docker-java's createDefaultConfigBuilder() reads System.getProperties()
+              (not System.getenv()), so -D is required. Needed for Docker Desktop
+              4.30+ which dropped support for Docker API versions below 1.44.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                      net.bytebuddy.experimental=true lets Mockito's ByteBuddy
+                      instrument class files from JDKs newer than it officially
+                      knows about (e.g. JDK 25 on a dev laptop while the build
+                      targets 21). Without it, every @MockBean test errors with
+                      "Java N is not supported".
+                    -->
+                    <!--
+                      @{jacocoArgLine} carries the -javaagent that JaCoCo's
+                      prepare-agent writes (into that property rather than
+                      `argLine`, so this explicit config does not clobber it —
+                      see the jacoco plugin above).
+
+                      @{...} and not ${...}: Maven interpolates ${...} when the
+                      POM is read, which is BEFORE prepare-agent has run, so it
+                      would freeze the empty default and the agent would never
+                      attach. @{...} is surefire's own late-evaluation syntax,
+                      resolved when the test JVM is forked. Both spellings
+                      "work" in the sense that the build passes — one of them
+                      just silently measures nothing.
+                    -->
+                    <argLine>@{jacocoArgLine} -DDOCKER_API_VERSION=1.47 -Dnet.bytebuddy.experimental=true</argLine>
+                    <!--
+                      Surefire's built-in defaults (Test*/*Test/*Tests/*TestCase)
+                      do NOT include *IT.java — that pattern is Failsafe's
+                      convention, and this project has no Failsafe plugin bound.
+                      Every Testcontainers-backed integration test in this repo
+                      (TenantIsolationIT, RlsCrossTenantIsolationIT, ...) is
+                      named *IT and was silently never executed by `mvn test`
+                      or CI. Restoring the defaults explicitly and adding *IT
+                      is the minimal fix — removing the file entirely would be
+                      more "correct" Maven convention, but would also rename
+                      every existing IT class for no behavioural gain.
+                    -->
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+
+            <!--
+              JaCoCo — coverage, measured rather than assumed.
+
+              Nothing measured it before, so "the API is well tested" and "the
+              API is undertested" were equally unfalsifiable claims. The suite
+              is in fact substantial (400 tests against a real Postgres), which
+              is exactly why a floor is worth having: what needs defending is
+              the level already reached.
+
+              The thresholds below are deliberately set at TODAY'S measured
+              numbers, rounded down. They are a ratchet, not an aspiration — a
+              target nobody currently meets gets skipped with -Djacoco.skip
+              within a week. Raise them when a run comfortably clears them.
+
+              Line coverage rather than branch as the primary gate: branch
+              coverage on a codebase this full of null-guards and Optional
+              chains punishes defensive code, which is not the behaviour to
+              encourage on a payments path.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <configuration>
+                    <excludes>
+                        <!-- Generated accessors and the boot entry point carry
+                             no logic worth covering, and including them makes
+                             the number drift with entity size rather than with
+                             how well the code is tested. -->
+                        <exclude>**/PhotographPlatformApplication.class</exclude>
+                        <exclude>**/dto/**</exclude>
+                        <exclude>**/config/**Properties.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <!--
+                              Write the agent flag to our OWN property rather
+                              than the default `argLine`.
+
+                              Surefire below sets an explicit <argLine> for the
+                              Docker API version and ByteBuddy. A plugin-level
+                              <argLine> beats the `argLine` *property*, so the
+                              default wiring silently loses the agent: the build
+                              stays green, the report step logs "missing
+                              execution data file", and coverage reads as
+                              nothing rather than as an error. A measurement
+                              tool that quietly measures nothing is worse than
+                              no tool, because the build still looks configured.
+                            -->
+                            <propertyName>jacocoArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-floor</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.branch.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+              SpotBugs — the class of mistake review reliably misses.
+
+              Checkstyle (below) covers naming, spacing and imports. Useful, and
+              orthogonal to this: it has no opinion about a null dereference, a
+              stream left unclosed, an equals without hashCode, or a switch
+              falling through. Those were unchecked entirely.
+
+              Threshold Medium, effort Max: Low floods the report with
+              stylistic findings that compete with the real ones, and this is
+              bound to `verify` where a noisy gate gets skipped.
+            -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.9.3.0</version>
+                <dependencies>
+                    <!--
+                      SpotBugs reads the class files of whatever JDK it runs on,
+                      including java.lang.Object, and refuses a major version its
+                      bundled ASM does not know. Developers here run newer JDKs
+                      than the build targets (see maven.compiler.release above),
+                      so on a JDK 26 laptop the shipped ASM fails with
+                      "Unsupported class file major version 70" before analysing
+                      a single line of our code — the build breaks on the
+                      toolchain rather than on the code, which is the fastest way
+                      to teach people to skip it.
+
+                      ASM tracks new class file versions well ahead of the
+                      analysers that embed it, so overriding it here keeps the
+                      gate usable locally without waiting for a SpotBugs release.
+                      Drop this block once the bundled ASM is new enough.
+                    -->
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-analysis</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-commons</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-tree</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-util</artifactId>
+                        <version>${asm.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Medium</threshold>
+                    <includeTests>false</includeTests>
+                    <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>analyse</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Checkstyle -->
@@ -86,6 +550,11 @@
                 </dependencies>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
+                    <!-- Lets checkstyle.xml resolve ${config_loc}/... paths
+                         (e.g. checkstyle-suppressions.xml) relative to the
+                         module root rather than failing with "property not
+                         set". -->
+                    <propertyExpansion>config_loc=${project.basedir}</propertyExpansion>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>

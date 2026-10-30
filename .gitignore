@@ -12,13 +12,34 @@ target/
 # Node / Next.js
 node_modules/
 .next/
+# Verification builds (NEXT_DIST_DIR) — kept out of `.next` so running one
+# does not corrupt a dev server that is already using it.
+.next-*/
+
+# What the end-to-end stack leaves behind: pid files and the logs of the API
+# and web server it started (scripts/e2e-stack.sh), plus Playwright's own
+# output. None of it is worth keeping, and the logs can carry test data.
+.e2e-run/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 .turbo/
 dist/
 
 # IDE
 .idea/
 .vscode/
+.claude/
 *.iml
+
+# Build artifacts
+*.tsbuildinfo
 
 # OS
 .DS_Store
+
+# npm workspaces keeps one lockfile at the repo root. A second one inside a
+# workspace installs a divergent tree (this one was pinned to Next 14 while the
+# root was on 15) and makes tooling guess the wrong project root.
+apps/*/package-lock.json

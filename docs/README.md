@@ -20,6 +20,12 @@ not just what was chosen. Each ADR is a short Markdown file named
 - **Decision** — what was chosen
 - **Consequences** — trade-offs accepted
 
+Current records:
+- [`001-gallery-retention-and-deletion.md`](adr/001-gallery-retention-and-deletion.md)
+  — galleries expire (Starter 60 days / Pro 1 year / Studio 2 years). **Carries
+  the four hard requirements that gate the deletion job.** Read before touching
+  gallery expiry.
+
 ### erd/
 
 Entity Relationship Diagrams illustrate the database schema.

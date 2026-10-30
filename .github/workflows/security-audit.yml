@@ -1,0 +1,89 @@
+# Weekly CVE scan of the Java dependency tree.
+#
+# Separate from CI, and not a required check, for a practical reason: OWASP
+# Dependency-Check resolves advisories against the NVD, which needs an API key
+# and several minutes of downloads. Wiring that into every pull request buys a
+# flaky gate that blocks unrelated work whenever NVD is slow — and a flaky gate
+# gets disabled, which is how repositories end up with no scanning at all.
+#
+# So it runs on a schedule and reports. Dependabot covers advisories published
+# between runs and opens the actual upgrade PRs; this job is the periodic sweep
+# that catches what neither the build nor Dependabot's own matching surfaced.
+#
+# NVD_API_KEY is optional. Without it the scan still works, just slowly
+# (unauthenticated NVD requests are heavily rate-limited), so a fork without
+# the secret degrades rather than breaking.
+
+name: Security audit
+
+on:
+  schedule:
+    # Mondays, early — same day Dependabot opens its PRs, so the week's
+    # dependency work lands together.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-check:
+    name: OWASP Dependency-Check (Java)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('apps/api/pom.xml') }}
+          restore-keys: maven-
+
+      # The NVD database is large and changes slowly; re-downloading it every
+      # week is most of this job's runtime.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: nvd-${{ github.run_id }}
+          restore-keys: nvd-
+
+      - name: Scan
+        working-directory: apps/api
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mvn -B org.owasp:dependency-check-maven:12.1.0:check \
+            -DfailBuildOnCVSS=7 \
+            -DassemblyAnalyzerEnabled=false \
+            ${NVD_API_KEY:+-DnvdApiKey=$NVD_API_KEY}
+
+      # Uploaded whether or not the scan failed — the report is the point, and
+      # a failed run is exactly when someone wants to read it.
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: apps/api/target/dependency-check-report.html
+          if-no-files-found: ignore
+
+  npm-audit:
+    name: npm audit (full report)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # CI gates on high-and-above so it stays actionable. This run prints
+      # everything, so lower-severity advisories are at least visible somewhere
+      # rather than invisible until one of them is upgraded to high.
+      - name: Full audit report
+        run: npm audit || true

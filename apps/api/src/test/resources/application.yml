@@ -1,16 +1,91 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
+  flyway:
+    url:
+    user:
     password:
-    driver-class-name: org.h2.Driver
+    locations: classpath:db/migration
+    schemas: public
 
+  # NOTE: this file does not overlay src/main/resources/application.yml — it
+  # *replaces* it. Both are `classpath:/application.yml`, and the test
+  # resources directory comes first on the test classpath, so Spring resolves
+  # that single name to this file and the production one is never read. Every
+  # setting the tests need therefore has to be restated here.
+  #
+  # That makes the two files silently drift: production tuning added below in
+  # application.yml is invisible to the suite. The settings that change
+  # *observable behaviour under test* are mirrored here so they are actually
+  # exercised. The lasting fix is to rename this file to application-test.yml
+  # and activate the `test` profile, so it overlays production config instead
+  # of replacing it — deliberately not done in this pass because production
+  # config also turns on the R2, Stripe and email beans, which several tests
+  # rely on being absent.
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    database-platform: org.hibernate.dialect.H2Dialect
+      # 'none' (matching production) — Flyway (not Hibernate) owns the schema.
+      ddl-auto: none
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        query:
+          in_clause_parameter_padding: true
 
-  h2:
-    console:
-      enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6370  # overridden by EmbeddedRedis in tests
+
+server:
+  # Mirrors src/main/resources/application.yml. Required here, not optional:
+  # this file REPLACES the production one (see the header above), so without
+  # these lines the RemoteIpValve is simply absent under test and ClientIp
+  # falls back to the raw socket address — which would pass every test while
+  # production silently lost its proxy handling, or vice versa.
+  #
+  # ForwardedHeaderConfigIT asserts the valve is installed and that its
+  # internal-proxies list is narrow. That test failing after a config change is
+  # the intended alarm, not an inconvenience.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: 10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]{1}\.\d{1,3}\.\d{1,3}|172\.2[0-9]{1}\.\d{1,3}\.\d{1,3}|172\.3[0-1]{1}\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
+  jwt:
+    secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=  # pragma: allowlist secret
+    access-token-expiry-ms: 86400000
+    refresh-token-expiry-ms: 2592000000
+  # Mirrors app.plans in src/main/resources/application.yml. Required, not
+  # optional: EntitlementProperties refuses to start with a tier missing, so
+  # omitting this here fails every @SpringBootTest at context load rather than
+  # at a gate — which is the drift this file's header warns about, arriving
+  # immediately instead of silently.
+  plans:
+    tiers:
+      starter:
+        gallery-retention-days: 60
+        seats: 1
+        fair-use-storage-gb: 50
+        capabilities: []
+      pro:
+        gallery-retention-days: 365
+        seats: 1
+        fair-use-storage-gb: 250
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+      studio:
+        gallery-retention-days: 730
+        seats: 3
+        fair-use-storage-gb: 1024
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+          - ANALYTICS
+          - WHITE_LABEL_BRANDING

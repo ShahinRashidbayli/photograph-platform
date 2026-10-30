@@ -1,0 +1,18 @@
+-- Lets the runtime role read the migration history, so SchemaVersionCheck can
+-- actually run.
+--
+-- The check refuses to boot when the database is behind the code. It reads
+-- flyway_schema_history, and that table is created by Flyway as the schema
+-- owner with no grant to anyone else -- so as fotolio_app the query raised
+-- "permission denied", the check caught it, logged a warning, and returned.
+--
+-- Which means it worked only where it was least needed. Locally, where
+-- DB_USERNAME was still `postgres`, it fired correctly -- that is the V24/V25
+-- refusal we saw. In production, where the app has always connected as
+-- fotolio_app, the guard has never once been armed: a deploy whose migration
+-- step did not run would boot clean, report /actuator/health UP, and 500 from
+-- every endpoint touching a missing column. Exactly the failure the check was
+-- written to prevent.
+--
+-- SELECT only. The runtime role must never write this table; Flyway owns it.
+GRANT SELECT ON flyway_schema_history TO fotolio_app;

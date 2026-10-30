@@ -7,11 +7,325 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Sized deliberately rather than left at Hikari's default of 10/10.
+      # Connections here are precious: TenantRoutingDataSource binds
+      # app.tenant_id per acquisition, and the deployment target is Supavisor
+      # in transaction mode, which multiplexes these onto a much smaller set
+      # of real Postgres backends. A large client-side pool would queue at the
+      # pooler instead of here, where it is visible.
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      # Fail fast instead of piling up request threads on an exhausted pool.
+      connection-timeout: 5000
+      validation-timeout: 3000
+      idle-timeout: 300000
+      # Under the pooler's own idle reaping, keep client-side lifetimes shorter
+      # than anything upstream is likely to cut, so we never hand out a socket
+      # that was closed underneath us.
+      max-lifetime: 900000
+      keepalive-time: 120000
+
+  flyway:
+    # Off in the running app, and deliberately with no env escape hatch. The
+    # runtime datasource connects as the least-privilege `fotolio_app` role,
+    # which RLS applies to and which owns nothing and has no DDL rights
+    # (infra/README.md) — it could not migrate even if asked.
+    #
+    # Migrations run as a separate step, as the schema-OWNING role, through
+    # `docker-entrypoint.sh migrate` → FlywayMigrateRunner. That runner starts
+    # no Spring context on purpose: turning this flag on instead would tie the
+    # migration's exit code to JPA, Redis and every other startup check, so a
+    # successful migration followed by an unrelated boot failure would abort a
+    # deploy against an already-migrated database.
+    enabled: false
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          # Without this, saveAll() emits one round-trip per row: issuing an
+          # invoice with 10 line items was 10 separate INSERTs. Batching folds
+          # them into one statement — the single biggest win on the invoice
+          # write path, which is otherwise latency-bound on round-trips.
+          batch_size: 50
+        # Batching only actually kicks in when consecutive statements target
+        # the same table, so let Hibernate group them before flushing.
+        order_inserts: true
+        order_updates: true
+        query:
+          # The batched lookups (findByInvoiceIdIn..., findByBookingIdIn...,
+          # sumSucceededAmountCentsGroupedByInvoiceId) build an IN list whose
+          # length varies per call, and each distinct length is a distinct SQL
+          # string — a new entry in Hibernate's query plan cache and a new
+          # prepared statement server-side. Padding the list to the next power
+          # of two collapses that to a handful of shapes.
+          in_clause_parameter_padding: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # An unreachable Redis must not hang a request thread indefinitely.
+      # Rate limiting is on the login/register/inquiry paths, so a Redis stall
+      # would otherwise stall authentication itself.
+      timeout: 2000
+      connect-timeout: 2000
+
+  # Outbound HTTP (SendGrid / Resend via RestClient) had no timeouts at all,
+  # so a hung provider socket pinned the calling thread forever. Those sends
+  # are @Async now, but an unbounded wait would still leak pool threads.
+  # SMTP transport settings, used when EMAIL_PROVIDER=smtp.
+  #
+  # spring.mail.host is deliberately NOT declared here and must come from the
+  # environment (SPRING_MAIL_HOST). Boot's mail auto-configuration is
+  # conditional on that property merely *existing*, so a `host: ${SPRING_MAIL_HOST:}`
+  # default would build a JavaMailSender pointed at an empty host — and
+  # SmtpEmailSender's boot check, which asks whether the sender exists at all,
+  # would pass while every send failed.
+  mail:
+    properties:
+      # An unreachable mail server must not hang a worker thread. Sends are
+      # already best-effort, so failing fast just drops the message a few
+      # seconds sooner instead of holding a pool thread for JavaMail's
+      # default, which is to wait forever.
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  mvc:
+    async:
+      # The gallery ZIP is a StreamingResponseBody, and Tomcat's default async
+      # timeout is 30s — a multi-gigabyte wedding delivery would be aborted
+      # mid-stream long before it finishes, leaving the client a truncated
+      # file. -1 disables the timeout for async dispatches; the download is
+      # still bounded by the client staying connected, and
+      # GalleryArchiveWriter stops as soon as it doesn't.
+      request-timeout: -1
+
+  http:
+    client:
+      connect-timeout: 5s
+      read-timeout: 10s
+
+# Actuator: health and nothing else. The default web exposure is already just
+# `health`, but stating it means adding the dependency for a metrics endpoint
+# later cannot quietly widen the unauthenticated surface — everything except
+# /actuator/health falls to `.anyRequest().authenticated()` in SecurityConfig,
+# and this keeps the two definitions from drifting.
+#
+# Details are hidden: an unauthenticated probe needs to know whether the app is
+# up, not which database or Redis host it talks to or why a component is down.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
 
 server:
   port: 8080
+  # Hand X-Forwarded-* to Tomcat's RemoteIpValve instead of reading it in
+  # application code. The valve walks the header from the RIGHT, discarding
+  # hops that match internal-proxies below, and stops at the first address
+  # that isn't ours — so it lands on the peer our own proxy actually saw.
+  #
+  # This is the whole security property. A proxy APPENDS the peer it saw, so a
+  # client-supplied value stays to the left of every real hop and is never
+  # reached. ClientIp used to take the LEFTMOST entry, which is precisely the
+  # attacker-controlled one: every IP rate limit, the login lockout and the
+  # audit trail's ip_address were selectable by sending a header.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Which hops count as ours. The default covers the RFC1918 / loopback
+      # ranges, which is right for Railway (its edge reaches the container over
+      # the private network) and for local development, where there is no proxy
+      # and the socket address is used unchanged.
+      #
+      # Override when a proxy sits in front on a PUBLIC address — Cloudflare in
+      # front of Railway, say — or its address will be treated as the client
+      # and every request will appear to come from the CDN. Only ever list hops
+      # you operate: an address trusted here can assert any client IP it likes.
+      internal-proxies: ${TRUSTED_PROXY_IPS:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]{1}\.\d{1,3}\.\d{1,3}|172\.2[0-9]{1}\.\d{1,3}\.\d{1,3}|172\.3[0-1]{1}\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1}
+  compression:
+    # List endpoints return highly repetitive JSON (bookings, leads, photos
+    # with long presigned R2 URLs — those alone are ~500 bytes each and
+    # compress extremely well). Cheap CPU for a large drop in transfer time,
+    # which dominates on mobile connections.
+    enabled: true
+    mime-types: application/json,text/csv,text/plain
+    min-response-size: 2048
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3002}
+  email:
+    # Active transport, chosen at runtime by the matching EmailSender bean:
+    #   sendgrid | resend | none   ('none' logs and drops — safe for local/dev)
+    #
+    # Validated at startup by EmailProperties: naming a real provider without
+    # its API key (or EMAIL_FROM) FAILS THE BOOT rather than silently dropping
+    # every message. That is deliberate — sends are best-effort by design, so a
+    # missing key would otherwise look exactly like a healthy system while no
+    # customer ever receives a magic link. Running without email is still fine,
+    # but it has to be said out loud: EMAIL_PROVIDER=none.
+    provider: ${EMAIL_PROVIDER:sendgrid}
+    # Sender identity applied to every outbound message. `from` MUST be a
+    # verified sender in the active provider's account (SendGrid Single Sender
+    # / domain authentication), or the provider rejects the send with a 403.
+    from: ${EMAIL_FROM:noreply@fotolio.de}
+    from-name: ${EMAIL_FROM_NAME:Fotolio}
+    sendgrid:
+      api-key: ${SENDGRID_API_KEY:}
+      base-url: ${SENDGRID_BASE_URL:https://api.sendgrid.com}
+    resend:
+      api-key: ${RESEND_API_KEY:}
+      base-url: ${RESEND_BASE_URL:https://api.resend.com}
+    # Master switch for the @RequiresVerifiedEmail gate. Set to false locally
+    # (or APP_EMAIL_VERIFICATION_ENFORCED=false) before email is wired up, so
+    # the photographer can advance bookings and convert leads without being
+    # blocked on an email they can't receive. MUST stay true in any
+    # staging/production deploy — otherwise every annotated endpoint is
+    # reachable by any authenticated session, which is the misuse the gate
+    # exists to prevent.
+    verification-enforced: ${APP_EMAIL_VERIFICATION_ENFORCED:true}
+  web:
+    # Public origin of the web app — used to build absolute links inside emails.
+    base-url: ${APP_WEB_BASE_URL:http://localhost:3000}
+  cookie:
+    # Set COOKIE_SECURE=true in any HTTPS environment (staging / prod).
+    secure: ${COOKIE_SECURE:false}
+    # Lax allows top-level navigations to send the cookie; switch to Strict
+    # if you can guarantee the FE never depends on cross-site nav (rare).
+    same-site: ${COOKIE_SAME_SITE:Lax}
+    # Set COOKIE_DOMAIN=.fotolio.de in prod so the cookie is shared across
+    # api.fotolio.de and *.fotolio.de tenant subdomains.
+    domain: ${COOKIE_DOMAIN:}
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiry-ms: 86400000      # 24h
+    refresh-token-expiry-ms: 2592000000   # 30d
+  r2:
+    endpoint: ${R2_ENDPOINT:https://placeholder.r2.cloudflarestorage.com}
+    access-key: ${R2_ACCESS_KEY:placeholder}
+    secret-key: ${R2_SECRET_KEY:placeholder}
+    bucket: ${R2_BUCKET:fotolio-media-dev}
+    presigned-expiry-minutes: ${R2_PRESIGNED_EXPIRY_MINUTES:60}
+    # true for the local MinIO container, false for Cloudflare R2. A mismatch
+    # signs every presigned URL for the wrong host — see R2Properties#pathStyle.
+    path-style: ${R2_PATH_STYLE:false}
+    # Ceilings on a single pre-signed upload. These are enforced by signing
+    # Content-Length into the URL, so they bind object storage itself rather
+    # than depending on the client to respect them — see
+    # R2StorageService#generateUploadUrl. Raising them raises what one account
+    # can write into the shared bucket in one request.
+    max-upload-bytes: ${R2_MAX_UPLOAD_BYTES:52428800}
+    max-avatar-bytes: ${R2_MAX_AVATAR_BYTES:5242880}
+  media:
+    # Threads decoding and watermarking uploads. Each can hold ~100 MB of
+    # decoded image, so this bounds that heap; see AsyncConfig#imageTaskExecutor.
+    processing-threads: ${MEDIA_PROCESSING_THREADS:2}
+  # The plan → capabilities table (PRICING.md §6.3). One source of truth, read
+  # by the API's gates and served to the frontend at GET /api/entitlements so
+  # the two can never disagree about what a tier includes.
+  #
+  # Configuration rather than constants because PRICING.md is explicit that its
+  # tiers are still a DRAFT — a retention window or a seat count has to be
+  # changeable without a recompile. The commission rate is the one entitlement
+  # NOT here: it stays at app.stripe.commission below, where it is validated
+  # and where infra/.env.example already documents it. EntitlementService folds
+  # it into the same object so callers still read one thing.
+  plans:
+    tiers:
+      starter:
+        gallery-retention-days: ${PLAN_STARTER_RETENTION_DAYS:60}
+        seats: 1
+        fair-use-storage-gb: 50
+        capabilities: []
+      pro:
+        gallery-retention-days: ${PLAN_PRO_RETENTION_DAYS:365}
+        seats: 1
+        fair-use-storage-gb: 250
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+      studio:
+        gallery-retention-days: ${PLAN_STUDIO_RETENTION_DAYS:730}
+        seats: 3
+        fair-use-storage-gb: 1024
+        capabilities:
+          - INSTAGRAM_AUTOMATION
+          - CONTRACTS
+          - ANALYTICS
+          - WHITE_LABEL_BRANDING
+  # Fotolio's own subscription with the photographer (V20). Distinct from
+  # app.stripe below, which moves the photographer's clients' money.
+  billing:
+    trial-days: ${BILLING_TRIAL_DAYS:14}
+    # Lets a studio owner set their own plan without paying for it, for
+    # deployments that have no Stripe account to check out against. OFF unless
+    # deliberately enabled, and BillingService logs a warning on every use:
+    # turned on where real subscriptions live, it hands every customer every
+    # tier for free.
+    dev-plan-switch: ${BILLING_DEV_PLAN_SWITCH:false}
+    # Its own signing secret, from its own Stripe webhook endpoint. Sharing
+    # app.stripe.webhook-secret would mean rotating one silently breaks the
+    # other, with money on both sides.
+    webhook-secret: ${STRIPE_BILLING_WEBHOOK_SECRET:}
+    # Stripe price ids per plan. All six or none: BillingProperties refuses to
+    # boot half-configured, because a partial table means some plans cannot be
+    # bought and some subscriptions cannot be mapped back to a tier — which
+    # would leave a paying customer on STARTER with no trace of why.
+    prices:
+      starter:
+        monthly: ${STRIPE_PRICE_STARTER_MONTHLY:}
+        yearly: ${STRIPE_PRICE_STARTER_YEARLY:}
+      pro:
+        monthly: ${STRIPE_PRICE_PRO_MONTHLY:}
+        yearly: ${STRIPE_PRICE_PRO_YEARLY:}
+      studio:
+        monthly: ${STRIPE_PRICE_STUDIO_MONTHLY:}
+        yearly: ${STRIPE_PRICE_STUDIO_YEARLY:}
+  # Gallery retention (ADR-001). The most destructive job in the product, so
+  # the irreversible phase is opt-in per environment: a staging database
+  # restored from a production dump would otherwise start deleting real
+  # customers' photos out of real object storage on its first night.
+  #
+  # RETENTION_PURGE_ENABLED must not be turned on until the AGB actually say
+  # "delivery platform, not archive" — ADR-001 §4.4 makes that wording a
+  # precondition for the first deletion, not a detail.
+  retention:
+    enabled: ${RETENTION_ENABLED:true}
+    purge-enabled: ${RETENTION_PURGE_ENABLED:false}
+    grace-days: ${RETENTION_GRACE_DAYS:30}
+    max-per-run: ${RETENTION_MAX_PER_RUN:200}
+    cron: ${RETENTION_CRON:0 0 3 * * *}
+    reminder-days-before: 15,5,1
+  stripe:
+    # Blank (not a placeholder like r2.endpoint above) is deliberate here:
+    # StripeConfig's @ConditionalOnProperty requires a non-empty value, so the
+    # card/SEPA path stays cleanly absent (Optional.empty()) rather than
+    # constructing a StripeClient with a key that would 401 on first real call.
+    # Überweisung (manual bank transfer) needs no Stripe key at all.
+    secret-key: ${STRIPE_SECRET_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    # pk_… — handed to the browser with each PaymentIntent's client secret.
+    # Public by design; it lives here rather than in the frontend's env because
+    # it is only usable paired with the connected account id, which is
+    # per-photographer and therefore only known server-side.
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+    # Platform commission on collected payments, in basis points, per plan.
+    # PRICING.md §4/§7.1 (decided 2026-07-17): Starter pays 2% instead of being
+    # locked out of payments; "0% commission" is what Pro sells. Taken off each
+    # charge as application_fee_amount on the connected account.
+    commission:
+      starter-bps: ${STRIPE_COMMISSION_STARTER_BPS:200}
+      pro-bps: ${STRIPE_COMMISSION_PRO_BPS:0}
+      studio-bps: ${STRIPE_COMMISSION_STUDIO_BPS:0}

@@ -1,0 +1,16 @@
+version: 2
+
+# Ignore test fixtures — these are not real credentials.
+# All values below are used exclusively in automated tests and carry no
+# production access; there is nothing to revoke.
+paths-ignore:
+  - "apps/api/src/test/**"
+
+matches-ignore:
+  # Base64-encoded test JWT signing key used only in unit/integration tests.
+  - name: "Test-only JWT secret (non-production)"
+    match: "dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM="
+
+  # Plaintext test password used in integration test fixtures.
+  - name: "Test-only password fixture (non-production)"
+    match: "password123"

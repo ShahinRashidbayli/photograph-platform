@@ -1,0 +1,643 @@
+/* Minimal global reset. Without this, the browser's default 8px <body>
+ * margin lets the white <html> background show as a frame around every
+ * full-bleed page — glaringly visible once dark surfaces are used. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Auth split-screen layout ──────────────────────────────────────────
+ * Two-column shell for the login / register / forgot-password screens:
+ * a branded photography visual on the left, the form on the right. Media
+ * queries live here because the panels are laid out with inline styles
+ * elsewhere and inline styles can't express a breakpoint. Below the
+ * breakpoint the visual panel collapses and the form takes the full width,
+ * so a small brand mark shows inside the form column instead. */
+.auth-split {
+  min-height: 100vh;
+  /* `dvh` tracks the viewport as mobile browsers show and hide their chrome;
+     `vh` does not, so on a phone the panel is sized for a toolbar-less window
+     it never actually has. Declared second so browsers without `dvh` keep the
+     line above. */
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+}
+
+/* The form column scrolls inside itself so the brand panel beside it stays put
+   on a short desktop window. */
+.auth-form-column {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-y: auto;
+}
+.auth-form-brand {
+  display: none;
+}
+@media (max-width: 920px) {
+  .auth-split {
+    grid-template-columns: 1fr;
+  }
+  .auth-visual {
+    display: none !important;
+  }
+  /* Below the breakpoint there is no panel to hold still, so the column *is*
+     the page and must scroll with the document. Capping it at viewport height
+     put a long form (sign-up is six fields, a strength meter and a consent
+     row) inside a nested scroller — which fights the pull-to-refresh gesture,
+     hides the browser chrome's auto-hide, and strands the submit button below
+     an on-screen keyboard. */
+  .auth-form-column {
+    max-height: none;
+    min-height: 0;
+    overflow-y: visible;
+  }
+  .auth-form-brand {
+    display: flex !important;
+  }
+}
+
+/* Indeterminate spinner for the "resolving a token from an email link" screens.
+ * `currentColor` so it inherits the tone the status badge already sets, and a
+ * transparent top segment so the rotation is visible without a second colour. */
+.auth-spinner {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid currentColor;
+  border-top-color: transparent;
+  animation: auth-spin 0.7s linear infinite;
+}
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Headline stat strip ───────────────────────────────────────────────
+ * The band of headline numbers above bookings, clients and portfolio. Laid
+ * out with inline styles in `components/StatStrip.tsx`; only the breakpoint
+ * lives here, because inline styles cannot express one.
+ *
+ * Below the 3-up width the segments stack, so the hairline that divides them
+ * has to flip from vertical to horizontal. Its colour arrives as the
+ * `--stat-strip-border` custom property the component sets, which keeps the
+ * theme's border token the single source of truth for both orientations. */
+@media (max-width: 720px) {
+  .stat-strip {
+    grid-template-columns: 1fr !important;
+  }
+  .stat-strip-item + .stat-strip-item {
+    border-left: none !important;
+    border-top: 1px solid var(--stat-strip-border) !important;
+  }
+}
+
+/* ── Landing page ──────────────────────────────────────────────────────
+ * The landing page is a client component styled with inline styles, so its
+ * responsive breakpoints and hover transitions live here (inline styles
+ * can't express `@media` or `:hover`). Colours come from the design tokens
+ * via inline styles; only layout/interaction lives in these classes. */
+
+/* Two-column hero → single column below the breakpoint. Text stays first in
+ * the DOM so it reads before the visual on mobile and wins the LCP. */
+/* Centre nav anchor links. Below 860px the logo, the language/theme toggles and
+   the auth buttons crowd them out, so they move behind the menu button — which
+   is what `.landing-nav-menu-btn` turns on at the same width. They used to be
+   hidden with nothing in their place, leaving a phone with no in-page nav at
+   all.
+
+   `!important` is doing real work here: an inline style beats any stylesheet
+   rule, media query or not, so without it the inline `display: flex` on these
+   elements would win at every width. */
+@media (max-width: 860px) {
+  .landing-nav-links {
+    display: none !important;
+  }
+  .landing-nav-menu-btn {
+    display: inline-flex !important;
+  }
+}
+/* Under ~420px the toggles, "Sign in" and "Get started" no longer fit beside
+   the logo and the menu button. Sign-in is the one that gives way: it is the
+   least likely action for a first-time visitor, and it is the first entry
+   inside the menu it makes room for. */
+@media (max-width: 420px) {
+  .landing-nav-signin {
+    display: none !important;
+  }
+}
+
+/* In-page anchors clear the sticky bar. Without this the browser scrolls the
+   section's top edge to y=0, which is exactly where the 66px navbar is sitting,
+   so a jump to #pricing put its eyebrow underneath the nav.
+
+   Set on the targets themselves rather than as `scroll-padding-top` on `html`,
+   which would apply to every route — the dashboard's chrome is a different
+   height — and rather than on `:target`, which only matches once the hash is
+   already the current one. */
+.landing-root > [id] {
+  scroll-margin-top: 82px;
+}
+
+.landing-hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .landing-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .landing-hero-visual {
+    min-height: 320px !important;
+  }
+}
+
+/* Auto-fit card grids collapse on their own — no breakpoint needed. */
+.landing-card-grid {
+  display: grid;
+  gap: 24px;
+  margin: 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+/* Primary CTA — theme-independent violet gradient, so it lives fully in CSS
+ * to get a clean hover lift the inline-style pages can't express. */
+.landing-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 22px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  font-size: 0.94rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+/* Solid indigo CTA with a soft glow + inner highlight — matches the design. */
+.landing-btn-primary {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background: #6366f1;
+  box-shadow:
+    0 10px 28px -10px #6366f1,
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.landing-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 36px -10px #6366f1,
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+/* Diagonal light sweep that runs once across the CTA on hover. The strip sits
+ * off-canvas to the left until hover animates it across and back out of view. */
+.landing-btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+.landing-btn-primary:hover::after {
+  animation: landing-shine 0.85s ease;
+}
+@keyframes landing-shine {
+  from {
+    left: -75%;
+  }
+  to {
+    left: 135%;
+  }
+}
+/* Quiet inline link — used where a section hands off to another section
+ * instead of repeating the page's primary call to action. */
+.landing-textlink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.landing-card-hover {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+/* Unified card lift — bento, workflow and pricing cards share the audience
+ * cards' hover feel (lift + soft shadow) so every surface reacts consistently. */
+.landing-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 48px -26px rgba(2, 6, 23, 0.38);
+}
+
+/* Keyboard focus rings — the landing page is almost entirely inline-styled, so
+ * a single scoped rule gives every link, button and toggle a consistent, brand
+ * focus ring. `:focus-visible` keeps it keyboard-only (no ring on mouse click).
+ * Modern browsers clip the outline to the element's border-radius. */
+.landing-root a:focus-visible,
+.landing-root button:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+}
+
+/* Film-grain overlay — photographic texture for the landing page only.
+ * Opacity is set inline (it differs per theme); this class only carries the
+ * fixed positioning and the self-contained SVG noise. */
+.landing-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Bento feature grid — 3 columns, with a 2×2 hero tile and a wide tile. */
+.landing-bento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* `1fr` forced every row to the height of the tallest tile in it, which is
+     where the gap between a short card's copy and its preview came from. Rows
+     now size to their content and the tiles stretch to match their row. */
+  grid-auto-rows: auto;
+  gap: 16px;
+}
+.landing-bento .tile-big {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.landing-bento .tile-wide {
+  grid-column: span 2;
+}
+@media (max-width: 900px) {
+  .landing-bento {
+    grid-template-columns: 1fr 1fr;
+  }
+  .landing-bento .tile-big {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+}
+@media (max-width: 560px) {
+  .landing-bento {
+    grid-template-columns: 1fr;
+  }
+  .landing-bento .tile-big,
+  .landing-bento .tile-wide {
+    grid-column: span 1;
+  }
+}
+
+/* Gallery preview inside the hero tile — masonry of mixed-orientation frames,
+   the way a real client gallery mixes portrait and landscape shots. */
+.landing-gallery-prev {
+  column-count: 4;
+  column-gap: 9px;
+}
+@media (max-width: 560px) {
+  .landing-gallery-prev {
+    column-count: 3;
+  }
+}
+
+/* Workflow pipeline — five steps across, collapsing on narrow screens. */
+.landing-flow {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .landing-flow {
+    grid-template-columns: 1fr 1fr;
+  }
+  .landing-warr {
+    display: none !important;
+  }
+}
+@media (max-width: 520px) {
+  .landing-flow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Studio outcomes — exactly four items, so the grid is a fixed 2×2. An
+ * auto-fit track fitted three 353px columns at desktop width and dropped the
+ * fourth item onto a row of its own, leaving ~770px of empty card beside it. */
+.landing-studio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px 40px;
+}
+/* Three client-side outcomes, one per column, collapsing together with the
+ * grid above so both cards break at the same width. */
+.landing-client-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 28px;
+}
+@media (max-width: 720px) {
+  .landing-studio-grid,
+  .landing-client-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Pricing row. The Pro card is emphasised by its border, shadow and badge
+ * (see priceCardHot) rather than a scale transform — scaling lifted its CTA a
+ * few pixels above the Starter/Studio buttons and broke the row alignment. */
+.landing-prices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  /* Stretch so all three cards share the tallest card's height. Starter
+   * carries one more feature row than Pro/Studio, so sizing to content left
+   * it visibly longer than its neighbours. */
+  align-items: stretch;
+}
+@media (max-width: 820px) {
+  .landing-prices {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Honest capability marquee. The vertical padding gives the strip the same
+ * presence as the design — without it the band reads as a thin afterthought. */
+.landing-marquee {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  padding: 16px 0;
+  animation: landing-scroll 32s linear infinite;
+}
+@keyframes landing-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Floating confirmation toast on the hero mockup. */
+.landing-float {
+  animation: landing-float 5s ease-in-out infinite;
+}
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+/* Scroll-reveal — the page adds `.in` via IntersectionObserver.
+ *
+ * The hidden state is gated on `html[data-js]`, which the root layout's inline
+ * script sets before first paint. Hidden by default with script doing the
+ * revealing left everything below the hero at `opacity: 0` for any visitor
+ * whose JavaScript did not run: the markup is server-rendered and present, so
+ * a crawler or a reader with scripts off got a blank marketing page rather
+ * than an unanimated one.
+ *
+ * Two things about the selector are load-bearing, and getting either wrong
+ * hides the page from *everyone*:
+ *
+ *   - It is an attribute, not a class. React owns `<html class>` — it is set
+ *     from the layout's font variables — so a class added by the inline script
+ *     is liable to be dropped when React reconciles the attribute on hydration.
+ *     `data-js` is not an attribute React writes, so it survives.
+ *   - The gate carries no element selector, and the `.in` rules carry the gate.
+ *     `[data-js] .landing-reveal` scores (0,2,0) and `[data-js]
+ *     .landing-reveal.in` scores (0,3,0), so revealing wins on specificity
+ *     rather than on source order. Adding `html` in front — `html[data-js]
+ *     .landing-reveal` — takes the gate to (0,2,1), which outranks a bare
+ *     `.landing-reveal.in` at (0,2,0): the observer then adds the class and
+ *     nothing happens, leaving the whole page below the hero invisible. An
+ *     attribute selector weighs the same as a class; the element is the part
+ *     that tips it. */
+[data-js] .landing-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+[data-js] .landing-reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Staggered reveal — direct children of an .in container fade in one after
+ * another. Driven by a keyframe animation (not a transition) on purpose: the
+ * cards inside carry a hover-lift on the `transition` property, and a reveal
+ * transition on the same element would overwrite that shorthand and make the
+ * hover snap. An animation touches only `opacity`, leaving `transition` — and
+ * therefore the smooth hover — untouched. */
+[data-js] .landing-reveal-stagger > * {
+  opacity: 0;
+}
+[data-js] .landing-reveal-stagger.in > * {
+  animation: landing-fade-in 0.55s ease both;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(1) {
+  animation-delay: 0.04s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(2) {
+  animation-delay: 0.11s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(3) {
+  animation-delay: 0.18s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(4) {
+  animation-delay: 0.25s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(5) {
+  animation-delay: 0.32s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(6) {
+  animation-delay: 0.39s;
+}
+[data-js] .landing-reveal-stagger.in > *:nth-child(7) {
+  animation-delay: 0.46s;
+}
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Aurora — two soft brand-coloured blobs drifting behind the hero, giving the
+ * static grid + glow a slow sense of motion. Colours are brand-constant across
+ * themes; the container's opacity (set inline) is what differs light vs dark.
+ * Blobs live in pseudo-elements so the markup stays a single empty <span>. */
+.landing-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.landing-aurora::before,
+.landing-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.landing-aurora::before {
+  width: 520px;
+  height: 520px;
+  top: -170px;
+  right: -70px;
+  background: radial-gradient(circle, rgba(124, 102, 245, 0.55), transparent 70%);
+  animation: landing-aurora-a 18s ease-in-out infinite alternate;
+}
+.landing-aurora::after {
+  width: 440px;
+  height: 440px;
+  top: -40px;
+  right: 190px;
+  background: radial-gradient(circle, rgba(76, 141, 224, 0.45), transparent 70%);
+  animation: landing-aurora-b 23s ease-in-out infinite alternate;
+}
+/* Closing CTA aurora — the hero's blobs, recentred. The hero's sit top-right
+ * because its composition is left-aligned; this one is centred, so one blob
+ * pools behind the headline and the second lifts the lower-left corner. They
+ * run on the hero's own keyframes so the two ends of the page drift alike. */
+.landing-cta-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.landing-cta-aurora::before,
+.landing-cta-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+.landing-cta-aurora::before {
+  width: 620px;
+  height: 620px;
+  top: -280px;
+  left: 50%;
+  margin-left: -310px;
+  background: radial-gradient(circle, rgba(124, 102, 245, 0.5), transparent 70%);
+  animation: landing-aurora-a 18s ease-in-out infinite alternate;
+}
+.landing-cta-aurora::after {
+  width: 440px;
+  height: 440px;
+  /* Far enough off-canvas that only the soft shoulder of the blob reaches the
+     band — closer in, its blurred edge banded into visible arcs. */
+  bottom: -320px;
+  left: 4%;
+  filter: blur(96px);
+  background: radial-gradient(circle, rgba(76, 141, 224, 0.3), transparent 70%);
+  animation: landing-aurora-b 23s ease-in-out infinite alternate;
+}
+@keyframes landing-aurora-a {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-60px, 46px) scale(1.16);
+  }
+}
+@keyframes landing-aurora-b {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(80px, 34px) scale(1.1);
+  }
+}
+
+/* Animated gradient text — the hero accent word. The gradient itself is set
+ * inline (so it uses brand colours); this class only sweeps its position. */
+.landing-accent-shimmer {
+  animation: landing-shimmer 6s linear infinite;
+}
+@keyframes landing-shimmer {
+  to {
+    background-position: 220% center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A spinner that cannot spin still has to read as "busy", so it keeps its
+     shape and simply stops — hiding it would leave the screen looking idle. */
+  .auth-spinner {
+    animation: none;
+  }
+  .landing-marquee {
+    animation: none;
+    width: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .landing-float {
+    animation: none;
+  }
+  /* A media query adds no specificity, so each of these has to match — or beat
+     — the rule it is overriding, not just come after it. The `.in` variants are
+     listed separately for that reason: `[data-js] .landing-reveal-stagger > *`
+     alone scores (0,2,0) and loses to the `.in` rule's (0,3,0), which would
+     leave the staggered cards animating for a reader who asked for less
+     motion. */
+  [data-js] .landing-reveal,
+  [data-js] .landing-reveal.in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  [data-js] .landing-reveal-stagger > *,
+  [data-js] .landing-reveal-stagger.in > * {
+    opacity: 1;
+    animation: none;
+  }
+  .landing-aurora::before,
+  .landing-aurora::after,
+  .landing-cta-aurora::before,
+  .landing-cta-aurora::after {
+    animation: none;
+  }
+  .landing-accent-shimmer {
+    animation: none;
+  }
+  .landing-btn-primary:hover::after {
+    animation: none;
+  }
+}

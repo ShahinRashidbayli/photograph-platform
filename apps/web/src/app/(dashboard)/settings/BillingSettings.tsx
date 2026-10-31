@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { billingProfileKey } from '@/hooks/useInvoices';
+import { useBillingProfile, useSaveBillingProfile } from '@/hooks/useInvoices';
+import {
+  useBillingStatus,
+  useDevSetPlan,
+  useOpenBillingPortal,
+  useRefreshStripeConnect,
+  useStartCheckout,
+  useStripeConnectStatus,
+  useStripeOnboardingLink,
+  type BillingStatus,
+} from '@/hooks/useBilling';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { PlanActionButton, PlanComparison } from './PlanComparison';
 import { Alert, Button, Card, Field, Input, Select, useColors } from '@/components/ui';
-import type { BillingProfile, StripeConnectStatus, TaxMode } from '@/types/api';
+import type { BillingProfile, TaxMode } from '@/types/api';
 
 const EMPTY_FORM = {
   businessName: '',
@@ -22,6 +30,20 @@ const EMPTY_FORM = {
   vatId: '',
   taxMode: 'KLEINUNTERNEHMER' as TaxMode,
 };
+
+function toForm(data: BillingProfile): typeof EMPTY_FORM {
+  return {
+    businessName: data.businessName ?? '',
+    addressLine1: data.addressLine1 ?? '',
+    addressLine2: data.addressLine2 ?? '',
+    postalCode: data.postalCode ?? '',
+    city: data.city ?? '',
+    country: data.country ?? 'DE',
+    taxId: data.taxId ?? '',
+    vatId: data.vatId ?? '',
+    taxMode: data.taxMode,
+  };
+}
 
 function SectionHeading({
   id,
@@ -59,83 +81,49 @@ function SectionHeading({
 export function BillingProfileSection() {
   const { t } = useTranslation();
   const c = useColors();
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [complete, setComplete] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // The same cache the invoice form reads — see useSaveBillingProfile.
+  const profileQuery = useBillingProfile();
+  const saveProfile = useSaveBillingProfile();
+  const loading = profileQuery.isLoading;
+  const saving = saveProfile.isPending;
+  // A load that never succeeded keeps Save disabled: the form's defaults are
+  // not the tenant's values, and submitting them would rewrite taxMode to
+  // KLEINUNTERNEHMER and blank the VAT id — silently changing whether every
+  // future invoice charges VAT.
+  const loadFailed = profileQuery.isError && !profileQuery.data;
+  const complete = profileQuery.data?.complete ?? null;
+  // What the photographer has typed, over the saved profile, so nothing —
+  // a refetch, a language change — can overwrite an edit in progress.
+  const [draft, setDraft] = useState<typeof EMPTY_FORM | null>(null);
+  const form = draft ?? (profileQuery.data ? toForm(profileQuery.data) : EMPTY_FORM);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
-  // Distinct from `error`, which also carries save failures. A load that never
-  // succeeded must hide the form entirely: its defaults are not the tenant's
-  // values, and submitting them would rewrite taxMode to KLEINUNTERNEHMER and
-  // blank the VAT id — silently changing whether every future invoice charges
-  // VAT.
-  const [loadFailed, setLoadFailed] = useState(false);
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<BillingProfile>('/api/settings/billing-profile')
-      .then(({ data }) => {
-        if (cancelled) return;
-        setForm({
-          businessName: data.businessName ?? '',
-          addressLine1: data.addressLine1 ?? '',
-          addressLine2: data.addressLine2 ?? '',
-          postalCode: data.postalCode ?? '',
-          city: data.city ?? '',
-          country: data.country ?? 'DE',
-          taxId: data.taxId ?? '',
-          vatId: data.vatId ?? '',
-          taxMode: data.taxMode,
-        });
-        setComplete(data.complete);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoadFailed(true);
-        setError(asyncError(err, 'settings.billing.loadError'));
-      })
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-    // No `t`: the failure is stored as a key and translated at render, so a
-    // language change must not re-run this and overwrite what the photographer
-    // has typed into the form since it loaded.
-  }, []);
+  const [saveError, setSaveError] = useState<AsyncError | null>(null);
+  const error =
+    saveError ?? (loadFailed ? asyncError(profileQuery.error, 'settings.billing.loadError') : null);
 
   const set = (patch: Partial<typeof EMPTY_FORM>) => {
-    setForm((prev) => ({ ...prev, ...patch }));
+    setDraft({ ...form, ...patch });
     setSaved(false);
   };
 
-  const save = async (e: React.FormEvent) => {
+  const save = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const { data } = await api.put<BillingProfile>('/api/settings/billing-profile', {
+    setSaveError(null);
+    saveProfile.mutate(
+      {
         ...form,
         addressLine2: form.addressLine2 || null,
         taxId: form.taxId || null,
         vatId: form.vatId || null,
-      });
-      setComplete(data.complete);
-      setSaved(true);
-      // The invoice form reads this same profile through React Query. The PUT
-      // already returned the saved version, so hand it straight to the cache
-      // rather than making the next reader refetch — otherwise a photographer
-      // who switches to Regelbesteuerung here and immediately issues an
-      // invoice gets one billed under the old tax mode, on a document that is
-      // immutable the moment it exists.
-      queryClient.setQueryData(billingProfileKey(), data);
-    } catch (err) {
-      setError(asyncError(err, 'settings.billing.saveError'));
-    } finally {
-      setSaving(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          setDraft(null);
+          setSaved(true);
+        },
+        onError: (err) => setSaveError(asyncError(err, 'settings.billing.saveError')),
+      }
+    );
   };
 
   return (
@@ -314,69 +302,78 @@ export function StripeConnectSection() {
   const searchParams = useSearchParams();
   const stripeParam = searchParams.get('stripe');
 
-  const [status, setStatus] = useState<StripeConnectStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
+  // Coming back from onboarding, the status comes from Stripe and never from
+  // our mirror, which may not have heard the webhook yet. A plain read in the
+  // same visit — alongside the refresh, or after it — is the race this section
+  // once lost: the stale pre-onboarding mirror overwrote the fresh status. The
+  // mirror is read only if asking Stripe failed.
+  const [returnFlow, setReturnFlow] = useState(stripeParam === 'return');
+  const statusQuery = useStripeConnectStatus(!returnFlow);
+  const refresh = useRefreshStripeConnect();
+  const onboarding = useStripeOnboardingLink();
+  const { mutate: mutateRefresh } = refresh;
+  const { mutate: mutateOnboarding } = onboarding;
+  const status = statusQuery.data ?? null;
+  const loading = returnFlow ? refresh.isIdle || refresh.isPending : statusQuery.isLoading;
+  // Held through success: the browser is on its way to Stripe.
+  const busy = onboarding.isPending || onboarding.isSuccess;
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  const error =
+    actionError ??
+    (statusQuery.isError ? asyncError(statusQuery.error, 'settings.stripe.statusError') : null);
 
-  const load = useCallback(async (refresh: boolean) => {
-    setError(null);
-    try {
-      // Coming back from hosted onboarding, ask Stripe rather than trusting our
-      // mirror: the account.updated webhook is authoritative but can land after
-      // the redirect, and a screen still saying "not connected" one second
-      // after a successful onboarding reads as a failure.
-      const { data } = refresh
-        ? await api.post<StripeConnectStatus>('/api/settings/stripe/refresh')
-        : await api.get<StripeConnectStatus>('/api/settings/stripe');
-      setStatus(data);
-    } catch (err) {
-      setError(asyncError(err, 'settings.stripe.statusError'));
-    } finally {
-      setLoading(false);
+  function load(fromStripe: boolean) {
+    setActionError(null);
+    if (!fromStripe) {
+      void statusQuery.refetch();
+      return;
     }
-  }, []);
+    mutateRefresh(undefined, {
+      onError: (err) => {
+        setActionError(asyncError(err, 'settings.stripe.statusError'));
+        setReturnFlow(false);
+      },
+    });
+  }
 
-  const startOnboarding = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { data } = await api.post<{ url: string }>('/api/settings/stripe/onboarding-link');
-      globalThis.location.href = data.url;
-    } catch (err) {
-      setError(asyncError(err, 'settings.stripe.onboardingError'));
-      setBusy(false);
-    }
-  }, []);
+  function startOnboarding() {
+    setActionError(null);
+    mutateOnboarding(undefined, {
+      onSuccess: (url) => {
+        globalThis.location.href = url;
+      },
+      onError: (err) => setActionError(asyncError(err, 'settings.stripe.onboardingError')),
+    });
+  }
 
-  // Stripe's redirect back is handled exactly once. Stripping the query
-  // parameter re-runs this effect with `stripeParam === null`, and the naive
-  // version then fired a plain GET alongside the refresh POST still in flight —
-  // last writer wins, so the stale pre-onboarding status could overwrite the
-  // fresh one the refresh existed to fetch.
+  // Stripe's redirect back is handled exactly once; stripping the parameter
+  // re-renders with `stripeParam === null`.
   const handledRedirect = useRef(false);
 
   useEffect(() => {
-    if (handledRedirect.current) return;
+    if (handledRedirect.current || !stripeParam) return;
+    handledRedirect.current = true;
+    router.replace('/settings/payments');
 
     if (stripeParam === 'refresh') {
       // Stripe expired the link before it was used; the only useful answer is
       // another one, immediately.
-      handledRedirect.current = true;
-      router.replace('/settings/payments');
-      void startOnboarding();
-      return;
+      setActionError(null);
+      mutateOnboarding(undefined, {
+        onSuccess: (url) => {
+          globalThis.location.href = url;
+        },
+        onError: (err) => setActionError(asyncError(err, 'settings.stripe.onboardingError')),
+      });
+    } else if (stripeParam === 'return') {
+      mutateRefresh(undefined, {
+        onError: (err) => {
+          setActionError(asyncError(err, 'settings.stripe.statusError'));
+          setReturnFlow(false);
+        },
+      });
     }
-
-    if (stripeParam === 'return') {
-      handledRedirect.current = true;
-      router.replace('/settings/payments');
-      void load(true);
-      return;
-    }
-
-    void load(false);
-  }, [stripeParam, load, router, startOnboarding]);
+  }, [stripeParam, router, mutateRefresh, mutateOnboarding]);
 
   const percent = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 
@@ -570,26 +567,6 @@ export function DatevExportSection() {
 
 // ── Subscription (what the photographer pays US) ────────────────────────────
 
-interface BillingStatus {
-  plan: 'STARTER' | 'PRO' | 'STUDIO';
-  subscriptionStatus:
-    | 'NONE'
-    | 'TRIALING'
-    | 'ACTIVE'
-    | 'PAST_DUE'
-    | 'CANCELED'
-    | 'INCOMPLETE'
-    | 'UNPAID';
-  trialEndsAt: string | null;
-  currentPeriodEnd: string | null;
-  subscriptionConfigured: boolean;
-  manageable: boolean;
-  writable: boolean;
-  /** Deployment has enabled unbilled plan changes — development only. */
-  devPlanSwitch: boolean;
-  lockReason: string | null;
-}
-
 /**
  * The subscription the photographer holds with Fotolio.
  *
@@ -611,102 +588,66 @@ export function SubscriptionSection() {
   const searchParams = useSearchParams();
   const billingParam = searchParams.get('billing');
 
-  const [status, setStatus] = useState<BillingStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Captured at mount, before the redirect parameter is stripped below. The
+  // re-read after a successful checkout used to key on the live parameter,
+  // which was already gone by the time the first answer came back — so it
+  // never re-read, and "your plan is still Starter" read as a failed payment.
+  const [returnedFromCheckout] = useState(billingParam === 'success');
+  const statusQuery = useBillingStatus({ pollUntilActive: returnedFromCheckout });
+  const checkout = useStartCheckout();
+  const portal = useOpenBillingPortal();
+  const devPlan = useDevSetPlan();
+  const status = statusQuery.data ?? null;
+  const loading = statusQuery.isLoading;
   const [yearly, setYearly] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const { data } = await api.get<BillingStatus>('/api/billing');
-      setStatus(data);
-    } catch (err) {
-      setError(asyncError(err, 'settings.subscription.loadError'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Held through success: each of these ends in a page navigation.
+  const busy = [checkout, portal, devPlan].some((m) => m.isPending || m.isSuccess);
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  const error =
+    actionError ??
+    (statusQuery.isError ? asyncError(statusQuery.error, 'settings.subscription.loadError') : null);
 
   const handledRedirect = useRef(false);
 
   useEffect(() => {
-    if (handledRedirect.current) {
-      return;
-    }
-    if (billingParam) {
-      // Returning from Stripe. Strip the parameter so a refresh does not
-      // re-trigger this, then re-read: the subscription webhook is
-      // authoritative but can land after the redirect, so the first read may
-      // still say "trialing". That is why the success case polls below.
-      handledRedirect.current = true;
-      router.replace('/settings/plan');
-    }
-    void load();
-  }, [billingParam, load, router]);
+    if (handledRedirect.current || !billingParam) return;
+    // Returning from Stripe. Strip the parameter so a refresh does not
+    // re-trigger this; the query above has already started reading.
+    handledRedirect.current = true;
+    router.replace('/settings/plan');
+  }, [billingParam, router]);
 
-  /**
-   * After a successful checkout the webhook usually arrives within a second or
-   * two, but not always before the browser gets back here. Re-reading a few
-   * times turns "your plan is still Starter" — which reads as a failed payment
-   * — into a brief pause.
-   */
-  useEffect(() => {
-    if (billingParam !== 'success' || !status) return undefined;
-    if (status.subscriptionStatus === 'ACTIVE') return undefined;
-
-    const timer = setTimeout(() => void load(), 2000);
-    return () => clearTimeout(timer);
-  }, [billingParam, status, load]);
-
-  const subscribe = useCallback(
-    async (plan: BillingStatus['plan']) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const { data } = await api.post<{ url: string }>('/api/billing/checkout', {
-          plan,
-          interval: yearly ? 'YEARLY' : 'MONTHLY',
-        });
-        globalThis.location.href = data.url;
-      } catch (err) {
-        setError(asyncError(err, 'settings.subscription.checkoutError'));
-        setBusy(false);
+  function subscribe(plan: BillingStatus['plan']) {
+    setActionError(null);
+    checkout.mutate(
+      { plan, interval: yearly ? 'YEARLY' : 'MONTHLY' },
+      {
+        onSuccess: (url) => {
+          globalThis.location.href = url;
+        },
+        onError: (err) => setActionError(asyncError(err, 'settings.subscription.checkoutError')),
       }
-    },
-    [yearly]
-  );
+    );
+  }
 
-  /**
-   * The development-only switch. Reloads rather than patching state locally:
-   * the plan changes what the whole shell shows — the sidebar's analytics
-   * group, the team section, gallery retention — and those read entitlements
-   * through their own cached query.
-   */
-  const devSetPlan = useCallback(async (plan: BillingStatus['plan']) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post('/api/billing/dev-plan', { plan });
-      globalThis.location.reload();
-    } catch (err) {
-      setError(asyncError(err, 'settings.subscription.checkoutError'));
-      setBusy(false);
-    }
-  }, []);
+  /** The development-only switch — see useDevSetPlan for why it reloads. */
+  function devSetPlan(plan: BillingStatus['plan']) {
+    setActionError(null);
+    devPlan.mutate(plan, {
+      onSuccess: () => globalThis.location.reload(),
+      onError: (err) => setActionError(asyncError(err, 'settings.subscription.checkoutError')),
+    });
+  }
 
-  const manage = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { data } = await api.post<{ url: string }>('/api/billing/portal');
-      globalThis.location.href = data.url;
-    } catch (err) {
-      setError(asyncError(err, 'settings.subscription.portalError'));
-      setBusy(false);
-    }
-  }, []);
+  function manage() {
+    setActionError(null);
+    portal.mutate(undefined, {
+      onSuccess: (url) => {
+        globalThis.location.href = url;
+      },
+      onError: (err) => setActionError(asyncError(err, 'settings.subscription.portalError')),
+    });
+  }
 
   const state = (() => {
     if (!status) return { tone: c.neutral, label: t('settings.subscription.loading'), detail: '' };

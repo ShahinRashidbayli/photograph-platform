@@ -1,10 +1,16 @@
 'use client';
 
-import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
+import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { UserAvatar } from '@/components/UserAvatar';
 import { getColors } from '@/lib/design-tokens';
-import api from '@/lib/api';
+import { extractApiError } from '@/lib/helpers';
+import {
+  AvatarUploadError,
+  useSessionUser,
+  useUpdateProfile,
+  useUploadAvatar,
+} from '@/hooks/useAuth';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -31,7 +37,6 @@ const SECTION_ROUTES: Record<string, string> = {
 export default function SettingsPage() {
   const { t } = useTranslation();
   const user = useAuthStore((st) => st.user);
-  const setUser = useAuthStore((st) => st.setUser);
   const { theme } = useThemeStore();
   const router = useRouter();
   const c = useMemo(() => getColors(theme), [theme]);
@@ -45,21 +50,22 @@ export default function SettingsPage() {
   const [fullNameInput, setFullNameInput] = useState(user?.fullName ?? '');
   const [subdomainInput, setSubdomainInput] = useState(user?.tenant?.subdomain ?? '');
 
-  const [saving, setSaving] = useState(false);
+  const updateProfile = useUpdateProfile();
+  const uploadAvatar = useUploadAvatar();
+  const saving = updateProfile.isPending;
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarUploading = uploadAvatar.isPending;
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seed the inputs only when the user *identity* changes (i.e. loads on
   // first paint) — not on every field update, which would clobber edits and
   // the post-save state. Field deps are intentionally omitted.
-  useEffect(() => {
-    // Ensure CSRF token is set by making a GET request on mount
-    api.get('/api/auth/me').catch(() => {});
-  }, []);
+  // Read on mount: it sets the CSRF cookie this form's writes need, and
+  // refreshes the account shown below.
+  useSessionUser();
 
   /**
    * Forwards links minted before Settings was split into panels.
@@ -117,88 +123,48 @@ export default function SettingsPage() {
     if (error) setError(null);
   };
 
-  const handleAvatarUpload = async (file: File) => {
+  const handleAvatarUpload = (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       setAvatarError(t('settings.account.avatarTooLarge'));
       return;
     }
-    setAvatarUploading(true);
     setAvatarError(null);
-    try {
-      const contentType = file.type || 'image/jpeg';
-      const { data: presign } = await api.post<{
-        uploadUrl: string;
-        viewUrl: string;
-        r2Key: string;
-        // The type the URL was signed with, which may differ from what we asked
-        // for (the API canonicalises image/jpg to image/jpeg). Content-Type is
-        // a signed header on the presigned PUT, so the upload below must send
-        // this value rather than our own.
-        contentType: string;
-      }>(
-        `/api/auth/me/avatar/presign?contentType=${encodeURIComponent(contentType)}` +
-          // Signed into the URL as Content-Length, which is what stops a
-          // presigned PUT from being an unbounded write.
-          `&fileSizeBytes=${file.size}`
-      );
-
-      if (!presign.uploadUrl || !presign.r2Key) {
-        throw new Error(t('settings.account.storageUnavailable'));
-      }
-
-      const uploadRes = await fetch(presign.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': presign.contentType },
-        body: file,
-      });
-      if (!uploadRes.ok) throw new Error(t('settings.account.uploadFailed'));
-      // Store the OBJECT KEY, not `presign.viewUrl`. That view URL is a
-      // pre-signed GET that expires with app.r2.presigned-expiry-minutes (60 by
-      // default) — the endpoint's own javadoc says callers must not cache it —
-      // so writing it into the profile meant every avatar turned into a 403 an
-      // hour after upload, permanently, with no refresh path. The backend
-      // re-signs the key on every read instead.
-      const { data: updated } = await api.patch<AuthUser>('/api/auth/me', {
-        avatarUrl: presign.r2Key,
-      });
-      setUser(updated);
-    } catch (err) {
-      const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data
-        ?.error;
-      const msg = responseError ?? t('settings.account.avatarError');
-      setAvatarError(msg);
-    } finally {
-      setAvatarUploading(false);
-    }
+    uploadAvatar.mutate(file, {
+      onError: (err) =>
+        setAvatarError(
+          err instanceof AvatarUploadError
+            ? t(err.key)
+            : extractApiError(err, t('settings.account.avatarError'))
+        ),
+    });
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (saving || !dirty) return;
-    setSaving(true);
     setSaved(false);
     setError(null);
-    try {
-      // Clients can only change their own name — subdomain is a tenant-level
-      // field they neither see nor own, so it's omitted from their payload.
-      const payload = isPhotographer
-        ? { fullName: fullNameInput.trim(), subdomain: subdomainInput.trim() }
-        : { fullName: fullNameInput.trim() };
-      const { data } = await api.patch<AuthUser>('/api/auth/me', payload);
-      setUser(data);
-      setFullNameInput(data.fullName ?? '');
-      setSubdomainInput(data.tenant?.subdomain ?? '');
-      setSaved(true);
-      setDirty(false);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        t('settings.account.saveError');
-      setError(msg);
-    } finally {
-      setSaving(false);
-    }
+    // Clients can only change their own name — subdomain is a tenant-level
+    // field they neither see nor own, so it's omitted from their payload.
+    const payload = isPhotographer
+      ? { fullName: fullNameInput.trim(), subdomain: subdomainInput.trim() }
+      : { fullName: fullNameInput.trim() };
+    updateProfile.mutate(payload, {
+      onSuccess: (data) => {
+        setFullNameInput(data.fullName ?? '');
+        setSubdomainInput(data.tenant?.subdomain ?? '');
+        setSaved(true);
+        setDirty(false);
+      },
+      onError: (err) => setError(extractApiError(err, t('settings.account.saveError'))),
+    });
   };
+
+  // The "saved" tick fades after a moment; cancelled on unmount.
+  useEffect(() => {
+    if (!saved) return;
+    const id = window.setTimeout(() => setSaved(false), 2000);
+    return () => window.clearTimeout(id);
+  }, [saved]);
 
   const saveButtonLabel = saving
     ? t('settings.account.saving')

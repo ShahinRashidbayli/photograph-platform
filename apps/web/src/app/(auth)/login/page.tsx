@@ -1,12 +1,11 @@
 'use client';
 
-import api from '@/lib/api';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { PasswordField } from '@/components/PasswordField';
 import { extractApiError } from '@/lib/helpers';
 import { isRateLimited } from '@/lib/rate-limit';
 import { useRetryWait } from '@/lib/useRetryWait';
-import { AuthUser, useAuthStore } from '@/store/authStore';
+import { useLogin } from '@/hooks/useAuth';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
@@ -18,7 +17,7 @@ import { getAuthStyles } from '../auth.styles';
 
 export default function LoginPage() {
   const router = useRouter();
-  const setUser = useAuthStore((s) => s.setUser);
+  const login = useLogin();
   const theme = useThemeStore((st) => st.theme);
   const s = getAuthStyles(theme);
   const { t } = useTranslation();
@@ -27,7 +26,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const loading = login.isPending;
   const [focused, setFocused] = useState(false);
 
   // Read after mount rather than during render: this is a client component with
@@ -37,7 +36,7 @@ export default function LoginPage() {
   const [search, setSearch] = useState('');
   useEffect(() => setSearch(window.location.search), []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
@@ -46,41 +45,39 @@ export default function LoginPage() {
     }
 
     setError('');
-    setLoading(true);
-    try {
-      const { data: user } = await api.post<AuthUser>('/api/auth/login', {
-        email: trimmedEmail,
-        password,
-      });
-      setUser(user);
-      const role = user.role?.toUpperCase();
-      const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-      // The middleware puts the blocked destination in `?next=` precisely so
-      // login can return to it ("Preserve the original destination so
-      // post-login can return to it"), but nothing ever read it — so any deep
-      // link into the app (an emailed booking link, a bookmarked lead) lost
-      // its target and dumped the user on the dashboard.
-      const next =
-        typeof window === 'undefined'
-          ? null
-          : safeRedirectPath(window.location.search, window.location.origin);
-      router.push(next ?? (isPhotographer ? '/dashboard' : '/bookings'));
-    } catch (err: unknown) {
-      // A lockout gets its own message. The backend counts failed attempts
-      // against the submitted address whether or not an account exists, so
-      // naming the lockout leaks nothing — while folding it into "invalid
-      // password" told someone typing the correct password that it was wrong.
-      if (isRateLimited(err)) {
-        const wait = retryWait(err);
-        setError(wait ? t('login.errorLockedFor', { wait }) : t('login.errorLocked'));
-      } else if ((err as { response?: { status?: number } })?.response?.status === 401) {
-        setError(t('login.errorInvalid'));
-      } else {
-        setError(extractApiError(err, t('login.errorGeneric')));
+    login.mutate(
+      { email: trimmedEmail, password },
+      {
+        onSuccess: (user) => {
+          const role = user.role?.toUpperCase();
+          const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
+          // The middleware puts the blocked destination in `?next=` precisely so
+          // login can return to it ("Preserve the original destination so
+          // post-login can return to it"), but nothing ever read it — so any deep
+          // link into the app (an emailed booking link, a bookmarked lead) lost
+          // its target and dumped the user on the dashboard.
+          const next =
+            typeof window === 'undefined'
+              ? null
+              : safeRedirectPath(window.location.search, window.location.origin);
+          router.push(next ?? (isPhotographer ? '/dashboard' : '/bookings'));
+        },
+        onError: (err) => {
+          // A lockout gets its own message. The backend counts failed attempts
+          // against the submitted address whether or not an account exists, so
+          // naming the lockout leaks nothing — while folding it into "invalid
+          // password" told someone typing the correct password that it was wrong.
+          if (isRateLimited(err)) {
+            const wait = retryWait(err);
+            setError(wait ? t('login.errorLockedFor', { wait }) : t('login.errorLocked'));
+          } else if ((err as { response?: { status?: number } })?.response?.status === 401) {
+            setError(t('login.errorInvalid'));
+          } else {
+            setError(extractApiError(err, t('login.errorGeneric')));
+          }
+        },
       }
-    } finally {
-      setLoading(false);
-    }
+    );
   };
 
   return (

@@ -51,7 +51,12 @@ module's repository — call its service, or publish an event.
 | Suffix | What | Copy |
 |---|---|---|
 | `*Test` | unit, Mockito | `booking/BookingCommandServiceTest` |
-| `*SecurityRuleTest` | `@WebMvcTest` slice: auth/role/CSRF per endpoint — **add one for every new controller** | `privacy/PrivacySecurityRuleTest` |
+| `*SecurityRuleTest` | `@WebMvcTest` slice: the allowed roles get through (positive direction) | `privacy/PrivacySecurityRuleTest` |
 | `*IT` | real Postgres via Testcontainers, extends `IntegrationTestBase` (needs Docker) | `client/ClientServiceIT` |
+
+**New endpoint → add it to `EXPECTED` in `common/security/EndpointRoleMatrixIT`** and a
+matching rule in `SecurityConfig` (deny-by-default; an unclassified route fails the build).
+That IT sends a real CUSTOMER token at every non-customer route — the negative direction
+is covered there for all modules, not in the per-module tests.
 
 Run: `mvn test` (unit) / `mvn verify` (everything CI runs). CSRF helper: `common/CsrfTestSupport.xsrf()`.

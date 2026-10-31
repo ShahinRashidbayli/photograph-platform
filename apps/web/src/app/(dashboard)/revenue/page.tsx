@@ -4,7 +4,8 @@ import React from 'react';
 import { useTranslation } from '@/lib/i18n';
 import { useColors } from '@/components/ui';
 import { BarChart, Legend } from '../analytics.charts';
-import { monthLabels, useAnalytics } from '../analytics.data';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { monthLabels } from '../analytics.data';
 import { ChartCard, DataTable, ReportShell, StatTile } from '../analytics.shell';
 
 /**

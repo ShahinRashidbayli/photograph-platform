@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
+import { useCreateInquiryRequest } from '@/hooks/useInquiryRequests';
 import { extractApiError, todayIso } from '@/lib/helpers';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { DateField } from '@/components/DateField';
@@ -11,9 +11,6 @@ type RequestSessionModalProps = {
   styles: Record<string, React.CSSProperties>;
   colors: ReturnType<typeof getBookingsColors>;
   onClose: () => void;
-  // Fired after a request is accepted by the backend, so the page can refresh
-  // the list (once the list surfaces pending requests).
-  onSubmitted: () => void;
 };
 
 // Roadmap §4.5.4 — the request form the client fills after logging in. Labels
@@ -45,17 +42,13 @@ const EMPTY_FORM = {
   website: '',
 };
 
-export function RequestSessionModal({
-  styles,
-  colors,
-  onClose,
-  onSubmitted,
-}: RequestSessionModalProps) {
+export function RequestSessionModal({ styles, colors, onClose }: RequestSessionModalProps) {
   const { t } = useTranslation();
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const createRequest = useCreateInquiryRequest();
+  const submitting = createRequest.isPending;
   const [sent, setSent] = useState(false);
 
   // Close on Escape — standard dialog affordance.
@@ -93,32 +86,25 @@ export function RequestSessionModal({
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (submitting) return;
     setSubmitError(null);
     if (!validate()) return;
 
-    setSubmitting(true);
-    try {
-      // The photographer (tenant) is resolved from the client's own session on
-      // the backend — no subdomain is sent. Endpoint contract:
-      // POST /api/customer/inquiry-requests (authenticated, CUSTOMER role).
-      const payload = {
+    createRequest.mutate(
+      {
         eventType: form.eventType,
         budgetRange: form.budgetRange,
         proposedDate: form.proposedDate,
         location: form.location.trim() || null,
         message: form.message.trim() || null,
         website: form.website, // honeypot
-      };
-      await api.post('/api/customer/inquiry-requests', payload);
-      setSent(true);
-      onSubmitted();
-    } catch (err) {
-      setSubmitError(extractApiError(err, t('requestSession.errSubmit')));
-    } finally {
-      setSubmitting(false);
-    }
+      },
+      {
+        onSuccess: () => setSent(true),
+        onError: (err) => setSubmitError(extractApiError(err, t('requestSession.errSubmit'))),
+      }
+    );
   }
 
   const inputStyle = (field: keyof typeof EMPTY_FORM): React.CSSProperties => ({

@@ -891,7 +891,6 @@ function BookingsView() {
           styles={styles}
           colors={colors}
           onClose={() => setShowRequest(false)}
-          onSubmitted={() => refetch()}
         />
       )}
 

@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation, type PluralKey, type TranslationKey } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useErasePersonalData, usePreviewErasure, type ErasureItem } from '@/hooks/usePrivacy';
 import {
   Alert,
   Badge,
@@ -18,21 +18,9 @@ import {
   type Colors,
 } from '@/components/ui';
 
-type RetentionBasis = 'TAX_RECORDS' | 'LEGAL_CLAIMS';
+type RetentionBasis = NonNullable<ErasureItem['retentionBasis']>;
 
-/** One kind of record, as `POST /api/privacy/erasure[/preview]` reports it. */
-export interface ErasureItem {
-  category: string;
-  deleted: number;
-  anonymized: number;
-  retained: number;
-  retentionBasis: RetentionBasis | null;
-}
-
-interface ErasureReport {
-  executed: boolean;
-  items: ErasureItem[];
-}
+export type { ErasureItem };
 
 /**
  * Where the flow is. The address is held with the report it belongs to, so a
@@ -102,7 +90,9 @@ export function PersonalDataErasure() {
 
   const [email, setEmail] = useState('');
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
-  const [busy, setBusy] = useState(false);
+  const previewErasure = usePreviewErasure();
+  const eraseData = useErasePersonalData();
+  const busy = previewErasure.isPending || eraseData.isPending;
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<AsyncError | null>(null);
 
@@ -112,40 +102,29 @@ export function PersonalDataErasure() {
     setError(null);
   }
 
-  async function preview(e: React.FormEvent) {
+  function preview(e: React.FormEvent) {
     e.preventDefault();
     const address = email.trim();
     if (!address || busy) return;
-    setBusy(true);
     setError(null);
-    try {
-      const { data } = await api.post<ErasureReport>('/api/privacy/erasure/preview', {
-        email: address,
-      });
-      setPhase({ kind: 'previewed', email: address, items: data.items });
-    } catch (err) {
-      setError(erasureError(err, 'privacy.previewError'));
-    } finally {
-      setBusy(false);
-    }
+    previewErasure.mutate(address, {
+      onSuccess: (items) => setPhase({ kind: 'previewed', email: address, items }),
+      onError: (err) => setError(erasureError(err, 'privacy.previewError')),
+    });
   }
 
-  async function erase() {
+  function erase() {
     if (phase.kind !== 'previewed') return;
-    setBusy(true);
+    const { email: address } = phase;
     setError(null);
-    try {
-      const { data } = await api.post<ErasureReport>('/api/privacy/erasure', {
-        email: phase.email,
-      });
-      setPhase({ kind: 'done', email: phase.email, items: data.items });
-      setEmail('');
-    } catch (err) {
-      setError(erasureError(err, 'privacy.eraseError'));
-    } finally {
-      setBusy(false);
-      setConfirming(false);
-    }
+    eraseData.mutate(address, {
+      onSuccess: (items) => {
+        setPhase({ kind: 'done', email: address, items });
+        setEmail('');
+      },
+      onError: (err) => setError(erasureError(err, 'privacy.eraseError')),
+      onSettled: () => setConfirming(false),
+    });
   }
 
   function startOver() {
@@ -266,7 +245,7 @@ export function PersonalDataErasure() {
         tone="danger"
         theme={theme}
         busy={busy}
-        onConfirm={() => void erase()}
+        onConfirm={erase}
         onCancel={() => setConfirming(false)}
       />
     </Card>

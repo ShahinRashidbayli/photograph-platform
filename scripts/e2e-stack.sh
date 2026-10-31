@@ -53,6 +53,14 @@ api_env() {
   # Verification is a flow of its own, not a precondition for the four under
   # test; enforcing it here would make every test start by reading a mailbox.
   export APP_EMAIL_VERIFICATION_ENFORCED=false
+  # Photo uploads go to the MinIO `up` starts. Without these the API falls back
+  # to placeholder R2 credentials and every upload fails — which no test noticed
+  # while none of them uploaded anything. Values match infra/.env.example.
+  export R2_ENDPOINT=http://localhost:9000
+  export R2_ACCESS_KEY=fotolio_dev
+  export R2_SECRET_KEY=fotolio_dev_secret
+  export R2_BUCKET=fotolio-media-dev
+  export R2_PATH_STYLE=true
 }
 
 wait_for() {

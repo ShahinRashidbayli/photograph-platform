@@ -1,45 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import api from '@/lib/api';
+import { useMemo, useRef, useState } from 'react';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useThemeStore } from '@/store/themeStore';
-import { useTranslation } from '@/lib/i18n';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { StatStrip } from '@/components/StatStrip';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-
-interface Photo {
-  id: string;
-  categoryId: string | null;
-  viewUrl: string | null;
-  thumbnailUrl: string | null;
-  fileSizeBytes: number | null;
-  width: number | null;
-  height: number | null;
-  sortOrder: number;
-  published: boolean;
-  createdAt: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  sortOrder: number;
-  createdAt: string;
-}
-
-interface InitiateUploadResponse {
-  photoId: string;
-  r2Key: string;
-  uploadUrl: string;
-  /**
-   * The type the URL was signed with — not necessarily the one we asked for,
-   * since the API canonicalises it. Content-Type is a signed header on the
-   * presigned PUT, so sending anything else fails the signature check.
-   */
-  contentType: string;
-}
+import {
+  UploadError,
+  useCreatePortfolioCategory,
+  useDeletePortfolioCategory,
+  useDeletePortfolioPhoto,
+  usePortfolioCategories,
+  usePortfolioPhotos,
+  useRenamePortfolioCategory,
+  useSetPortfolioPhotoCategory,
+  useSetPortfolioPhotoPublished,
+  useUploadPortfolioPhoto,
+  type PortfolioCategory as Category,
+  type PortfolioPhoto as Photo,
+} from '@/hooks/usePortfolio';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -49,77 +30,76 @@ type PendingUpload = {
   file: File;
   status: 'queued' | 'uploading' | 'done' | 'error';
   progress: number;
-  error?: string;
+  error?: AsyncError;
 };
+
+/** Stable while a query has no data, so the memos below do not recompute every render. */
+const NO_PHOTOS: Photo[] = [];
+const NO_CATEGORIES: Category[] = [];
+
+/**
+ * A photo filed under no category that still exists. Rows can carry a stale id
+ * (a category deleted before the backend started clearing the reference), and
+ * those belong under "Uncategorised" too — otherwise they match no chip and can
+ * only be found under "All", with no way to re-file them.
+ */
+function isUnfiled(photo: Photo, known: ReadonlySet<string>) {
+  return !photo.categoryId || !known.has(photo.categoryId);
+}
 
 export default function PortfolioAdminPage() {
   const { t } = useTranslation();
   const { theme } = useThemeStore();
   const colors = useColors(theme);
 
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const photosQuery = usePortfolioPhotos();
+  // Categories are a secondary surface — a failure here shouldn't blank the
+  // whole page, so it degrades to "no categories" silently.
+  const categoriesQuery = usePortfolioCategories();
+  const photos = photosQuery.data ?? NO_PHOTOS;
+  const categories = categoriesQuery.data ?? NO_CATEGORIES;
+  const loading = photosQuery.isLoading;
+
+  const createCategory = useCreatePortfolioCategory();
+  const renameCategory = useRenamePortfolioCategory();
+  const deleteCategory = useDeletePortfolioCategory();
+  const setPhotoCategory = useSetPortfolioPhotoCategory();
+  const setPublished = useSetPortfolioPhotoPublished();
+  const deletePhoto = useDeletePortfolioPhoto();
+  const uploadPhoto = useUploadPortfolioPhoto();
+
   const [activeCategory, setActiveCategory] = useState<string | 'all' | 'none'>('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<AsyncError | null>(null);
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  // A load failure is the query's own state; dismissing it remembers *which*
+  // failure was dismissed, so the next one shows again.
+  const [dismissedLoadError, setDismissedLoadError] = useState(0);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [photoToDelete, setPhotoToDelete] = useState<Photo | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const { data } = await api.get<Photo[]>('/api/portfolio/photos');
-      setPhotos(data);
-      setError(null);
-    } catch (e) {
-      setError(asyncError(e, 'portfolio.photos.loadError'));
-    } finally {
-      setLoading(false);
-    }
-    // No `t` in the deps: an effect depends on `refresh`, so that would refetch
-    // the whole photo list every time the language changes.
-  }, []);
+  const loadError =
+    photosQuery.isError && photosQuery.errorUpdatedAt !== dismissedLoadError
+      ? asyncError(photosQuery.error, 'portfolio.photos.loadError')
+      : null;
+  const error = actionError ?? loadError;
 
-  const loadCategories = useCallback(async () => {
-    try {
-      const { data } = await api.get<Category[]>('/api/portfolio/categories');
-      setCategories(Array.isArray(data) ? data : []);
-    } catch {
-      // Categories are a secondary surface — a failure here shouldn't blank the
-      // whole page, so it degrades to "no categories" silently.
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    loadCategories();
-  }, [refresh, loadCategories]);
-
-  async function createCategory(name: string) {
-    const { data } = await api.post<Category>('/api/portfolio/categories', { name });
-    setCategories((prev) => [...prev, data]);
+  function dismissError() {
+    if (actionError) setActionError(null);
+    else setDismissedLoadError(photosQuery.errorUpdatedAt);
   }
 
-  async function renameCategory(id: string, name: string) {
-    const { data } = await api.patch<Category>(`/api/portfolio/categories/${id}`, { name });
-    setCategories((prev) => prev.map((c) => (c.id === id ? data : c)));
-  }
-
-  async function deleteCategory(id: string) {
-    await api.delete(`/api/portfolio/categories/${id}`);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    // Photos keep their now-dangling categoryId server-side until reassigned;
-    // reflect the removal locally so the filter and chips stay consistent.
-    setPhotos((prev) => prev.map((p) => (p.categoryId === id ? { ...p, categoryId: null } : p)));
+  async function removeCategory(id: string) {
+    await deleteCategory.mutateAsync(id);
     setActiveCategory((cur) => (cur === id ? 'all' : cur));
   }
 
-  async function setPhotoCategory(photo: Photo, categoryId: string | null) {
-    const { data } = await api.patch<Photo>(`/api/portfolio/photos/${photo.id}/category`, {
-      categoryId,
-    });
-    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? data : p)));
+  function moveToCategory(photo: Photo, categoryId: string | null) {
+    // Without this the rejection went unhandled and the select simply snapped
+    // back, which reads as the change not having been made — with no reason.
+    setPhotoCategory.mutate(
+      { id: photo.id, categoryId },
+      { onError: (e) => setActionError(asyncError(e, 'portfolio.photos.categoryError')) }
+    );
   }
 
   const stats = useMemo(() => {
@@ -128,123 +108,85 @@ export default function PortfolioAdminPage() {
     return { total, published, draft: total - published };
   }, [photos]);
 
+  function updatePending(id: string, change: Partial<PendingUpload>) {
+    setPending((prev) => prev.map((p) => (p.id === id ? { ...p, ...change } : p)));
+  }
+
   async function uploadFile(file: File): Promise<void> {
     const id = crypto.randomUUID();
     setPending((prev) => [...prev, { id, file, status: 'queued', progress: 0 }]);
 
     if (file.size > MAX_BYTES) {
-      setPending((prev) =>
-        prev.map((p) =>
-          p.id === id ? { ...p, status: 'error', error: t('portfolio.upload.tooLarge') } : p
-        )
-      );
+      updatePending(id, { status: 'error', error: { key: 'portfolio.upload.tooLarge' } });
       return;
     }
 
     try {
-      // Read intrinsic dimensions client-side so the BE can persist them
-      // immediately; the thumbnail job will re-extract authoritatively.
-      const dims = await readImageDimensions(file).catch(() => null);
-
-      // Step 1 — initiate
-      setPending((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'uploading', progress: 5 } : p))
-      );
-      const { data: init } = await api.post<InitiateUploadResponse>(
-        '/api/portfolio/photos/initiate-upload',
-        // The size is required: the API signs it into the URL as Content-Length,
-        // which is what bounds the upload. It is also the size recorded against
-        // the photo, so it is no longer sent again at complete-time.
-        { filename: file.name, contentType: file.type, fileSizeBytes: file.size }
-      );
-
-      // Step 2 — direct PUT to R2
-      await fetchPutWithProgress(init.uploadUrl, file, init.contentType, (pct) => {
-        setPending((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, progress: 5 + pct * 0.9 } : p))
-        );
+      await uploadPhoto.mutateAsync({
+        file,
+        onProgress: (progress) => updatePending(id, { status: 'uploading', progress }),
       });
-
-      // Step 3 — complete
-      await api.post(`/api/portfolio/photos/${init.photoId}/complete`, {
-        width: dims?.width ?? null,
-        height: dims?.height ?? null,
-      });
-
-      setPending((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'done', progress: 100 } : p))
-      );
+      updatePending(id, { status: 'done', progress: 100 });
       // Drop completed entry after a short delay so it stays visible
       // long enough to acknowledge.
       window.setTimeout(() => {
         setPending((prev) => prev.filter((p) => p.id !== id));
       }, 1200);
-      refresh();
     } catch (e) {
-      const message =
-        e instanceof UploadError
-          ? t(
-              e.code === 'readError'
-                ? 'portfolio.upload.readError'
-                : 'portfolio.upload.networkError'
-            )
-          : e instanceof Error
-            ? e.message
-            : t('portfolio.upload.failed');
-      setPending((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'error', error: message } : p))
-      );
+      updatePending(id, {
+        status: 'error',
+        error:
+          e instanceof UploadError
+            ? {
+                key:
+                  e.code === 'readError'
+                    ? 'portfolio.upload.readError'
+                    : 'portfolio.upload.networkError',
+              }
+            : asyncError(e, 'portfolio.upload.failed'),
+      });
     }
   }
 
-  async function onFiles(list: FileList | null) {
+  function onFiles(list: FileList | null) {
     if (!list) return;
     for (const file of Array.from(list)) {
       uploadFile(file);
     }
   }
 
-  async function togglePublish(photo: Photo) {
-    const action = photo.published ? 'unpublish' : 'publish';
-    try {
-      const { data } = await api.post<Photo>(`/api/portfolio/photos/${photo.id}/${action}`);
-      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? data : p)));
-    } catch (e) {
-      const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      // EMAIL_NOT_VERIFIED is surfaced globally by the axios interceptor toast
-      // — no need to alert again here.
-      if (code !== 'EMAIL_NOT_VERIFIED') {
-        setError({ text: e instanceof Error ? e.message : `${action} failed` });
+  function togglePublish(photo: Photo) {
+    setPublished.mutate(
+      { id: photo.id, published: !photo.published },
+      {
+        onError: (e) => {
+          const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
+          // EMAIL_NOT_VERIFIED is surfaced globally by the axios interceptor toast
+          // — no need to alert again here.
+          if (code !== 'EMAIL_NOT_VERIFIED') {
+            setActionError(asyncError(e, 'portfolio.photos.publishError'));
+          }
+        },
       }
-    }
+    );
   }
 
   const visiblePhotos = useMemo(() => {
     if (activeCategory === 'all') return photos;
-    // A photo whose categoryId names no existing category counts as
-    // uncategorised. Rows can carry a stale id (a category deleted before the
-    // backend started clearing the reference), and without this they matched
-    // no chip *and* failed the `!categoryId` test — visible only under "All",
-    // with no way to re-file them.
     const known = new Set(categories.map((c) => c.id));
-    const isUnfiled = (p: Photo) => !p.categoryId || !known.has(p.categoryId);
-    if (activeCategory === 'none') return photos.filter(isUnfiled);
+    if (activeCategory === 'none') return photos.filter((p) => isUnfiled(p, known));
     return photos.filter((p) => p.categoryId === activeCategory);
   }, [photos, activeCategory, categories]);
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!photoToDelete) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/api/portfolio/photos/${photoToDelete.id}`);
-      setPhotoToDelete(null);
-      refresh();
-    } catch (e) {
-      setError(e instanceof Error ? { text: e.message } : { key: 'portfolio.photos.deleteError' });
-      setPhotoToDelete(null);
-    } finally {
-      setDeleting(false);
-    }
+    deletePhoto.mutate(photoToDelete.id, {
+      onSuccess: () => setPhotoToDelete(null),
+      onError: (e) => {
+        setActionError(asyncError(e, 'portfolio.photos.deleteError'));
+        setPhotoToDelete(null);
+      },
+    });
   }
 
   return (
@@ -305,7 +247,7 @@ export default function PortfolioAdminPage() {
         <ErrorBanner
           colors={colors}
           message={asyncErrorText(error, t) ?? ''}
-          onDismiss={() => setError(null)}
+          onDismiss={dismissError}
         />
       )}
 
@@ -316,10 +258,14 @@ export default function PortfolioAdminPage() {
           photos={photos}
           active={activeCategory}
           onSelect={setActiveCategory}
-          onCreate={createCategory}
-          onRename={renameCategory}
-          onDelete={deleteCategory}
-          onError={(m) => setError({ text: m })}
+          onCreate={async (name) => {
+            await createCategory.mutateAsync(name);
+          }}
+          onRename={async (id, name) => {
+            await renameCategory.mutateAsync({ id, name });
+          }}
+          onDelete={removeCategory}
+          onError={(key) => setActionError({ key })}
         />
       )}
 
@@ -347,7 +293,7 @@ export default function PortfolioAdminPage() {
           categories={categories}
           onPublish={togglePublish}
           onDelete={setPhotoToDelete}
-          onSetCategory={setPhotoCategory}
+          onSetCategory={moveToCategory}
         />
       )}
 
@@ -358,7 +304,7 @@ export default function PortfolioAdminPage() {
         title={t('portfolio.photos.deleteConfirmTitle')}
         message="This permanently removes the photo from your portfolio. This cannot be undone."
         confirmLabel="Delete photo"
-        busy={deleting}
+        busy={deletePhoto.isPending}
         onConfirm={confirmDelete}
         onCancel={() => setPhotoToDelete(null)}
       />
@@ -511,7 +457,7 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
           else if (it.status === 'done') barColor = colors.success;
 
           let statusText: string | undefined = `${Math.round(it.progress)}%`;
-          if (it.status === 'error') statusText = it.error;
+          if (it.status === 'error') statusText = asyncErrorText(it.error, t) ?? undefined;
           else if (it.status === 'done') statusText = t('portfolio.upload.done');
 
           return (
@@ -784,17 +730,22 @@ function CategoryBar({
   onCreate: (_name: string) => Promise<void>;
   onRename: (_id: string, _name: string) => Promise<void>;
   onDelete: (_id: string) => Promise<void>;
-  onError: (_message: string) => void;
+  /** Takes a key rather than a sentence, so the message follows a language switch. */
+  onError: (_key: TranslationKey) => void;
 }) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
 
+  // The same test the grid filters with — when this counted only an empty
+  // categoryId, photos with a stale one left the chip at 0 and hidden, so the
+  // filter that exists to surface them could never be reached.
+  const known = new Set(categories.map((c) => c.id));
   const countFor = (id: string | 'all' | 'none') =>
     id === 'all'
       ? photos.length
       : id === 'none'
-        ? photos.filter((p) => !p.categoryId).length
+        ? photos.filter((p) => isUnfiled(p, known)).length
         : photos.filter((p) => p.categoryId === id).length;
 
   async function submitNew() {
@@ -808,7 +759,7 @@ function CategoryBar({
       setDraft('');
       setAdding(false);
     } catch {
-      onError(t('portfolio.category.createError'));
+      onError('portfolio.category.createError');
     }
   }
 
@@ -846,11 +797,9 @@ function CategoryBar({
           count={countFor(cat.id)}
           onSelect={() => onSelect(cat.id)}
           onRename={(name) =>
-            onRename(cat.id, name).catch(() => onError(t('portfolio.category.renameError')))
+            onRename(cat.id, name).catch(() => onError('portfolio.category.renameError'))
           }
-          onDelete={() =>
-            onDelete(cat.id).catch(() => onError(t('portfolio.category.deleteError')))
-          }
+          onDelete={() => onDelete(cat.id).catch(() => onError('portfolio.category.deleteError'))}
         />
       ))}
       {countFor('none') > 0 && chip(t('portfolio.category.none'), 'none', countFor('none'))}
@@ -1193,67 +1142,4 @@ function useColors(theme: Theme): ColorTokens {
     invertedBg: c.primarySolid,
     invertedText: '#FFFFFF',
   };
-}
-
-/**
- * An upload failure with a translatable cause.
- *
- * <p>The helpers below are plain functions outside the component tree, so they
- * cannot reach the translation hook — and their message is surfaced to the user
- * verbatim through `e.message`. Carrying a code instead lets the component that
- * *can* translate do so, rather than showing a German-speaking photographer an
- * English sentence from a utility function.
- */
-class UploadError extends Error {
-  constructor(readonly code: 'readError' | 'networkError') {
-    super(code);
-    this.name = 'UploadError';
-  }
-}
-
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const dims = { width: img.naturalWidth, height: img.naturalHeight };
-      URL.revokeObjectURL(url);
-      resolve(dims);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new UploadError('readError'));
-    };
-    img.src = url;
-  });
-}
-
-/**
- * PUT to the presigned R2 URL with a progress callback. Browsers don't expose
- * upload progress on `fetch`, so we fall back to XHR for that signal — the
- * presigned URL accepts either.
- */
-function fetchPutWithProgress(
-  url: string,
-  file: File,
-  contentType: string,
-  onProgress: (_pct: number) => void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    // The type the API signed, not `file.type` — see InitiateUploadResponse.
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress((e.loaded / e.total) * 100);
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
-    };
-    xhr.onerror = () => reject(new UploadError('networkError'));
-    xhr.send(file);
-  });
 }

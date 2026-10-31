@@ -97,6 +97,24 @@ export function useBillingProfile(enabled = true) {
   });
 }
 
+/** What the profile is saved with: the profile minus the server's verdict. */
+export type BillingProfileInput = Omit<BillingProfile, 'complete'>;
+
+/**
+ * Writes the saved profile straight into the cache the invoice form reads.
+ * Otherwise a photographer who switches to Regelbesteuerung in Settings and
+ * immediately issues an invoice gets one billed under the old tax mode — on a
+ * document that is immutable the moment it exists.
+ */
+export function useSaveBillingProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: BillingProfileInput) =>
+      (await api.put<BillingProfile>('/api/settings/billing-profile', input)).data,
+    onSuccess: (saved) => qc.setQueryData(billingProfileKey(), saved),
+  });
+}
+
 export interface CreateInvoiceLineItemInput {
   description: string;
   quantity: number;

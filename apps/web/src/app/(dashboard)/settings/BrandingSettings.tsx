@@ -1,18 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import api from '@/lib/api';
+import React, { useRef, useState } from 'react';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { useBranding, useSaveBranding, useUploadBrandingLogo } from '@/hooks/useBranding';
 import { Alert, Button, Card, Field, Input, useColors } from '@/components/ui';
-
-interface Branding {
-  logoUrl: string | null;
-  brandColor: string | null;
-  whiteLabel: boolean;
-}
 
 const DEFAULT_COLOR = '#6366F1';
 
@@ -34,91 +28,40 @@ export function BrandingSettings() {
   const { has } = useEntitlements();
   const allowed = has('WHITE_LABEL_BRANDING');
 
-  const [branding, setBranding] = useState<Branding | null>(null);
-  const [color, setColor] = useState(DEFAULT_COLOR);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const brandingQuery = useBranding();
+  const saveBranding = useSaveBranding();
+  const uploadLogoMutation = useUploadBrandingLogo();
+  const branding = brandingQuery.data ?? null;
+  const loading = brandingQuery.isLoading;
+  const busy = saveBranding.isPending || uploadLogoMutation.isPending;
+  // Untouched means the saved colour — derived rather than copied into state on
+  // load, so the picker never shows one colour while the server holds another.
+  const [chosenColor, setColor] = useState<string | null>(null);
+  const color = chosenColor ?? branding?.brandColor ?? DEFAULT_COLOR;
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  const error =
+    actionError ??
+    (brandingQuery.isError ? asyncError(brandingQuery.error, 'settings.branding.loadError') : null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await api.get<Branding>('/api/settings/branding');
-      setBranding(data);
-      setColor(data.brandColor ?? DEFAULT_COLOR);
-    } catch (err) {
-      setError(asyncError(err, 'settings.branding.loadError'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  /**
-   * Saves one field at a time.
-   *
-   * <p>`undefined` is left out of the request entirely, which the API reads as
-   * "leave it"; `null` is sent as `""`, which it reads as "clear it". Sending
-   * both fields on every save is what made saving a colour delete the logo —
-   * the two are edited by different controls and the form never holds the
-   * logo's key, only its (expiring) URL.
-   */
-  async function save(next: { logoKey?: string | null; brandColor?: string | null }) {
-    setBusy(true);
-    setError(null);
+  /** Saves one field at a time — see useSaveBranding for why. */
+  function save(next: { logoKey?: string | null; brandColor?: string | null }) {
+    setActionError(null);
     setSaved(false);
-    try {
-      // Only the field being changed is sent. Absent means "leave it" on the
-      // server, and "" means "clear it" — sending both every time is what made
-      // saving a colour delete the logo.
-      const body: Record<string, string> = {};
-      if (next.logoKey !== undefined) body.logoKey = next.logoKey ?? '';
-      if (next.brandColor !== undefined) body.brandColor = next.brandColor ?? '';
-      const { data } = await api.put<Branding>('/api/settings/branding', body);
-      setBranding(data);
-      setSaved(true);
-    } catch (err) {
-      setError(asyncError(err, 'settings.branding.saveError'));
-    } finally {
-      setBusy(false);
-    }
+    saveBranding.mutate(next, {
+      onSuccess: () => setSaved(true),
+      onError: (err) => setActionError(asyncError(err, 'settings.branding.saveError')),
+    });
   }
 
-  /**
-   * Uploads straight to R2 through a pre-signed PUT, then stores the object
-   * key — never the view URL, which expires within the hour. Same flow as the
-   * profile photo, down to sending back the content type the URL was signed
-   * with rather than the browser's own guess.
-   */
-  async function uploadLogo(file: File) {
-    setBusy(true);
-    setError(null);
+  function uploadLogo(file: File) {
+    setActionError(null);
     setSaved(false);
-    try {
-      const contentType = file.type || 'image/png';
-      const { data: presign } = await api.post<{
-        uploadUrl: string;
-        r2Key: string;
-        contentType: string;
-      }>(
-        `/api/settings/branding/logo/presign?contentType=${encodeURIComponent(contentType)}` +
-          `&fileSizeBytes=${file.size}`
-      );
-      const res = await fetch(presign.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': presign.contentType },
-        body: file,
-      });
-      if (!res.ok) throw new Error('upload failed');
-      await save({ logoKey: presign.r2Key });
-    } catch (err) {
-      setError(asyncError(err, 'settings.branding.uploadError'));
-      setBusy(false);
-    }
+    uploadLogoMutation.mutate(file, {
+      onSuccess: () => setSaved(true),
+      onError: (err) => setActionError(asyncError(err, 'settings.branding.uploadError')),
+    });
   }
 
   if (loading) {
@@ -199,7 +142,7 @@ export function BrandingSettings() {
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void uploadLogo(file);
+              if (file) uploadLogo(file);
               e.target.value = '';
             }}
           />
@@ -209,7 +152,7 @@ export function BrandingSettings() {
               : t('settings.branding.uploadLogo')}
           </Button>
           {branding?.logoUrl && (
-            <Button variant="ghost" onClick={() => void save({ logoKey: null })} disabled={busy}>
+            <Button variant="ghost" onClick={() => save({ logoKey: null })} disabled={busy}>
               {t('settings.branding.removeLogo')}
             </Button>
           )}
@@ -241,7 +184,7 @@ export function BrandingSettings() {
               style={{ width: 130, fontFamily: 'monospace' }}
               maxLength={7}
             />
-            <Button onClick={() => void save({ brandColor: color })} busy={busy}>
+            <Button onClick={() => save({ brandColor: color })} busy={busy}>
               {t('settings.branding.save')}
             </Button>
           </div>

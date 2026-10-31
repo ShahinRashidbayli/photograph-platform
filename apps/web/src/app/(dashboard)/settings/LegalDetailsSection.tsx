@@ -1,10 +1,11 @@
 'use client';
 
 import { getColors, type Theme } from '@/lib/design-tokens';
-import api from '@/lib/api';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
+import { useSaveTenantLegal, useTenantLegal, type TenantLegal } from '@/hooks/useTenantLegal';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 /**
  * Settings → Rechtliche Angaben. Where a photographer fills in the details that
@@ -20,22 +21,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
  * self-contained — it loads and saves one endpoint and shares no state with the
  * account form above it.
  */
-
-interface TenantLegal {
-  subdomain: string;
-  legalName: string | null;
-  legalStreet: string | null;
-  legalPostalCode: string | null;
-  legalCity: string | null;
-  legalCountry: string | null;
-  legalEmail: string | null;
-  legalPhone: string | null;
-  legalVatId: string | null;
-  legalRegister: string | null;
-  legalResponsible: string | null;
-  privacyContactEmail: string | null;
-  complete: boolean;
-}
 
 type FormState = Omit<TenantLegal, 'subdomain' | 'complete'>;
 
@@ -83,29 +68,21 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
   const { t, tPlural } = useTranslation();
   const c = useMemo(() => getColors(theme), [theme]);
 
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [subdomain, setSubdomain] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const legalQuery = useTenantLegal();
+  const saveLegal = useSaveTenantLegal();
+  const saving = saveLegal.isPending;
+  // What the photographer has typed, over what the server holds. Kept apart
+  // from the server's copy so nothing can overwrite an edit in progress: this
+  // form used to reload whenever the language changed (its loader depended on
+  // `t`), which replaced every typed field with the saved values.
+  const [draft, setDraft] = useState<FormState | null>(null);
+  const form = draft ?? (legalQuery.data ? toForm(legalQuery.data) : EMPTY);
+  const subdomain = legalQuery.data?.subdomain ?? null;
+  const loadError: AsyncError | null = legalQuery.isError
+    ? { key: 'settings.legal.loadError' }
+    : null;
   const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoadError(null);
-    try {
-      const { data } = await api.get<TenantLegal>('/api/tenant/legal');
-      setForm(toForm(data));
-      setSubdomain(data.subdomain);
-    } catch {
-      setLoadError(t('settings.legal.loadError'));
-    }
-    // `t` is memoised on the active language, so this stays stable per locale
-    // rather than refiring the effect on every render — see useTranslation.
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const [saveError, setSaveError] = useState<AsyncError | null>(null);
 
   // Computed from the live form rather than the server's `complete` flag so the
   // banner reacts as the photographer types, instead of only after a save.
@@ -113,24 +90,21 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
   const complete = missing.length === 0;
 
   function set(key: keyof FormState, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setDraft({ ...form, [key]: value });
     setSaved(false);
   }
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
     setSaveError(null);
-    try {
-      const { data } = await api.put<TenantLegal>('/api/tenant/legal', form);
-      setForm(toForm(data));
-      setSubdomain(data.subdomain);
-      setSaved(true);
-    } catch {
-      setSaveError(t('settings.legal.saveError'));
-    } finally {
-      setSaving(false);
-    }
+    saveLegal.mutate(form, {
+      // The saved copy is now the cache's, and the form shows it again.
+      onSuccess: () => {
+        setDraft(null);
+        setSaved(true);
+      },
+      onError: (err) => setSaveError(asyncError(err, 'settings.legal.saveError')),
+    });
   }
 
   const section: React.CSSProperties = {
@@ -196,7 +170,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
 
       {loadError && (
         <div role="alert" style={{ color: c.danger, fontSize: '0.88rem', marginBottom: 14 }}>
-          {loadError}
+          {asyncErrorText(loadError, t)}
         </div>
       )}
 
@@ -305,7 +279,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
 
         {saveError && (
           <div role="alert" style={{ color: c.danger, fontSize: '0.88rem' }}>
-            {saveError}
+            {asyncErrorText(saveError, t)}
           </div>
         )}
 

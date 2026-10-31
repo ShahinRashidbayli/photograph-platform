@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
-import api from '@/lib/api';
 import { Lead, LeadActivity } from '@/types/api';
+import { useLeadActivity } from '@/hooks/useLeads';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { whatsappHref } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
@@ -18,6 +17,9 @@ import { daysUntilEvent, getScoreVisual, getUrgencyVisual } from './leadVisuals'
 import { FactCard } from './FactCard';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { ActivityTimeline } from './ActivityTimeline';
+
+/** Stable while the query has no data. */
+const NO_ACTIVITY: LeadActivity[] = [];
 
 export function LeadDetail({
   lead,
@@ -39,37 +41,12 @@ export function LeadDetail({
   onMarkReplied: () => void;
 }>) {
   const { t, format } = useTranslation();
-  // Activity is fetched per-selected-lead. Loading state lets the timeline
-  // section show a spinner instead of "no activity" while the request is in
-  // flight (which would misleadingly suggest the lead has no history).
-  const [activity, setActivity] = useState<LeadActivity[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
-  const leadId = lead?.id;
-  useEffect(() => {
-    if (!leadId) {
-      setActivity([]);
-      return;
-    }
-    let cancelled = false;
-    setActivityLoading(true);
-    api
-      .get<LeadActivity[]>(`/api/leads/${leadId}/activity`)
-      .then((res) => {
-        if (!cancelled) setActivity(Array.isArray(res.data) ? res.data : []);
-      })
-      .catch(() => {
-        // Don't block the rest of the detail panel on an activity-fetch
-        // failure — empty array surfaces "no activity recorded yet" which
-        // is the same failure-tolerant degradation as the packages picker.
-        if (!cancelled) setActivity([]);
-      })
-      .finally(() => {
-        if (!cancelled) setActivityLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [leadId]);
+  // Per selected lead, best-effort (see useLeadActivity). The loading flag lets
+  // the timeline show a spinner instead of "no activity" while the request is
+  // in flight, which would misleadingly suggest the lead has no history.
+  const activityQuery = useLeadActivity(lead?.id);
+  const activity = activityQuery.data ?? NO_ACTIVITY;
+  const activityLoading = activityQuery.isLoading;
 
   if (!lead) {
     return (

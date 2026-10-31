@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import api from '@/lib/api';
 import { useTranslation } from '@/lib/i18n';
 import { getInitials } from '@/lib/avatar';
 import type { AttentionItem } from '@/hooks/useAttention';
+import { useUpdateLeadStatus } from '@/hooks/useLeads';
 
 /**
  * How long an item may sit before the panel calls it overdue.
@@ -162,6 +162,8 @@ export function NotificationPanel({
 }) {
   const { t, format, lang } = useTranslation();
   const [busy, setBusy] = useState<string[]>([]);
+  // The inbox's own mutation, so a lead answered here is answered on /leads too.
+  const { mutateAsync: markLead } = useUpdateLeadStatus();
   // Cleared here as soon as the API confirms, so a row goes at the moment the
   // photographer acts rather than when the next refetch lands.
   const [cleared, setCleared] = useState<string[]>([]);
@@ -182,7 +184,7 @@ export function NotificationPanel({
     // answered when it was not.
     for (const id of ids) {
       try {
-        await api.patch(`/api/leads/${id}/status`, { status: 'REPLIED' });
+        await markLead({ id, status: 'REPLIED' });
         done.push(id);
       } catch {
         /* left in the list */

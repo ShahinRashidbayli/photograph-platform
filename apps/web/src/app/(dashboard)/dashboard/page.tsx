@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import { fetchAllPages } from '@/lib/paging';
 import { parseApiDate, startOfToday } from '@/lib/date';
 import { useBookings } from '@/hooks/useBookings';
+import { useLeads } from '@/hooks/useLeads';
 import { Lead } from '@/types/api';
 import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
@@ -47,6 +47,9 @@ const ICONS = {
   ),
 };
 
+/** Stable while the query has no data, so the KPI memo does not recompute every render. */
+const NO_LEADS: Lead[] = [];
+
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const theme = useThemeStore((s) => s.theme);
@@ -65,30 +68,15 @@ export default function DashboardPage() {
   //
   // useBookings already pages through the whole list (and caches it, so the
   // bookings screen and this one share one fetch); leads get the same
-  // treatment via fetchAllPages.
+  // treatment inside useLeads, whose cache the leads screen shares.
   const { data: bookingsData, isLoading: bookingsLoading } = useBookings(true);
   const bookings = useMemo(() => bookingsData ?? [], [bookingsData]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(true);
+  // Best-effort: a failed leads read shows as no leads rather than an error
+  // over KPIs that mostly come from bookings.
+  const { data: leadsData, isLoading: leadsLoading } = useLeads();
+  const leads = leadsData ?? NO_LEADS;
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const loading = bookingsLoading || leadsLoading;
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAllPages<Lead>('/api/leads')
-      .then((rows) => {
-        if (!cancelled) setLeads(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setLeads([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLeadsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const kpis = useMemo(() => {
     const now = startOfToday();

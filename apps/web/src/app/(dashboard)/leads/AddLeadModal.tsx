@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
 import { Lead } from '@/types/api';
+import { useCreateLead } from '@/hooks/useLeads';
+import { extractApiError } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { DateField } from '@/components/DateField';
 import type { ColorTokens } from './leadTypes';
@@ -36,7 +37,8 @@ export function AddLeadModal({
   const [eventType, setEventType] = useState<Lead['eventType']>('WEDDING');
   const [budgetRange, setBudgetRange] = useState<Lead['budgetRange']>('200_500');
   const [message, setMessage] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const createLead = useCreateLead();
+  const submitting = createLead.isPending;
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<Record<string, string>>({});
 
@@ -48,7 +50,7 @@ export function AddLeadModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, submitting]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (submitting) return;
     setSubmitError(null);
 
@@ -67,9 +69,8 @@ export function AddLeadModal({
     setFieldError(errors);
     if (Object.keys(errors).length > 0) return;
 
-    setSubmitting(true);
-    try {
-      const res = await api.post<Lead>('/api/leads', {
+    createLead.mutate(
+      {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim() || null,
@@ -77,14 +78,12 @@ export function AddLeadModal({
         eventType,
         budgetRange,
         message: message.trim(),
-      });
-      onCreated(res.data);
-    } catch (err) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setSubmitError(message ?? t('addLead.errSubmit'));
-    } finally {
-      setSubmitting(false);
-    }
+      },
+      {
+        onSuccess: onCreated,
+        onError: (err) => setSubmitError(extractApiError(err, t('addLead.errSubmit'))),
+      }
+    );
   };
 
   // Shared inline styles ─────────────────────────────────────────────────────

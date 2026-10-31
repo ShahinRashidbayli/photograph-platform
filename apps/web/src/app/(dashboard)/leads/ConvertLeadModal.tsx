@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
 import { extractApiError, eurosToCents, resolveTotalCents } from '@/lib/helpers';
-import { Booking, Lead, Package } from '@/types/api';
+import { Booking, Lead } from '@/types/api';
+import { useConvertLead } from '@/hooks/useLeads';
+import { usePackages } from '@/hooks/usePackages';
 import { useTranslation } from '@/lib/i18n';
 import { translateOr, EVENT_LABEL_KEYS, type ColorTokens } from './leadTypes';
 
@@ -25,9 +26,12 @@ export function ConvertLeadModal({
   const [totalAmount, setTotalAmount] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
-  const [packages, setPackages] = useState<Package[]>([]);
   const [totalOverridden, setTotalOverridden] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  // Same fail-soft contract as the bookings modal: if the package list fails
+  // the picker just hides — manual price entry still works.
+  const packages = usePackages({ activeOnly: true }).data ?? [];
+  const convertLead = useConvertLead();
+  const submitting = convertLead.isPending;
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
@@ -39,24 +43,6 @@ export function ConvertLeadModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, submitting]);
-
-  // Load active packages so the photographer can auto-price the conversion.
-  // Same fail-soft contract as the bookings modal: if the fetch fails the
-  // picker just hides — manual price entry still works.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<Package[]>('/api/packages', { params: { activeOnly: true } })
-      .then(({ data }) => {
-        if (!cancelled) setPackages(data);
-      })
-      .catch(() => {
-        if (!cancelled) setPackages([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handlePackageChange = (id: string) => {
     setPackageId(id);
@@ -78,7 +64,7 @@ export function ConvertLeadModal({
     setFieldError(null);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (submitting) return;
     setSubmitError(null);
     setFieldError(null);
@@ -108,17 +94,15 @@ export function ConvertLeadModal({
       internalNotes: internalNotes.trim() || null,
     };
 
-    setSubmitting(true);
-    try {
-      const res = await api.post<Booking>(`/api/leads/${lead.id}/convert`, payload);
-      onConverted(res.data);
-    } catch (err) {
-      // 409 from the backend means the lead was already converted (idempotency
-      // contract). Surface it plainly rather than the generic error.
-      setSubmitError(extractApiError(err, t('convertLead.errSubmit')));
-    } finally {
-      setSubmitting(false);
-    }
+    convertLead.mutate(
+      { id: lead.id, payload },
+      {
+        onSuccess: onConverted,
+        // 409 from the backend means the lead was already converted (idempotency
+        // contract). Surface it plainly rather than the generic error.
+        onError: (err) => setSubmitError(extractApiError(err, t('convertLead.errSubmit'))),
+      }
+    );
   };
 
   const formattedEventDate = lead.eventDate

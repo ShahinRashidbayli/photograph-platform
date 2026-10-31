@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useTranslation } from '@/lib/i18n';
+import { asyncErrorText } from '@/lib/async-error';
+import { useInquiries, useLeads } from '@/hooks/useLeads';
+import type { Lead } from '@/types/api';
 import { getLeadsColors, getLeadsStyles, type LeadsTheme } from './leads.styles';
 import { FilterBar } from './FilterBar';
 import { LeadListItem } from './LeadListItem';
@@ -17,11 +20,15 @@ import { InquiryRow } from './InquiryRow';
 import { InquiryDetail } from './InquiryDetail';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { MobilePaneBack } from '@/components/MobilePaneBack';
-import { useLeadsInbox } from './useLeadsInbox';
 import { useLeadFilters } from './useLeadFilters';
 import { useLeadActions } from './useLeadActions';
+import type { Inquiry } from './inquiryTypes';
 
 type Selection = { kind: 'lead' | 'inquiry'; id: string };
+
+/** Stable while a query has no data, so the filters below do not recompute every render. */
+const NO_LEADS: Lead[] = [];
+const NO_INQUIRIES: Inquiry[] = [];
 
 /**
  * Renders a translated sentence with one segment in bold. The template carries
@@ -50,7 +57,18 @@ function LeadsView() {
 
   // Data, filtering and mutations each live in a focused hook; the component
   // below is render + selection only.
-  const { leads, setLeads, inquiries, setInquiries, loading, loadFailed, reload } = useLeadsInbox();
+  const leadsQuery = useLeads();
+  // Best-effort: a failure here reads as "no inquiries" (see useInquiries), so
+  // only the leads can fail the inbox.
+  const inquiriesQuery = useInquiries();
+  const leads = leadsQuery.data ?? NO_LEADS;
+  const inquiries = inquiriesQuery.data ?? NO_INQUIRIES;
+  const loading = leadsQuery.isLoading || inquiriesQuery.isLoading;
+  const loadFailed = leadsQuery.isError && !leadsQuery.data;
+  const reload = () => {
+    void leadsQuery.refetch();
+    void inquiriesQuery.refetch();
+  };
   const {
     sourceFilter,
     setSourceFilter,
@@ -123,7 +141,6 @@ function LeadsView() {
     notingLead,
     startNote,
     cancelNote,
-    applyNoteSaved,
     rejectingLead,
     startReject,
     cancelReject,
@@ -134,7 +151,7 @@ function LeadsView() {
     markSelectedReplied,
     actionError,
     dismissActionError,
-  } = useLeadActions({ reload, setLeads, setInquiries, selectedLead, selectedInquiry });
+  } = useLeadActions({ selectedLead, selectedInquiry });
 
   // "Awaiting reply" counts unanswered items across both sources: NEW leads and
   // PENDING inquiries are the two "hasn't been triaged yet" states.
@@ -167,7 +184,7 @@ function LeadsView() {
             fontWeight: 600,
           }}
         >
-          <span>{actionError}</span>
+          <span>{asyncErrorText(actionError, t)}</span>
           <button
             type="button"
             aria-label={t('common.close')}
@@ -254,16 +271,16 @@ function LeadsView() {
           onClose={closeAdd}
           onCreated={(created) => {
             closeAdd();
-            // Reload + select the newly-created lead so the photographer
-            // sees it in the detail panel without hunting through the list.
-            reload();
+            // Select the new lead so the photographer sees it in the detail
+            // panel without hunting through the list — useCreateLead has
+            // already re-read the inbox it lands in.
             setSelected({ kind: 'lead', id: created.id });
           }}
         />
       )}
 
       {notingLead && (
-        <EditNoteModal lead={notingLead} c={c} onClose={cancelNote} onSaved={applyNoteSaved} />
+        <EditNoteModal lead={notingLead} c={c} onClose={cancelNote} onSaved={cancelNote} />
       )}
 
       <ConfirmDialog

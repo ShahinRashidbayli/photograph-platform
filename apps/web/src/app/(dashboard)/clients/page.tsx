@@ -1,10 +1,10 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
-import api from '@/lib/api';
 import { Client } from '@/types/api';
+import { useClients, useUpdateClientNotes } from '@/hooks/useClients';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { whatsappHref } from '@/lib/helpers';
 import { StatStrip } from '@/components/StatStrip';
@@ -14,6 +14,9 @@ import { MobilePaneBack } from '@/components/MobilePaneBack';
 import { getClientsColors, getClientsStyles, type ClientsTheme } from './clients.styles';
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
+
+/** Stable while the query has no data, so the filters below do not recompute every render. */
+const NO_CLIENTS: Client[] = [];
 
 const FILTER_LABEL_KEY: Record<ClientFilter, TranslationKey> = {
   All: 'clients.filter.All',
@@ -139,13 +142,11 @@ function ClientDetail({
   s,
   c,
   onNewBooking,
-  onSaveNotes,
 }: Readonly<{
   client: Client | null;
   s: Styles;
   c: ColorTokens;
   onNewBooking: () => void;
-  onSaveNotes: (_clientId: string, _notes: string) => Promise<void>;
 }>) {
   const { t, format } = useTranslation();
   if (!client) {
@@ -266,10 +267,10 @@ function ClientDetail({
           <span style={s.sectionTitle}>{t('clientDetail.notes')}</span>
           <NotesEditor
             key={client.id}
+            clientId={client.id}
             initialNotes={client.notes ?? ''}
             s={s}
             c={c}
-            onSave={(notes) => onSaveNotes(client.id, notes)}
           />
         </div>
       </div>
@@ -283,33 +284,28 @@ function ClientDetail({
  * another.
  */
 function NotesEditor({
+  clientId,
   initialNotes,
   s,
   c,
-  onSave,
 }: Readonly<{
+  clientId: string;
   initialNotes: string;
   s: Styles;
   c: ColorTokens;
-  onSave: (_notes: string) => Promise<void>;
 }>) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialNotes);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(false);
+  const updateNotes = useUpdateClientNotes();
+  const saving = updateNotes.isPending;
+  const error = updateNotes.isError;
 
-  async function save() {
-    setSaving(true);
-    setError(false);
-    try {
-      await onSave(value.trim());
-      setEditing(false);
-    } catch {
-      setError(true);
-    } finally {
-      setSaving(false);
-    }
+  function save() {
+    updateNotes.mutate(
+      { id: clientId, notes: value.trim() },
+      { onSuccess: () => setEditing(false) }
+    );
   }
 
   if (!editing) {
@@ -400,8 +396,17 @@ function ClientsView() {
   const s = useMemo(() => getClientsStyles(themeKey), [themeKey]);
   const c = useMemo(() => getClientsColors(themeKey), [themeKey]);
 
-  const [clients, setClients] = useState<Client[]>([]);
+  const clientsQuery = useClients();
+  const clients = clientsQuery.data ?? NO_CLIENTS;
+  const loading = clientsQuery.isLoading;
+  const loadFailed = clientsQuery.isError && !clientsQuery.data;
+  // A deep link (?selected=<clientId>) picks the client; otherwise the detail
+  // pane falls back to the first visible row (see selectedClient below).
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  useEffect(() => {
+    const selected = searchParams.get('selected');
+    if (selected) setSelectedClientId(selected);
+  }, [searchParams]);
 
   // Same narrow-screen treatment as Bookings and Leads: the 380px master column
   // and the detail pane cannot share a phone, so they take turns.
@@ -410,35 +415,6 @@ function ClientsView() {
   const [filterStatus, setFilterStatus] = useState<ClientFilter>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  // A flag, not a message: the text is resolved at render so it follows a
-  // language switch, and `loadClients` stays independent of `t`.
-  const [loadFailed, setLoadFailed] = useState(false);
-
-  const loadClients = useCallback(() => {
-    setLoading(true);
-    setLoadFailed(false);
-    api
-      .get<Client[]>('/api/clients')
-      .then((res) => {
-        const list = Array.isArray(res.data) ? res.data : [];
-        setClients(list);
-        const selected = searchParams.get('selected');
-        setSelectedClientId(selected ?? list[0]?.id ?? null);
-      })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setLoading(false));
-  }, [searchParams]);
-
-  useEffect(() => {
-    loadClients();
-  }, [loadClients]);
-
-  const saveClientNotes = useCallback(async (clientId: string, notes: string) => {
-    const { data } = await api.patch<Client>(`/api/clients/${clientId}/notes`, { notes });
-    setClients((prev) => prev.map((cl) => (cl.id === clientId ? data : cl)));
-  }, []);
-
   const filteredClients = useMemo(() => {
     let list = clients;
     if (filterStatus === 'Active') list = list.filter((cl) => cl.upcomingBookings > 0);
@@ -512,7 +488,7 @@ function ClientsView() {
           <div style={s.errorPanel}>
             <div style={s.errorPanelTitle}>{t('clients.errorTitle')}</div>
             <div style={s.errorPanelText}>{t('clients.errorLoad')}</div>
-            <button type="button" style={s.retryButton} onClick={loadClients}>
+            <button type="button" style={s.retryButton} onClick={() => clientsQuery.refetch()}>
               {t('common.tryAgain')}
             </button>
           </div>
@@ -626,7 +602,6 @@ function ClientsView() {
                 s={s}
                 c={c}
                 onNewBooking={() => router.push('/bookings')}
-                onSaveNotes={saveClientNotes}
               />
             )}
           </div>

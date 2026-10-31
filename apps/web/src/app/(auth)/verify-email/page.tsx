@@ -1,6 +1,6 @@
 'use client';
 
-import api from '@/lib/api';
+import { useVerifyEmail } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard, type AuthStatusTone } from '@/components/AuthStatusCard';
 import { extractApiError } from '@/lib/helpers';
@@ -23,26 +23,21 @@ function VerifyEmailInner() {
   // fallback is used, so the screen is never blank and never English-only.
   const [apiMessage, setApiMessage] = useState<string | null>(null);
 
+  const { mutate: verify } = useVerifyEmail();
+
   useEffect(() => {
     if (!token) {
       setStatus('error');
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        await api.post('/api/auth/verify-email', { token });
-        if (!cancelled) setStatus('success');
-      } catch (err: unknown) {
-        if (cancelled) return;
+    verify(token, {
+      onSuccess: () => setStatus('success'),
+      onError: (err) => {
         setApiMessage(extractApiError(err, ''));
         setStatus('error');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+      },
+    });
+  }, [token, verify]);
 
   const title = {
     loading: t('verifyEmail.loadingTitle'),

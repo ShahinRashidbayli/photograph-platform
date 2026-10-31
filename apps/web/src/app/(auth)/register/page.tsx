@@ -1,6 +1,7 @@
 'use client';
 
-import api from '@/lib/api';
+import { useRegister, useSubdomainAvailability } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { PasswordField } from '@/components/PasswordField';
@@ -9,7 +10,6 @@ import { getColors } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
 import { isRateLimited } from '@/lib/rate-limit';
 import { useRetryWait } from '@/lib/useRetryWait';
-import { AuthUser, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
@@ -50,13 +50,6 @@ function readPlan(raw: string | null): PlanId | null {
 const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** What the availability endpoint answers. See SubdomainAvailabilityResponse. */
-interface SubdomainAvailability {
-  subdomain: string;
-  available: boolean;
-  reason: 'INVALID' | 'RESERVED' | 'TAKEN' | null;
-}
-
 type SubdomainStatus = 'idle' | 'tooShort' | 'checking' | 'available' | 'taken' | 'reserved';
 
 type FieldKey = 'fullName' | 'email' | 'subdomain' | 'password' | 'confirm' | 'terms';
@@ -90,7 +83,7 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const plan = readPlan(searchParams.get('plan'));
-  const setUser = useAuthStore((st) => st.setUser);
+  const register = useRegister();
   const theme = useThemeStore((st) => st.theme);
   const c = getColors(theme);
   const s = getAuthStyles(theme);
@@ -100,7 +93,7 @@ function RegisterForm() {
   const [step, setStep] = useState<Step>('ph-form');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [loading, setLoading] = useState(false);
+  const loading = register.isPending;
   const [focused, setFocused] = useState<FieldKey | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
@@ -111,11 +104,6 @@ function RegisterForm() {
     confirm: '',
     subdomain: '',
   });
-
-  const [subdomainCheck, setSubdomainCheck] = useState<{
-    status: SubdomainStatus;
-    subdomain: string;
-  }>({ status: 'idle', subdomain: '' });
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -132,49 +120,33 @@ function RegisterForm() {
   // Ask the server whether the subdomain is free, while the user is still on the
   // field. Without this, the one value nobody can know in advance was the last
   // thing they found out about: fill in five fields, submit, get a 409.
-  useEffect(() => {
-    const value = form.subdomain.trim();
-    if (!value) {
-      setSubdomainCheck({ status: 'idle', subdomain: '' });
-      return;
+  const subdomainValue = form.subdomain.trim();
+  const subdomainValid = SUBDOMAIN_REGEX.test(subdomainValue);
+  const debouncedSubdomain = useDebouncedValue(subdomainValue, SUBDOMAIN_DEBOUNCE_MS);
+  const availability = useSubdomainAvailability(
+    subdomainValid && debouncedSubdomain === subdomainValue ? subdomainValue : null
+  );
+  const subdomainCheck: { status: SubdomainStatus; subdomain: string } = (() => {
+    if (!subdomainValue) return { status: 'idle', subdomain: '' };
+    if (!subdomainValid) return { status: 'tooShort', subdomain: subdomainValue };
+    if (debouncedSubdomain !== subdomainValue || availability.isPending) {
+      return { status: 'checking', subdomain: subdomainValue };
     }
-    if (!SUBDOMAIN_REGEX.test(value)) {
-      setSubdomainCheck({ status: 'tooShort', subdomain: value });
-      return;
-    }
-
-    setSubdomainCheck({ status: 'checking', subdomain: value });
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      try {
-        const { data } = await api.get<SubdomainAvailability>('/api/auth/subdomain-available', {
-          params: { subdomain: value },
-        });
-        // The server echoes what it checked, so a slow answer that has been
-        // typed past is discarded instead of overwriting a newer one.
-        if (cancelled || data.subdomain !== value) return;
-        setSubdomainCheck({
-          subdomain: value,
-          status: data.available
-            ? 'available'
-            : data.reason === 'RESERVED'
-              ? 'reserved'
-              : data.reason === 'TAKEN'
-                ? 'taken'
-                : 'tooShort',
-        });
-      } catch {
-        // Advisory only — register still enforces uniqueness, so a failed
-        // check must not block a legitimate sign-up or claim a name is taken.
-        if (!cancelled) setSubdomainCheck({ status: 'idle', subdomain: value });
-      }
-    }, SUBDOMAIN_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
+    // Advisory only — register still enforces uniqueness, so a failed check
+    // must not block a legitimate sign-up or claim a name is taken.
+    const data = availability.data;
+    if (!data) return { status: 'idle', subdomain: subdomainValue };
+    return {
+      subdomain: subdomainValue,
+      status: data.available
+        ? 'available'
+        : data.reason === 'RESERVED'
+          ? 'reserved'
+          : data.reason === 'TAKEN'
+            ? 'taken'
+            : 'tooShort',
     };
-  }, [form.subdomain]);
+  })();
 
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
@@ -209,7 +181,7 @@ function RegisterForm() {
     return errors;
   };
 
-  const handlePhSubmit = async () => {
+  const handlePhSubmit = () => {
     const errors = validate();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -223,9 +195,8 @@ function RegisterForm() {
 
     setFieldErrors({});
     setError('');
-    setLoading(true);
-    try {
-      const { data: user } = await api.post<AuthUser>('/api/auth/register', {
+    register.mutate(
+      {
         fullName: form.fullName.trim(),
         email: form.email.trim().toLowerCase(),
         password: form.password,
@@ -234,27 +205,27 @@ function RegisterForm() {
         // Null when they came from the nav/footer rather than a pricing card;
         // the backend then applies its STARTER default.
         plan: plan ? plan.toUpperCase() : null,
-      });
-      setUser(user);
-      setStep('ph-success');
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (isRateLimited(err)) {
-        const wait = retryWait(err);
-        setError(
-          wait ? t('register.errorRateLimitedFor', { wait }) : t('register.errorRateLimited')
-        );
-      } else if (status === 409) {
-        // Lost the race for a name the live check had said was free, or the
-        // email is already a studio account. Put it on the field it belongs to.
-        setFieldErrors({ subdomain: extractApiError(err, t('register.subdomainTaken')) });
-        document.getElementById(FIELD_IDS.subdomain)?.focus();
-      } else {
-        setError(extractApiError(err, t('register.errorGeneric')));
+      },
+      {
+        onSuccess: () => setStep('ph-success'),
+        onError: (err) => {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (isRateLimited(err)) {
+            const wait = retryWait(err);
+            setError(
+              wait ? t('register.errorRateLimitedFor', { wait }) : t('register.errorRateLimited')
+            );
+          } else if (status === 409) {
+            // Lost the race for a name the live check had said was free, or the
+            // email is already a studio account. Put it on the field it belongs to.
+            setFieldErrors({ subdomain: extractApiError(err, t('register.subdomainTaken')) });
+            document.getElementById(FIELD_IDS.subdomain)?.focus();
+          } else {
+            setError(extractApiError(err, t('register.errorGeneric')));
+          }
+        },
       }
-    } finally {
-      setLoading(false);
-    }
+    );
   };
 
   // The success step pauses briefly before moving on. Driven by an effect

@@ -46,16 +46,14 @@ class R2StorageServiceIT {
     private static final String BUCKET = "fotolio-media-test";
 
     /**
-     * Pulled from quay.io rather than Docker Hub, for the reason
-     * infra/docker-compose.yml already records: MinIO's Hub repositories
-     * refuse anonymous pulls, so {@code minio/minio} fails the image fetch
-     * with "pull access denied" and this class errors out before its first
-     * assertion. The compose file was moved to the mirror; this test was
-     * left behind on the name that no longer resolves, and nothing noticed
-     * because no *IT class was reaching a runner. Same tag, same digest,
-     * same MinIO — the registry is the only difference.
+     * The community fork of MinIO, pinned by digest — the same image
+     * infra/docker-compose.yml runs, for the reason recorded there: MinIO's
+     * own images can no longer be pulled anonymously from Docker Hub or
+     * quay.io, and this class errored out on the image fetch before its first
+     * assertion on every CI run. Kept in step with the compose file.
      */
-    private static final String MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z";
+    private static final String MINIO_IMAGE = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
+        + "@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372";
 
     @SuppressWarnings("resource")
     private static final GenericContainer<?> MINIO =

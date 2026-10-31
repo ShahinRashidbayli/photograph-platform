@@ -1,6 +1,6 @@
 'use client';
 
-import api from '@/lib/api';
+import { useResetPassword } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { getColors } from '@/lib/design-tokens';
@@ -30,7 +30,8 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const resetPassword = useResetPassword();
+  const loading = resetPassword.isPending;
   const [done, setDone] = useState(false);
   const [focused, setFocused] = useState<'password' | 'confirm' | null>(null);
 
@@ -44,7 +45,7 @@ function ResetPasswordForm() {
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const problem = passwordProblem();
@@ -58,20 +59,24 @@ function ResetPasswordForm() {
     }
 
     setError('');
-    setLoading(true);
-    try {
-      await api.post('/api/auth/password/reset', { token, password });
-      setDone(true);
-    } catch (err) {
-      // 401 covers unknown / expired / already-used alike: the backend refuses
-      // to say which, so the link is simply "no longer usable".
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      setError(
-        status === 401 ? t('reset.errorInvalidLink') : extractApiError(err, t('reset.errorGeneric'))
-      );
-    } finally {
-      setLoading(false);
-    }
+    resetPassword.mutate(
+      { token, password },
+      {
+        onSuccess: () => {
+          setDone(true);
+        },
+        onError: (err) => {
+          // 401 covers unknown / expired / already-used alike: the backend refuses
+          // to say which, so the link is simply "no longer usable".
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          setError(
+            status === 401
+              ? t('reset.errorInvalidLink')
+              : extractApiError(err, t('reset.errorGeneric'))
+          );
+        },
+      }
+    );
   };
 
   const linkButton = (href: string, label: string) => (

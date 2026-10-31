@@ -85,6 +85,9 @@ jest.mock('@/lib/paging', () => ({
   fetchAllPages: jest.fn(() => Promise.resolve((globalThis as any).__ROWS)),
 }));
 jest.mock('@/hooks/useBookings', () => ({
+  // The real module for everything else (the mutation hooks), so a hook added
+  // there does not turn this suite into "is not a function".
+  ...jest.requireActual('@/hooks/useBookings'),
   useBookings: () => ({
     data: (globalThis as any).__ROWS,
     bookings: (globalThis as any).__ROWS,

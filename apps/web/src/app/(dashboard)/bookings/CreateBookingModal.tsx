@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useBookingConflicts, useSaveBooking } from '@/hooks/useBookings';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePackages } from '@/hooks/usePackages';
+import { useResources } from '@/hooks/useResources';
+import { useTeam } from '@/hooks/useTeam';
 import { extractApiError, eurosToCents, resolveTotalCents, todayIso } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { DateField } from '@/components/DateField';
-import { Booking, Package } from '@/types/api';
+import { Booking } from '@/types/api';
 import { getBookingsColors } from './bookings.styles';
 
 type CreateModalProps = {
@@ -71,22 +75,19 @@ export function CreateBookingModal({
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [packages, setPackages] = useState<Package[]>([]);
+  const saveBooking = useSaveBooking();
+  const submitting = saveBooking.isPending;
+  // Each of these is best-effort: a failure loses an optional picker, not the
+  // form. A missing package list means typing the total by hand; a missing
+  // team means leaving the booking unassigned, which can be set later.
+  const packages = usePackages({ activeOnly: true }).data ?? [];
   // The studio's photographers, for the assignment picker. Read from the team
   // endpoint every colleague may already call — a booking form does not need a
   // second, narrower list of the same people.
-  const [staff, setStaff] = useState<{ id: string; email: string; fullName: string | null }[]>([]);
-  const [conflicts, setConflicts] = useState<
-    { id: string; clientName: string; eventTime: string | null; status: string }[]
-  >([]);
-  // Rooms and kit. Only the active ones: a retired resource cannot be booked
-  // onto new work, which is what retiring it meant.
-  const [resources, setResources] = useState<{ id: string; name: string; kind: string }[]>([]);
+  const staff = useTeam().data?.members ?? [];
+  // Rooms and kit — active only (see useResources).
+  const resources = useResources().data ?? [];
   const [selectedResources, setSelectedResources] = useState<string[]>(booking?.resourceIds ?? []);
-  const [resourceClashes, setResourceClashes] = useState<
-    { resourceName: string; clientName: string; eventTime: string | null }[]
-  >([]);
   // Tracks whether the photographer has manually typed a total. Picking a
   // package auto-fills the total *only when they haven't overridden it*, so a
   // custom quote isn't silently overwritten when they re-pick a package. In edit
@@ -103,115 +104,31 @@ export function CreateBookingModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Best-effort like the team list: losing the picker costs an optional field,
-  // not the booking.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ id: string; name: string; kind: string }[]>('/api/resources')
-      .then(({ data }) => {
-        if (!cancelled) setResources(data ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setResources([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // The studio's photographers. Best-effort: a failure here loses the picker,
-  // not the form — assignment is optional and can be set later.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ members: { id: string; email: string; fullName: string | null }[] }>('/api/team')
-      .then(({ data }) => {
-        if (!cancelled) setStaff(data.members ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setStaff([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   /**
    * Asks whether the chosen photographer is already working that day.
    *
-   * <p>Debounced, because it fires on every keystroke in the date field. Runs
-   * only once both halves of the question exist — an unassigned booking or one
-   * with no date cannot clash with anything, and the server answers so anyway.
-   *
-   * <p>The result never blocks the save: it is rendered as a warning above the
+   * <p>Debounced, because the date field changes on every keystroke. The
+   * result never blocks the save: it is rendered as a warning above the
    * buttons and the photographer decides. Two shoots in a day is normal work.
    */
-  useEffect(() => {
-    // A date is the one thing both halves need; either a photographer or a
-    // resource is enough to have something to ask about.
-    if (!form.eventDate || (!form.assignedUserId && selectedResources.length === 0)) {
-      setConflicts([]);
-      setResourceClashes([]);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      api
-        .get<{ conflicts: typeof conflicts; resourceClashes: typeof resourceClashes }>(
-          '/api/bookings/conflicts',
-          {
-            params: {
-              assignedUserId: form.assignedUserId || undefined,
-              eventDate: form.eventDate,
-              // So editing a booking does not report it clashing with itself.
-              excludeBookingId: booking?.id,
-              resourceIds: selectedResources.length > 0 ? selectedResources : undefined,
-            },
-            // Repeated `resourceIds=` rather than a comma-joined value, which is
-            // what Spring binds a List<UUID> from.
-            paramsSerializer: { indexes: null },
+  const conflictQuery = useMemo(
+    () =>
+      form.eventDate && (form.assignedUserId || selectedResources.length > 0)
+        ? {
+            eventDate: form.eventDate,
+            assignedUserId: form.assignedUserId || null,
+            resourceIds: selectedResources,
+            excludeBookingId: booking?.id,
           }
-        )
-        .then(({ data }) => {
-          if (!cancelled) {
-            setConflicts(data.conflicts ?? []);
-            setResourceClashes(data.resourceClashes ?? []);
-          }
-        })
-        .catch(() => {
-          // A warning that cannot load must not stop anyone booking work.
-          if (!cancelled) {
-            setConflicts([]);
-            setResourceClashes([]);
-          }
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [form.assignedUserId, form.eventDate, booking?.id, selectedResources]);
-
-  // Load the active packages once when the modal mounts. We don't refetch on
-  // open/close because the modal itself is mounted on demand — each open is a
-  // fresh fetch.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<Package[]>('/api/packages', { params: { activeOnly: true } })
-      .then(({ data }) => {
-        if (!cancelled) setPackages(data);
-      })
-      .catch(() => {
-        // A package-list fetch failure shouldn't block manual booking entry —
-        // the photographer can still type a total. The picker just hides itself.
-        if (!cancelled) setPackages([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+        : null,
+    [form.eventDate, form.assignedUserId, selectedResources, booking?.id]
+  );
+  const debouncedConflictQuery = useDebouncedValue(conflictQuery, 300);
+  const conflictAnswer = useBookingConflicts(debouncedConflictQuery).data;
+  // Cleared at once rather than after the debounce: with no date, or no one
+  // and nothing to clash, there is nothing left to warn about.
+  const conflicts = conflictQuery ? (conflictAnswer?.conflicts ?? []) : [];
+  const resourceClashes = conflictQuery ? (conflictAnswer?.resourceClashes ?? []) : [];
 
   function update(field: keyof typeof EMPTY_FORM, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -279,49 +196,45 @@ export function CreateBookingModal({
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (submitting) return;
     setSubmitError(null);
     if (!validate()) return;
 
-    setSubmitting(true);
-    try {
-      // packageId: when omitted on the wire we must send `null`, not `""`.
-      // The backend treats null as "no package" but would 404 on an empty
-      // string trying to parse it as a UUID.
-      //
-      // totalAmountCents: when the photographer left it blank AND picked a
-      // package, send `null` so the backend's auto-pricing kicks in and
-      // resolves the price from the package. If they typed a number, send it
-      // — explicit price always wins, matching the backend contract.
-      const totalTyped = form.totalAmount.trim();
-      const payload = {
-        clientName: form.clientName.trim(),
-        clientEmail: form.clientEmail.trim(),
-        eventDate: form.eventDate,
-        eventTime: form.eventTime || null,
-        eventType: form.eventType.trim() || null,
-        location: form.location.trim() || null,
-        packageId: form.packageId || null,
-        totalAmountCents: totalTyped ? eurosToCents(form.totalAmount) : null,
-        depositAmountCents: eurosToCents(form.depositAmount),
-        internalNotes: form.internalNotes.trim() || null,
-        // Empty means unassigned, which the API stores as null rather than
-        // rejecting — a booking without a photographer is a normal state.
-        assignedUserId: form.assignedUserId || null,
-        // Always sent, so clearing the last one is possible — the API reads an
-        // empty list as "none" and an absent field as "leave them".
-        resourceIds: selectedResources,
-      };
-      const res = isEdit
-        ? await api.patch<Booking>(`/api/bookings/${booking!.id}`, payload)
-        : await api.post<Booking>('/api/bookings', payload);
-      onCreated(res.data);
-    } catch (err) {
-      setSubmitError(extractApiError(err, t('createBooking.errSubmit')));
-    } finally {
-      setSubmitting(false);
-    }
+    // packageId: when omitted on the wire we must send `null`, not `""`.
+    // The backend treats null as "no package" but would 404 on an empty
+    // string trying to parse it as a UUID.
+    //
+    // totalAmountCents: when the photographer left it blank AND picked a
+    // package, send `null` so the backend's auto-pricing kicks in and
+    // resolves the price from the package. If they typed a number, send it
+    // — explicit price always wins, matching the backend contract.
+    const totalTyped = form.totalAmount.trim();
+    const payload = {
+      clientName: form.clientName.trim(),
+      clientEmail: form.clientEmail.trim(),
+      eventDate: form.eventDate,
+      eventTime: form.eventTime || null,
+      eventType: form.eventType.trim() || null,
+      location: form.location.trim() || null,
+      packageId: form.packageId || null,
+      totalAmountCents: totalTyped ? eurosToCents(form.totalAmount) : null,
+      depositAmountCents: eurosToCents(form.depositAmount),
+      internalNotes: form.internalNotes.trim() || null,
+      // Empty means unassigned, which the API stores as null rather than
+      // rejecting — a booking without a photographer is a normal state.
+      assignedUserId: form.assignedUserId || null,
+      // Always sent, so clearing the last one is possible — the API reads an
+      // empty list as "none" and an absent field as "leave them".
+      resourceIds: selectedResources,
+    };
+    saveBooking.mutate(
+      { id: booking?.id, payload },
+      {
+        onSuccess: onCreated,
+        onError: (err) => setSubmitError(extractApiError(err, t('createBooking.errSubmit'))),
+      }
+    );
   }
 
   const fieldStyle = (field: keyof typeof EMPTY_FORM): React.CSSProperties => ({

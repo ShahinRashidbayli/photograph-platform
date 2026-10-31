@@ -1,7 +1,7 @@
 'use client';
 
-import api from '@/lib/api';
-import { AuthUser, useAuthStore, useIsPhotographer } from '@/store/authStore';
+import { useAuthStore, useIsPhotographer } from '@/store/authStore';
+import { useLogout, useSessionUser } from '@/hooks/useAuth';
 import { useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { useTranslation } from '@/lib/i18n';
@@ -39,37 +39,23 @@ import { planThatGrants } from '@/lib/plan-gate';
 export default function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, setUser, clearUser } = useAuthStore();
+  const { user, clearUser } = useAuthStore();
   const isPhotographer = useIsPhotographer();
-  const [loading, setLoading] = useState(!user);
   const [isOpen, setIsOpen] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Read only when the store has no user (a page refresh); skipped while a
+  // logout is in progress, since the cookies are already gone.
+  const session = useSessionUser(!user && !loggingOut);
+  const logout = useLogout();
+  const loading = !user && !session.isError;
   const { theme } = useThemeStore();
   const { t } = useTranslation();
 
+  // No session: off to sign in.
   useEffect(() => {
-    if (user) {
-      setLoading(false);
-      return;
-    }
-    if (loggingOut) {
-      // Skip the /me fetch while a logout is in progress; cookies are gone.
-      return;
-    }
-    // Fetch user if not in store (e.g., on page refresh)
-    const fetchUser = async () => {
-      try {
-        const { data } = await api.get<AuthUser>('/api/auth/me');
-        setUser(data);
-      } catch {
-        router.push('/login');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUser();
-  }, [user, setUser, router, loggingOut]);
+    if (session.isError) router.push('/login');
+  }, [session.isError, router]);
 
   useEffect(() => {
     setIsOpen(false);
@@ -108,36 +94,32 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     };
   }, [isOpen]);
 
-  async function handleLogout() {
+  function handleLogout() {
     setLoggingOut(true);
-    try {
-      await api.post('/api/auth/logout');
-    } catch {
-      // Logout is best-effort: local auth state should still be cleared.
-    } finally {
-      // Navigate first so the dashboard layout unmounts before we clear the
-      // user — otherwise the /api/auth/me effect refires against cleared
-      // cookies and produces a spurious 401 in the console.
-      // Land on the public marketing page, not /login — signing out returns
-      // the visitor to the top of the funnel, and /me runs client-side there.
-      router.replace('/');
-      clearUser();
-    }
+    logout.mutate(undefined, {
+      onSettled: () => {
+        // Navigate first so the dashboard layout unmounts before we clear the
+        // user — otherwise the session read refires against cleared cookies
+        // and produces a spurious 401 in the console. Land on the public
+        // marketing page, not /login: signing out returns the visitor to the
+        // top of the funnel.
+        router.replace('/');
+        clearUser();
+      },
+    });
   }
 
   // Access-denied interstitial action: drop the client session and send the
   // user to the photographer login, so a photographer who followed an email
   // link while signed in as a client can get to the right account in one click.
-  async function handleSwitchToPhotographer() {
+  function handleSwitchToPhotographer() {
     setLoggingOut(true);
-    try {
-      await api.post('/api/auth/logout');
-    } catch {
-      // best-effort — clear local state regardless
-    } finally {
-      router.replace('/login');
-      clearUser();
-    }
+    logout.mutate(undefined, {
+      onSettled: () => {
+        router.replace('/login');
+        clearUser();
+      },
+    });
   }
 
   // A group that names a capability the plan lacks is shown locked, not hidden:

@@ -5,7 +5,8 @@ import { useTranslation } from '@/lib/i18n';
 import { getBookingStatusMeta, toneToVisual } from '@/lib/booking-status';
 import { useColors } from '@/components/ui';
 import { BarChart, RankedBars } from '../analytics.charts';
-import { monthLabels, useAnalytics } from '../analytics.data';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { monthLabels } from '../analytics.data';
 import { ChartCard, DataTable, ReportShell, StatTile } from '../analytics.shell';
 
 /**

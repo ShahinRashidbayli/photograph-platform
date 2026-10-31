@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
-export const roadmapInterestKey = ['roadmap', 'interest'] as const;
+export function roadmapInterestKey() {
+  return ['roadmap', 'interest'] as const;
+}
 
 /** The roadmap keys this studio has asked for. Mirrors `RoadmapFeature` on the API. */
 export function useRoadmapInterest(enabled = true) {
   return useQuery({
-    queryKey: roadmapInterestKey,
+    queryKey: roadmapInterestKey(),
     enabled,
     queryFn: async () => {
       const res = await api.get<string[]>('/api/roadmap/interest');
@@ -34,17 +36,17 @@ export function useToggleRoadmapInterest() {
       }
     },
     onMutate: async ({ feature, wanted }) => {
-      await qc.cancelQueries({ queryKey: roadmapInterestKey });
-      const previous = qc.getQueryData<string[]>(roadmapInterestKey) ?? [];
+      await qc.cancelQueries({ queryKey: roadmapInterestKey() });
+      const previous = qc.getQueryData<string[]>(roadmapInterestKey()) ?? [];
       qc.setQueryData<string[]>(
-        roadmapInterestKey,
+        roadmapInterestKey(),
         wanted ? [...previous, feature] : previous.filter((f) => f !== feature)
       );
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) qc.setQueryData(roadmapInterestKey, context.previous);
+      if (context?.previous) qc.setQueryData(roadmapInterestKey(), context.previous);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: roadmapInterestKey }),
+    onSettled: () => qc.invalidateQueries({ queryKey: roadmapInterestKey() }),
   });
 }

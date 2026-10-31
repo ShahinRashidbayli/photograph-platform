@@ -1,6 +1,6 @@
 'use client';
 
-import api from '@/lib/api';
+import { useAcceptInvitation, useInvitationPreview } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { PasswordField } from '@/components/PasswordField';
@@ -10,13 +10,8 @@ import { useTranslation } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
-
-interface Preview {
-  studioName: string;
-  email: string;
-}
 
 /**
  * Claiming a seat in someone else's studio.
@@ -39,54 +34,34 @@ function InviteForm() {
   const router = useRouter();
   const token = useSearchParams().get('token') ?? '';
 
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [checking, setChecking] = useState(true);
-  const [invalid, setInvalid] = useState(false);
+  // Expired, spent and unknown tokens answer identically by design — the
+  // server will not say which, so neither does this screen.
+  const previewQuery = useInvitationPreview(token);
+  const preview = previewQuery.data ?? null;
+  const checking = previewQuery.isLoading;
+  const invalid = !token || previewQuery.isError;
+  const accept = useAcceptInvitation();
 
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  // Held through success: the next screen is on its way.
+  const submitting = accept.isPending || accept.isSuccess;
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) {
-      setInvalid(true);
-      setChecking(false);
-      return;
-    }
-    let cancelled = false;
-    api
-      .get<Preview>('/api/public/invitations', { params: { token } })
-      .then(({ data }) => {
-        if (!cancelled) setPreview(data);
-      })
-      .catch(() => {
-        // Expired, spent and unknown tokens answer identically by design —
-        // the server will not say which, so neither does this screen.
-        if (!cancelled) setInvalid(true);
-      })
-      .finally(() => {
-        if (!cancelled) setChecking(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    setSubmitting(true);
     setError(null);
-    try {
-      await api.post('/api/public/invitations/accept', { token, fullName, password });
-      // The account exists but holds no session: signing in goes through the
-      // ordinary login form, which already handles lockout and rate limiting.
-      router.push(`/login?invited=1&email=${encodeURIComponent(preview?.email ?? '')}`);
-    } catch (err) {
-      setError(extractApiError(err, t('invite.error')));
-      setSubmitting(false);
-    }
+    accept.mutate(
+      { token, fullName, password },
+      {
+        // The account exists but holds no session: signing in goes through the
+        // ordinary login form, which already handles lockout and rate limiting.
+        onSuccess: () =>
+          router.push(`/login?invited=1&email=${encodeURIComponent(preview?.email ?? '')}`),
+        onError: (err) => setError(extractApiError(err, t('invite.error'))),
+      }
+    );
   }
 
   if (checking) {

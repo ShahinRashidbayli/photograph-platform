@@ -1,6 +1,6 @@
 'use client';
 
-import api from '@/lib/api';
+import { useRequestLoginCode, useVerifyLoginCode } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
@@ -69,9 +69,12 @@ function CustomerLoginInner() {
   const [subdomainLocked, setSubdomainLocked] = useState(false);
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  // Two instances: the first request and a resend show their busy state apart.
+  const requestCode = useRequestLoginCode();
+  const resendCode = useRequestLoginCode();
+  const loading = requestCode.isPending;
   const [submitted, setSubmitted] = useState(false);
-  const [resendBusy, setResendBusy] = useState(false);
+  const resendBusy = resendCode.isPending;
   const [resendDone, setResendDone] = useState(false);
   const [resendError, setResendError] = useState('');
   /**
@@ -94,7 +97,8 @@ function CustomerLoginInner() {
   // through Safari or Chrome is where the funnel bleeds. They read the code
   // and come back to this tab, which is still exactly where they left it.
   const [code, setCode] = useState('');
-  const [verifying, setVerifying] = useState(false);
+  const verifyCode = useVerifyLoginCode();
+  const verifying = verifyCode.isPending;
 
   // Host-derived subdomain wins over the ?subdomain hint and is authoritative,
   // so we lock the field. Done in an effect (not useState init) because the
@@ -122,7 +126,7 @@ function CustomerLoginInner() {
 
   const cooldown = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedSubdomain = subdomain.trim().toLowerCase();
@@ -141,32 +145,36 @@ function CustomerLoginInner() {
     }
 
     setError('');
-    setLoading(true);
-    try {
-      await api.post('/api/auth/customer/login-code/request', {
+    requestCode.mutate(
+      {
         email: trimmedEmail,
         subdomain: trimmedSubdomain,
         fullName: fullName.trim() || null,
-      });
-      setSubmitted(true);
-      // The first link counts against the same limit as a resend, so the
-      // cooldown starts here too.
-      setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-    } catch (err: unknown) {
-      if (isRateLimited(err)) {
-        const wait = retryWait(err);
-        setError(
-          wait ? t('customerLogin.resendLimitedFor', { wait }) : t('customerLogin.resendLimited')
-        );
-      } else {
-        setError(extractApiError(err, t('customerLogin.errorSend')));
+      },
+      {
+        onSuccess: () => {
+          setSubmitted(true);
+          // The first link counts against the same limit as a resend, so the
+          // cooldown starts here too.
+          setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+        },
+        onError: (err) => {
+          if (isRateLimited(err)) {
+            const wait = retryWait(err);
+            setError(
+              wait
+                ? t('customerLogin.resendLimitedFor', { wait })
+                : t('customerLogin.resendLimited')
+            );
+          } else {
+            setError(extractApiError(err, t('customerLogin.errorSend')));
+          }
+        },
       }
-    } finally {
-      setLoading(false);
-    }
+    );
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
+  const handleVerify = (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length !== CODE_LENGTH) {
       setError(t('customerLogin.errorCodeFormat'));
@@ -174,65 +182,71 @@ function CustomerLoginInner() {
     }
 
     setError('');
-    setVerifying(true);
-    try {
-      await api.post('/api/auth/customer/login-code/verify', {
+    verifyCode.mutate(
+      {
         email: email.trim().toLowerCase(),
         subdomain: subdomain.trim().toLowerCase(),
         code,
-      });
-      // The session lands as cookies on this response. A full navigation (not a
-      // router push) so the app shell boots with the cookies already attached.
-      window.location.href = '/bookings';
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        t('customerLogin.errorCodeInvalid');
-      setError(msg);
-      // Clear so the next attempt starts from an empty box rather than the
-      // client having to select and delete six wrong digits on a phone.
-      setCode('');
-    } finally {
-      setVerifying(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          // The session lands as cookies on this response. A full navigation (not a
+          // router push) so the app shell boots with the cookies already attached.
+          window.location.href = '/bookings';
+        },
+        onError: (err) => {
+          const msg =
+            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            t('customerLogin.errorCodeInvalid');
+          setError(msg);
+          // Clear so the next attempt starts from an empty box rather than the
+          // client having to select and delete six wrong digits on a phone.
+          setCode('');
+        },
+      }
+    );
   };
 
-  const handleResend = async () => {
-    setResendBusy(true);
+  const handleResend = () => {
     setResendDone(false);
     setResendError('');
     setError('');
     setCode('');
-    try {
-      await api.post('/api/auth/customer/login-code/request', {
+    resendCode.mutate(
+      {
         email: email.trim().toLowerCase(),
         subdomain: subdomain.trim().toLowerCase(),
         fullName: fullName.trim() || null,
-      });
-      setResendDone(true);
-      setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-    } catch (err: unknown) {
-      // This used to report success on *every* failure, on the reasoning that
-      // the endpoint is 204-always. But that contract is about not revealing
-      // whether an address exists — it says nothing about rate limits or an
-      // outage, both of which reach here. So the button claimed "Sent! Check
-      // your inbox again." while nothing had been sent, and the user sat
-      // waiting for a mail that was never coming. Not revealing the account is
-      // still honoured: none of these messages depends on it.
-      if (isRateLimited(err)) {
-        const seconds = retryAfterSeconds(err);
-        const wait = retryWait(err);
-        setResendError(
-          wait ? t('customerLogin.resendLimitedFor', { wait }) : t('customerLogin.resendLimited')
-        );
-        // Hold the button for as long as the server says, not for our own guess.
-        if (seconds !== null) setCooldownUntil(Date.now() + seconds * 1000);
-      } else {
-        setResendError(extractApiError(err, t('customerLogin.resendError')));
+      },
+      {
+        onSuccess: () => {
+          setResendDone(true);
+          setCooldownUntil(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+        },
+        onError: (err) => {
+          // This used to report success on *every* failure, on the reasoning that
+          // the endpoint is 204-always. But that contract is about not revealing
+          // whether an address exists — it says nothing about rate limits or an
+          // outage, both of which reach here. So the button claimed "Sent! Check
+          // your inbox again." while nothing had been sent, and the user sat
+          // waiting for a mail that was never coming. Not revealing the account is
+          // still honoured: none of these messages depends on it.
+          if (isRateLimited(err)) {
+            const seconds = retryAfterSeconds(err);
+            const wait = retryWait(err);
+            setResendError(
+              wait
+                ? t('customerLogin.resendLimitedFor', { wait })
+                : t('customerLogin.resendLimited')
+            );
+            // Hold the button for as long as the server says, not for our own guess.
+            if (seconds !== null) setCooldownUntil(Date.now() + seconds * 1000);
+          } else {
+            setResendError(extractApiError(err, t('customerLogin.resendError')));
+          }
+        },
       }
-    } finally {
-      setResendBusy(false);
-    }
+    );
   };
 
   const resendDisabled = resendBusy || cooldown > 0;

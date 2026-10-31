@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import api from '@/lib/api';
+import { useResendVerification } from '@/hooks/useAuth';
+import { extractApiError } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 
 export function EmailVerifyToast() {
@@ -91,19 +92,21 @@ export function VerifyEmailBanner({ email }: { email: string }) {
   const [message, setMessage] = useState('');
   const { t } = useTranslation();
 
-  async function resend() {
+  const resendVerification = useResendVerification();
+
+  function resend() {
     setState('sending');
     setMessage('');
-    try {
-      await api.post('/api/auth/resend-verification');
-      setState('sent');
-      setMessage(t('verify.bannerSent', { email }));
-    } catch (err: unknown) {
-      const apiMessage = (err as { response?: { data?: { error?: string } } })?.response?.data
-        ?.error;
-      setState('error');
-      setMessage(apiMessage ?? t('verify.bannerError'));
-    }
+    resendVerification.mutate(undefined, {
+      onSuccess: () => {
+        setState('sent');
+        setMessage(t('verify.bannerSent', { email }));
+      },
+      onError: (err) => {
+        setState('error');
+        setMessage(extractApiError(err, t('verify.bannerError')));
+      },
+    });
   }
 
   return (

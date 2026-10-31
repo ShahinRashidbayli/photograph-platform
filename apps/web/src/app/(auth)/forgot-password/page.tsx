@@ -1,6 +1,6 @@
 'use client';
 
-import api from '@/lib/api';
+import { useForgotPassword } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { getColors } from '@/lib/design-tokens';
@@ -22,11 +22,12 @@ export default function ForgotPasswordPage() {
 
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const forgotPassword = useForgotPassword();
+  const loading = forgotPassword.isPending;
   const [sent, setSent] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
@@ -35,22 +36,21 @@ export default function ForgotPasswordPage() {
     }
 
     setError('');
-    setLoading(true);
-    try {
-      await api.post('/api/auth/password/forgot', { email: trimmedEmail });
-      setSent(true);
-    } catch (err) {
-      // The endpoint answers 204 whether or not the address exists, so the only
-      // errors that can land here are real ones (rate limit, network, outage).
-      if (isRateLimited(err)) {
-        const wait = retryWait(err);
-        setError(wait ? t('forgot.errorRateLimitedFor', { wait }) : t('forgot.errorRateLimited'));
-      } else {
-        setError(extractApiError(err, t('forgot.errorSend')));
-      }
-    } finally {
-      setLoading(false);
-    }
+    forgotPassword.mutate(trimmedEmail, {
+      onSuccess: () => {
+        setSent(true);
+      },
+      onError: (err) => {
+        // The endpoint answers 204 whether or not the address exists, so the only
+        // errors that can land here are real ones (rate limit, network, outage).
+        if (isRateLimited(err)) {
+          const wait = retryWait(err);
+          setError(wait ? t('forgot.errorRateLimitedFor', { wait }) : t('forgot.errorRateLimited'));
+        } else {
+          setError(extractApiError(err, t('forgot.errorSend')));
+        }
+      },
+    });
   };
 
   // Deliberately identical whether or not the address is on file — the backend

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { fetchAllPages } from '@/lib/paging';
 import { attentionKey } from '@/hooks/useAttention';
+import { clientsKey } from '@/hooks/useClients';
 import type { Booking, Lead, LeadActivity } from '@/types/api';
 import type { Inquiry } from '@/app/(dashboard)/leads/inquiryTypes';
 
@@ -116,9 +117,12 @@ function useApplyLead() {
   };
 }
 
-/** Both audiences' booking lists, since a conversion adds to them. */
+/** Both audiences' booking lists, and the clients derived from them, since a conversion adds to them. */
 function invalidateBookings(qc: ReturnType<typeof useQueryClient>) {
-  return qc.invalidateQueries({ queryKey: ['bookings'] });
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['bookings'] }),
+    qc.invalidateQueries({ queryKey: clientsKey() }),
+  ]);
 }
 
 /** An enquiry that arrived off-platform — a phone call, an email, a fair. */

@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { insertSortedByDate } from '@/lib/helpers';
+import { clientsKey } from '@/hooks/useClients';
 import type { Booking } from '@/types/api';
 
 // Pull the whole booking list in pages rather than a single capped request.
@@ -156,13 +157,16 @@ export function useSaveBooking() {
         ? await api.patch<Booking>(`/api/bookings/${input.id}`, input.payload)
         : await api.post<Booking>('/api/bookings', input.payload)
       ).data,
-    onSuccess: (saved) =>
+    onSuccess: (saved) => {
       qc.setQueryData<Booking[]>(bookingsQueryKey(true), (old = []) =>
         insertSortedByDate(
           old.filter((b) => b.id !== saved.id),
           saved
         )
-      ),
+      );
+      // A client's totals are derived from their bookings.
+      return qc.invalidateQueries({ queryKey: clientsKey() });
+    },
   });
 }
 
@@ -188,10 +192,13 @@ export function useUpdateBookingStatus() {
       await qc.cancelQueries({ queryKey: key });
       setStatus(input.id, input.to);
     },
-    onSuccess: (saved) =>
+    onSuccess: (saved) => {
       qc.setQueryData<Booking[]>(key, (old = []) =>
         old.map((b) => (b.id === saved.id ? saved : b))
-      ),
+      );
+      // Cancelling or completing changes what a client counts as upcoming or spent.
+      return qc.invalidateQueries({ queryKey: clientsKey() });
+    },
     onError: (_err, input) => setStatus(input.id, input.from),
   });
 }

@@ -25,6 +25,8 @@ export const portfolio = {
 
   'portfolio.photos.loadError': 'Failed to load photos',
   'portfolio.photos.deleteError': 'Delete failed',
+  'portfolio.photos.publishError': 'Could not change whether this photo is published.',
+  'portfolio.photos.categoryError': 'Could not move the photo to that category.',
   'portfolio.photos.thumbnailPending': 'Thumbnail pending…',
   'portfolio.photos.publish': 'Publish',
   'portfolio.photos.unpublish': 'Unpublish',

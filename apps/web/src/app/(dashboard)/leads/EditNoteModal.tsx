@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
 import { Lead } from '@/types/api';
 import { extractApiError } from '@/lib/helpers';
+import { useUpdateLeadNotes } from '@/hooks/useLeads';
 import { useTranslation } from '@/lib/i18n';
 import type { ColorTokens } from './leadTypes';
 
@@ -26,7 +26,8 @@ export function EditNoteModal({
   const { t } = useTranslation();
   const isEdit = !!lead.internalNotes;
   const [notes, setNotes] = useState(lead.internalNotes ?? '');
-  const [submitting, setSubmitting] = useState(false);
+  const saveNotes = useUpdateLeadNotes();
+  const submitting = saveNotes.isPending;
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,20 +38,16 @@ export function EditNoteModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, submitting]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (submitting) return;
-    setSubmitting(true);
     setSubmitError(null);
-    try {
-      const res = await api.patch<Lead>(`/api/leads/${lead.id}/notes`, {
-        notes: notes.trim() || null,
-      });
-      onSaved(res.data);
-    } catch (err) {
-      setSubmitError(extractApiError(err, t('editNote.errSubmit')));
-    } finally {
-      setSubmitting(false);
-    }
+    saveNotes.mutate(
+      { id: lead.id, notes: notes.trim() || null },
+      {
+        onSuccess: onSaved,
+        onError: (err) => setSubmitError(extractApiError(err, t('editNote.errSubmit'))),
+      }
+    );
   };
 
   const overlay: React.CSSProperties = {

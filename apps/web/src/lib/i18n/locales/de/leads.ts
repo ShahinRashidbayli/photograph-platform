@@ -50,6 +50,11 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.errorTitle': 'Leads konnten nicht geladen werden',
   'leads.errorLoad':
     'Wir konnten Ihre Leads nicht laden. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+  'leads.error.reject': 'Der Lead konnte nicht abgelehnt werden. Bitte versuchen Sie es erneut.',
+  'leads.error.reply':
+    'Der Lead konnte nicht als beantwortet markiert werden. Bitte versuchen Sie es erneut.',
+  'leads.error.triage':
+    'Die Anfrage konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.',
   'leads.loadingDetails': 'Lead-Details werden geladen…',
   'leads.convertToBooking': 'In Buchung umwandeln',
   'leads.viewInBookings': 'In Buchungen ansehen',

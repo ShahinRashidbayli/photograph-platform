@@ -1,16 +1,12 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { bookingsQueryKey } from '@/hooks/useBookings';
+import { useCallback, useEffect, useState } from 'react';
+import { asyncError, type AsyncError } from '@/lib/async-error';
+import { useTriageInquiry, useUpdateLeadStatus } from '@/hooks/useLeads';
 import type { Booking, Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
 
 export interface LeadActionsDeps {
-  reload: () => void;
-  setLeads: Dispatch<SetStateAction<Lead[]>>;
-  setInquiries: Dispatch<SetStateAction<Inquiry[]>>;
   selectedLead: Lead | null;
   selectedInquiry: Inquiry | null;
 }
@@ -36,67 +32,44 @@ export interface LeadActions {
   notingLead: Lead | null;
   startNote: (_lead: Lead) => void;
   cancelNote: () => void;
-  applyNoteSaved: (_updated: Lead) => void;
   // Reject confirmation.
   rejectingLead: Lead | null;
   startReject: (_lead: Lead) => void;
   cancelReject: () => void;
   rejectBusy: boolean;
-  confirmReject: () => Promise<void>;
-  // Inquiry triage + mark-lead-replied — both patch a single row in place.
+  confirmReject: () => void;
+  // Inquiry triage + mark-lead-replied.
   inquiryBusyId: string | null;
-  triageInquiry: (_status: 'ACCEPTED' | 'REJECTED') => Promise<void>;
-  markSelectedReplied: () => Promise<void>;
+  triageInquiry: (_status: 'ACCEPTED' | 'REJECTED') => void;
+  markSelectedReplied: () => void;
   // A failed mutation surfaces here so the user sees it went wrong instead of
   // the click seeming to do nothing.
-  actionError: string | null;
+  actionError: AsyncError | null;
   dismissActionError: () => void;
 }
 
 /**
- * Owns every mutation the leads inbox can perform plus the transient modal /
- * banner / busy state each one needs. Extracted from the page so those handlers
- * stop living as inline async closures inside the JSX.
- *
- * <p>Mutations that touch one row (note save, mark-replied, inquiry triage)
- * patch it in place via the inbox setters rather than re-fetching, so a
- * single-field flip doesn't flash the whole list through a loading state.
- * Convert and reject go through a full {@link LeadActionsDeps.reload} because
- * they move an item between pipeline buckets.
+ * The inbox's transient UI state — which modal is open, the success and error
+ * banners — and the actions that drive it. The data and its cache updates live
+ * in `hooks/useLeads.ts`; this decides only what the screen shows around them.
  *
  * <p>When a mutation fails the affordances stay clickable so the user can
  * retry, but the failure is also surfaced via {@link LeadActions.actionError}
  * rather than swallowed — a click that silently does nothing is exactly the
  * confusion this inbox is trying to avoid.
  */
-export function useLeadActions(deps: LeadActionsDeps): LeadActions {
-  const { reload, setLeads, setInquiries, selectedLead, selectedInquiry } = deps;
-  const queryClient = useQueryClient();
-
-  /**
-   * Both "convert lead" and "accept inquiry" create a booking server-side, so
-   * the cached bookings list is stale the moment either succeeds.
-   *
-   * <p>This matters more than a normal staleness window because the success
-   * banner immediately offers "View in bookings →" — the app invites the exact
-   * navigation that exposes the stale cache, and `useBookings` holds its data
-   * fresh for 30s with `refetchOnWindowFocus` off, so the photographer lands on
-   * a list that is missing the booking they just created. Invalidating marks it
-   * stale so the bookings screen refetches on mount.
-   */
-  const invalidateBookings = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: bookingsQueryKey(true) });
-    queryClient.invalidateQueries({ queryKey: bookingsQueryKey(false) });
-  }, [queryClient]);
+export function useLeadActions({ selectedLead, selectedInquiry }: LeadActionsDeps): LeadActions {
+  const updateStatus = useUpdateLeadStatus();
+  const triage = useTriageInquiry();
+  const { mutate: mutateStatus } = updateStatus;
+  const { mutate: mutateTriage } = triage;
 
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [convertSuccess, setConvertSuccess] = useState<ConvertSuccess | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [notingLead, setNotingLead] = useState<Lead | null>(null);
   const [rejectingLead, setRejectingLead] = useState<Lead | null>(null);
-  const [rejectBusy, setRejectBusy] = useState(false);
-  const [inquiryBusyId, setInquiryBusyId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
 
   // Auto-dismiss the success banner after 6s. Cleanup on unmount / re-entry so
   // we never fire setState into a banner the user already closed.
@@ -113,87 +86,64 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
     return () => clearTimeout(timer);
   }, [actionError]);
 
-  const applyConverted = useCallback(
-    (booking: Booking) => {
-      // Read the lead being converted before clearing it so the banner keeps
-      // its name even as the modal unmounts.
-      setConvertingLead((lead) => {
-        if (lead) setConvertSuccess({ bookingId: booking.id, leadName: lead.name });
-        return null;
-      });
-      invalidateBookings();
-      reload();
-    },
-    [reload, invalidateBookings]
-  );
+  const applyConverted = useCallback((booking: Booking) => {
+    // Read the lead being converted before clearing it so the banner keeps
+    // its name even as the modal unmounts.
+    setConvertingLead((lead) => {
+      if (lead) setConvertSuccess({ bookingId: booking.id, leadName: lead.name });
+      return null;
+    });
+  }, []);
 
-  const applyNoteSaved = useCallback(
-    (updated: Lead) => {
-      // Patch in place so the detail panel reflects the new note immediately,
-      // without a full reload flashing a loading state.
-      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
-      setNotingLead(null);
-    },
-    [setLeads]
-  );
-
-  const confirmReject = useCallback(async () => {
+  const confirmReject = useCallback(() => {
     if (!rejectingLead) return;
-    setRejectBusy(true);
     setActionError(null);
-    try {
-      await api.patch<Lead>(`/api/leads/${rejectingLead.id}/status`, { status: 'REJECTED' });
-      setRejectingLead(null);
-      reload();
-    } catch {
-      // Dialog stays open so the user can retry.
-      setActionError('Could not reject the lead. Please try again.');
-    } finally {
-      setRejectBusy(false);
-    }
-  }, [rejectingLead, reload]);
+    mutateStatus(
+      { id: rejectingLead.id, status: 'REJECTED' },
+      {
+        onSuccess: () => setRejectingLead(null),
+        onError: (err) => {
+          // Closed either way, with the failure in the banner above the inbox.
+          setRejectingLead(null);
+          setActionError(asyncError(err, 'leads.error.reject'));
+        },
+      }
+    );
+  }, [rejectingLead, mutateStatus]);
 
   const triageInquiry = useCallback(
-    async (status: 'ACCEPTED' | 'REJECTED') => {
+    (status: 'ACCEPTED' | 'REJECTED') => {
       if (!selectedInquiry) return;
-      setInquiryBusyId(selectedInquiry.id);
       setActionError(null);
-      try {
-        const { data } = await api.patch<Inquiry>(`/api/inquiries/${selectedInquiry.id}/status`, {
-          status,
-        });
-        setInquiries((prev) => prev.map((i) => (i.id === data.id ? data : i)));
-        // Accepting creates a booking on the server (status -> BOOKING_CREATED),
-        // so surface it exactly like a lead conversion — the "view in bookings"
-        // banner — rather than letting the row just quietly move buckets.
-        if (status === 'ACCEPTED') {
-          invalidateBookings();
-          setConvertSuccess({
-            bookingId: '',
-            leadName: data.customerName ?? selectedInquiry.customerName ?? '',
-          });
+      mutateTriage(
+        { id: selectedInquiry.id, status },
+        {
+          onSuccess: (updated) => {
+            // Accepting creates a booking on the server (status -> BOOKING_CREATED),
+            // so surface it exactly like a lead conversion — the "view in bookings"
+            // banner — rather than letting the row just quietly move buckets.
+            if (status === 'ACCEPTED') {
+              setConvertSuccess({
+                bookingId: '',
+                leadName: updated.customerName ?? selectedInquiry.customerName ?? '',
+              });
+            }
+          },
+          onError: (err) => setActionError(asyncError(err, 'leads.error.triage')),
         }
-      } catch {
-        setActionError('Could not update the request. Please try again.');
-      } finally {
-        setInquiryBusyId(null);
-      }
+      );
     },
-    [selectedInquiry, setInquiries, invalidateBookings]
+    [selectedInquiry, mutateTriage]
   );
 
-  const markSelectedReplied = useCallback(async () => {
+  const markSelectedReplied = useCallback(() => {
     if (!selectedLead) return;
     setActionError(null);
-    try {
-      const res = await api.patch<Lead>(`/api/leads/${selectedLead.id}/status`, {
-        status: 'REPLIED',
-      });
-      setLeads((prev) => prev.map((l) => (l.id === res.data.id ? res.data : l)));
-    } catch {
-      setActionError('Could not mark as replied. Please try again.');
-    }
-  }, [selectedLead, setLeads]);
+    mutateStatus(
+      { id: selectedLead.id, status: 'REPLIED' },
+      { onError: (err) => setActionError(asyncError(err, 'leads.error.reply')) }
+    );
+  }, [selectedLead, mutateStatus]);
 
   return {
     convertingLead,
@@ -208,13 +158,12 @@ export function useLeadActions(deps: LeadActionsDeps): LeadActions {
     notingLead,
     startNote: setNotingLead,
     cancelNote: () => setNotingLead(null),
-    applyNoteSaved,
     rejectingLead,
     startReject: setRejectingLead,
     cancelReject: () => setRejectingLead(null),
-    rejectBusy,
+    rejectBusy: updateStatus.isPending && updateStatus.variables?.status === 'REJECTED',
     confirmReject,
-    inquiryBusyId,
+    inquiryBusyId: triage.isPending ? (triage.variables?.id ?? null) : null,
     triageInquiry,
     markSelectedReplied,
     actionError,

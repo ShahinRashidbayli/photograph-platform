@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { getColors, type Theme } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import api from '@/lib/api';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
+import { extractApiError } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import type { Package } from '@/types/api';
+import { useDeletePackage, usePackages, useSavePackage } from '@/hooks/usePackages';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Packages section
@@ -62,36 +63,31 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
   const { t } = useTranslation();
   const c = useMemo(() => getColors(theme), [theme]);
 
-  const [packages, setPackages] = useState<Package[] | null>(null);
-  const [loadError, setLoadError] = useState<AsyncError | null>(null);
+  const packagesQuery = usePackages();
+  const savePackage = useSavePackage();
+  const deletePackage = useDeletePackage();
+  // null while the first read is in flight. A failed read is an empty list with
+  // the error above it, not an endless "loading".
+  const packages: Package[] | null = packagesQuery.data ?? (packagesQuery.isError ? [] : null);
+  const loadError: AsyncError | null = packagesQuery.isError
+    ? asyncError(packagesQuery.error, 'settings.packages.loadError')
+    : null;
   const [editingId, setEditingId] = useState<string | null>(null);
   // `creating` opens an inline create form. Mutually exclusive with editing
   // any existing row so the photographer can't accidentally edit two things
   // at once.
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<PackageFormState>(EMPTY_PACKAGE_FORM);
-  const [submitting, setSubmitting] = useState(false);
+  const submitting = savePackage.isPending;
+  // Belongs to the open form only.
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Package | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const reload = useCallback(async () => {
-    setLoadError(null);
-    try {
-      const { data } = await api.get<Package[]>('/api/packages');
-      setPackages(data);
-    } catch (err) {
-      setLoadError(asyncError(err, 'settings.packages.loadError'));
-      setPackages([]);
-    }
-    // Deliberately not depending on `t`: an effect below depends on `reload`,
-    // so a `t` here would reload the package list on every language change.
-    // The failure is kept as a key and translated where it is rendered.
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const deleting = deletePackage.isPending;
+  // Its own state, shown above the list. A delete failure used to be written
+  // to `submitError`, which renders inside the edit form — and Delete is
+  // disabled while a form is open, so that message could never be seen at the
+  // moment it happened. It surfaced later, in the next "new package" form.
+  const [deleteError, setDeleteError] = useState<AsyncError | null>(null);
 
   const startCreate = () => {
     setCreating(true);
@@ -113,7 +109,7 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
     setSubmitError(null);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (submitting) return;
     const trimmedName = form.name.trim();
     if (!trimmedName) {
@@ -138,41 +134,28 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
       sortOrder: form.sortOrder.trim() ? Number(form.sortOrder) : 0,
     };
 
-    setSubmitting(true);
     setSubmitError(null);
-    try {
-      if (editingId) {
-        await api.put<Package>(`/api/packages/${editingId}`, payload);
-      } else {
-        await api.post<Package>('/api/packages', payload);
+    savePackage.mutate(
+      { id: editingId ?? undefined, payload },
+      {
+        onSuccess: cancelEdit,
+        onError: (err) => setSubmitError(extractApiError(err, t('settings.packages.saveError'))),
       }
-      await reload();
-      cancelEdit();
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        t('settings.packages.saveError');
-      setSubmitError(msg);
-    } finally {
-      setSubmitting(false);
-    }
+    );
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (!pendingDelete || deleting) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/api/packages/${pendingDelete.id}`);
-      setPendingDelete(null);
-      await reload();
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        t('settings.packages.deleteError');
-      setSubmitError(msg);
-    } finally {
-      setDeleting(false);
-    }
+    setDeleteError(null);
+    deletePackage.mutate(pendingDelete.id, {
+      onSuccess: () => setPendingDelete(null),
+      onError: (err) => {
+        // Closed either way: a dialog left open on a failure, saying nothing,
+        // reads as a button that did not register.
+        setPendingDelete(null);
+        setDeleteError(asyncError(err, 'settings.packages.deleteError'));
+      },
+    });
   };
 
   // Styles ───────────────────────────────────────────────────────────────────
@@ -429,6 +412,12 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
         >
           {asyncErrorText(loadError, t)}
         </div>
+      )}
+
+      {deleteError && (
+        <Alert tone="danger" style={{ marginBottom: 12 }}>
+          {asyncErrorText(deleteError, t)}
+        </Alert>
       )}
 
       {packages === null ? (

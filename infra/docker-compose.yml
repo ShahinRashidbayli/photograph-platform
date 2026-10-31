@@ -43,13 +43,17 @@ services:
   # fine — it is a throwaway dev container; R2 needs its own CORS policy set on
   # the bucket (see infra/README.md).
   #
-  # Pulled from quay.io, not Docker Hub: MinIO's Hub repos (minio/minio,
-  # minio/mc) now refuse anonymous pulls — `docker compose up` on a fresh
-  # machine dies with "pull access denied ... may require 'docker login'".
-  # quay.io is MinIO's other official mirror and still serves the same tags
-  # to everyone, so a checkout comes up without anybody holding an account.
+  # pgsty/minio and pgsty/mc, the community-maintained forks of MinIO's
+  # server and client. MinIO's own images can no longer be pulled anonymously
+  # from anywhere: the Docker Hub repos refuse it, and quay.io — where this
+  # file moved to for that reason — has answered 401 on every tag since
+  # September 2026. A fresh checkout's `make infra` died on the pull.
+  #
+  # Pinned by digest as well as tag. A fork is a second party in the supply
+  # chain, so a tag that is quietly re-pushed should fail the pull rather than
+  # run. Bumping means replacing both halves together.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: fotolio_dev
@@ -69,7 +73,7 @@ services:
   # One-shot: create the bucket the API expects, then exit. Idempotent, so it
   # is safe on every `docker compose up`.
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
     depends_on:
       minio:
         condition: service_healthy

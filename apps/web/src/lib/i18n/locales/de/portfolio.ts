@@ -22,6 +22,9 @@ export const portfolio: Record<keyof EnPortfolio, string> = {
 
   'portfolio.photos.loadError': 'Fotos konnten nicht geladen werden',
   'portfolio.photos.deleteError': 'Löschen fehlgeschlagen',
+  'portfolio.photos.publishError':
+    'Der Veröffentlichungsstatus des Fotos konnte nicht geändert werden.',
+  'portfolio.photos.categoryError': 'Das Foto konnte nicht in diese Kategorie verschoben werden.',
   'portfolio.photos.thumbnailPending': 'Vorschaubild wird erstellt…',
   'portfolio.photos.publish': 'Veröffentlichen',
   'portfolio.photos.unpublish': 'Zurückziehen',

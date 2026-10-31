@@ -1,44 +1,25 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import api from '@/lib/api';
+import React, { useState } from 'react';
 import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useTranslation } from '@/lib/i18n';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { SEATS_PLAN } from '@/lib/plan-gate';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import {
+  useInviteMember,
+  useLeaveStudio,
+  useRemoveMember,
+  useRevokeInvitation,
+  useTeam,
+  useTransferOwnership,
+  type TeamMember,
+} from '@/hooks/useTeam';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserAvatar } from '@/components/UserAvatar';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, useColors } from '@/components/ui';
-
-type StaffRole = 'OWNER' | 'MEMBER';
-type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
-
-interface TeamMember {
-  id: string;
-  email: string;
-  fullName: string | null;
-  staffRole: StaffRole;
-  avatarUrl: string | null;
-}
-
-interface TeamInvitation {
-  id: string;
-  email: string;
-  status: InvitationStatus;
-  expiresAt: string;
-  createdAt: string;
-}
-
-interface Team {
-  members: TeamMember[];
-  invitations: TeamInvitation[];
-  seatsUsed: number;
-  seatsTotal: number;
-  canManage: boolean;
-}
 
 /**
  * The studio's team: who is in it, who has been invited, and how many seats
@@ -65,81 +46,91 @@ export function TeamSettings() {
   const { seats } = useEntitlements();
   const clearUser = useAuthStore((st) => st.clearUser);
 
-  const [team, setTeam] = useState<Team | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<AsyncError | null>(null);
+  const teamQuery = useTeam();
+  const inviteMember = useInviteMember();
+  const revokeInvitation = useRevokeInvitation();
+  const removeMemberMutation = useRemoveMember();
+  const transfer = useTransferOwnership();
+  const leave = useLeaveStudio();
+
+  const team = teamQuery.data ?? null;
+  const loading = teamQuery.isLoading;
+  const loadError: AsyncError | null = teamQuery.isError
+    ? asyncError(teamQuery.error, 'settings.team.loadError')
+    : null;
+  // A failed action on the team. Shown above it, beside a refresh that failed.
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
+  const error = actionError ?? loadError;
 
   const [email, setEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
+  const inviting = inviteMember.isPending;
   const [inviteError, setInviteError] = useState<AsyncError | null>(null);
   const [invited, setInvited] = useState<string | null>(null);
 
   const [pendingRemoval, setPendingRemoval] = useState<TeamMember | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [pendingHandover, setPendingHandover] = useState<TeamMember | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const { data } = await api.get<Team>('/api/team');
-      setTeam(data);
-    } catch (err) {
-      setError(asyncError(err, 'settings.team.loadError'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Held through a successful handover or leave as well: both end in a page
+  // navigation, and the buttons must not come back to life in between.
+  const busy =
+    revokeInvitation.isPending ||
+    removeMemberMutation.isPending ||
+    transfer.isPending ||
+    transfer.isSuccess ||
+    leave.isPending ||
+    leave.isSuccess;
 
   const seatsLeft = team ? team.seatsTotal - team.seatsUsed : 0;
 
-  async function invite(e: React.FormEvent) {
+  function invite(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || inviting) return;
-    setInviting(true);
+    const address = email.trim();
+    if (!address || inviting) return;
     setInviteError(null);
     setInvited(null);
-    try {
-      await api.post('/api/team/invitations', { email: email.trim() });
-      setInvited(email.trim());
-      setEmail('');
-      await load();
-    } catch (err) {
-      setInviteError(asyncError(err, 'settings.team.inviteError'));
-    } finally {
-      setInviting(false);
-    }
+    inviteMember.mutate(address, {
+      onSuccess: () => {
+        setInvited(address);
+        setEmail('');
+      },
+      onError: (err) => setInviteError(asyncError(err, 'settings.team.inviteError')),
+    });
   }
 
-  async function revoke(id: string) {
-    setBusy(true);
-    try {
-      await api.delete(`/api/team/invitations/${id}`);
-      await load();
-    } catch (err) {
-      setError(asyncError(err, 'settings.team.revokeError'));
-    } finally {
-      setBusy(false);
-    }
+  function revoke(id: string) {
+    setActionError(null);
+    revokeInvitation.mutate(id, {
+      onError: (err) => setActionError(asyncError(err, 'settings.team.revokeError')),
+    });
   }
 
-  async function removeMember() {
+  function removeMember() {
     if (!pendingRemoval) return;
-    setBusy(true);
-    try {
-      await api.delete(`/api/team/members/${pendingRemoval.id}`);
-      setPendingRemoval(null);
-      await load();
-    } catch (err) {
-      setPendingRemoval(null);
-      setError(asyncError(err, 'settings.team.removeError'));
-    } finally {
-      setBusy(false);
-    }
+    setActionError(null);
+    removeMemberMutation.mutate(pendingRemoval.id, {
+      onSuccess: () => setPendingRemoval(null),
+      onError: (err) => {
+        setPendingRemoval(null);
+        setActionError(asyncError(err, 'settings.team.removeError'));
+      },
+    });
+  }
+
+  /**
+   * Hands the studio over. Reloads afterwards rather than refetching the team:
+   * the caller stops being the owner in the same request, so the controls this
+   * screen offers — and the ones the API will accept — both change.
+   */
+  function transferOwnership() {
+    if (!pendingHandover) return;
+    setActionError(null);
+    transfer.mutate(pendingHandover.id, {
+      onSuccess: () => globalThis.location.reload(),
+      onError: (err) => {
+        setPendingHandover(null);
+        setActionError(asyncError(err, 'settings.team.handoverError'));
+      },
+    });
   }
 
   /**
@@ -151,35 +142,18 @@ export function TeamSettings() {
    * it — the layout's `/api/auth/me` effect must not refire against dead
    * cookies.
    */
-  /**
-   * Hands the studio over. Reloads afterwards rather than refetching the team:
-   * the caller stops being the owner in the same request, so the controls this
-   * screen offers — and the ones the API will accept — both change.
-   */
-  async function transferOwnership() {
-    if (!pendingHandover) return;
-    setBusy(true);
-    try {
-      await api.post('/api/team/transfer-ownership', { memberId: pendingHandover.id });
-      globalThis.location.reload();
-    } catch (err) {
-      setPendingHandover(null);
-      setError(asyncError(err, 'settings.team.handoverError'));
-      setBusy(false);
-    }
-  }
-
-  async function leaveStudio() {
-    setBusy(true);
-    try {
-      await api.post('/api/team/leave');
-      clearUser();
-      globalThis.location.href = '/?left=1';
-    } catch (err) {
-      setConfirmLeave(false);
-      setError(asyncError(err, 'settings.team.leaveError'));
-      setBusy(false);
-    }
+  function leaveStudio() {
+    setActionError(null);
+    leave.mutate(undefined, {
+      onSuccess: () => {
+        clearUser();
+        globalThis.location.href = '/?left=1';
+      },
+      onError: (err) => {
+        setConfirmLeave(false);
+        setActionError(asyncError(err, 'settings.team.leaveError'));
+      },
+    });
   }
 
   if (loading) {
@@ -196,7 +170,7 @@ export function TeamSettings() {
     return (
       <Card>
         <Alert tone="danger" title={t('settings.team.loadError')}>
-          {error ? asyncErrorText(error, t) : null}
+          {loadError ? asyncErrorText(loadError, t) : null}
         </Alert>
       </Card>
     );
@@ -346,7 +320,7 @@ export function TeamSettings() {
                 {t('settings.team.statusPending')}
               </Badge>
               {team.canManage && (
-                <Button variant="ghost" size="sm" onClick={() => void revoke(i.id)} disabled={busy}>
+                <Button variant="ghost" size="sm" onClick={() => revoke(i.id)} disabled={busy}>
                   {t('settings.team.revoke')}
                 </Button>
               )}
@@ -463,7 +437,7 @@ export function TeamSettings() {
         tone="danger"
         theme={theme}
         busy={busy}
-        onConfirm={() => void transferOwnership()}
+        onConfirm={transferOwnership}
         onCancel={() => setPendingHandover(null)}
       />
 
@@ -475,7 +449,7 @@ export function TeamSettings() {
         tone="danger"
         theme={theme}
         busy={busy}
-        onConfirm={() => void leaveStudio()}
+        onConfirm={leaveStudio}
         onCancel={() => setConfirmLeave(false)}
       />
 
@@ -489,7 +463,7 @@ export function TeamSettings() {
         tone="danger"
         theme={theme}
         busy={busy}
-        onConfirm={() => void removeMember()}
+        onConfirm={removeMember}
         onCancel={() => setPendingRemoval(null)}
       />
     </Card>

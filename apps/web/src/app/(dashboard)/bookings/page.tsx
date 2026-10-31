@@ -3,15 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
 import { parseApiDate, startOfToday } from '@/lib/date';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
-import { useBookings, bookingsQueryKey } from '@/hooks/useBookings';
+import { useBookings, useUpdateBookingStatus } from '@/hooks/useBookings';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import api from '@/lib/api';
 import { Booking } from '@/types/api';
-import { extractApiError, insertSortedByDate } from '@/lib/helpers';
+import { extractApiError } from '@/lib/helpers';
 import {
   getAllowedTransitions,
   getBookingStatusMeta,
@@ -104,7 +102,7 @@ function BookingsView() {
   const isPhotographer = useIsPhotographer();
   const { t, tPlural, format } = useTranslation();
 
-  const queryClient = useQueryClient();
+  const updateStatus = useUpdateBookingStatus();
   // Data now comes from React Query: cached, deduped, and shared across mounts.
   // Navigating back within the stale window is instant (no refetch).
   const {
@@ -351,57 +349,42 @@ function BookingsView() {
   }
 
   /**
-   * Apply a status change optimistically.
-   *
-   * The new state is painted immediately and reconciled with the server's
-   * response; a failure rolls the cache back and surfaces the error inline.
+   * Apply a status change — optimistically, see {@link useUpdateBookingStatus}.
    * This replaced an await-then-render flow that disabled the toolbar and
    * spun for the duration of the round-trip — the common case (it works) is
    * now instant, and the interruption happens only in the rare case.
    */
-  async function applyTransition(
-    bookingId: string,
-    from: BookingStatusKey,
-    target: BookingStatusKey
-  ) {
-    const key = bookingsQueryKey(isPhotographer);
+  function applyTransition(bookingId: string, from: BookingStatusKey, target: BookingStatusKey) {
     setActionError(null);
-    queryClient.setQueryData<Booking[]>(key, (old = []) =>
-      old.map((b) => (b.id === bookingId ? { ...b, status: target } : b))
+    updateStatus.mutate(
+      { id: bookingId, from, to: target },
+      {
+        onSuccess: () => {
+          // Undo is offered only when the reverse move is legal in the backend
+          // state machine — POSTPONED ↔ CONFIRMED is the one round trip it
+          // allows. Everything else is deliberately one-way (terminal states keep
+          // the audit trail honest), so promising an undo there would just produce
+          // a 409 on click.
+          const canUndo = getAllowedTransitions(target).includes(from);
+          setToast({
+            message: t('bookings.toast.statusUpdated', {
+              status: t(getBookingStatusMeta(target).labelKey),
+            }),
+            actionLabel: canUndo ? t('bookings.toast.undo') : undefined,
+            onAction: canUndo
+              ? () => {
+                  setToast(null);
+                  applyTransition(bookingId, target, from);
+                }
+              : undefined,
+          });
+        },
+        onError: (err) => {
+          setToast(null);
+          setActionError(extractApiError(err, t('bookings.errorUpdateStatus')));
+        },
+      }
     );
-
-    try {
-      const res = await api.patch<Booking>(`/api/bookings/${bookingId}/status`, {
-        status: target,
-      });
-      queryClient.setQueryData<Booking[]>(key, (old = []) =>
-        old.map((b) => (b.id === res.data.id ? res.data : b))
-      );
-      // Undo is offered only when the reverse move is legal in the backend
-      // state machine — POSTPONED ↔ CONFIRMED is the one round trip it
-      // allows. Everything else is deliberately one-way (terminal states keep
-      // the audit trail honest), so promising an undo there would just produce
-      // a 409 on click.
-      const canUndo = getAllowedTransitions(target).includes(from);
-      setToast({
-        message: t('bookings.toast.statusUpdated', {
-          status: t(getBookingStatusMeta(target).labelKey),
-        }),
-        actionLabel: canUndo ? t('bookings.toast.undo') : undefined,
-        onAction: canUndo
-          ? () => {
-              setToast(null);
-              void applyTransition(bookingId, target, from);
-            }
-          : undefined,
-      });
-    } catch (err) {
-      queryClient.setQueryData<Booking[]>(key, (old = []) =>
-        old.map((b) => (b.id === bookingId ? { ...b, status: from } : b))
-      );
-      setToast(null);
-      setActionError(extractApiError(err, t('bookings.errorUpdateStatus')));
-    }
   }
 
   function handleTransition(target: BookingStatusKey) {
@@ -412,29 +395,17 @@ function BookingsView() {
       setConfirmCancel(true);
       return;
     }
-    void applyTransition(selected.id, selected.status as BookingStatusKey, target);
+    applyTransition(selected.id, selected.status as BookingStatusKey, target);
   }
 
+  // The cache already has the booking — useSaveBooking files it in at its date.
   function handleCreated(created: Booking) {
-    // Write straight into the cache so the new booking appears instantly without
-    // a refetch (React Query keeps every subscriber in sync).
-    queryClient.setQueryData<Booking[]>(bookingsQueryKey(isPhotographer), (old = []) =>
-      insertSortedByDate(old, created)
-    );
     setSelectedId(created.id);
     setShowCreate(false);
     setCreateDate(null);
   }
 
   function handleEdited(updated: Booking) {
-    // Replace the edited booking in the cache in place. The event date may have
-    // changed, so re-sort by removing and re-inserting rather than a straight map.
-    queryClient.setQueryData<Booking[]>(bookingsQueryKey(isPhotographer), (old = []) =>
-      insertSortedByDate(
-        old.filter((b) => b.id !== updated.id),
-        updated
-      )
-    );
     setSelectedId(updated.id);
     setEditingBooking(null);
   }
@@ -939,7 +910,7 @@ function BookingsView() {
         onConfirm={() => {
           setConfirmCancel(false);
           if (selected) {
-            void applyTransition(selected.id, selected.status as BookingStatusKey, 'CANCELLED');
+            applyTransition(selected.id, selected.status as BookingStatusKey, 'CANCELLED');
           }
         }}
         onCancel={() => setConfirmCancel(false)}

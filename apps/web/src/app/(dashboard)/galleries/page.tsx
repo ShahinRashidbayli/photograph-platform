@@ -3,13 +3,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
-import api from '@/lib/api';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { StatStrip } from '@/components/StatStrip';
-import { Badge, Toggle } from '@/components/ui';
+import { Alert, Badge, Toggle } from '@/components/ui';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
+import {
+  useCreateGallery,
+  useDeleteGallery,
+  useDeleteGalleryPhoto,
+  useExtendGallery,
+  useGalleries,
+  useGalleryBookingOptions,
+  useGalleryPhotos,
+  useUpdateGallery,
+  useUploadGalleryPhotos,
+  type DeliveryPhoto,
+  type Gallery,
+} from '@/hooks/useGalleries';
 import { getGalleriesColors, getGalleriesStyles } from './galleries.styles';
 import {
   daysUntil,
@@ -23,59 +35,6 @@ import {
 
 type AppColors = ReturnType<typeof getGalleriesColors>;
 type AppStyles = ReturnType<typeof getGalleriesStyles>;
-
-interface Gallery {
-  id: string;
-  bookingId: string;
-  bookingName: string;
-  eventType: string;
-  shootDate: string;
-  photoCount: number;
-  downloadEnabled: boolean;
-  watermarkEnabled: boolean;
-  expiresAt: string | null;
-  accessToken: string;
-  viewCount: number;
-  // Retention (ADR-001). expiryState distinguishes "still live" from "expired
-  // but recoverable" from "photos deleted" — a countdown alone cannot say
-  // whether Extend will still bring anything back.
-  expiryState: 'ACTIVE' | 'EXPIRED' | 'PURGED';
-  retentionDays: number | null;
-  purgeAfter: string | null;
-  extensionCount: number;
-  canExtend: boolean;
-}
-
-interface BookingOption {
-  id: string;
-  clientName: string;
-  eventType: string | null;
-  eventDate: string;
-}
-
-interface DeliveryPhoto {
-  id: string;
-  viewUrl: string | null;
-  thumbnailUrl: string | null;
-  originalFilename: string | null;
-  fileSizeBytes: number | null;
-  width: number | null;
-  height: number | null;
-  sortOrder: number;
-}
-
-interface InitiateUploadResponse {
-  photoId: string;
-  r2Key: string;
-  uploadUrl: string;
-  /**
-   * The type the URL was signed with — not necessarily the one we asked for,
-   * since the API canonicalises it and resolves an unknown type from the
-   * filename. Content-Type is a signed header on the presigned PUT, so sending
-   * anything else fails the signature check.
-   */
-  contentType: string;
-}
 
 // ─── SVG icons ────────────────────────────────────────────────────────────────
 const IconEye = () => (
@@ -324,6 +283,9 @@ const IconChevronDown = () => (
 /** How many rows the rail shows before "show the remaining n". */
 const LIST_PAGE_SIZE = 6;
 
+/** Stable while the query has no data, so the memos below do not recompute every render. */
+const NO_GALLERIES: Gallery[] = [];
+
 // ─── GalleryListItem ──────────────────────────────────────────────────────────
 /**
  * One gallery in the rail: thumbnail, who and when, and a status line that
@@ -443,70 +405,32 @@ function GalleryListItem({
  * the whole gallery and re-uploading it. The client, meanwhile, could already
  * see it.
  *
- * <p>Re-fetches whenever {@code photoCount} changes, which is exactly when an
- * upload or a delete has landed.
+ * <p>Stays current without being told: an upload or a delete refreshes this
+ * gallery's photos itself (see the mutations in `useGalleries`).
  */
 function GalleryPhotos({
   galleryId,
-  photoCount,
   styles,
   colors,
-  onDeleted,
   onAdd,
 }: Readonly<{
   galleryId: string;
-  photoCount: number;
   styles: AppStyles;
   colors: AppColors;
-  onDeleted: () => void;
   /** Opens the file picker. Renders the trailing tile in the grid. */
   onAdd: () => void;
 }>) {
   const { t } = useTranslation();
-  const [photos, setPhotos] = useState<DeliveryPhoto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const photosQuery = useGalleryPhotos(galleryId);
+  const deletePhoto = useDeleteGalleryPhoto(galleryId);
+  const photos = photosQuery.data ?? [];
+  const deletingId = deletePhoto.isPending ? deletePhoto.variables : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api
-      .get<DeliveryPhoto[]>(`/api/galleries/${galleryId}/photos`)
-      .then(({ data }) => {
-        if (!cancelled && Array.isArray(data)) setPhotos(data);
-      })
-      .catch(() => {
-        if (!cancelled) setPhotos([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    // Cancelled on unmount and on gallery switch so a slow response for the
-    // previous gallery cannot paint its photos into the newly-selected one.
-    return () => {
-      cancelled = true;
-    };
-  }, [galleryId, photoCount]);
-
-  async function remove(photo: DeliveryPhoto) {
+  function remove(photo: DeliveryPhoto) {
     const name = photo.originalFilename || 'this photo';
     if (!window.confirm(`Delete ${name}? The client will no longer see it. This cannot be undone.`))
       return;
-    setDeletingId(photo.id);
-    setDeleteError(null);
-    try {
-      await api.delete(`/api/galleries/photos/${photo.id}`);
-      setPhotos((current) => current.filter((p) => p.id !== photo.id));
-      onDeleted();
-    } catch {
-      // Without this the rejection was unhandled and the row simply stayed
-      // put — indistinguishable from a click that never registered, on an
-      // action the photographer believes removed a client's photo.
-      setDeleteError(t('galleries.detail.deletePhotoError'));
-    } finally {
-      setDeletingId(null);
-    }
+    deletePhoto.mutate(photo.id);
   }
 
   const addTile = (
@@ -516,7 +440,7 @@ function GalleryPhotos({
     </button>
   );
 
-  if (loading) {
+  if (photosQuery.isLoading) {
     return (
       <div style={{ color: colors.textMuted, fontSize: '0.85rem' }}>
         {t('galleries.detail.photosLoading')}
@@ -538,12 +462,15 @@ function GalleryPhotos({
 
   return (
     <>
-      {deleteError && (
+      {/* Without this a failed delete left the photo simply sitting there —
+          indistinguishable from a click that never registered, on an action
+          the photographer believes removed a client's photo. */}
+      {deletePhoto.isError && (
         <div
           role="alert"
           style={{ color: colors.dangerText, fontSize: '0.82rem', marginBottom: 10 }}
         >
-          {deleteError}
+          {t('galleries.detail.deletePhotoError')}
         </div>
       )}
       <div style={styles.photoGrid}>
@@ -588,7 +515,6 @@ function GalleryDetail({
   onExtend,
   onDelete,
   onUpload,
-  onPhotosChanged,
 }: Readonly<{
   gallery: Gallery | null;
   subdomain: string | null;
@@ -599,7 +525,6 @@ function GalleryDetail({
   onExtend: (_id: string) => void;
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
-  onPhotosChanged: () => void;
 }>) {
   // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
   // can tell the user to copy the link manually instead of appearing inert.
@@ -842,12 +767,12 @@ function GalleryDetail({
             </div>
             <span style={styles.sectionCount}>{gallery.photoCount}</span>
           </div>
+          {/* Keyed so a failed delete in one gallery is not still on screen in the next. */}
           <GalleryPhotos
+            key={gallery.id}
             galleryId={gallery.id}
-            photoCount={gallery.photoCount}
             styles={styles}
             colors={colors}
-            onDeleted={onPhotosChanged}
             onAdd={() => fileRef.current?.click()}
           />
         </div>
@@ -939,37 +864,27 @@ function CreateGalleryModal({
   onCreated,
 }: Readonly<{ colors: AppColors; onClose: () => void; onCreated: (_g: Gallery) => void }>) {
   const { t } = useTranslation();
-  const [bookings, setBookings] = useState<BookingOption[]>([]);
-  const [bookingId, setBookingId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<AsyncError | null>(null);
+  const bookingsQuery = useGalleryBookingOptions();
+  const createGallery = useCreateGallery();
+  const bookings = bookingsQuery.data ?? [];
+  const loading = bookingsQuery.isLoading;
+  // Nothing chosen yet means the first booking — derived rather than copied
+  // into state on load, so there is no moment where the select shows one
+  // booking and submit would send none.
+  const [chosenBookingId, setBookingId] = useState('');
+  const bookingId = chosenBookingId || bookings[0]?.id || '';
+  // Held through success too: the modal closes on success, and re-enabling
+  // the button for that one frame would invite a second gallery.
+  const submitting = createGallery.isPending || createGallery.isSuccess;
+  const error: AsyncError | null = createGallery.isError
+    ? { key: 'galleries.create.error' }
+    : bookingsQuery.isError
+      ? { key: 'galleries.create.bookingsError' }
+      : null;
 
-  useEffect(() => {
-    api
-      .get<BookingOption[]>('/api/photographerBookings?size=100')
-      .then((res) => {
-        const list = Array.isArray(res.data) ? res.data : [];
-        setBookings(list);
-        setBookingId(list[0]?.id ?? '');
-      })
-      .catch(() => setError({ key: 'galleries.create.bookingsError' }))
-      .finally(() => setLoading(false));
-    // No `t`: the failure is a key now, so a language change must not refetch
-    // the booking list and reset the selection the user has already made.
-  }, []);
-
-  async function submit() {
+  function submit() {
     if (!bookingId) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const { data } = await api.post<Gallery>('/api/galleries', { bookingId });
-      onCreated(data);
-    } catch {
-      setError({ key: 'galleries.create.error' });
-      setSubmitting(false);
-    }
+    createGallery.mutate(bookingId, { onSuccess: onCreated });
   }
 
   const overlay: React.CSSProperties = {
@@ -1100,14 +1015,18 @@ export default function GalleriesPage() {
   const isPhotographer = useIsPhotographer();
   const subdomain = useAuthStore((s) => s.user?.tenant?.subdomain ?? null);
 
-  const [galleries, setGalleries] = useState<Gallery[]>([]);
+  const galleriesQuery = useGalleries(isPhotographer);
+  const galleries = galleriesQuery.data ?? NO_GALLERIES;
+  const loading = galleriesQuery.isLoading;
   const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Expired'>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<AsyncError | null>(null);
+  // A failed action on a gallery. Kept apart from the load error: that one
+  // replaces the page, while this one has to show *above* the galleries —
+  // before, both shared one state rendered only when the list was empty, so a
+  // failed delete, extend or upload on an existing gallery showed nothing.
+  const [actionError, setActionError] = useState<AsyncError | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
   // The rail shows the first page of galleries and offers the rest behind one
   // click — a photographer two seasons in has a hundred of them, and the ones
   // that need doing something about are already sorted to the top.
@@ -1115,116 +1034,70 @@ export default function GalleriesPage() {
   const listFileRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<string | null>(null);
 
-  const loadGalleries = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    api
-      .get<Gallery[]>('/api/galleries')
-      .then((res) => {
-        const list = Array.isArray(res.data) ? res.data : [];
-        setGalleries(list);
-        setSelectedGalleryId((prev) => prev ?? list[0]?.id ?? null);
-      })
-      .catch(() => setError({ key: 'galleries.loadErrorBody' }))
-      .finally(() => setLoading(false));
-    // No `t`: an effect depends on this, so it would reload every gallery on
-    // each language change.
-  }, []);
+  const updateGallery = useUpdateGallery();
+  const extendGalleryMutation = useExtendGallery();
+  const deleteGalleryMutation = useDeleteGallery();
+  const uploadGalleryPhotos = useUploadGalleryPhotos();
+  // `mutate` is stable across renders; the mutation object around it is not.
+  const { mutate: mutateUpdate } = updateGallery;
+  const { mutate: mutateExtend } = extendGalleryMutation;
+  const { mutate: mutateDelete } = deleteGalleryMutation;
+  const { mutate: mutateUpload } = uploadGalleryPhotos;
 
-  useEffect(() => {
-    if (isPhotographer) loadGalleries();
-  }, [isPhotographer, loadGalleries]);
+  /** The gallery an action is running against, so its row and panel can show it. */
+  const busyId =
+    (updateGallery.isPending && updateGallery.variables?.id) ||
+    (extendGalleryMutation.isPending && extendGalleryMutation.variables) ||
+    (deleteGalleryMutation.isPending && deleteGalleryMutation.variables) ||
+    (uploadGalleryPhotos.isPending && uploadGalleryPhotos.variables?.id) ||
+    null;
 
-  const patchGallery = useCallback(async (id: string, body: Record<string, unknown>) => {
-    setBusyId(id);
-    try {
-      const { data } = await api.patch<Gallery>(`/api/galleries/${id}`, body);
-      setGalleries((prev) => prev.map((g) => (g.id === id ? data : g)));
-    } catch {
-      setError({ key: 'galleries.update.error' });
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
+  const patchGallery = useCallback(
+    (id: string, body: Record<string, unknown>) => {
+      setActionError(null);
+      mutateUpdate(
+        { id, body },
+        { onError: () => setActionError({ key: 'galleries.update.error' }) }
+      );
+    },
+    [mutateUpdate]
+  );
 
-  /**
-   * Grants one more full plan-sized window (ADR-001 §4.2). Works on a gallery
-   * that already lapsed — that recovery path is precisely why the grace period
-   * exists — and 409s once the photos have actually been deleted.
-   */
-  const extendGallery = useCallback(async (id: string) => {
-    setBusyId(id);
-    try {
-      const { data } = await api.post<Gallery>(`/api/galleries/${id}/extend`, {});
-      setGalleries((prev) => prev.map((g) => (g.id === id ? data : g)));
-    } catch {
-      setError({ key: 'galleries.extend.error' });
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
-
-  const deleteGallery = useCallback(async (id: string) => {
-    if (!window.confirm('Delete this gallery and all its photos? This cannot be undone.')) return;
-    setBusyId(id);
-    try {
-      await api.delete(`/api/galleries/${id}`);
-      setGalleries((prev) => {
-        const next = prev.filter((g) => g.id !== id);
-        setSelectedGalleryId(next[0]?.id ?? null);
-        return next;
+  const extendGallery = useCallback(
+    (id: string) => {
+      setActionError(null);
+      mutateExtend(id, {
+        onError: () => setActionError({ key: 'galleries.extend.error' }),
       });
-    } catch {
-      setError({ key: 'galleries.delete.error' });
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
+    },
+    [mutateExtend]
+  );
 
-  const uploadPhotos = useCallback(async (galleryId: string, files: FileList) => {
-    setBusyId(galleryId);
-    try {
-      for (const file of Array.from(files)) {
-        const { data: init } = await api.post<InitiateUploadResponse>(
-          `/api/galleries/${galleryId}/photos/initiate-upload`,
-          // The size is required: the API signs it into the URL as
-          // Content-Length, which is what bounds the upload, and it is the size
-          // recorded against the photo — so it is not sent again at complete.
-          {
-            filename: file.name,
-            contentType: file.type || 'application/octet-stream',
-            fileSizeBytes: file.size,
-          }
-        );
-        const put = await fetch(init.uploadUrl, {
-          method: 'PUT',
-          body: file,
-          // The type the API signed, not our own guess — see above.
-          headers: { 'Content-Type': init.contentType },
-        });
-        // `fetch` only rejects on a network failure — a 403 (expired presign),
-        // 400 or 5xx from R2 resolves normally. Without this check the code
-        // marched straight on to `complete`, so the delivery_photos row was
-        // created pointing at an object that was never stored: the photographer
-        // saw "uploaded", photoCount counted it, and the client's gallery
-        // rendered a broken image. The portfolio uploader already checks its
-        // status (see fetchPutWithProgress); this path did not.
-        if (!put.ok) {
-          throw new Error(`Storage rejected the upload (HTTP ${put.status})`);
-        }
-        await api.post(`/api/galleries/photos/${init.photoId}/complete`, {});
-      }
-      // Re-read so photoCount reflects the new uploads.
-      const { data } = await api.get<Gallery[]>('/api/galleries');
-      if (Array.isArray(data)) setGalleries(data);
-    } catch {
-      setError({ key: 'galleries.detail.uploadError' });
-    } finally {
-      setBusyId(null);
-    }
-    // `t` is memoised per language, so this only re-creates when the user
-    // switches locale — which is exactly when the error copy must change.
-  }, []);
+  const deleteGallery = useCallback(
+    (id: string) => {
+      if (!window.confirm('Delete this gallery and all its photos? This cannot be undone.')) return;
+      setActionError(null);
+      mutateDelete(id, {
+        // The panel falls back to the top of the list once its gallery is gone.
+        onSuccess: () => setSelectedGalleryId((current) => (current === id ? null : current)),
+        onError: () => setActionError({ key: 'galleries.delete.error' }),
+      });
+    },
+    [mutateDelete]
+  );
+
+  const uploadPhotos = useCallback(
+    (galleryId: string, files: FileList) => {
+      setActionError(null);
+      // Copied out of the FileList: the input is cleared right after this call,
+      // which empties the live list the upload would still be reading from.
+      mutateUpload(
+        { id: galleryId, files: Array.from(files) },
+        { onError: () => setActionError({ key: 'galleries.detail.uploadError' }) }
+      );
+    },
+    [mutateUpload]
+  );
 
   const filteredGalleries = useMemo(() => {
     let filtered = galleries;
@@ -1415,13 +1288,13 @@ export default function GalleriesPage() {
     );
   }
 
-  if (error && galleries.length === 0) {
+  if (galleriesQuery.isError && galleries.length === 0) {
     return (
       <div style={styles.pageWrapper}>
         <div style={styles.errorPanel}>
           <div style={{ fontWeight: 700, fontSize: '1rem' }}>{t('galleries.loadError')}</div>
-          <div style={styles.errorText}>{asyncErrorText(error, t)}</div>
-          <button style={styles.retryButton} onClick={loadGalleries}>
+          <div style={styles.errorText}>{t('galleries.loadErrorBody')}</div>
+          <button style={styles.retryButton} onClick={() => galleriesQuery.refetch()}>
             Try again
           </button>
         </div>
@@ -1436,7 +1309,6 @@ export default function GalleriesPage() {
           colors={colors}
           onClose={() => setShowCreate(false)}
           onCreated={(g) => {
-            setGalleries((prev) => [g, ...prev]);
             setSelectedGalleryId(g.id);
             setShowCreate(false);
           }}
@@ -1478,6 +1350,12 @@ export default function GalleriesPage() {
           </button>
         </div>
       </header>
+
+      {actionError && (
+        <Alert tone="danger" style={{ marginBottom: 16 }}>
+          {asyncErrorText(actionError, t)}
+        </Alert>
+      )}
 
       <div style={styles.container}>
         <div style={styles.listPanel}>
@@ -1639,7 +1517,6 @@ export default function GalleriesPage() {
             onExtend={extendGallery}
             onDelete={deleteGallery}
             onUpload={uploadPhotos}
-            onPhotosChanged={loadGalleries}
           />
         </div>
       </div>

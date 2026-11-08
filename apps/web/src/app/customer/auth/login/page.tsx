@@ -1,6 +1,7 @@
 'use client';
 
 import { useRequestLoginCode, useVerifyLoginCode } from '@/hooks/useAuth';
+import { usePublicTenantLegal } from '@/hooks/useTenantLegal';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
@@ -49,9 +50,40 @@ function deriveSubdomainFromHost(): string | null {
 // ten seconds and then being unable to ask again for an hour.
 const RESEND_COOLDOWN_SECONDS = 30;
 
-type FocusField = 'email' | 'subdomain' | 'fullName' | 'code' | null;
+type FocusField = 'email' | 'fullName' | 'code' | null;
 
 const CODE_LENGTH = 6;
+
+/**
+ * The studio this browser last signed in to. A client comes back to the same
+ * photographer; remembering the studio means the second visit shows its name
+ * instead of asking for a subdomain they typed once and forgot. Only a
+ * convenience — storage may be blocked, and then the field simply returns.
+ */
+const LAST_STUDIO_KEY = 'fotolio.customer.lastStudio';
+
+function readLastStudio(): string | null {
+  try {
+    const v = window.localStorage.getItem(LAST_STUDIO_KEY);
+    return v && SUBDOMAIN_REGEX.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberStudio(subdomain: string) {
+  try {
+    window.localStorage.setItem(LAST_STUDIO_KEY, subdomain);
+  } catch {
+    // Private mode or blocked storage: the next visit asks again, nothing more.
+  }
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
+}
 
 function CustomerLoginInner() {
   const searchParams = useSearchParams();
@@ -67,6 +99,16 @@ function CustomerLoginInner() {
   const [email, setEmail] = useState('');
   const [subdomain, setSubdomain] = useState(initialSubdomain);
   const [subdomainLocked, setSubdomainLocked] = useState(false);
+  // A link from the studio (`?subdomain=`), the studio's own host, or this
+  // browser's last sign-in may already say who the photographer is; the client
+  // then sees the studio. Otherwise — or after "Change" — they give only their
+  // email, and the server finds the studios that know it.
+  //
+  // The studio the code was requested for, fixed at submit: verifying must ask
+  // the same question the request did, even if the card changes meanwhile.
+  const [requestedFor, setRequestedFor] = useState<string | null>(null);
+  const [changingStudio, setChangingStudio] = useState(false);
+  const [rememberedStudio, setRememberedStudio] = useState(false);
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   // Two instances: the first request and a resend show their busy state apart.
@@ -110,7 +152,19 @@ function CustomerLoginInner() {
     if (fromHost) {
       setSubdomain(fromHost);
       setSubdomainLocked(true);
+      return;
     }
+    // No studio in the host or the link: fall back to the one this browser
+    // signed in to last time.
+    if (!initialSubdomain) {
+      const last = readLastStudio();
+      if (last) {
+        setSubdomain(last);
+        setRememberedStudio(true);
+      }
+    }
+    // initialSubdomain is read once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-render twice a second while a cooldown is running, so the label counts
@@ -126,12 +180,26 @@ function CustomerLoginInner() {
 
   const cooldown = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
 
+  const linkedStudio = SUBDOMAIN_REGEX.test(subdomain.trim().toLowerCase())
+    ? subdomain.trim().toLowerCase()
+    : null;
+  const showStudio =
+    linkedStudio !== null &&
+    (subdomainLocked || ((initialSubdomain !== '' || rememberedStudio) && !changingStudio));
+  const legal = usePublicTenantLegal(showStudio ? linkedStudio : null);
+  const studioName =
+    legal.data?.legalName?.trim() ||
+    (linkedStudio ?? '')
+      .split('-')
+      .filter(Boolean)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(' ');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedSubdomain = subdomain.trim().toLowerCase();
 
-    if (!trimmedEmail || !trimmedSubdomain) {
+    if (!trimmedEmail) {
       setError(t('customerLogin.errorRequired'));
       return;
     }
@@ -139,20 +207,18 @@ function CustomerLoginInner() {
       setError(t('customerLogin.errorEmail'));
       return;
     }
-    if (!SUBDOMAIN_REGEX.test(trimmedSubdomain)) {
-      setError(t('customerLogin.errorSubdomain'));
-      return;
-    }
 
     setError('');
+    const studio = showStudio ? linkedStudio : null;
     requestCode.mutate(
       {
         email: trimmedEmail,
-        subdomain: trimmedSubdomain,
+        subdomain: studio,
         fullName: fullName.trim() || null,
       },
       {
         onSuccess: () => {
+          setRequestedFor(studio);
           setSubmitted(true);
           // The first link counts against the same limit as a resend, so the
           // cooldown starts here too.
@@ -185,11 +251,14 @@ function CustomerLoginInner() {
     verifyCode.mutate(
       {
         email: email.trim().toLowerCase(),
-        subdomain: subdomain.trim().toLowerCase(),
+        subdomain: requestedFor,
         code,
       },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
+          // The studio the code opened — by email alone, the server decided it.
+          const opened = res.data?.tenant?.subdomain ?? requestedFor;
+          if (opened) rememberStudio(opened);
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
           window.location.href = '/bookings';
@@ -215,7 +284,7 @@ function CustomerLoginInner() {
     resendCode.mutate(
       {
         email: email.trim().toLowerCase(),
-        subdomain: subdomain.trim().toLowerCase(),
+        subdomain: requestedFor,
         fullName: fullName.trim() || null,
       },
       {
@@ -262,7 +331,9 @@ function CustomerLoginInner() {
         href: withPreservedNext(PHOTOGRAPHER_LOGIN, `?${searchParams}`),
         label: t('customerLogin.photographerSignIn'),
       }}
-      visualImage="/brand/auth-visual-client.jpg"
+      // The result rather than the gear: a client cares about their photos.
+      // The photographer sign-in keeps the camera.
+      visualImage="/brand/auth-client.webp"
       visualTitle={t('customerLogin.visualTitle')}
       visualSubtitle={t('customerLogin.visualSubtitle')}
     >
@@ -280,6 +351,79 @@ function CustomerLoginInner() {
           )}
 
           <form onSubmit={handleSubmit} noValidate>
+            {showStudio ? (
+              <div style={s.formGroup}>
+                <span style={s.label} id="cust-studio-label">
+                  {t('customerLogin.studioLabel')}
+                </span>
+                <div
+                  aria-labelledby="cust-studio-label"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: 10,
+                    background: colors.surface,
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: colors.primarySolid,
+                      color: colors.onPrimary,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {initialsOf(studioName)}
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 500, color: colors.text }}>
+                      {studioName}
+                    </span>
+                    <span style={{ fontSize: 12, color: colors.textSubtle }}>
+                      {subdomain}.fotolio.de
+                    </span>
+                  </span>
+                  {!subdomainLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setChangingStudio(true)}
+                      style={{
+                        border: 0,
+                        background: 'transparent',
+                        color: colors.textMuted,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        padding: '8px 4px',
+                      }}
+                    >
+                      {t('customerLogin.studioChange')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             <div style={s.formGroup}>
               <label style={s.label} htmlFor="cust-email">
                 {t('customerLogin.emailLabel')}
@@ -299,56 +443,11 @@ function CustomerLoginInner() {
             </div>
 
             <div style={s.formGroup}>
-              <label style={s.label} htmlFor="cust-subdomain">
-                {t('customerLogin.subdomainLabel')}
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
-                <input
-                  id="cust-subdomain"
-                  type="text"
-                  style={{
-                    ...inputStyle('subdomain'),
-                    ...(subdomainLocked
-                      ? {
-                          background: colors.surfaceHover,
-                          color: colors.textMuted,
-                          cursor: 'default',
-                        }
-                      : {}),
-                  }}
-                  placeholder="anna-foto"
-                  value={subdomain}
-                  onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
-                  onFocus={() => setFocused('subdomain')}
-                  onBlur={() => setFocused(null)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  readOnly={subdomainLocked}
-                  aria-readonly={subdomainLocked}
-                />
-                <div
-                  style={{
-                    ...s.input,
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: colors.surfaceHover,
-                    cursor: 'default',
-                    color: colors.textMuted,
-                  }}
-                >
-                  .fotolio.de
-                </div>
-              </div>
-              <div style={s.helperText}>
-                {subdomainLocked
-                  ? t('customerLogin.subdomainHelperLocked')
-                  : t('customerLogin.subdomainHelper')}
-              </div>
-            </div>
-
-            <div style={s.formGroup}>
               <label style={s.label} htmlFor="cust-fullname">
-                {t('customerLogin.fullNameLabel')}
+                {t('customerLogin.fullNameLabel')}{' '}
+                <span style={{ fontWeight: 400, color: colors.textSubtle }}>
+                  {t('customerLogin.optional')}
+                </span>
               </label>
               <input
                 id="cust-fullname"
@@ -404,7 +503,11 @@ function CustomerLoginInner() {
             <Icon name="mail" size={28} />
           </div>
           <h2 style={s.title}>{t('customerLogin.sentTitle')}</h2>
-          <p style={s.subtitle}>{t('customerLogin.sentBody', { email })}</p>
+          <p style={s.subtitle}>
+            {requestedFor
+              ? t('customerLogin.sentBody', { email })
+              : t('customerLogin.sentBodyAny', { email })}
+          </p>
           <div style={{ ...s.alertInfo, marginTop: 20 }}>{t('customerLogin.sentHint')}</div>
 
           {error && <div style={{ ...s.alertError, marginTop: 16 }}>{error}</div>}

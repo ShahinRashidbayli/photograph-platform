@@ -1,3 +1,4 @@
+import { pageTitle } from '@/lib/design-tokens';
 import React from 'react';
 
 export const portfolioStyles: Record<string, React.CSSProperties> = {
@@ -22,11 +23,7 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #E5E7EB',
     boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
   },
-  pageTitle: {
-    fontSize: '22px',
-    fontWeight: 800,
-    marginBottom: '4px',
-  },
+  pageTitle: { ...pageTitle },
   pageSubtitle: {
     fontSize: '13px',
     maxWidth: '560px',
@@ -46,14 +43,12 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     minWidth: '140px',
   },
   headerStatLabel: {
-    fontSize: '10px',
+    fontSize: '0.75rem',
     fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
   },
   headerStatValue: {
     fontSize: '20px',
-    fontWeight: 800,
+    fontWeight: 600,
     letterSpacing: '-0.01em',
   },
   headerStatChange: {
@@ -94,7 +89,7 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
   },
   listTitle: {
     fontSize: '16px',
-    fontWeight: 700,
+    fontWeight: 600,
     marginBottom: 0,
     letterSpacing: '-0.01em',
     lineHeight: '1.2',
@@ -122,16 +117,18 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     border: '1px solid',
     borderRadius: '8px',
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     background: 'transparent',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     whiteSpace: 'nowrap',
   },
+  // Theme-aware through the stylesheet's ink/paper variables: this object is
+  // static, so it cannot read the token palette itself.
   filterTabActive: {
-    background: '#6366F1',
-    color: '#fff',
-    border: '1px solid #6366F1',
+    background: 'var(--ui-ink)',
+    color: 'var(--ui-paper)',
+    border: '1px solid var(--ui-ink)',
   },
   listScroll: {
     flex: 1,
@@ -151,13 +148,13 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     gap: '8px',
   },
   listItemActive: {
-    background: 'rgba(99, 102, 241, 0.1)',
-    border: '1px solid rgba(99, 102, 241, 0.3)',
-    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.12)',
+    background: 'var(--ui-selection)',
+    border: '1px solid var(--ui-ink)',
+    boxShadow: 'none',
   },
   listItemTitle: {
     fontSize: '15px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '-0.01em',
   },
   listItemMeta: {
@@ -187,7 +184,7 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
   },
   detailTitle: {
     fontSize: '18px',
-    fontWeight: 700,
+    fontWeight: 600,
     marginBottom: '2px',
     letterSpacing: '-0.01em',
   },
@@ -218,10 +215,10 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #E5E7EB',
   },
   actionButtonPrimary: {
-    background: '#6366F1',
-    color: '#fff',
-    border: '1px solid #6366F1',
-    fontWeight: 700,
+    background: 'var(--ui-ink)',
+    color: 'var(--ui-paper)',
+    border: '1px solid var(--ui-ink)',
+    fontWeight: 600,
     letterSpacing: '-0.01em',
     padding: '9px 20px',
   },
@@ -265,7 +262,7 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
   },
   portfolioCardTitle: {
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '-0.01em',
   },
   portfolioCardMeta: {
@@ -290,14 +287,12 @@ export const portfolioStyles: Record<string, React.CSSProperties> = {
     gap: '8px',
   },
   statBoxLabel: {
-    fontSize: '11px',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    fontSize: '0.75rem',
+    fontWeight: 550,
   },
   statBoxValue: {
     fontSize: '22px',
-    fontWeight: 800,
+    fontWeight: 600,
     letterSpacing: '-0.01em',
   },
 

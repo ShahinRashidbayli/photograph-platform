@@ -32,6 +32,8 @@ export function DashboardHeader({
     subText: string;
     cardBg: string;
     surfaceHover: string;
+    surfaceActive: string;
+    danger: string;
     shadowPopover: string;
   };
   isOpen: boolean;
@@ -116,7 +118,6 @@ export function DashboardHeader({
         padding: '0 20px',
         background: colors.headerBg,
         borderBottom: `1px solid ${colors.border}`,
-        transition: 'background 0.3s ease, border-color 0.3s ease',
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -188,18 +189,14 @@ export function DashboardHeader({
                 background: 'transparent',
                 cursor: 'pointer',
                 borderRadius: '8px',
-                transition: 'background 0.2s ease',
+                transition: 'background-color 120ms ease-out',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: colors.text,
+                ['--ui-row-hover' as string]: colors.surfaceHover,
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = colors.surfaceHover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
+              className="ui-row-hover"
             >
               <svg
                 width="19"
@@ -226,10 +223,10 @@ export function DashboardHeader({
                     height: 16,
                     padding: '0 4px',
                     borderRadius: 999,
-                    background: '#DC2626',
+                    background: colors.danger,
                     color: '#fff',
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
+                    fontSize: '0.625rem',
+                    fontWeight: 600,
                     lineHeight: '16px',
                     textAlign: 'center',
                     border: `2px solid ${colors.headerBg}`,
@@ -269,25 +266,26 @@ export function DashboardHeader({
               height: 36,
               borderRadius: '50%',
               border: 'none',
-              background: theme === 'light' ? '#6366F1' : '#818CF8',
+              padding: 0,
+              background: colors.surfaceActive,
+              boxShadow: `inset 0 0 0 1px ${colors.border}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '0.8rem',
+              color: colors.text,
+              fontWeight: 600,
+              fontSize: '0.75rem',
               flexShrink: 0,
               cursor: 'pointer',
-              transition: 'background 0.3s ease',
             }}
             title={user?.fullName ?? 'User'}
           >
             <UserAvatar
               name={user?.fullName ?? user?.email ?? 'U'}
               src={user?.avatarUrl}
-              size={36}
+              size={32}
               background="transparent"
-              color="#fff"
+              color={colors.text}
             />
           </button>
 
@@ -329,10 +327,8 @@ export function DashboardHeader({
                 {isPhotographer && user?.tenant?.plan && (
                   <div
                     style={{
-                      fontSize: '0.7rem',
+                      fontSize: '0.75rem',
                       color: colors.subText,
-                      letterSpacing: '0.04em',
-                      textTransform: 'uppercase',
                       fontWeight: 600,
                       marginTop: '2px',
                     }}

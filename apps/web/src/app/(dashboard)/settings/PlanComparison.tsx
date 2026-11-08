@@ -71,14 +71,14 @@ export function PlanComparison({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: c.text }}>
+              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: c.text }}>
                 {tier.tier}
               </span>
               {current && (
                 <span
                   style={{
                     fontSize: '0.68rem',
-                    fontWeight: 800,
+                    fontWeight: 600,
                     letterSpacing: '0.06em',
                     color: c.primaryText,
                   }}
@@ -89,7 +89,7 @@ export function PlanComparison({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: c.text }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 600, color: c.text }}>
                 €{yearly ? tier.yearly : tier.monthly}
               </span>
               <span style={{ fontSize: '0.8rem', color: c.textMuted }}>

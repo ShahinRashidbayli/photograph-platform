@@ -3,6 +3,13 @@ import { getBookingStatusMeta, toneToVisual } from '@/lib/booking-status';
 import type { Booking } from '@/types/api';
 import type { TranslationKey } from '@/lib/i18n';
 import type { getBookingsColors } from './bookings.styles';
+import {
+  attentionFor,
+  isPast,
+  isUpcoming,
+  openBalanceCents,
+  type BookingContext,
+} from './bookings.insights';
 
 /**
  * Filtering, grouping and status presentation for the bookings list.
@@ -14,35 +21,60 @@ import type { getBookingsColors } from './bookings.styles';
  * component file.
  */
 
-export type FilterKey = 'all' | 'deposit' | 'confirmed' | 'pending' | 'completed';
+/**
+ * The list's filters are questions a photographer asks, not status values:
+ * "what is waiting on me", "what is coming", "who still owes me", "what is
+ * done". The status names (Confirmed, Pending…) they replaced answered a
+ * question nobody asks of a work queue.
+ */
+export type FilterKey = 'all' | 'needs' | 'upcoming' | 'unpaid' | 'past';
 
 export const FILTERS: { key: FilterKey; labelKey: TranslationKey }[] = [
   { key: 'all', labelKey: 'bookings.filter.all' },
-  { key: 'deposit', labelKey: 'bookings.filter.awaitingPayment' },
-  { key: 'confirmed', labelKey: 'bookings.filter.confirmed' },
-  { key: 'pending', labelKey: 'bookings.filter.pending' },
-  { key: 'completed', labelKey: 'bookings.filter.completed' },
+  { key: 'needs', labelKey: 'bookings.filter.needs' },
+  { key: 'upcoming', labelKey: 'bookings.filter.upcoming' },
+  { key: 'unpaid', labelKey: 'bookings.filter.unpaid' },
+  { key: 'past', labelKey: 'bookings.filter.past' },
 ];
 
-export function matchesFilter(booking: Booking, filter: FilterKey): boolean {
-  if (filter === 'all') return true;
-  // Payment progress is a separate, derived field — "awaiting payment" means
-  // invoiced-but-not-fully-paid, independent of lifecycle status.
-  if (filter === 'deposit') {
-    return (
-      booking.paymentState === 'OPEN' ||
-      booking.paymentState === 'PARTIALLY_PAID' ||
-      booking.paymentState === 'OVERDUE'
-    );
-  }
-  if (filter === 'confirmed') return booking.status === 'CONFIRMED';
-  if (filter === 'pending') return booking.status === 'ENQUIRY';
-  if (filter === 'completed') return booking.status === 'COMPLETED';
-  return true;
+/**
+ * Old `?status=` values from links and bookmarks made before the filters were
+ * renamed, mapped onto the question each was closest to.
+ */
+const LEGACY_FILTER: Record<string, FilterKey> = {
+  deposit: 'unpaid',
+  pending: 'needs',
+  confirmed: 'upcoming',
+  completed: 'past',
+};
+
+export function parseFilter(raw: string | null): FilterKey {
+  if (!raw) return 'all';
+  if (FILTERS.some((f) => f.key === raw)) return raw as FilterKey;
+  return LEGACY_FILTER[raw] ?? 'all';
 }
 
-export function filterCount(bookings: Booking[], filter: FilterKey): number {
-  return bookings.filter((b) => matchesFilter(b, filter)).length;
+export function matchesFilter(booking: Booking, filter: FilterKey, ctx: BookingContext): boolean {
+  switch (filter) {
+    case 'needs':
+      return attentionFor(booking, ctx) !== null;
+    case 'upcoming':
+      return isUpcoming(booking, ctx.today);
+    case 'unpaid':
+      return openBalanceCents(booking) > 0;
+    case 'past':
+      return isPast(booking, ctx.today);
+    default:
+      return true;
+  }
+}
+
+export function filterCount(
+  bookings: Booking[],
+  filter: FilterKey,
+  ctxFor: (_booking: Booking) => BookingContext
+): number {
+  return bookings.filter((b) => matchesFilter(b, filter, ctxFor(b))).length;
 }
 
 // ─── Time grouping ─────────────────────────────────────────────────────────

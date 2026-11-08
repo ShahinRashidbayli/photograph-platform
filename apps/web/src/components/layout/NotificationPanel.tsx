@@ -213,7 +213,7 @@ export function NotificationPanel({
   function Avatar({ item, urgent }: { item: AttentionItem; urgent: boolean }) {
     const tint = urgent
       ? { bg: theme === 'dark' ? '#442D10' : '#FEF3C7', fg: '#D97706' }
-      : { bg: theme === 'dark' ? '#1E2A5A' : '#E0E7FF', fg: '#6366F1' };
+      : { bg: theme === 'dark' ? '#252523' : '#ECEBE8', fg: colors.text };
     const plain = { bg: theme === 'dark' ? '#2A2A2E' : '#EEF0F4', fg: colors.subText };
     const shown = item.name ? tint : plain;
     return (
@@ -230,7 +230,7 @@ export function NotificationPanel({
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '0.78rem',
-          fontWeight: 700,
+          fontWeight: 600,
         }}
       >
         {item.name ? (
@@ -325,10 +325,8 @@ export function NotificationPanel({
 
   const sectionLabel: React.CSSProperties = {
     padding: '10px 12px 4px',
-    fontSize: '0.7rem',
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    fontSize: '0.75rem',
+    fontWeight: 550,
   };
 
   return (
@@ -359,7 +357,7 @@ export function NotificationPanel({
           padding: '14px 14px 10px',
         }}
       >
-        <div style={{ fontSize: '1.02rem', fontWeight: 700, color: colors.text }}>
+        <div style={{ fontSize: '1.02rem', fontWeight: 600, color: colors.text }}>
           {t('chrome.notifications.title')}
         </div>
         {clearableLeads.length > 0 && (
@@ -427,8 +425,8 @@ export function NotificationPanel({
             justifyContent: 'space-between',
             padding: '13px 14px',
             fontSize: '0.88rem',
-            fontWeight: 600,
-            color: '#6366F1',
+            fontWeight: 550,
+            color: colors.text,
             textDecoration: 'none',
           }}
         >

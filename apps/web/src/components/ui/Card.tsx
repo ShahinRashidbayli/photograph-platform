@@ -6,39 +6,44 @@ import { useColors, RADIUS } from './tokens';
 export interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'className'> {
   /** Drops the inner padding for cards that lay out their own sections. */
   flush?: boolean;
-  /** A coloured left edge — the app's convention for "needs attention". */
+  /** A coloured top hairline — the app's convention for "needs attention". */
   accent?: string;
 }
 
 /** The app's surface: background, border, radius and shadow in one place. */
 export function Card({ flush = false, accent, style, children, ...rest }: CardProps) {
   const c = useColors();
-  const edge = `1px solid ${c.border}`;
   return (
     <div
       style={{
+        position: 'relative',
         background: c.surface,
-        // An accented card names all four sides rather than overriding the
-        // `border` shorthand with a `borderLeft`. React warns about that pair
-        // on the same element, and it is right to: the two are applied in
-        // object order, so a re-render that touches only the shorthand can
-        // silently repaint over the accent. Without an accent there is one
-        // shorthand and nothing to conflict with.
-        ...(accent
-          ? {
-              borderTop: edge,
-              borderRight: edge,
-              borderBottom: edge,
-              borderLeft: `3px solid ${accent}`,
-            }
-          : { border: edge }),
+        border: `1px solid ${c.border}`,
         borderRadius: RADIUS.card,
-        boxShadow: c.overlayShadow,
+        boxShadow: c.shadowRaised,
         padding: flush ? 0 : 24,
+        // Clips the attention bar to the card's own corner radius.
+        overflow: accent ? 'hidden' : undefined,
         ...style,
       }}
       {...rest}
     >
+      {/* "Needs attention" used to be a 3px coloured left border, which is the
+          one card treatment every dashboard template ships. A hairline across
+          the top edge carries the same signal without turning the card into a
+          callout, and leaves the border itself one colour on all four sides. */}
+      {accent ? (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            insetInline: 0,
+            top: 0,
+            height: 2,
+            background: accent,
+          }}
+        />
+      ) : null}
       {children}
     </div>
   );

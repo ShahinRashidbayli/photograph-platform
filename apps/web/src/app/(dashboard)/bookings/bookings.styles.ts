@@ -1,5 +1,13 @@
 import React from 'react';
-import { fontSize, getColors, leading, radius, space, type Theme } from '@/lib/design-tokens';
+import {
+  fontSize,
+  getColors,
+  leading,
+  radius,
+  space,
+  type Theme,
+  pageTitle,
+} from '@/lib/design-tokens';
 
 export type BookingsTheme = Theme;
 
@@ -28,7 +36,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       margin: '0 auto',
       background: c.bg,
       color: c.text,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -38,14 +46,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       gap: space.xl,
       flexWrap: 'wrap',
     },
-    pageTitle: {
-      fontSize: fontSize.display,
-      fontWeight: 800,
-      color: c.text,
-      letterSpacing: '-0.025em',
-      lineHeight: leading.tight,
-      marginBottom: space.xs,
-    },
+    pageTitle: { ...pageTitle, color: c.text },
     pageSubtitle: {
       fontSize: fontSize.md,
       color: c.textMuted,
@@ -84,8 +85,6 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     statStripLabel: {
       fontSize: fontSize.xs,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
       fontWeight: 600,
     },
     statStripValueRow: {
@@ -98,7 +97,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     // at a glance, so it needs a clear step above the card titles below it.
     statStripValue: {
       fontSize: fontSize.xl,
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.02em',
       lineHeight: leading.tight,
@@ -149,25 +148,11 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',
       transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
-    },
-    filterSelect: {
-      padding: `${space.sm} ${space.sm}`,
-      border: `1px solid ${c.border}`,
-      borderRadius: radius.control,
-      fontSize: fontSize.base,
-      fontWeight: 600,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      color: c.text,
-      backgroundColor: c.surfaceAlt,
-      cursor: 'pointer',
-      outline: 'none',
-      flexShrink: 0,
-      maxWidth: '46%',
     },
     // Selectable chip (budget ranges in the request-session modal). Inactive is
     // muted text on a transparent ground; active is a filled primary pill.
@@ -185,7 +170,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     chipActive: {
       background: c.primary,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       border: `1px solid ${c.primary}`,
     },
 
@@ -206,41 +191,72 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       display: 'grid',
       gridTemplateColumns: '52px minmax(0, 1fr)',
       gap: space.md,
-      alignItems: 'center',
+      alignItems: 'start',
       textAlign: 'left',
       color: c.text,
       fontFamily: 'inherit',
+      // Feeds the `.bk-row:hover` rule in the page's stylesheet.
+      ['--bk-row-hover' as string]: c.surfaceHover,
     },
+    // A quiet fill and a hairline ring — the selected row used to carry a
+    // heavy outline that read like a stuck focus ring.
     listItemActive: {
-      background: c.surfaceActive,
-      border: `1px solid ${c.borderActive}`,
+      background: c.surfaceHover,
+      border: `1px solid ${c.border}`,
     },
     listItemDate: {
       width: '52px',
-      height: '52px',
+      height: '60px',
+      boxSizing: 'border-box',
       borderRadius: radius.control,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
-      background: c.primaryBg,
-      border: `1px solid ${c.primaryBorder}`,
+      background: c.surface,
+      border: `1px solid ${c.border}`,
+    },
+    // Past shoots: the same block, sunk a step into the page.
+    listItemDatePast: {
+      background: c.surfaceAlt,
     },
     listItemDateMonth: {
       fontSize: fontSize.xs,
-      fontWeight: 700,
-      color: c.primaryStrong,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
+      color: c.textSubtle,
       lineHeight: leading.tight,
     },
     listItemDateDay: {
-      fontSize: fontSize.lg,
-      fontWeight: 800,
-      color: c.primaryStrong,
-      lineHeight: leading.tight,
-      marginTop: space.xxs,
+      fontSize: '19px',
+      fontWeight: 600,
+      color: c.text,
+      lineHeight: 1.1,
+      fontVariantNumeric: 'tabular-nums',
+    },
+    listItemOpen: {
+      fontSize: fontSize.sm,
+      color: c.warningText,
+      whiteSpace: 'nowrap',
+      fontVariantNumeric: 'tabular-nums',
+      flexShrink: 0,
+    },
+    listItemHint: {
+      fontSize: fontSize.sm,
+      color: c.textMuted,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      minWidth: 0,
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis',
+    },
+    listItemHintDot: {
+      width: 6,
+      height: 6,
+      borderRadius: '50%',
+      background: c.warning,
+      flexShrink: 0,
     },
     listItemContent: {
       display: 'flex',
@@ -264,7 +280,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     listItemName: {
       fontSize: fontSize.md,
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
       lineHeight: leading.snug,
       whiteSpace: 'nowrap',
@@ -274,7 +290,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     listItemAmount: {
       fontSize: fontSize.md,
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.01em',
       whiteSpace: 'nowrap',
@@ -298,10 +314,8 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       padding: `${space.sm} ${space.xs} ${space.xs}`,
       background: c.surface,
       fontSize: fontSize.xs,
-      fontWeight: 700,
+      fontWeight: 550,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
     },
 
     detailPanel: {
@@ -325,14 +339,6 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       flexDirection: 'column',
       gap: space.md,
     },
-    // Identity on the left, the overflow ("…") menu pinned right.
-    detailTopRow: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: space.md,
-      minWidth: 0,
-    },
     detailHeaderLeft: {
       display: 'flex',
       alignItems: 'center',
@@ -347,15 +353,9 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: fontSize.md,
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
       letterSpacing: '0.02em',
-    },
-    detailHeaderText: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: space.xs,
-      minWidth: 0,
     },
     detailTitleRow: {
       display: 'flex',
@@ -365,7 +365,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     detailTitle: {
       fontSize: fontSize.xl,
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.015em',
       lineHeight: leading.tight,
@@ -468,19 +468,10 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       flexDirection: 'column',
       gap: space.md,
     },
-    // Sections after the first are separated by a hairline and whitespace
-    // instead of each sitting in its own tinted, bordered box — a card inside
-    // a card inside a panel was three nested frames deep.
-    sectionDivided: {
-      paddingTop: space.xl,
-      borderTop: `1px solid ${c.divider}`,
-    },
     sectionTitle: {
       fontSize: fontSize.xs,
-      fontWeight: 700,
+      fontWeight: 550,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
     },
 
     infoGrid: {
@@ -494,83 +485,12 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       gap: space.xs,
       minWidth: 0,
     },
-    infoLabel: {
-      fontSize: fontSize.xs,
-      fontWeight: 700,
-      color: c.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
-    },
-    infoValue: {
-      fontSize: fontSize.md,
-      fontWeight: 600,
-      color: c.text,
-      lineHeight: leading.snug,
-      wordBreak: 'break-word',
-    },
-
-    paymentTopRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-      gap: space.lg,
-      flexWrap: 'wrap',
-    },
-    paymentLabel: {
-      fontSize: fontSize.xs,
-      fontWeight: 700,
-      color: c.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
-      marginBottom: space.xs,
-    },
-    paymentValue: {
-      fontSize: fontSize.xl,
-      fontWeight: 800,
-      color: c.text,
-      letterSpacing: '-0.02em',
-      lineHeight: leading.tight,
-    },
-
-    progressTrack: {
-      height: '8px',
-      background: c.isDark ? 'rgba(148, 163, 184, 0.18)' : '#E5E7EB',
-      borderRadius: radius.pill,
-      overflow: 'hidden',
-    },
-    progressFill: {
-      height: '100%',
-      borderRadius: radius.pill,
-      transition: 'width 0.3s ease, background 0.18s ease',
-    },
-    progressMeta: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      fontSize: fontSize.sm,
-      color: c.textMuted,
-      fontWeight: 600,
-    },
-
-    notesText: {
-      fontSize: fontSize.md,
-      color: c.text,
-      lineHeight: leading.normal,
-      whiteSpace: 'pre-wrap',
-      wordWrap: 'break-word',
-    },
-    notesEmpty: {
-      fontSize: fontSize.md,
-      color: c.textMuted,
-      lineHeight: leading.normal,
-      fontStyle: 'italic',
-    },
 
     badge: {
       padding: `${space.xs} ${space.sm}`,
       borderRadius: radius.pill,
       fontSize: fontSize.xs,
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
@@ -605,12 +525,12 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
       fontFamily: 'inherit',
-      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
+      boxShadow: 'none',
     },
     invertedPrimaryButton: {
       padding: `${space.sm} ${space.lg}`,
@@ -661,7 +581,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     errorPanelTitle: {
       fontSize: fontSize.lg,
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
     },
     errorPanelText: {
@@ -715,7 +635,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     modalTitle: {
       fontSize: fontSize.xl,
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.015em',
     },
@@ -762,10 +682,8 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
     },
     formLabel: {
       fontSize: fontSize.xs,
-      fontWeight: 700,
+      fontWeight: 550,
       color: c.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.05em',
     },
     formInput: {
       width: '100%',
@@ -773,7 +691,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       background: c.surfaceAlt,
       outline: 'none',
@@ -784,7 +702,7 @@ export const getBookingsStyles = (theme: BookingsTheme): Record<string, React.CS
       border: `1px solid ${c.border}`,
       borderRadius: radius.control,
       fontSize: fontSize.md,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       background: c.surfaceAlt,
       outline: 'none',

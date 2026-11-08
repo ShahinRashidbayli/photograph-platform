@@ -27,7 +27,7 @@ export default function DashboardError({
 
   return (
     <div style={{ padding: '48px 28px', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
-      <h1 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 8 }}>
+      <h1 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 8 }}>
         This page didn’t load
       </h1>
       <p style={{ fontSize: '0.92rem', lineHeight: 1.6, opacity: 0.75, marginBottom: 20 }}>
@@ -41,8 +41,8 @@ export default function DashboardError({
           padding: '10px 20px',
           borderRadius: 10,
           border: 'none',
-          background: '#6366F1',
-          color: '#fff',
+          background: 'var(--ui-ink)',
+          color: 'var(--ui-paper)',
           fontSize: '0.9rem',
           fontWeight: 600,
           cursor: 'pointer',

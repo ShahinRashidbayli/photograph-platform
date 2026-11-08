@@ -2,14 +2,14 @@
  * Design tokens — single source of truth for colors across the dashboard.
  *
  * Semantic tone guide (use the right tone for the right meaning, not the colour):
- *   primary  — interactive surfaces, CTA buttons, focused inputs (BLUE)
+ *   primary  — interactive surfaces, CTA buttons, focused inputs (INK)
  *   success  — positive outcomes, confirmed/paid states, healthy metrics (GREEN)
  *   warning  — action required from the user (overdue, pending payment) (AMBER)
  *              Do NOT use for "unknown / not yet decided" — use neutral instead.
  *   danger   — destructive actions, errors, cancelled / failed states (RED)
  *   info     — completed / archived terminal states distinct from "success"
  *              (which signals a positive outcome of an *active* flow) (INDIGO)
- *   neutral  — indeterminate states, low-emphasis chips, dividers (SLATE)
+ *   neutral  — indeterminate states, low-emphasis chips, dividers (STONE)
  *
  * Each tone exposes 4 variants:
  *   <tone>        — solid hue (used for dots, icons, focus rings)
@@ -79,8 +79,8 @@ export const leading = {
  *   pill    — badges, filter tabs, fully-rounded elements
  */
 export const radius = {
-  control: '10px',
-  card: '14px',
+  control: '8px',
+  card: '12px',
   pill: '999px',
 } as const;
 
@@ -97,7 +97,7 @@ export const radius = {
 /**
  * The two families the app actually loads, plus a mono stack.
  *
- * `--font-inter` and `--font-cormorant` are defined by `next/font` in the root
+ * `--font-sans` (Geist) and `--font-serif` (Instrument Serif) are defined by `next/font` in the root
  * layout, which means they were downloaded on every page — and then used only
  * by the dashboard and the public portfolio, which referenced the CSS variables
  * directly. Everything reading these tokens (the landing page, every auth
@@ -111,10 +111,29 @@ export const radius = {
  * anything that renders outside the layout's variable scope.
  */
 export const fonts = {
-  sans: 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  sans: 'var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   serif:
-    'var(--font-cormorant), "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif',
+    'var(--font-serif), "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif',
   mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace',
+} as const;
+
+/**
+ * The page title every dashboard screen opens with. One definition, because
+ * seventeen screens each restating "1.6rem / 800" is how a type scale drifts:
+ * they had settled on four different sizes between them.
+ *
+ * Set in the UI's own face (Geist), tight and semibold. It was a display
+ * serif until 2026-11: beside a sans interface it read as a different product
+ * stitched on top of each screen. The serif now lives only on the studio's
+ * public portfolio, which is the photographer's site rather than the app.
+ */
+export const pageTitle = {
+  fontFamily: fonts.sans,
+  fontSize: '1.875rem',
+  fontWeight: 600,
+  letterSpacing: '-0.025em',
+  lineHeight: 1.15,
+  margin: '0 0 6px',
 } as const;
 
 export const getColors = (theme: Theme) => {
@@ -123,43 +142,54 @@ export const getColors = (theme: Theme) => {
     isDark,
 
     // ─── Surfaces & ink ────────────────────────────────────────
-    // Dark mode uses a neutral charcoal ramp (not blue-navy) so the violet
-    // accent reads as the single source of colour on the page.
-    bg: isDark ? '#0A0A0C' : '#F7F8FB',
-    surface: isDark ? '#141418' : '#FFFFFF',
-    surfaceAlt: isDark ? '#101014' : '#F8FAFC',
-    surfaceHover: isDark ? '#1C1C22' : '#F8FAFC',
-    surfaceActive: isDark ? 'rgba(99, 102, 241, 0.14)' : '#EEF2FF',
+    // A warm graphite ramp, close to the paper and darkroom neutrals the
+    // photographs on these screens are printed on, rather than the blue-grey
+    // slate every UI kit ships. The interface is deliberately colourless: the
+    // only saturated pixels on a gallery or a booking should be the
+    // photographer's own pictures and the status colours below, which carry
+    // meaning. Three neutral layers — page, sidebar (a step deeper, so the
+    // chrome reads as frame and not as content) and surface.
+    bg: isDark ? '#0E0E0D' : '#FAFAF9',
+    sidebarBg: isDark ? '#0A0A09' : '#F4F3F1',
+    surface: isDark ? '#161615' : '#FFFFFF',
+    surfaceAlt: isDark ? '#121211' : '#F7F7F5',
+    surfaceHover: isDark ? '#1E1E1C' : '#F3F2F0',
+    surfaceActive: isDark ? '#252523' : '#ECEBE8',
 
-    text: isDark ? '#F4F4F5' : '#0F172A',
-    // textMuted — body-level secondary text. AA-compliant in both modes.
-    textMuted: isDark ? '#A1A1AA' : '#64748B',
-    // textSubtle — low-emphasis text (meta, eyebrows, placeholders). Bumped
-    // to clear WCAG AA for normal text: #6B7280 ≈ 4.8:1 on white.
-    textSubtle: isDark ? '#A1A1AA' : '#6B7280',
+    text: isDark ? '#F5F5F4' : '#1C1917',
+    // textMuted — body-level secondary text. ≥7:1 on surface in both modes.
+    textMuted: isDark ? '#A8A29E' : '#57534E',
+    // textSubtle — meta, captions, placeholders. Still ≥4.5:1 on surface and
+    // on the page background, measured, so it never needs a "large text" pass.
+    textSubtle: isDark ? '#8C8681' : '#6F6964',
 
-    border: isDark ? '#26262E' : '#E5E7EB',
-    borderSoft: isDark ? '#1C1C22' : '#F1F5F9',
-    borderActive: isDark ? 'rgba(99, 102, 241, 0.45)' : '#C7D2FE',
-    divider: isDark ? '#26262E' : '#F1F5F9',
+    border: isDark ? '#2A2927' : '#E7E5E2',
+    borderSoft: isDark ? '#1F1F1D' : '#F0EFEC',
+    borderActive: isDark ? '#57534E' : '#A8A29E',
+    divider: isDark ? '#232321' : '#EFEEEB',
 
-    // ─── Primary (interactive / CTA — indigo/violet-500) ───────
-    primary: '#6366F1',
-    primaryStrong: isDark ? '#818CF8' : '#4F46E5',
-    primaryBg: isDark ? 'rgba(99, 102, 241, 0.16)' : '#EEF2FF',
-    primaryText: isDark ? '#A5B4FC' : '#4F46E5',
-    primaryBorder: isDark ? 'rgba(99, 102, 241, 0.38)' : '#C7D2FE',
-    primarySolid: '#6366F1',
-    // A deepening sweep of the primary, for the one surface on a screen that
-    // carries its headline figure. Kept as a token rather than written at the
-    // call site because a gradient is the easiest thing in a design to end up
-    // with four slightly different versions of, and because the direction has
-    // to differ by theme: `primaryStrong` gets *lighter* in dark mode, so
-    // reusing it here would run the sweep backwards on half the app's users.
-    primaryGradient: isDark
-      ? 'linear-gradient(135deg, #4F46E5 0%, #4338CA 55%, #3730A3 100%)'
-      : 'linear-gradient(135deg, #6366F1 0%, #4F46E5 55%, #4338CA 100%)',
-    primarySolidHover: isDark ? '#818CF8' : '#4F46E5',
+    // ─── Primary (interactive / CTA — ink) ─────────────────────
+    // The brand mark is ink on paper, and so is the primary action: a filled
+    // near-black button in light mode, a filled near-white one in dark mode.
+    // That inversion is why `onPrimary` exists — text on a primary fill must
+    // read it rather than assume white, which in dark mode was white-on-white.
+    primary: isDark ? '#F5F5F4' : '#1C1917',
+    primaryStrong: isDark ? '#FFFFFF' : '#0C0A09',
+    // Selected rows, active tabs, the current nav item: a neutral tint, not a
+    // brand wash, so "you are here" never competes with a status colour.
+    primaryBg: isDark ? 'rgba(255, 255, 255, 0.07)' : '#EFEEEB',
+    primaryText: isDark ? '#F5F5F4' : '#1C1917',
+    primaryBorder: isDark ? 'rgba(255, 255, 255, 0.2)' : '#D6D3CF',
+    primarySolid: isDark ? '#F5F5F4' : '#1C1917',
+    onPrimary: isDark ? '#1C1917' : '#FFFFFF',
+    // Kept as a token for the one surface on a screen that carries its
+    // headline figure, but flat: a gradient is the first thing that makes a
+    // product read as a template, and the figure is what should stand out.
+    primaryGradient: isDark ? '#F5F5F4' : '#1C1917',
+    primarySolidHover: isDark ? '#E7E5E4' : '#36322F',
+    // Keyboard focus. Ink like the primary, drawn as an outline with an
+    // offset so it reads on a primary fill as well as on a surface.
+    focusRing: isDark ? '#F5F5F4' : '#1C1917',
 
     // ─── Success (positive outcome — green-600) ────────────────
     success: isDark ? '#34D399' : '#16A34A',
@@ -180,18 +210,18 @@ export const getColors = (theme: Theme) => {
     dangerBorder: isDark ? 'rgba(220, 38, 38, 0.35)' : '#FECACA',
 
     // ─── Info (completed / archived — sky-600) ─────────────────
-    // Sky, kept distinct from the violet primary so "completed/archived"
-    // terminal states don't read as an interactive/CTA colour.
+    // Sky: the one blue in the app, so "completed/archived" reads as a
+    // settled state and never as something to click.
     info: isDark ? '#7DD3FC' : '#0369A1',
     infoBg: isDark ? 'rgba(14, 165, 233, 0.18)' : '#E0F2FE',
     infoText: isDark ? '#7DD3FC' : '#0369A1',
     infoBorder: isDark ? 'rgba(14, 165, 233, 0.38)' : '#BAE6FD',
 
-    // ─── Neutral (indeterminate / low emphasis — zinc-500) ─────
-    neutral: isDark ? '#A1A1AA' : '#64748B',
-    neutralBg: isDark ? 'rgba(161, 161, 170, 0.12)' : '#F1F5F9',
-    neutralText: isDark ? '#D4D4D8' : '#475569',
-    neutralBorder: isDark ? 'rgba(161, 161, 170, 0.26)' : '#E2E8F0',
+    // ─── Neutral (indeterminate / low emphasis — stone-500) ────
+    neutral: isDark ? '#A8A29E' : '#78716C',
+    neutralBg: isDark ? 'rgba(168, 162, 158, 0.12)' : '#F1F0EE',
+    neutralText: isDark ? '#D6D3D1' : '#57534E',
+    neutralBorder: isDark ? 'rgba(168, 162, 158, 0.26)' : '#E2E0DD',
 
     // ─── Elevation ─────────────────────────────────────────────
     // A four-step ramp, not a set of one-off shadows. Every step is two
@@ -216,16 +246,16 @@ export const getColors = (theme: Theme) => {
     // rather than widen.
     shadowRaised: isDark
       ? '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.45)'
-      : '0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.06)',
+      : '0 1px 2px rgba(28, 25, 23, 0.05), 0 2px 6px -2px rgba(28, 25, 23, 0.06)',
     shadowFloating: isDark
       ? '0 2px 4px rgba(0, 0, 0, 0.55), 0 10px 24px -8px rgba(0, 0, 0, 0.6)'
-      : '0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12)',
+      : '0 2px 4px rgba(28, 25, 23, 0.05), 0 10px 24px -8px rgba(28, 25, 23, 0.12)',
     shadowPopover: isDark
       ? '0 4px 8px rgba(0, 0, 0, 0.6), 0 16px 40px -12px rgba(0, 0, 0, 0.7)'
-      : '0 4px 8px rgba(15, 23, 42, 0.06), 0 16px 40px -12px rgba(15, 23, 42, 0.18)',
+      : '0 4px 8px rgba(28, 25, 23, 0.06), 0 16px 40px -12px rgba(28, 25, 23, 0.18)',
     shadowModal: isDark
       ? '0 8px 16px rgba(0, 0, 0, 0.65), 0 32px 72px -20px rgba(0, 0, 0, 0.8)'
-      : '0 8px 16px rgba(15, 23, 42, 0.08), 0 32px 72px -20px rgba(15, 23, 42, 0.26)',
+      : '0 8px 16px rgba(28, 25, 23, 0.08), 0 32px 72px -20px rgba(28, 25, 23, 0.26)',
 
     // The two names the app already used, now pointing at ramp steps so every
     // existing surface picks up the two-layer treatment without being edited.
@@ -233,10 +263,10 @@ export const getColors = (theme: Theme) => {
     // call sites would be a change with no visible result.
     overlayShadow: isDark
       ? '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.45)'
-      : '0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.06)',
+      : '0 1px 2px rgba(28, 25, 23, 0.05), 0 2px 6px -2px rgba(28, 25, 23, 0.06)',
     elevatedShadow: isDark
       ? '0 2px 4px rgba(0, 0, 0, 0.55), 0 10px 24px -8px rgba(0, 0, 0, 0.6)'
-      : '0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12)',
+      : '0 2px 4px rgba(28, 25, 23, 0.05), 0 10px 24px -8px rgba(28, 25, 23, 0.12)',
   };
 };
 

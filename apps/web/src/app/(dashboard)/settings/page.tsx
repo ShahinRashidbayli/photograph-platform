@@ -109,7 +109,7 @@ export default function SettingsPage() {
   const saveBtn: React.CSSProperties = {
     padding: '10px 24px',
     background: c.primarySolid,
-    color: '#fff',
+    color: c.onPrimary,
     border: 'none',
     borderRadius: '10px',
     fontSize: '0.9rem',
@@ -184,7 +184,7 @@ export default function SettingsPage() {
       <section style={section} aria-labelledby="settings-account">
         <h2
           id="settings-account"
-          style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+          style={{ fontSize: '1rem', fontWeight: 600, color: c.text, marginBottom: '4px' }}
         >
           {isPhotographer
             ? t('settings.account.title.photographer')
@@ -236,7 +236,7 @@ export default function SettingsPage() {
                   justifyContent: 'center',
                   fontSize: '0.7rem',
                   color: '#fff',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   letterSpacing: '0.04em',
                   backdropFilter: 'blur(2px)',
                 }}

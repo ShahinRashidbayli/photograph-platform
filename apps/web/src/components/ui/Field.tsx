@@ -73,14 +73,15 @@ function controlStyle(c: ReturnType<typeof useColors>, invalid?: boolean): React
   return {
     width: '100%',
     boxSizing: 'border-box',
-    padding: '10px 14px',
+    minHeight: 38,
+    padding: '8px 12px',
     border: `1px solid ${invalid ? c.dangerBorder : c.border}`,
     borderRadius: RADIUS.control,
-    fontSize: '0.9rem',
+    fontSize: '0.875rem',
     fontFamily: 'inherit',
     color: c.text,
-    background: c.surfaceAlt,
-    outline: 'none',
+    background: c.surface,
+    transition: 'border-color 150ms ease-out, box-shadow 150ms ease-out',
   };
 }
 

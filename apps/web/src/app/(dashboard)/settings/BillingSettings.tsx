@@ -593,7 +593,7 @@ export function SubscriptionSection() {
   // which was already gone by the time the first answer came back — so it
   // never re-read, and "your plan is still Starter" read as a failed payment.
   const [returnedFromCheckout] = useState(billingParam === 'success');
-  const statusQuery = useBillingStatus({ pollUntilActive: returnedFromCheckout });
+  const statusQuery = useBillingStatus({ pollAfterCheckout: returnedFromCheckout });
   const checkout = useStartCheckout();
   const portal = useOpenBillingPortal();
   const devPlan = useDevSetPlan();

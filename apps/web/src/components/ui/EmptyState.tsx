@@ -18,7 +18,7 @@ export function EmptyState({ title, body, action }: EmptyStateProps) {
   const c = useColors();
   return (
     <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-      <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text, marginBottom: 6 }}>
+      <div style={{ fontSize: '1.05rem', fontWeight: 600, color: c.text, marginBottom: 6 }}>
         {title}
       </div>
       {body ? (

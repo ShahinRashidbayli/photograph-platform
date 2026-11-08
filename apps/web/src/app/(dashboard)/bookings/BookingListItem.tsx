@@ -6,6 +6,15 @@ import { getCustomerBookingStatusLabelKey } from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import type { Booking } from '@/types/api';
 import { getStatusVisual } from './bookings.filters';
+import type { AttentionKey } from './bookings.insights';
+import type { TranslationKey } from '@/lib/i18n';
+
+const ATTENTION_LABEL: Record<AttentionKey, TranslationKey> = {
+  reply: 'bookings.attention.reply',
+  close: 'bookings.attention.close',
+  overdue: 'bookings.attention.overdue',
+  contractUnsigned: 'bookings.attention.contractUnsigned',
+};
 import type { getBookingsColors } from './bookings.styles';
 
 /** One row in the bookings list. */
@@ -20,6 +29,11 @@ export type ListItemProps = {
   /** Roving tabindex — 0 on the selected row, -1 on the rest. */
   tabIndex: number;
   registerRef: (_el: HTMLButtonElement | null) => void;
+  /** What waits on the photographer here, if anything (photographer only). */
+  attention?: AttentionKey | null;
+  /** What the client still owes on it. */
+  openCents?: number;
+  isPast?: boolean;
 };
 
 export function BookingListItem({
@@ -31,11 +45,12 @@ export function BookingListItem({
   colors,
   tabIndex,
   registerRef,
+  attention = null,
+  openCents = 0,
+  isPast = false,
 }: ListItemProps) {
   const { t, format } = useTranslation();
   const date = parseApiDate(booking.eventDate);
-  const month = format.monthAbbrUpper(date);
-  const day = date.getDate();
   const status = getStatusVisual(booking.status, colors, 'list');
   // The photographer's list is client-first (whose booking is it); the client's
   // own list is session-first (what/where), since every row is theirs.
@@ -45,10 +60,7 @@ export function BookingListItem({
     : (booking.eventType ?? t('bookings.sessionFallback'));
   const deadlineDate = !isPhotographer && remaining > 0 ? format.dayMonth(booking.eventDate) : null;
   const metaText = isPhotographer
-    ? [
-        booking.eventType ?? t('bookings.sessionFallback'),
-        booking.status === 'ENQUIRY' ? t('bookings.awaitingDeposit') : booking.location,
-      ]
+    ? [booking.eventType ?? t('bookings.sessionFallback'), booking.location]
         .filter(Boolean)
         .join(' · ')
     : [
@@ -69,24 +81,19 @@ export function BookingListItem({
       ref={registerRef}
       tabIndex={tabIndex}
       onClick={onSelect}
-      // Hover is a pure CSS-style toggle done via direct DOM mutation, not React
-      // state — keeping it out of state means hovering a row no longer re-renders
-      // the whole page (and every other row) on each mouse-enter/leave.
-      onMouseEnter={(e) => {
-        if (!isActive) e.currentTarget.style.background = colors.surfaceHover;
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) e.currentTarget.style.background = 'transparent';
-      }}
+      // Hover is a stylesheet rule (`.bk-row:hover`), not React state — so
+      // hovering a row never re-renders the list.
+      className="bk-row"
       style={{
         ...styles.listItem,
         ...(isActive ? styles.listItemActive : {}),
       }}
       aria-current={isActive ? 'true' : undefined}
     >
-      <div style={styles.listItemDate}>
-        <span style={styles.listItemDateMonth}>{month}</span>
-        <span style={styles.listItemDateDay}>{day}</span>
+      <div style={{ ...styles.listItemDate, ...(isPast ? styles.listItemDatePast : {}) }}>
+        <span style={styles.listItemDateMonth}>{format.weekdayShort(date)}</span>
+        <span style={styles.listItemDateDay}>{date.getDate()}</span>
+        <span style={styles.listItemDateMonth}>{format.monthAbbr(date)}</span>
       </div>
       <div style={styles.listItemContent}>
         <div style={styles.listItemTopRow}>
@@ -95,6 +102,13 @@ export function BookingListItem({
         </div>
         <div style={styles.listItemBottomRow}>
           <span style={styles.listItemMeta}>{metaText}</span>
+          {isPhotographer && openCents > 0 && (
+            <span style={styles.listItemOpen}>
+              {t('bookings.list.open', { amount: format.eur(openCents) })}
+            </span>
+          )}
+        </div>
+        <div style={{ ...styles.listItemBottomRow, marginTop: 2 }}>
           <span
             style={{
               ...styles.badge,
@@ -105,6 +119,12 @@ export function BookingListItem({
             <span style={{ ...styles.badgeDot, background: status.dot }} />
             {statusLabel}
           </span>
+          {isPhotographer && attention && (
+            <span style={styles.listItemHint}>
+              <span style={styles.listItemHintDot} aria-hidden />
+              {t(ATTENTION_LABEL[attention])}
+            </span>
+          )}
         </div>
       </div>
     </button>

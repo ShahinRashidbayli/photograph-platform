@@ -8,6 +8,7 @@ import { Alert, Badge, Button, Modal, ModalHeader, Note } from '@/components/ui'
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { getDetailStyles } from './bookingDetail.styles';
 import {
   downloadContractPdf,
   useBookingContracts,
@@ -38,6 +39,7 @@ import type { Booking } from '@/types/api';
  */
 export function BookingContracts({ booking, theme }: { booking: Booking; theme: Theme }) {
   const c = useMemo(() => getColors(theme), [theme]);
+  const s = useMemo(() => getDetailStyles(c), [c]);
   const { t, format } = useTranslation();
   const { has } = useEntitlements();
   const allowed = has('CONTRACTS');
@@ -55,7 +57,10 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
 
   if (!allowed) {
     return (
-      <section style={{ borderTop: `1px solid ${c.divider}`, paddingTop: 18, marginTop: 18 }}>
+      <section aria-labelledby="bk-contract-title">
+        <h3 id="bk-contract-title" style={{ ...s.h3, marginBottom: 12 }}>
+          {t('contracts.title')}
+        </h3>
         <UpgradeCard
           compact
           capability="CONTRACTS"
@@ -79,27 +84,11 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
   }
 
   return (
-    <section style={{ borderTop: `1px solid ${c.divider}`, paddingTop: 18, marginTop: 18 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <div
-          style={{
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-            color: c.textMuted,
-          }}
-        >
+    <section aria-labelledby="bk-contract-title">
+      <div style={{ ...s.sectionHead, marginBottom: 12 }}>
+        <h3 id="bk-contract-title" style={s.h3}>
           {t('contracts.title')}
-        </div>
+        </h3>
         {!hasLive && (
           <Button
             variant="secondary"
@@ -220,20 +209,15 @@ function ContractRow({
   const tone = statusTone(contract.status, c);
 
   return (
-    <div
-      style={{
-        border: `1px solid ${c.border}`,
-        borderRadius: 10,
-        padding: '12px 14px',
-        background: c.surfaceAlt,
-      }}
-    >
+    // Flat, not a card inside the detail card: the row sits in a section that
+    // is already bounded by hairlines.
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 650, fontSize: '0.92rem', color: c.text }}>
+          <div style={{ fontWeight: 500, fontSize: '0.875rem', color: c.text }}>
             {contract.title}
           </div>
-          <div style={{ fontSize: '0.8rem', color: c.textMuted, marginTop: 3 }}>
+          <div style={{ fontSize: '0.8125rem', color: c.textMuted, marginTop: 3 }}>
             {contract.status === 'SIGNED' && contract.signedAt
               ? t('contracts.signedOn' as never, {
                   date: format.monthDayYear(contract.signedAt),

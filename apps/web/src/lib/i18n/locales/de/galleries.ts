@@ -4,7 +4,6 @@ import type { EnGalleries } from '../en/galleries';
 export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.title': 'Deine Galerien',
   'galleries.subtitle': 'Fotogalerien ansehen, herunterladen und verwalten.',
-  'galleries.subtitleClient': 'Hier erscheinen die Galerien, die dir geliefert wurden.',
   'galleries.loading': 'Galerien werden geladen…',
   'galleries.loadError': 'Galerien konnten nicht geladen werden',
   'galleries.loadErrorBody': 'Galerien konnten nicht geladen werden. Bitte versuche es erneut.',

@@ -114,7 +114,7 @@ export function ModalHeader({
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>{title}</h2>
+        <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>{title}</h2>
         {subtitle ? (
           <p
             style={{ fontSize: '0.83rem', color: c.textMuted, margin: '4px 0 0', lineHeight: 1.5 }}

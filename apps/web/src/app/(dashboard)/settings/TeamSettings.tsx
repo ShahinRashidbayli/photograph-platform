@@ -259,8 +259,8 @@ export function TeamSettings() {
               name={m.fullName ?? m.email}
               src={m.avatarUrl}
               size={34}
-              background={theme === 'light' ? '#6366F1' : '#818CF8'}
-              color="#fff"
+              background={theme === 'light' ? '#ECEBE8' : '#252523'}
+              color={theme === 'light' ? '#1C1917' : '#F5F5F4'}
             />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div

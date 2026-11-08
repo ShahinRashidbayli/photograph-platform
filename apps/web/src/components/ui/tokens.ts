@@ -22,7 +22,7 @@ export function useColors(): Colors {
 
 /** Shared geometry, so a card and a modal can't drift apart by a pixel. */
 export const RADIUS = {
-  control: 10,
-  card: 14,
+  control: 8,
+  card: 12,
   pill: 999,
 } as const;

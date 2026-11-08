@@ -47,10 +47,9 @@ const PALETTES: Record<Theme, Palette> = {
   },
 };
 
-const DISPLAY_FONT =
-  'var(--font-cormorant), "Cormorant Garamond", "Playfair Display", Georgia, serif';
+const DISPLAY_FONT = 'var(--font-serif), "Instrument Serif", "Playfair Display", Georgia, serif';
 const BODY_FONT =
-  'var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif';
+  'var(--font-sans), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif';
 
 export default function PublicPortfolioView({ data }: { data: PublicPortfolioPayload }) {
   const { photographer, photos, branding } = data;

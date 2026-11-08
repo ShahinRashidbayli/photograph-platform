@@ -3,8 +3,9 @@ import { act, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders, setupUser } from '@/test-utils/render';
 import CustomerLoginPage from './page';
 
+let mockSearch = new URLSearchParams('');
 jest.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => mockSearch,
 }));
 
 jest.mock('@/lib/api', () => ({
@@ -18,7 +19,6 @@ const mockedApi = api as jest.Mocked<typeof api>;
 
 async function requestCode(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
-  await user.type(screen.getByLabelText('Photographer subdomain'), 'anna-foto');
   await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
 }
 
@@ -26,6 +26,9 @@ const resendButton = () => screen.getByRole('button', { name: /Send a new code|R
 
 beforeEach(() => {
   mockedApi.post.mockReset();
+  mockedApi.get.mockReset();
+  mockSearch = new URLSearchParams('');
+  window.localStorage.clear();
 });
 
 describe('CustomerLoginPage', () => {
@@ -39,8 +42,30 @@ describe('CustomerLoginPage', () => {
     await requestCode(user);
 
     expect(await screen.findByText('Enter your code')).toBeInTheDocument();
-    // "If … is registered" — the wording must stay conditional.
-    expect(screen.getByText(/If maria@example\.test is registered/)).toBeInTheDocument();
+    // "If a photographer has …" — the wording must stay conditional.
+    expect(
+      screen.getByText(/If a photographer has maria@example\.test on file/)
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * Sign-in by email: nobody can be expected to know their photographer's
+   * subdomain, so without a link the page asks for the address alone and the
+   * server finds the studios that know it.
+   */
+  it('asks only for the email and lets the server find the studio', async () => {
+    const user = setupUser();
+    mockedApi.post.mockResolvedValue({ status: 204 } as never);
+    render();
+
+    expect(screen.queryByText('Photographer subdomain')).not.toBeInTheDocument();
+    await requestCode(user);
+
+    await screen.findByText('Enter your code');
+    expect(mockedApi.post).toHaveBeenCalledWith(
+      '/api/auth/customer/login-code/request',
+      expect.objectContaining({ email: 'maria@example.test', subdomain: null })
+    );
   });
 
   /**
@@ -162,5 +187,74 @@ describe('CustomerLoginPage', () => {
         'You’ve already requested several codes. Please wait a little before asking for another.'
       )
     ).toBeInTheDocument();
+  });
+
+  /**
+   * A link from the studio already says who the photographer is. Asking the
+   * client to type a subdomain they have never heard of is where first logins
+   * failed; they see the studio's name instead, and can still change it.
+   */
+  describe('arriving from the studio’s link', () => {
+    beforeEach(() => {
+      mockSearch = new URLSearchParams('subdomain=studio-lichtblick');
+      mockedApi.get.mockImplementation((url: string) =>
+        url === '/api/public/legal/studio-lichtblick'
+          ? Promise.resolve({
+              data: { subdomain: 'studio-lichtblick', legalName: 'Lena Hoffmann' },
+            } as never)
+          : Promise.reject(new Error(`unexpected GET ${url}`))
+      );
+    });
+
+    it('shows the studio instead of a subdomain field and signs in there', async () => {
+      const user = setupUser();
+      mockedApi.post.mockResolvedValue({ status: 204 } as never);
+      render();
+
+      expect(await screen.findByText('Lena Hoffmann')).toBeInTheDocument();
+      expect(screen.getByText('studio-lichtblick.fotolio.de')).toBeInTheDocument();
+
+      await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
+      await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
+
+      await screen.findByText('Enter your code');
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ subdomain: 'studio-lichtblick' })
+      );
+    });
+
+    /** "Change" falls back to the email alone: every studio that knows the client. */
+    it('lets the client drop the studio and sign in by email instead', async () => {
+      const user = setupUser();
+      mockedApi.post.mockResolvedValue({ status: 204 } as never);
+      render();
+
+      await user.click(await screen.findByRole('button', { name: 'Change' }));
+      expect(screen.queryByText('Lena Hoffmann')).not.toBeInTheDocument();
+
+      await requestCode(user);
+      await screen.findByText('Enter your code');
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/api/auth/customer/login-code/request',
+        expect.objectContaining({ subdomain: null })
+      );
+    });
+  });
+
+  /** A returning client sees their studio, not a subdomain they typed once and forgot. */
+  it('remembers the studio this browser signed in to', async () => {
+    window.localStorage.setItem('fotolio.customer.lastStudio', 'studio-lichtblick');
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/api/public/legal/studio-lichtblick'
+        ? Promise.resolve({
+            data: { subdomain: 'studio-lichtblick', legalName: 'Studio Lichtblick' },
+          } as never)
+        : Promise.reject(new Error(`unexpected GET ${url}`))
+    );
+    render();
+
+    expect(await screen.findByText('Studio Lichtblick')).toBeInTheDocument();
+    expect(screen.getByText('SL')).toBeInTheDocument();
   });
 });

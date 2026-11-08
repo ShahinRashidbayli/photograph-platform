@@ -86,7 +86,7 @@ export function ConfirmDialog({
           style={{
             margin: 0,
             fontSize: '1.05rem',
-            fontWeight: 800,
+            fontWeight: 600,
             color: c.text,
             letterSpacing: '-0.01em',
           }}

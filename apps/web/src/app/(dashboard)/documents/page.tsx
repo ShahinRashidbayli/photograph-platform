@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import { getColors, pageTitle } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
 import { Alert, Badge, Button, Card, EmptyState, Note } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
@@ -30,21 +31,30 @@ import {
  * it, and it says SIGNED only once this person signed it.
  */
 export default function DocumentsPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense fallback={null}>
+      <Documents />
+    </Suspense>
+  );
+}
+
+function Documents() {
   const { t } = useTranslation();
   const { theme } = useThemeStore();
   const c = useMemo(() => getColors(theme), [theme]);
 
   const { data: contracts, isLoading, isError } = useCustomerContracts();
-  const [openId, setOpenId] = useState<string | null>(null);
+  // `?id=` opens one contract straight away: the portal's "Read & sign" lands
+  // on the contract itself, not on a list the client has to search.
+  const [openId, setOpenId] = useState<string | null>(useSearchParams().get('id'));
 
   const list = contracts ?? [];
   const open = list.find((k) => k.id === openId) ?? null;
 
   return (
     <div style={{ padding: '28px 28px 40px', maxWidth: 900, margin: '0 auto', color: c.text }}>
-      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 6 }}>
-        {t('contracts.sign.title')}
-      </h1>
+      <h1 style={pageTitle}>{t('contracts.sign.title')}</h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: 24 }}>
         {t('contracts.sign.subtitle')}
       </p>
@@ -204,7 +214,7 @@ function ContractDetail({ contract, onBack }: { contract: Contract; onBack: () =
 
         {contract.status === 'SENT' && (
           <form onSubmit={submit} style={{ marginTop: 18 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 10 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: 10 }}>
               {t('contracts.sign.heading')}
             </div>
 

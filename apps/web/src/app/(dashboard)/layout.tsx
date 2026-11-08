@@ -216,9 +216,14 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     subText: c.textMuted,
     border: c.border,
     cardBg: c.surface,
-    headerBg: c.surface,
-    sidebarBg: c.surface,
+    // The header sits on the page, not on a bar of its own: one less edge
+    // between the photographer and the work.
+    headerBg: c.bg,
+    sidebarBg: c.sidebarBg,
     primary: c.primary,
+    onPrimary: c.onPrimary,
+    surfaceActive: c.surfaceActive,
+    danger: c.danger,
     surfaceHover: c.surfaceHover,
     // Passed down so the panels the header opens sit on the shared elevation
     // ramp instead of each carrying its own light-mode-only shadow string.
@@ -244,7 +249,6 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       {/* Global Styles */}
       <style>{`
         * { box-sizing: border-box; }
-        a:focus-visible, button:focus-visible { outline: 2px solid #6366F1; outline-offset: 2px; }
         body { background: ${colors.bg}; color: ${colors.text}; }
         .mobile-menu-btn { display: none; }
         .mobile-overlay { display: none; }
@@ -324,7 +328,6 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                       item={item}
                       active={pathname === item.href}
                       theme={theme}
-                      colors={colors}
                       lockedBehind={lockedBehind}
                       // A locked row has nothing of its own waiting on it, and a
                       // count next to a lock would read as work the photographer
@@ -361,8 +364,8 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                   name={user.fullName ?? user.email ?? 'U'}
                   src={user.avatarUrl}
                   size={32}
-                  background={theme === 'light' ? '#6366F1' : '#818CF8'}
-                  color="#fff"
+                  background={c.surfaceActive}
+                  color={c.text}
                 />
                 <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                   <div
@@ -383,11 +386,9 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                   {isPhotographer && user.tenant?.plan && (
                     <div
                       style={{
-                        fontSize: '0.65rem',
+                        fontSize: '0.75rem',
                         color: colors.subText,
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        fontWeight: 600,
+                        fontWeight: 450,
                         marginTop: '2px',
                       }}
                     >
@@ -470,7 +471,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                   <div
                     style={{
                       fontSize: '1.1rem',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       color: colors.text,
                       marginBottom: 8,
                     }}
@@ -496,7 +497,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
                       borderRadius: 10,
                       border: 'none',
                       background: colors.primary,
-                      color: '#fff',
+                      color: colors.onPrimary,
                       fontSize: '0.9rem',
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -535,7 +536,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       {isOpen && (
         <div
           className="mobile-overlay"
-          style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)', zIndex: 30 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(12, 10, 9, 0.45)', zIndex: 30 }}
           onClick={() => setIsOpen(false)}
           aria-hidden="true"
         />

@@ -32,7 +32,6 @@ export const chrome: Record<keyof EnChrome, string> = {
   'nav.documents': 'Dokumente',
   'nav.reports': 'Berichte',
   'nav.revenue': 'Umsatz',
-  'nav.myBookings': 'Meine Buchungen',
   'nav.payments': 'Zahlungen',
   'nav.aria.main': 'Hauptnavigation',
   'nav.aria.badgeUnread': '{count} ungelesen',

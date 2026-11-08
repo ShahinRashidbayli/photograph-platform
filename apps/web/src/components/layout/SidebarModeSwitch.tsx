@@ -52,12 +52,14 @@ export function SidebarModeSwitch({
         gap: '3px',
         padding: '3px',
         margin: '0 2px 12px',
-        // A bordered track rather than a filled one. There is no "sunken
-        // surface" token, and faking one by reusing `surfaceHover` inverts in
-        // dark mode — it is *lighter* than `surface` there, so the track would
-        // read as raised and the selected tab as a hole.
-        border: `1px solid ${c.border}`,
-        borderRadius: '10px',
+        // Light mode: a sunken track with the selected tab raised out of it.
+        // Dark mode cannot sink below a near-black sidebar, and the light-mode
+        // fill is *lighter* than `surface` there — the track would read as
+        // raised and the selected tab as a hole — so it falls back to a
+        // bordered track with the selected tab filled.
+        background: c.isDark ? 'transparent' : c.surfaceActive,
+        border: c.isDark ? `1px solid ${c.border}` : '1px solid transparent',
+        borderRadius: '9px',
       }}
     >
       {modes.map((mode) => {
@@ -76,13 +78,13 @@ export function SidebarModeSwitch({
               borderRadius: '8px',
               // The same tinted pill the active nav row uses, for the same
               // reason: one way of saying "you are here" per sidebar.
-              background: selected ? c.primaryBg : 'transparent',
-              color: selected ? c.primaryText : c.textMuted,
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.02em',
+              background: selected ? (c.isDark ? c.surfaceActive : c.surface) : 'transparent',
+              boxShadow: selected && !c.isDark ? c.shadowRaised : 'none',
+              color: selected ? c.text : c.textMuted,
+              fontSize: '0.75rem',
+              fontWeight: selected ? 550 : 450,
               cursor: 'pointer',
-              transition: 'background 0.18s ease, color 0.18s ease',
+              transition: 'background-color 120ms ease-out, color 120ms ease-out',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

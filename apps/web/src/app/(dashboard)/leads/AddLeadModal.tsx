@@ -171,7 +171,7 @@ export function AddLeadModal({
   const primaryBtn: React.CSSProperties = {
     padding: '9px 18px',
     background: c.primarySolid,
-    color: '#fff',
+    color: c.onPrimary,
     border: 'none',
     borderRadius: '8px',
     fontSize: '0.88rem',
@@ -191,7 +191,7 @@ export function AddLeadModal({
       <div role="dialog" aria-modal="true" aria-label={t('addLead.aria')} style={card}>
         <div style={header}>
           <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 600, color: c.text }}>
               {t('addLead.title')}
             </div>
             <div style={{ fontSize: '0.85rem', color: c.textMuted, marginTop: '4px' }}>

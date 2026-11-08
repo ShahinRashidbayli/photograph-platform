@@ -494,7 +494,15 @@ function ClientsView() {
           </div>
         </div>
       ) : (
-        <div style={s.container}>
+        <div
+          style={{
+            ...s.container,
+            // One pane at a time below the breakpoint, so one track: the fixed
+            // 380px master column otherwise survives alone and pushes the page
+            // 18px wider than a phone.
+            ...(isNarrow ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}),
+          }}
+        >
           <div
             style={{
               ...s.listPanel,

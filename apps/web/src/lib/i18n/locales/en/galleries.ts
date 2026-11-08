@@ -8,7 +8,6 @@
 export const galleries = {
   'galleries.title': 'Your Galleries',
   'galleries.subtitle': 'View, download, and manage your photo galleries.',
-  'galleries.subtitleClient': 'Your delivered photo galleries will appear here.',
   'galleries.loading': 'Loading galleries…',
   'galleries.loadError': "Couldn't load galleries",
   'galleries.loadErrorBody': 'Could not load galleries. Please try again.',

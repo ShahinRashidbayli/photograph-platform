@@ -8,31 +8,31 @@ import type { EnAuth } from '../en/auth';
  */
 export const auth: Record<keyof EnAuth, string> = {
   // ── Customer sign-in by emailed code ──────────────────────────────────────
-  'customerLogin.visualTitle': 'Ihre Fotos, Ihre Momente',
+  'customerLogin.visualTitle': 'Ihre Fotos,\nIhre *Momente*',
   'customerLogin.visualSubtitle':
-    'Melden Sie sich an, um Ihre Buchung zu verfolgen, Ihre Galerie anzusehen und Ihrem Fotografen zu schreiben.',
-  'customerLogin.photographerSignIn': 'Als Fotograf anmelden',
+    'Melden Sie sich an, um Ihren Termin zu verfolgen, Ihre Galerie anzusehen und Ihrem Fotografen zu schreiben.',
+  'customerLogin.photographerSignIn': 'Anmeldung für Fotografen',
   'customerLogin.title': 'Als Kunde anmelden',
   'customerLogin.subtitle':
-    'Geben Sie Ihre E-Mail-Adresse und die Subdomain Ihres Fotografen ein — wir senden Ihnen einen 6-stelligen Code. Kein Passwort nötig.',
+    'Geben Sie Ihre E-Mail-Adresse ein — wir schicken Ihnen einen 6-stelligen Code. Kein Passwort nötig.',
   'customerLogin.emailLabel': 'E-Mail-Adresse',
-  'customerLogin.subdomainLabel': 'Subdomain des Fotografen',
-  'customerLogin.subdomainHelper': 'Die Subdomain, die Ihr Fotograf mit Ihnen geteilt hat.',
-  'customerLogin.subdomainHelperLocked': 'Sie melden sich auf der Seite Ihres Fotografen an.',
-  'customerLogin.fullNameLabel': 'Vollständiger Name (optional)',
+  'customerLogin.studioLabel': 'Ihr Fotograf',
+  'customerLogin.studioChange': 'Ändern',
+  'customerLogin.fullNameLabel': 'Vollständiger Name',
+  'customerLogin.optional': '(optional)',
   'customerLogin.fullNameHelper': 'Wird nur bei der ersten Anmeldung verwendet.',
   'customerLogin.submit': 'Code senden →',
   'customerLogin.submitLoading': 'Code wird gesendet…',
   'customerLogin.footer':
-    'Zum ersten Mal hier? Keine Registrierung nötig — mit Ihren Angaben wird Ihr Konto automatisch eingerichtet.',
-  'customerLogin.errorRequired': 'E-Mail-Adresse und Subdomain des Fotografen sind erforderlich',
+    'Zum ersten Mal hier? Keine Registrierung nötig — Ihr Konto wird automatisch angelegt.',
+  'customerLogin.errorRequired': 'Bitte geben Sie Ihre E-Mail-Adresse ein',
   'customerLogin.errorEmail': 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
-  'customerLogin.errorSubdomain':
-    'Bitte geben Sie eine gültige Fotografen-Subdomain ein (z. B. anna-foto)',
   'customerLogin.errorSend': 'Code konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
   'customerLogin.sentTitle': 'Code eingeben',
   'customerLogin.sentBody':
     'Wenn {email} bei diesem Fotografen registriert ist, haben wir gerade einen 6-stelligen Code gesendet. Er ist 10 Minuten gültig.',
+  'customerLogin.sentBodyAny':
+    'Wenn ein Fotograf {email} hinterlegt hat, haben wir Ihnen gerade Ihren 6-stelligen Code geschickt — bei mehreren Fotografen einen pro Fotograf. Er ist 10 Minuten gültig.',
   'customerLogin.sentHint':
     'Lassen Sie diese Seite offen — öffnen Sie Ihre E-Mails und geben Sie den Code hier ein.',
   'customerLogin.codeLabel': '6-stelliger Code',
@@ -54,7 +54,7 @@ export const auth: Record<keyof EnAuth, string> = {
 
   // ── Photographer login ────────────────────────────────────────────────────
   'login.crossLink': 'Als Kunde anmelden',
-  'login.visualTitle': 'Ihr Studio, genau wie Sie es verlassen haben.',
+  'login.visualTitle': 'Ihr *Studio*, genau wie Sie es verlassen haben.',
   'login.visualSubtitle': 'Buchungen, Kunden und Galerien — alles an einem Ort.',
   'login.title': 'Willkommen zurück',
   'login.subtitle': 'Melden Sie sich in Ihrem Fotolio-Studio an.',

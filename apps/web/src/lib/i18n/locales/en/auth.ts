@@ -10,30 +10,31 @@ export const auth = {
   // is inside Instagram's in-app browser and a link would send them out to
   // their mail app and back through a different browser. The wording below
   // leans on "stay on this page" for exactly that reason.
-  'customerLogin.visualTitle': 'Your photos, your moments',
+  'customerLogin.visualTitle': 'Your photos,\nyour *moments*',
   'customerLogin.visualSubtitle':
-    'Sign in to track your booking, view your gallery and message your photographer.',
+    'Sign in to follow your appointment, view your gallery and write to your photographer.',
   'customerLogin.photographerSignIn': 'Photographer sign in',
   'customerLogin.title': 'Sign in as a client',
   'customerLogin.subtitle':
-    "Enter your email and your photographer's subdomain — we'll send you a 6-digit code. No password needed.",
+    'Enter your email and we’ll send you a 6-digit code. No password needed.',
   'customerLogin.emailLabel': 'Email address',
-  'customerLogin.subdomainLabel': 'Photographer subdomain',
-  'customerLogin.subdomainHelper': 'The subdomain your photographer shared with you.',
-  'customerLogin.subdomainHelperLocked': "You're signing in on your photographer's site.",
-  'customerLogin.fullNameLabel': 'Full name (optional)',
+  'customerLogin.studioLabel': 'Your photographer',
+  'customerLogin.studioChange': 'Change',
+  'customerLogin.fullNameLabel': 'Full name',
+  'customerLogin.optional': '(optional)',
   'customerLogin.fullNameHelper': 'Only used the first time you sign in.',
   'customerLogin.submit': 'Send me a code →',
   'customerLogin.submitLoading': 'Sending code…',
   'customerLogin.footer':
-    'First time here? No sign-up needed — entering your details sets up your account automatically.',
-  'customerLogin.errorRequired': 'Email and photographer subdomain are required',
+    'First time here? No sign-up needed — your account is created automatically.',
+  'customerLogin.errorRequired': 'Please enter your email address',
   'customerLogin.errorEmail': 'Please enter a valid email address',
-  'customerLogin.errorSubdomain': 'Please enter a valid photographer subdomain (e.g. anna-foto)',
   'customerLogin.errorSend': 'Could not send the code. Please try again.',
   'customerLogin.sentTitle': 'Enter your code',
   'customerLogin.sentBody':
     'If {email} is registered with that photographer, we just sent a 6-digit code. It expires in 10 minutes.',
+  'customerLogin.sentBodyAny':
+    'If a photographer has {email} on file, we just sent your 6-digit code — one per photographer, if you are a client of several. It expires in 10 minutes.',
   'customerLogin.sentHint':
     'Keep this page open — open your email, then come back and type the code here.',
   'customerLogin.codeLabel': '6-digit code',
@@ -57,7 +58,7 @@ export const auth = {
   // The brand panel beside the sign-in form. Addressed to a photographer
   // returning to their own studio — the screen used to fall back to
   // "Discover great photographers", which is what a *client* would be told.
-  'login.visualTitle': 'Your studio, right where you left it.',
+  'login.visualTitle': 'Your *studio*, right where you left it.',
   'login.visualSubtitle': 'Bookings, clients and galleries — all in one place.',
   'login.title': 'Welcome back',
   'login.subtitle': 'Sign in to your Fotolio studio.',

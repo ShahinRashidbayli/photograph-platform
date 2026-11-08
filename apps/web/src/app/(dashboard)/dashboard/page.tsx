@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -12,6 +12,7 @@ import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/book
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui';
 import { getDashboardColors, getDashboardStyles } from './dashboard.styles';
 
 const ICONS = {
@@ -75,7 +76,6 @@ export default function DashboardPage() {
   // over KPIs that mostly come from bookings.
   const { data: leadsData, isLoading: leadsLoading } = useLeads();
   const leads = leadsData ?? NO_LEADS;
-  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const loading = bookingsLoading || leadsLoading;
 
   const kpis = useMemo(() => {
@@ -199,12 +199,12 @@ export default function DashboardPage() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.55; }
         }
+        .dash-metric-grid > * + * { border-left: 1px solid var(--dash-divider); }
         @media (max-width: 960px) {
           .dash-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-          .dash-section-grid { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 520px) {
-          .dash-metric-grid { grid-template-columns: 1fr !important; }
+          .dash-metric-grid > :nth-child(3) { border-left: none; }
+          .dash-metric-grid > :nth-child(n + 3) { border-top: 1px solid var(--dash-divider); }
+          .dash-section-grid { grid-template-columns: minmax(0, 1fr) !important; }
         }
       `}</style>
 
@@ -213,57 +213,38 @@ export default function DashboardPage() {
         <div style={{ minWidth: 0 }}>
           <h1 style={styles.pageTitle}>
             {t('dashboard.welcome', { name: user?.fullName ?? user?.email ?? '' })}
-            {user?.tenant?.plan && (
-              <span style={styles.planBadge}>
-                {t('dashboard.planBadge', { plan: user.tenant.plan })}
-              </span>
-            )}
           </h1>
           <p style={styles.pageSubtitle}>
             {t('dashboard.subtitle')}
             {user?.tenant?.subdomain && (
               <>
                 <span aria-hidden style={{ color: colors.textSubtle }}>
-                  •
+                  ·
                 </span>
                 <span style={styles.subdomainChip}>{user.tenant.subdomain}</span>
               </>
             )}
+            {user?.tenant?.plan && (
+              <span style={styles.planBadge}>
+                {t('dashboard.planBadge', { plan: user.tenant.plan })}
+              </span>
+            )}
           </p>
         </div>
         <div style={styles.headerActions}>
-          <button
-            type="button"
-            style={styles.secondaryButton}
-            onClick={() => router.push('/portfolio')}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.surfaceHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.surface;
-            }}
-          >
-            {t('dashboard.viewPortfolio')}
-          </button>
-          <button
-            type="button"
-            style={styles.primaryButton}
-            onClick={() => router.push('/bookings')}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
+          <Button onClick={() => router.push('/portfolio')}>{t('dashboard.viewPortfolio')}</Button>
+          <Button variant="primary" onClick={() => router.push('/bookings')}>
             {ICONS.plus}
             {t('dashboard.createBooking')}
-          </button>
+          </Button>
         </div>
       </header>
 
       {/* Metrics Grid */}
-      <div className="dash-metric-grid" style={styles.metricGrid}>
+      <div
+        className="dash-metric-grid"
+        style={{ ...styles.metricGrid, ['--dash-divider' as string]: colors.border }}
+      >
         <MetricCard
           styles={styles}
           colors={colors}
@@ -275,11 +256,10 @@ export default function DashboardPage() {
         <MetricCard
           styles={styles}
           colors={colors}
-          featured
           label={t('dashboard.kpi.totalRevenue')}
           value={format.eur(kpis.revenue)}
           trend={t('dashboard.kpi.collected', { amount: format.eur(kpis.collected) })}
-          trendColor={colors.successText}
+          trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
@@ -307,16 +287,7 @@ export default function DashboardPage() {
             <h3 id="upcoming-bookings" style={styles.cardTitle}>
               {t('dashboard.upcomingBookings')}
             </h3>
-            <Link
-              href="/bookings"
-              style={styles.cardLink}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.gap = '8px';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.gap = '4px';
-              }}
-            >
+            <Link href="/bookings" style={styles.cardLink} className="dash-card-link">
               {t('dashboard.viewAll')} {ICONS.arrowRight}
             </Link>
           </div>
@@ -329,18 +300,16 @@ export default function DashboardPage() {
             <div style={styles.listContainer}>
               {upcomingBookings.map((booking, idx) => {
                 const status = getBookingStatusStyle(booking.status);
-                const rowKey = `b-${booking.id}`;
-                const isHovered = hoveredRow === rowKey;
                 return (
-                  <div
+                  <Link
                     key={booking.id}
+                    href={`/bookings?id=${encodeURIComponent(booking.id)}`}
+                    className="ui-row-hover"
                     style={{
                       ...styles.listRow,
                       ...(idx > 0 ? styles.listRowDivider : {}),
-                      background: isHovered ? colors.surfaceHover : 'transparent',
+                      ['--ui-row-hover' as string]: colors.surfaceHover,
                     }}
-                    onMouseEnter={() => setHoveredRow(rowKey)}
-                    onMouseLeave={() => setHoveredRow(null)}
                   >
                     <div style={styles.listRowLeft}>
                       <div style={styles.bookingDatePill}>
@@ -372,7 +341,7 @@ export default function DashboardPage() {
                       />
                       {status.label}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -385,16 +354,7 @@ export default function DashboardPage() {
             <h3 id="recent-leads" style={styles.cardTitle}>
               {t('dashboard.recentLeads')}
             </h3>
-            <Link
-              href="/leads"
-              style={styles.cardLink}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.gap = '8px';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.gap = '4px';
-              }}
-            >
+            <Link href="/leads" style={styles.cardLink} className="dash-card-link">
               {t('dashboard.viewAll')} {ICONS.arrowRight}
             </Link>
           </div>
@@ -408,18 +368,16 @@ export default function DashboardPage() {
               {sortedLeads.map((lead, idx) => {
                 const score = getLeadScoreStyle(lead.score);
                 const palette = pickAvatarColor(lead.id, colors.isDark);
-                const rowKey = `l-${lead.id}`;
-                const isHovered = hoveredRow === rowKey;
                 return (
-                  <div
+                  <Link
                     key={lead.id}
+                    href={`/leads?selected=${encodeURIComponent(lead.id)}`}
+                    className="ui-row-hover"
                     style={{
                       ...styles.listRow,
                       ...(idx > 0 ? styles.listRowDivider : {}),
-                      background: isHovered ? colors.surfaceHover : 'transparent',
+                      ['--ui-row-hover' as string]: colors.surfaceHover,
                     }}
-                    onMouseEnter={() => setHoveredRow(rowKey)}
-                    onMouseLeave={() => setHoveredRow(null)}
                   >
                     <div style={styles.listRowLeft}>
                       <div
@@ -454,7 +412,7 @@ export default function DashboardPage() {
                       />
                       {score.label}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -473,52 +431,22 @@ type MetricCardProps = {
   // Contextual line under the value, always derived from real data.
   trend?: string;
   trendColor?: string;
-  /**
-   * Renders the card as the row's hero — brand gradient, white type, a size up.
-   *
-   * <p>Exactly one card per row should set it. The device only works because
-   * it is unique on the screen: it says "this is the number you came for", and
-   * a second one says nothing at all.
-   */
-  featured?: boolean;
 };
 
-function MetricCard({
-  styles,
-  colors,
-  label,
-  value,
-  trend,
-  trendColor,
-  featured = false,
-}: MetricCardProps) {
-  const [hover, setHover] = useState(false);
+/**
+ * One cell of the headline band. Deliberately static — no hover lift — because
+ * none of these figures is a link, and a card that rises under the pointer
+ * promises a click that does nothing.
+ */
+function MetricCard({ styles, label, value, trend, trendColor }: MetricCardProps) {
   return (
-    <div
-      style={{
-        ...(featured ? styles.metricCardFeatured : styles.metricCard),
-        transform: hover ? 'translateY(-2px)' : 'translateY(0)',
-        boxShadow: hover ? colors.shadowPopover : colors.shadowRaised,
-      }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {featured && (
-        <>
-          <span aria-hidden style={styles.metricGlow} />
-          <span aria-hidden style={styles.metricGlowInner} />
-        </>
-      )}
-      <span style={featured ? styles.metricLabelFeatured : styles.metricLabel}>{label}</span>
-      <div style={featured ? styles.metricValueFeatured : styles.metricValue}>{value}</div>
+    <div style={styles.metricCell}>
+      <span style={styles.metricLabel}>{label}</span>
+      <div style={styles.metricValue} data-numeric>
+        {value}
+      </div>
       {trend && (
-        <div
-          style={
-            featured
-              ? styles.metricTrendFeatured
-              : { ...styles.metricTrend, color: trendColor ?? styles.metricTrend?.color }
-          }
-        >
+        <div style={{ ...styles.metricTrend, color: trendColor ?? styles.metricTrend?.color }}>
           {trend}
         </div>
       )}

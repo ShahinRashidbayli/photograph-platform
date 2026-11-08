@@ -160,7 +160,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
     <section style={section} aria-labelledby="settings-legal">
       <h2
         id="settings-legal"
-        style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text, margin: '0 0 6px' }}
+        style={{ fontSize: '1.05rem', fontWeight: 600, color: c.text, margin: '0 0 6px' }}
       >
         {t('settings.legal.title')}
       </h2>
@@ -290,7 +290,7 @@ export function LegalDetailsSection({ theme }: { readonly theme: Theme }) {
             style={{
               padding: '10px 24px',
               background: c.primarySolid,
-              color: '#fff',
+              color: c.onPrimary,
               border: 'none',
               borderRadius: '10px',
               fontSize: '0.9rem',

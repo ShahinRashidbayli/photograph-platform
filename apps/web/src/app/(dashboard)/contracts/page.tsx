@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import { getColors, pageTitle } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
 import { Alert, Badge, Button, Card, EmptyState, Note } from '@/components/ui';
 import { UpgradeCard } from '@/components/UpgradeCard';
@@ -60,9 +60,7 @@ export default function ContractsPage() {
 
   return (
     <div style={{ padding: '28px 28px 40px', maxWidth: 900, margin: '0 auto', color: c.text }}>
-      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 6 }}>
-        {t('contracts.title')}
-      </h1>
+      <h1 style={pageTitle}>{t('contracts.title')}</h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: 22 }}>
         {t('contracts.pageSubtitle')}
       </p>

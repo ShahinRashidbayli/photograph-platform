@@ -44,16 +44,47 @@ export function stripeConnectKey() {
 }
 
 /**
- * @param pollUntilActive re-read every 2s until the subscription is ACTIVE —
- *        for the return from a successful checkout, where the webhook that
- *        flips it is authoritative but can land after the browser does
+ * Whether the status already reflects a Stripe subscription, i.e. the webhook
+ * has landed. Not just "ACTIVE": a checkout made mid-trial carries the trial
+ * over to Stripe and comes back TRIALING, and a failed first payment stays
+ * INCOMPLETE — waiting for ACTIVE polled those forever.
+ *
+ * <p>TRIALING is also our own pre-checkout default, told apart by
+ * `currentPeriodEnd`, which only the webhook writes. It is never cleared on
+ * cancellation, so a CANCELED status with one set is the old subscription,
+ * not the new one.
  */
-export function useBillingStatus({ pollUntilActive = false } = {}) {
+export function reflectsCheckout(status: BillingStatus): boolean {
+  switch (status.subscriptionStatus) {
+    case 'NONE':
+    case 'CANCELED':
+      return false;
+    case 'TRIALING':
+      return status.currentPeriodEnd !== null;
+    default:
+      return true;
+  }
+}
+
+/** About a minute at 2s — past that a webhook is not late, it is not coming. */
+export const CHECKOUT_POLL_MAX_READS = 30;
+
+/**
+ * @param pollAfterCheckout re-read every 2s until the webhook from a
+ *        successful checkout has landed — it is authoritative but can arrive
+ *        after the browser does. Gives up after {@link CHECKOUT_POLL_MAX_READS}.
+ */
+export function useBillingStatus({ pollAfterCheckout = false } = {}) {
   return useQuery({
     queryKey: billingStatusKey(),
     queryFn: async () => (await api.get<BillingStatus>('/api/billing')).data,
-    refetchInterval: (query) =>
-      pollUntilActive && query.state.data?.subscriptionStatus !== 'ACTIVE' ? 2000 : false,
+    refetchInterval: ({ state }) => {
+      if (!pollAfterCheckout) return false;
+      if (state.data && reflectsCheckout(state.data)) return false;
+      return state.dataUpdateCount + state.errorUpdateCount < CHECKOUT_POLL_MAX_READS
+        ? 2000
+        : false;
+    },
   });
 }
 

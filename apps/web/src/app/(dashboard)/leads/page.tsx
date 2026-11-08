@@ -1,34 +1,36 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Toast } from '@/components/Toast';
+import { Button } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { asyncErrorText } from '@/lib/async-error';
 import { useInquiries, useLeads } from '@/hooks/useLeads';
+import { useBookings } from '@/hooks/useBookings';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MobilePaneBack } from '@/components/MobilePaneBack';
 import type { Lead } from '@/types/api';
+import { BookingActionMenu } from '../bookings/BookingActionMenu';
+import { getBookingsStyles } from '../bookings/bookings.styles';
 import { getLeadsColors, getLeadsStyles, type LeadsTheme } from './leads.styles';
-import { FilterBar } from './FilterBar';
-import { LeadListItem } from './LeadListItem';
-import { LeadDetail } from './LeadDetail';
+import { getInboxStyles } from './inbox.styles';
 import { LeadListSkeleton } from './LeadListSkeleton';
 import { AddLeadModal } from './AddLeadModal';
 import { ConvertLeadModal } from './ConvertLeadModal';
-import { EditNoteModal } from './EditNoteModal';
-import { InquiryRow } from './InquiryRow';
-import { InquiryDetail } from './InquiryDetail';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { MobilePaneBack } from '@/components/MobilePaneBack';
-import { useLeadFilters } from './useLeadFilters';
+import { InboxList } from './InboxList';
+import { InboxDetail } from './InboxDetail';
 import { useLeadActions } from './useLeadActions';
+import { useDeferredStatus } from './useDeferredStatus';
+import { buildInbox, factsOf, type InboxItem, type PendingStatus } from './leads.inbox';
 import type { Inquiry } from './inquiryTypes';
 
-type Selection = { kind: 'lead' | 'inquiry'; id: string };
-
-/** Stable while a query has no data, so the filters below do not recompute every render. */
+/** Stable while a query has no data, so the memos below do not recompute every render. */
 const NO_LEADS: Lead[] = [];
 const NO_INQUIRIES: Inquiry[] = [];
+
+type ToastState = { message: string; undo?: PendingStatus };
 
 /**
  * Renders a translated sentence with one segment in bold. The template carries
@@ -46,6 +48,18 @@ function bold(template: string, placeholder: string, value: string) {
   );
 }
 
+const keyOf = (i: { kind: string; id: string }) => `${i.kind}:${i.id}`;
+
+/**
+ * The leads inbox — where a client's request first arrives and gets its
+ * first answer.
+ *
+ * <p>It used to be a CRM view: pipeline tabs, a filter popover, a sort row, a
+ * yellow banner, fact cards, score bars, an activity log and a row of four
+ * tinted buttons. For a first contact the photographer needs four things —
+ * who, what they wrote, am I free that day, and a way to answer — so that is
+ * what the page now is, with everything else one quiet link away.
+ */
 function LeadsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,13 +68,15 @@ function LeadsView() {
   const themeKey: LeadsTheme = theme === 'dark' ? 'dark' : 'light';
   const s = useMemo(() => getLeadsStyles(themeKey), [themeKey]);
   const c = useMemo(() => getLeadsColors(themeKey), [themeKey]);
+  const ins = useMemo(() => getInboxStyles(c), [c]);
+  const menuStyles = useMemo(() => getBookingsStyles(themeKey), [themeKey]);
 
-  // Data, filtering and mutations each live in a focused hook; the component
-  // below is render + selection only.
   const leadsQuery = useLeads();
   // Best-effort: a failure here reads as "no inquiries" (see useInquiries), so
   // only the leads can fail the inbox.
   const inquiriesQuery = useInquiries();
+  // For "are you free that day" — the list the bookings page already caches.
+  const { data: bookings = [] } = useBookings(true);
   const leads = leadsQuery.data ?? NO_LEADS;
   const inquiries = inquiriesQuery.data ?? NO_INQUIRIES;
   const loading = leadsQuery.isLoading || inquiriesQuery.isLoading;
@@ -69,104 +85,73 @@ function LeadsView() {
     void leadsQuery.refetch();
     void inquiriesQuery.refetch();
   };
-  const {
-    sourceFilter,
-    setSourceFilter,
-    filterScore,
-    setFilterScore,
-    filterPipeline,
-    setFilterPipeline,
-    searchTerm,
-    setSearchTerm,
-    sortOrder,
-    setSortOrder,
-    pipelineCounts,
-    inboxItems,
-  } = useLeadFilters(leads, inquiries);
 
-  const [selected, setSelected] = useState<Selection | null>(null);
+  const actions = useLeadActions();
+  const { reportError } = actions;
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const { pending, schedule, undo } = useDeferredStatus(
+    useCallback(
+      (err: unknown, change: PendingStatus) => {
+        setToast(null);
+        reportError(err, change.status === 'REPLIED' ? 'leads.error.reply' : 'leads.error.reject');
+      },
+      [reportError]
+    )
+  );
 
-  // Below this width the 380px master column plus a detail pane leaves neither
-  // usable, so the two become separate views with a back affordance — the same
-  // treatment Bookings already had. This screen is the reason it matters most:
-  // ROADMAP §4.5 has the photographer triaging Instagram leads on a phone.
+  const [search, setSearch] = useState('');
+  const [closedOpen, setClosedOpen] = useState(false);
+  const now = useMemo(() => new Date(), []);
+  const inbox = useMemo(
+    () => buildInbox(leads, inquiries, search, pending),
+    [leads, inquiries, search, pending]
+  );
+
+  // Below this width the list and the request are two screens with a back
+  // button. ROADMAP §4.5 has the photographer answering on a phone, which is
+  // why the phone gets the reply bar under the thumb.
   const isNarrow = useMediaQuery('(max-width: 900px)');
+  const isPhone = useMediaQuery('(max-width: 640px)');
   const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Deep-link (?selected=<leadId>) still targets a lead — existing links from
-  // the dashboard point at lead ids.
+  // Deep-link (?selected=<leadId>) — the dashboard and the bell link to leads.
+  const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => {
     const sel = searchParams.get('selected');
-    if (sel) setSelected({ kind: 'lead', id: sel });
+    if (sel) setSelected(`lead:${sel}`);
   }, [searchParams]);
 
-  // Effective selection with fallback to the first visible row — whichever
-  // source that row happens to come from, since the inbox is one date-ordered
-  // list. Keeps the detail panel in sync when a filter hides the
-  // previously-selected item.
-  const effectiveSelected = useMemo<Selection | null>(() => {
-    if (selected && inboxItems.some((i) => i.kind === selected.kind && i.id === selected.id)) {
-      return selected;
-    }
-    const first = inboxItems[0];
-    return first ? { kind: first.kind, id: first.id } : null;
-  }, [selected, inboxItems]);
-
-  const selectedLead = useMemo(
-    () =>
-      effectiveSelected?.kind === 'lead'
-        ? (leads.find((l) => l.id === effectiveSelected.id) ?? null)
-        : null,
-    [effectiveSelected, leads]
+  // The selection, or the first request waiting for an answer.
+  const all = useMemo(() => [...inbox.reply, ...inbox.waiting, ...inbox.closed], [inbox]);
+  const current: InboxItem | null = useMemo(
+    () => all.find((i) => keyOf(i) === selected) ?? all[0] ?? null,
+    [all, selected]
   );
-  const selectedInquiry = useMemo(
-    () =>
-      effectiveSelected?.kind === 'inquiry'
-        ? (inquiries.find((i) => i.id === effectiveSelected.id) ?? null)
-        : null,
-    [effectiveSelected, inquiries]
-  );
+  // A deep link to a closed request opens the closed group so the row is visible.
+  useEffect(() => {
+    if (current?.group === 'closed') setClosedOpen(true);
+  }, [current?.group]);
 
-  const {
-    convertingLead,
-    startConvert,
-    cancelConvert,
-    applyConverted,
-    convertSuccess,
-    dismissConvertSuccess,
-    addOpen,
-    openAdd,
-    closeAdd,
-    notingLead,
-    startNote,
-    cancelNote,
-    rejectingLead,
-    startReject,
-    cancelReject,
-    rejectBusy,
-    confirmReject,
-    inquiryBusyId,
-    triageInquiry,
-    markSelectedReplied,
-    actionError,
-    dismissActionError,
-  } = useLeadActions({ selectedLead, selectedInquiry });
+  function move(item: InboxItem, status: PendingStatus['status'], viaDraft: boolean) {
+    const change: PendingStatus = { kind: item.kind, id: item.id, status };
+    schedule(change);
+    const name = factsOf(item).name;
+    const key =
+      status === 'REPLIED'
+        ? viaDraft
+          ? 'leads.toast.replied'
+          : 'leads.toast.markedReplied'
+        : viaDraft
+          ? 'leads.toast.declined'
+          : 'leads.toast.rejected';
+    setToast({ message: t(key, { name }), undo: change });
+  }
 
-  // "Awaiting reply" counts unanswered items across both sources: NEW leads and
-  // PENDING inquiries are the two "hasn't been triaged yet" states.
-  const stats = useMemo(() => {
-    const needsReply =
-      leads.filter((l) => l.status === 'NEW').length +
-      inquiries.filter((i) => i.status === 'PENDING').length;
-    return { needsReply };
-  }, [leads, inquiries]);
+  const pendingCount = inbox.reply.length;
 
   return (
     <div style={s.pageWrapper}>
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
-
-      {actionError && (
+      {actions.actionError && (
         <div
           role="alert"
           style={{
@@ -175,20 +160,19 @@ function LeadsView() {
             justifyContent: 'space-between',
             gap: '12px',
             padding: '12px 16px',
-            marginBottom: '16px',
             borderRadius: '12px',
             background: c.dangerBg,
             color: c.dangerText,
             border: `1px solid ${c.dangerBorder}`,
             fontSize: '0.9rem',
-            fontWeight: 600,
+            fontWeight: 500,
           }}
         >
-          <span>{asyncErrorText(actionError, t)}</span>
+          <span>{asyncErrorText(actions.actionError, t)}</span>
           <button
             type="button"
             aria-label={t('common.close')}
-            onClick={dismissActionError}
+            onClick={actions.dismissActionError}
             style={{
               background: 'transparent',
               border: 'none',
@@ -203,7 +187,7 @@ function LeadsView() {
         </div>
       )}
 
-      {convertSuccess && (
+      {actions.convertSuccess && (
         <div
           role="status"
           style={{
@@ -212,16 +196,15 @@ function LeadsView() {
             justifyContent: 'space-between',
             gap: '12px',
             padding: '12px 16px',
-            marginBottom: '16px',
             borderRadius: '12px',
             background: c.successBg,
             color: c.successText,
             border: `1px solid ${c.successBorder}`,
             fontSize: '0.9rem',
-            fontWeight: 600,
+            fontWeight: 500,
           }}
         >
-          <span>{bold(t('leads.converted'), '{name}', convertSuccess.leadName)}</span>
+          <span>{bold(t('leads.converted'), '{name}', actions.convertSuccess.leadName)}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button
               type="button"
@@ -230,7 +213,7 @@ function LeadsView() {
                 background: 'transparent',
                 border: 'none',
                 color: 'inherit',
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: 'pointer',
                 textDecoration: 'underline',
               }}
@@ -240,7 +223,7 @@ function LeadsView() {
             <button
               type="button"
               aria-label={t('common.close')}
-              onClick={dismissConvertSuccess}
+              onClick={actions.dismissConvertSuccess}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -256,158 +239,56 @@ function LeadsView() {
         </div>
       )}
 
-      {convertingLead && (
+      {actions.convertingLead && (
         <ConvertLeadModal
-          lead={convertingLead}
+          lead={actions.convertingLead}
           c={c}
-          onClose={cancelConvert}
-          onConverted={applyConverted}
+          onClose={actions.cancelConvert}
+          onConverted={actions.applyConverted}
         />
       )}
 
-      {addOpen && (
+      {actions.addOpen && (
         <AddLeadModal
           c={c}
-          onClose={closeAdd}
+          onClose={actions.closeAdd}
           onCreated={(created) => {
-            closeAdd();
-            // Select the new lead so the photographer sees it in the detail
-            // panel without hunting through the list — useCreateLead has
-            // already re-read the inbox it lands in.
-            setSelected({ kind: 'lead', id: created.id });
+            actions.closeAdd();
+            // Open the new lead so it is visible without hunting through the
+            // list — useCreateLead has already re-read the inbox.
+            setSelected(`lead:${created.id}`);
           }}
         />
       )}
 
-      {notingLead && (
-        <EditNoteModal lead={notingLead} c={c} onClose={cancelNote} onSaved={cancelNote} />
-      )}
-
-      <ConfirmDialog
-        open={!!rejectingLead}
-        theme={themeKey === 'dark' ? 'dark' : 'light'}
-        title={t('leads.reject.title')}
-        message={rejectingLead ? t('leads.reject.message', { name: rejectingLead.name }) : ''}
-        confirmLabel={t('leads.reject.confirm')}
-        tone="danger"
-        busy={rejectBusy}
-        onCancel={() => !rejectBusy && cancelReject()}
-        onConfirm={confirmReject}
-      />
-
-      <div
-        style={{
-          ...s.pageHeader,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: '16px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
+      {/* Header: one number, the one way to add, and a menu for the rest. */}
+      <header style={s.pageHeader}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
           <h1 style={s.pageTitle}>{t('leads.title')}</h1>
-          <p style={s.pageSubtitle}>{t('leads.subtitle')}</p>
+          <p style={{ ...s.pageSubtitle, margin: 0 }}>
+            {pendingCount > 0 ? tPlural('leads.toReply', pendingCount) : t('leads.allAnswered')}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Export uses a plain anchor to /api/leads/export.csv — the
-              browser sends the session cookie automatically, the backend
-              sets Content-Disposition: attachment, and we get a real "Save
-              file…" dialog without any blob/file-saver shim. */}
-          <a
-            href="/api/leads/export.csv"
-            style={{
-              padding: '8px 14px',
-              border: `1px solid ${c.border}`,
-              borderRadius: '8px',
-              background: c.surface,
-              color: c.text,
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            aria-label={t('leads.exportAria')}
-          >
-            {t('leads.exportCsv')}
-          </a>
-          <button
-            type="button"
-            onClick={openAdd}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '8px',
-              background: c.primarySolid,
-              color: '#fff',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button variant="primary" onClick={actions.openAdd}>
             + {t('leads.newLead')}
-          </button>
+          </Button>
+          <BookingActionMenu
+            label={t('leads.moreActions')}
+            styles={menuStyles}
+            colors={c}
+            items={[
+              {
+                key: 'export',
+                label: t('leads.exportCsv'),
+                // A plain navigation: the browser sends the session cookie and
+                // the API answers with Content-Disposition: attachment.
+                onSelect: () => window.location.assign('/api/leads/export.csv'),
+              },
+            ]}
+          />
         </div>
-      </div>
-
-      {/* The full stats grid (Total / High priority / Needs action) lived
-          here previously. It's been removed: "Total" duplicates the All
-          pipeline tab count below, the score breakdown is one click away via
-          the Score dropdown, and "Needs action" is now a contextual alert
-          rendered only when the count is non-zero. The Overview page is the
-          right home for at-a-glance metrics; this page is for working on
-          leads, and recovering ~180px of vertical chrome puts the actual list
-          and detail panel above the fold on a laptop. */}
-      {stats.needsReply > 0 && (
-        <div
-          role="status"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '10px 16px',
-            marginBottom: '16px',
-            borderRadius: '10px',
-            background: c.warningBg,
-            color: c.warningText,
-            border: `1px solid ${c.warningBorder}`,
-            fontSize: '0.88rem',
-            fontWeight: 600,
-          }}
-        >
-          <span>
-            {bold(
-              t('leads.awaitingReply'),
-              '{leads}',
-              tPlural('leads.leadCount', stats.needsReply)
-            )}
-          </span>
-          {/* Surface the action: jump them straight to the Active tab with
-              search cleared so they can deal with it. */}
-          {filterPipeline !== 'Active' && (
-            <button
-              type="button"
-              onClick={() => {
-                setFilterPipeline('Active');
-                setSearchTerm('');
-              }}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'inherit',
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
-              {t('leads.review')} →
-            </button>
-          )}
-        </div>
-      )}
+      </header>
 
       {loadFailed ? (
         <div style={{ ...s.listPanel, maxHeight: 'none' }}>
@@ -420,104 +301,49 @@ function LeadsView() {
           </div>
         </div>
       ) : (
-        <div style={s.container}>
+        <div
+          style={{
+            ...s.container,
+            ...(isNarrow ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}),
+          }}
+        >
+          <style>{`
+            @media (hover: hover) {
+              .ld-row:not([aria-current]):hover { background: var(--ld-row-hover); }
+              .txt-link:hover { color: ${c.text} !important; text-decoration: underline !important; }
+            }
+          `}</style>
           <div
             style={{
               ...s.listPanel,
               ...(isNarrow && mobilePane === 'detail' ? { display: 'none' } : {}),
             }}
           >
-            {/* Compact filter bar — pipeline tabs, search + Filter popover, and a
-                results strip showing what is applied. Source (form vs customer)
-                used to be its own segmented control here; it moved into the
-                popover so the panel opens on the list rather than on two rows
-                of filter chrome. */}
-            <FilterBar
-              c={c}
-              filterPipeline={filterPipeline}
-              setFilterPipeline={setFilterPipeline}
-              filterScore={filterScore}
-              setFilterScore={setFilterScore}
-              sourceFilter={sourceFilter}
-              setSourceFilter={setSourceFilter}
-              showSourceFilter={inquiries.length > 0}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              pipelineCounts={pipelineCounts}
-              sortOrder={sortOrder}
-              setSortOrder={setSortOrder}
-              resultCount={inboxItems.length}
-              loading={loading}
-            />
-
-            <div style={s.listScroll}>
-              {loading ? (
+            {loading ? (
+              <div style={s.listScroll}>
                 <LeadListSkeleton s={s} />
-              ) : leads.length === 0 && inquiries.length === 0 ? (
-                <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noneTitle')}</div>
-                  <div>{t('leads.empty.noneBody')}</div>
-                </div>
-              ) : inboxItems.length === 0 ? (
-                <div style={s.emptyState}>
-                  <div style={{ color: c.text, fontWeight: 600 }}>
-                    {t('leads.empty.noMatchTitle')}
-                  </div>
-                  {/* If the Active view is empty but there ARE resolved leads
-                      sitting in Booked/Rejected, surface that explicitly —
-                      otherwise the photographer wonders "where did my leads
-                      go?" after the first conversion. */}
-                  {filterPipeline === 'Active' &&
-                  pipelineCounts.Booked + pipelineCounts.Rejected > 0 ? (
-                    <div>
-                      {pipelineCounts.Rejected > 0
-                        ? t('leads.empty.allResolvedBoth', {
-                            booked: String(pipelineCounts.Booked),
-                            rejected: String(pipelineCounts.Rejected),
-                          })
-                        : t('leads.empty.allResolvedBooked', {
-                            booked: String(pipelineCounts.Booked),
-                          })}
-                    </div>
-                  ) : (
-                    <div>{t('common.tryOtherFilter')}</div>
-                  )}
-                </div>
-              ) : (
-                inboxItems.map((item) => {
-                  const isActive =
-                    effectiveSelected?.kind === item.kind && effectiveSelected.id === item.id;
-                  const onSelect = () => {
-                    setSelected({ kind: item.kind, id: item.id });
-                    if (isNarrow) setMobilePane('detail');
-                  };
-                  const onHover = (hov: boolean) => setHoveredId(hov ? item.id : null);
-                  return item.kind === 'inquiry' ? (
-                    <InquiryRow
-                      key={`inq-${item.id}`}
-                      inquiry={item.inquiry}
-                      isActive={isActive}
-                      isHovered={hoveredId === item.id}
-                      onSelect={onSelect}
-                      onHover={onHover}
-                      s={s}
-                      c={c}
-                    />
-                  ) : (
-                    <LeadListItem
-                      key={`lead-${item.id}`}
-                      lead={item.lead}
-                      isActive={isActive}
-                      isHovered={hoveredId === item.id}
-                      onSelect={onSelect}
-                      onHover={onHover}
-                      s={s}
-                      c={c}
-                    />
-                  );
-                })
-              )}
-            </div>
+              </div>
+            ) : leads.length === 0 && inquiries.length === 0 ? (
+              <div style={s.emptyState}>
+                <div style={{ color: c.text, fontWeight: 600 }}>{t('leads.empty.noneTitle')}</div>
+                <div>{t('leads.empty.noneBody')}</div>
+              </div>
+            ) : (
+              <InboxList
+                inbox={inbox}
+                selectedKey={current ? keyOf(current) : null}
+                onSelect={(item) => {
+                  setSelected(keyOf(item));
+                  if (isNarrow) setMobilePane('detail');
+                }}
+                search={search}
+                onSearch={setSearch}
+                closedOpen={closedOpen}
+                onToggleClosed={() => setClosedOpen((o) => !o)}
+                now={now}
+                s={ins}
+              />
+            )}
           </div>
 
           <div
@@ -537,27 +363,53 @@ function LeadsView() {
             )}
             {loading ? (
               <div style={s.emptyState}>{t('leads.loadingDetails')}</div>
-            ) : selectedInquiry ? (
-              <InquiryDetail
-                inquiry={selectedInquiry}
+            ) : current ? (
+              <InboxDetail
+                key={keyOf(current)}
+                item={current}
+                now={now}
+                bookings={bookings}
+                isPhone={isPhone}
+                theme={themeKey}
                 c={c}
-                busy={inquiryBusyId === selectedInquiry.id}
-                onTriage={triageInquiry}
+                s={ins}
+                actions={{
+                  onReplied: (item, viaDraft) => move(item, 'REPLIED', viaDraft),
+                  onDeclined: (item, viaDraft) => move(item, 'REJECTED', viaDraft),
+                  onAccept: () =>
+                    current.kind === 'inquiry' && actions.acceptInquiry(current.inquiry),
+                  onConvert: () => current.kind === 'lead' && actions.startConvert(current.lead),
+                  onViewBookings: () => router.push('/bookings'),
+                }}
               />
             ) : (
-              <LeadDetail
-                lead={selectedLead}
-                s={s}
-                c={c}
-                onConvert={() => selectedLead && startConvert(selectedLead)}
-                onViewBooking={() => router.push('/bookings')}
-                onReject={() => selectedLead && startReject(selectedLead)}
-                onAddNote={() => selectedLead && startNote(selectedLead)}
-                onMarkReplied={markSelectedReplied}
-              />
+              <div style={s.emptyState}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text }}>
+                  {search ? t('leads.empty.noMatchTitle') : t('leadDetail.noneSelectedTitle')}
+                </div>
+                <div>{search ? t('common.tryOtherFilter') : t('leadDetail.noneSelectedBody')}</div>
+              </div>
             )}
           </div>
         </div>
+      )}
+
+      {toast && (
+        <Toast
+          theme={themeKey}
+          message={toast.message}
+          actionLabel={toast.undo ? t('leads.toast.undo') : undefined}
+          onAction={
+            toast.undo
+              ? () => {
+                  if (toast.undo) undo(toast.undo);
+                  setToast(null);
+                }
+              : undefined
+          }
+          duration={toast.undo ? 6000 : undefined}
+          onDismiss={() => setToast(null)}
+        />
       )}
     </div>
   );

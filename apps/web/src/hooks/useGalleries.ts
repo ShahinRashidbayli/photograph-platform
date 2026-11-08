@@ -35,6 +35,23 @@ export interface DeliveryPhoto {
   sortOrder: number;
 }
 
+/**
+ * Mirrors `CustomerGalleryResponse` on the API: a gallery as its client sees it
+ * in the portal — no view count, no retention bookkeeping.
+ */
+export interface CustomerGallery {
+  id: string;
+  bookingId: string;
+  eventType: string | null;
+  shootDate: string | null;
+  photoCount: number;
+  downloadEnabled: boolean;
+  expiresAt: string | null;
+  accessToken: string;
+  /** Watermarked when the gallery is; null without storage or before processing. */
+  coverUrl: string | null;
+}
+
 /** What the create-gallery picker needs from a booking — not the full `Booking`. */
 export interface GalleryBookingOption {
   id: string;
@@ -57,8 +74,9 @@ interface InitiateUploadResponse {
 }
 
 /**
- * Delivery galleries — the photographer's side only; a customer reaches a
- * gallery through its share link (`/g/{subdomain}/{token}`), not through here.
+ * Delivery galleries. The photographer manages them through `/api/galleries`;
+ * a client lists their own through `/api/customer/galleries` and opens one by
+ * its share link (`/g/{subdomain}/{token}`), like everyone the link reaches.
  *
  * <p>The list and each gallery's photos are separate cache entries on purpose.
  * The list carries `photoCount`, so anything that adds or removes a photo has
@@ -84,6 +102,22 @@ export function useGalleries(enabled = true) {
     enabled,
     queryFn: async () => {
       const res = await api.get<Gallery[]>('/api/galleries');
+      return Array.isArray(res.data) ? res.data : [];
+    },
+  });
+}
+
+export function customerGalleriesKey() {
+  return ['galleries', 'customer'] as const;
+}
+
+/** Client view: the reachable, non-empty galleries of the client's own bookings. */
+export function useCustomerGalleries(enabled = true) {
+  return useQuery({
+    queryKey: customerGalleriesKey(),
+    enabled,
+    queryFn: async () => {
+      const res = await api.get<CustomerGallery[]>('/api/customer/galleries');
       return Array.isArray(res.data) ? res.data : [];
     },
   });

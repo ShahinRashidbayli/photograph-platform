@@ -8,7 +8,6 @@ import { leads } from './leads';
 import { clients } from './clients';
 import { inquiries } from './inquiries';
 import { invoices } from './invoices';
-import { payments } from './payments';
 import { galleries } from './galleries';
 import { portfolio } from './portfolio';
 import { settings } from './settings';
@@ -17,6 +16,7 @@ import { analytics } from './analytics';
 import { contracts } from './contracts';
 import { roadmap } from './roadmap';
 import { privacy } from './privacy';
+import { portal } from './portal';
 
 /** The German dictionary. Each namespace is typed against its English twin. */
 export const de = {
@@ -30,7 +30,6 @@ export const de = {
   ...clients,
   ...inquiries,
   ...invoices,
-  ...payments,
   ...galleries,
   ...portfolio,
   ...settings,
@@ -39,4 +38,5 @@ export const de = {
   ...contracts,
   ...roadmap,
   ...privacy,
+  ...portal,
 };

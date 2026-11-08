@@ -194,7 +194,7 @@ export function BookingsCalendarView({
       '--fc-page-bg-color': colors.surface,
       '--fc-neutral-bg-color': colors.surfaceAlt,
       '--fc-neutral-text-color': colors.text,
-      '--fc-today-bg-color': isDark ? 'rgba(99, 102, 241, 0.12)' : '#EEF2FF',
+      '--fc-today-bg-color': isDark ? 'rgba(255, 255, 255, 0.05)' : '#F3F2F0',
       '--fc-button-bg-color': colors.surface,
       '--fc-button-border-color': colors.border,
       '--fc-button-text-color': colors.text,
@@ -287,10 +287,8 @@ export function BookingsCalendarView({
         .fc-col-header-cell-cushion {
           color: ${colors.textMuted};
           text-decoration: none;
-          font-size: ${fontSize.xs};
-          font-weight: 700;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
+          font-size: ${fontSize.sm};
+          font-weight: 500;
           padding: ${space.sm} ${space.sm} !important;
         }
         /* Day numbers sit top-left, where every other calendar puts them —
@@ -476,9 +474,7 @@ export function BookingsCalendarView({
         <span
           style={{
             fontSize: fontSize.xs,
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
+            fontWeight: 550,
             color: colors.textMuted,
             marginRight: space.xs,
           }}
@@ -524,7 +520,7 @@ export function BookingsCalendarView({
               />
               {t(getBookingStatusMeta(status).labelKey)}
               {count > 0 && (
-                <span style={{ color: colors.textMuted, fontWeight: 700 }}>{count}</span>
+                <span style={{ color: colors.textMuted, fontWeight: 600 }}>{count}</span>
               )}
             </button>
           );
@@ -544,13 +540,13 @@ export function BookingsCalendarView({
             fontWeight: 600,
           }}
         >
-          <span aria-hidden style={{ color: colors.success, fontWeight: 800 }}>
+          <span aria-hidden style={{ color: colors.success, fontWeight: 600 }}>
             €
           </span>
           {t('paymentState.PAID')}
           <span
             aria-hidden
-            style={{ color: colors.warning, fontWeight: 800, marginLeft: space.sm }}
+            style={{ color: colors.warning, fontWeight: 600, marginLeft: space.sm }}
           >
             €
           </span>
@@ -615,7 +611,7 @@ function EventContent({
       }}
     >
       {timeText && (
-        <span style={{ flexShrink: 0, opacity: 0.85, fontWeight: 700 }}>{timeText}</span>
+        <span style={{ flexShrink: 0, opacity: 0.85, fontWeight: 600 }}>{timeText}</span>
       )}
       <span
         className="fc-event-title"
@@ -626,7 +622,7 @@ function EventContent({
       {money && (
         <span
           aria-hidden
-          style={{ marginLeft: 'auto', flexShrink: 0, color: money, fontWeight: 800 }}
+          style={{ marginLeft: 'auto', flexShrink: 0, color: money, fontWeight: 600 }}
         >
           €
         </span>
@@ -725,7 +721,7 @@ function EventPopover({
           <div
             style={{
               fontSize: fontSize.lg,
-              fontWeight: 800,
+              fontWeight: 600,
               color: colors.text,
               letterSpacing: '-0.015em',
               overflow: 'hidden',
@@ -836,7 +832,7 @@ function EventPopover({
           borderTop: `1px solid ${colors.divider}`,
         }}
       >
-        <span style={{ fontSize: fontSize.lg, fontWeight: 800, color: colors.text }}>
+        <span style={{ fontSize: fontSize.lg, fontWeight: 600, color: colors.text }}>
           {format.eur(booking.totalAmountCents)}
         </span>
         <span style={{ ...styles.badge, background: paymentVisual.bg, color: paymentVisual.color }}>

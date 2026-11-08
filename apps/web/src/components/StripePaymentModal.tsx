@@ -155,7 +155,7 @@ export function StripePaymentModal({ invoice, outstandingCents, onClose, onPaid 
           }}
         >
           <div>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>
               {t('invoices.payDialog.title', {
                 amount: format.eurExact(intent?.amountCents ?? outstandingCents),
               })}
@@ -280,7 +280,7 @@ function MethodTab({
         background: active ? c.primaryBg : 'transparent',
         color: active ? c.primaryText : c.textMuted,
         fontSize: '0.84rem',
-        fontWeight: 700,
+        fontWeight: 600,
         cursor: 'pointer',
       }}
     >
@@ -375,8 +375,8 @@ function PaymentForm({
             borderRadius: '10px',
             border: 'none',
             background: c.primarySolid,
-            color: '#fff',
-            fontWeight: 700,
+            color: c.onPrimary,
+            fontWeight: 600,
             fontSize: '0.86rem',
             cursor: 'pointer',
           }}
@@ -405,9 +405,9 @@ function PaymentForm({
           borderRadius: '10px',
           border: 'none',
           background: c.primarySolid,
-          color: '#fff',
+          color: c.onPrimary,
           fontSize: '0.92rem',
-          fontWeight: 700,
+          fontWeight: 600,
           cursor: submitting ? 'wait' : 'pointer',
           opacity: submitting ? 0.7 : 1,
         }}

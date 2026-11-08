@@ -357,7 +357,7 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
         <div>
           <h2
             id="settings-packages"
-            style={{ fontSize: '1rem', fontWeight: 700, color: c.text, marginBottom: '4px' }}
+            style={{ fontSize: '1rem', fontWeight: 600, color: c.text, marginBottom: '4px' }}
           >
             {t('settings.packages.title')}
           </h2>
@@ -504,8 +504,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px 14px 0',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                 >
                   Name
@@ -515,8 +513,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                 >
                   {t('settings.packages.price')}
@@ -526,8 +522,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                 >
                   {t('settings.packages.duration')}
@@ -537,8 +531,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                 >
                   {t('settings.packages.photos')}
@@ -548,8 +540,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                 >
                   {t('settings.packages.status')}
@@ -559,8 +549,6 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                     padding: '14px 12px',
                     fontWeight: 600,
                     fontSize: '0.82rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                   }}
                   aria-label={t('settings.packages.actions')}
                 />
@@ -593,10 +581,8 @@ export function PackagesSection({ theme }: { readonly theme: Theme }) {
                           display: 'inline-flex',
                           padding: '6px 12px',
                           borderRadius: '999px',
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.05em',
-                          textTransform: 'uppercase',
+                          fontSize: '0.75rem',
+                          fontWeight: 550,
                           background: pkg.active ? c.successBg : c.surfaceAlt,
                           color: pkg.active ? c.successText : c.textMuted,
                           border: `1px solid ${pkg.active ? c.successBorder : c.border}`,

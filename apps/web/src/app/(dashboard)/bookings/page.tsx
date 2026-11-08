@@ -3,22 +3,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { parseApiDate, startOfToday } from '@/lib/date';
+import { startOfToday } from '@/lib/date';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useBookings, useUpdateBookingStatus } from '@/hooks/useBookings';
+import { useTenantContracts } from '@/hooks/useContracts';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { useGalleries } from '@/hooks/useGalleries';
+import { usePackages } from '@/hooks/usePackages';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Booking } from '@/types/api';
 import { extractApiError } from '@/lib/helpers';
 import {
   getAllowedTransitions,
   getBookingStatusMeta,
-  isBillableStatus,
   type BookingStatusKey,
 } from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import { fontSize, space } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Button } from '@/components/ui';
 import { Toast } from '@/components/Toast';
 import { getBookingsColors, getBookingsStyles } from './bookings.styles';
 import {
@@ -28,13 +32,23 @@ import {
   filterCount,
   groupFor,
   matchesFilter,
+  parseFilter,
   type FilterKey,
 } from './bookings.filters';
-import { CustomerBookingDetail } from './CustomerBookingDetail';
+import {
+  attentionFor,
+  indexContracts,
+  indexGalleries,
+  isPast,
+  isUpcoming,
+  openBalanceCents,
+  type BookingContext,
+} from './bookings.insights';
+import { BookingsOverview } from './BookingsOverview';
+import { CustomerPortal } from './CustomerPortal';
 import { BookingDetail } from './BookingDetail';
 import { BookingListItem } from './BookingListItem';
 import { BookingsSkeleton } from './BookingsSkeleton';
-import { StatStrip } from '@/components/StatStrip';
 
 // The calendar bundles FullCalendar (~100KB+) and is photographer-only, shown
 // only in "calendar" view — load it on demand so it's never in the bookings
@@ -51,14 +65,10 @@ const BookingsCalendarView = dynamic(
   }
 );
 
-// Modals mount only on user action (New booking / Request a session), so defer
+// Modals mount only on user action, so defer
 // their code until first opened rather than shipping it in the route bundle.
 const CreateBookingModal = dynamic(
   () => import('./CreateBookingModal').then((m) => m.CreateBookingModal),
-  { ssr: false }
-);
-const RequestSessionModal = dynamic(
-  () => import('./RequestSessionModal').then((m) => m.RequestSessionModal),
   { ssr: false }
 );
 
@@ -99,18 +109,12 @@ function BookingsView() {
   const styles = useMemo(() => getBookingsStyles(theme), [theme]);
   const colors = useMemo(() => getBookingsColors(theme), [theme]);
 
-  const isPhotographer = useIsPhotographer();
-  const { t, tPlural, format } = useTranslation();
+  const { t, tPlural } = useTranslation();
 
   const updateStatus = useUpdateBookingStatus();
   // Data now comes from React Query: cached, deduped, and shared across mounts.
   // Navigating back within the stale window is instant (no refetch).
-  const {
-    data: bookings = [],
-    isLoading: loading,
-    error: queryError,
-    refetch,
-  } = useBookings(isPhotographer);
+  const { data: bookings = [], isLoading: loading, error: queryError, refetch } = useBookings(true);
   const error = queryError ? extractApiError(queryError, t('bookings.errorLoad')) : null;
 
   // ─── URL as the source of truth ──────────────────────────────────────────
@@ -136,10 +140,8 @@ function BookingsView() {
 
   const viewMode: 'table' | 'calendar' =
     searchParams.get('view') === 'calendar' ? 'calendar' : 'table';
-  const urlStatus = searchParams.get('status');
-  const filter: FilterKey = FILTERS.some((f) => f.key === urlStatus)
-    ? (urlStatus as FilterKey)
-    : 'all';
+  // Old `?status=deposit` style links still land on the matching question.
+  const filter: FilterKey = parseFilter(searchParams.get('status'));
   const urlQuery = searchParams.get('q') ?? '';
   const urlSelectedId = searchParams.get('id');
 
@@ -180,7 +182,6 @@ function BookingsView() {
   // in edit mode; null when no edit is open.
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   // Client-side "Request a session" modal (photographer uses showCreate instead).
-  const [showRequest, setShowRequest] = useState(false);
   // Date pre-filled into the create modal when it's opened from a calendar day.
   const [createDate, setCreateDate] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -190,13 +191,23 @@ function BookingsView() {
   // Below this width the master-detail split stops working: both panes stack,
   // so reaching a booking's detail means scrolling past the whole list. On
   // narrow screens the two become separate pages with a back affordance.
-  const isNarrow = useMediaQuery('(max-width: 900px)');
+  // Up to tablet width the list and the detail are two screens: stacked, the
+  // detail of any booking sat under the whole list. (It used to switch at
+  // 900px, which left 900–1100px stacked.)
+  const isNarrow = useMediaQuery('(max-width: 1100px)');
+  // Phone only: the detail's actions move to a bar under the thumb and the
+  // progress line turns vertical — a tablet has the width for neither change.
+  const isPhone = useMediaQuery('(max-width: 640px)');
   const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
 
   // Keep the selection valid as data loads or changes: keep the current pick if
   // it still exists, otherwise fall back to the first booking. (Previously this
   // lived inside the fetch; now it reacts to the cached data.)
   useEffect(() => {
+    // Not while the list is still empty: on a fresh load the first pass sees
+    // no bookings yet, and "keep it if it exists" then threw away the `?id=`
+    // a deep link (or the "Next shoot" tile) had just put in the URL.
+    if (bookings.length === 0) return;
     setSelectedId((prev) =>
       prev && bookings.some((b) => b.id === prev) ? prev : (bookings[0]?.id ?? null)
     );
@@ -207,10 +218,33 @@ function BookingsView() {
   // memo below useless.
   const today = useMemo(startOfToday, []);
 
+  // ─── The documents that hang off each booking ───────────────────────────
+  // One request each for the whole studio rather than one per row: what a row
+  // needs from them (is the contract signed, is there a gallery) is small, and
+  // the detail's progress line reads the same answer. Contracts are asked for
+  // only on plans that have them — a 402 here would open the upgrade dialog
+  // on a page that never mentioned contracts.
+  const { has } = useEntitlements();
+  const contractsEnabled = has('CONTRACTS');
+  const { data: contracts } = useTenantContracts(contractsEnabled);
+  const { data: galleries } = useGalleries();
+  const { data: packages } = usePackages();
+  const contractIndex = useMemo(() => indexContracts(contracts ?? []), [contracts]);
+  const galleryIndex = useMemo(() => indexGalleries(galleries ?? []), [galleries]);
+  const ctxFor = useCallback(
+    (b: Booking): BookingContext => ({
+      today,
+      contract: contractIndex.get(b.id) ?? null,
+      gallery: galleryIndex.get(b.id) ?? null,
+      contractsEnabled,
+    }),
+    [today, contractIndex, galleryIndex, contractsEnabled]
+  );
+
   const filteredBookings = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matched = bookings.filter((b) => {
-      if (!matchesFilter(b, filter)) return false;
+      if (!matchesFilter(b, filter, ctxFor(b))) return false;
       if (!q) return true;
       return (
         b.clientName.toLowerCase().includes(q) ||
@@ -228,80 +262,12 @@ function BookingsView() {
         ? b.eventDate.localeCompare(a.eventDate)
         : a.eventDate.localeCompare(b.eventDate);
     });
-  }, [bookings, filter, search, today]);
+  }, [bookings, filter, search, today, ctxFor]);
 
-  const stats = useMemo(() => {
-    const active = bookings.filter((b) => isBillableStatus(b.status) && b.status !== 'COMPLETED');
-    const revenue = active.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
-    // "Collected" and "outstanding" come straight from the backend (derived
-    // server-side from real invoice/payment rows), not the quoted deposit
-    // amount — otherwise a booking that's only been accepted shows its
-    // deposit as already banked.
-    const collected = active.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
-    const pending = active.reduce(
-      (sum, b) => sum + Math.max((b.totalAmountCents || 0) - (b.amountPaidCents ?? 0), 0),
-      0
-    );
-    const confirmed = active.filter((b) => b.status === 'CONFIRMED').length;
-    const openBalance = active.filter(
-      (b) => (b.totalAmountCents || 0) - (b.depositAmountCents || 0) > 0
-    ).length;
-    return {
-      active: active.length,
-      revenue,
-      collected,
-      pending,
-      confirmed,
-      openBalance,
-    };
-  }, [bookings]);
-
-  // The client's next upcoming (non-cancelled, non-completed) session, used for
-  // the "Next session" summary card and the header subtitle countdown.
-  const nextSession = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return (
-      bookings
-        .filter(
-          (b) =>
-            isBillableStatus(b.status) &&
-            b.status !== 'COMPLETED' &&
-            parseApiDate(b.eventDate) >= today
-        )
-        .sort(
-          (a, b) => parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime()
-        )[0] ?? null
-    );
-  }, [bookings]);
-
-  const daysUntilNext = useMemo(() => {
-    if (!nextSession) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diff = parseApiDate(nextSession.eventDate).getTime() - today.getTime();
-    return Math.max(0, Math.round(diff / 86_400_000));
-  }, [nextSession]);
-
-  // "3 active sessions · next in 5 days" — assembled from parts so each
-  // fragment stays a whole translatable sentence rather than a glued-on suffix.
-  const clientSubtitle = useMemo(() => {
-    const sessions = tPlural('bookings.clientSessions', stats.active);
-    if (daysUntilNext == null) return sessions;
-    return `${sessions} · ${tPlural('bookings.clientNext', daysUntilNext)}`;
-  }, [stats.active, daysUntilNext, tPlural]);
-
-  // Photographer identity for the client's detail footer. Derived from the
-  // tenant subdomain until the customer booking API returns the real name.
-  const photographerLabel = useMemo(() => {
-    const sub = user?.tenant?.subdomain;
-    if (!sub) return t('customerBooking.yourPhotographer');
-    return sub
-      .split(/[-_]/)
-      .filter(Boolean)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join(' ');
-  }, [user?.tenant?.subdomain, t]);
+  const upcomingCount = useMemo(
+    () => bookings.filter((b) => isUpcoming(b, today)).length,
+    [bookings, today]
+  );
 
   const selected = useMemo(
     () => bookings.find((b) => b.id === selectedId) ?? filteredBookings[0] ?? bookings[0] ?? null,
@@ -411,7 +377,14 @@ function BookingsView() {
   }
 
   if (loading && bookings.length === 0) {
-    return <BookingsSkeleton styles={styles} colors={colors} label={t('bookings.loading')} />;
+    return (
+      <BookingsSkeleton
+        styles={styles}
+        colors={colors}
+        label={t('bookings.loading')}
+        photographer
+      />
+    );
   }
 
   // A failed (or forbidden) fetch must not masquerade as an empty calendar.
@@ -445,11 +418,30 @@ function BookingsView() {
           outline: 2px solid ${colors.primary};
           outline-offset: 2px;
         }
+        /* Hover lives here, not in onMouseEnter handlers: the selected row
+           (aria-current) keeps its own fill. */
+        @media (hover: hover) {
+          .bk-row:not([aria-current]):hover { background: var(--bk-row-hover); }
+          .bk-tile:not(:disabled):hover { background: var(--bk-tile-hover) !important; }
+          .bk-chip[aria-pressed='false']:hover { border-color: ${colors.borderActive} !important; }
+        }
         @media (max-width: 1100px) {
           .bk-container { grid-template-columns: 1fr !important; }
           .bk-list-panel, .bk-detail-panel { max-height: none !important; }
         }
+        @media (max-width: 900px) {
+          .bk-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        @media (max-width: 720px) {
+          .bk-split, .bk-docs { grid-template-columns: minmax(0, 1fr) !important; }
+          .bk-split-side { border-left: 0 !important; padding-left: 0 !important; }
+          .bk-docs-first { border-right: 0 !important; border-bottom: 1px solid ${colors.borderSoft}; }
+        }
         @media (max-width: 600px) {
+          /* Phone: a fact's label sits above its value, and an invoice row
+             breaks into number/amount over status/actions. */
+          .bk-fact { grid-template-columns: minmax(0, 1fr) !important; gap: 2px !important; }
+          .bk-inv-row { grid-template-columns: minmax(0, 1fr) auto !important; row-gap: 8px !important; }
           .bk-info-grid { grid-template-columns: 1fr !important; }
           .bk-form-row { grid-template-columns: 1fr !important; }
         }
@@ -457,164 +449,103 @@ function BookingsView() {
 
       {/* Page header */}
       <header style={styles.pageHeader}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={styles.pageTitle}>
-            {isPhotographer ? t('bookings.title') : t('bookings.titleClient')}
-          </h1>
-          <p style={styles.pageSubtitle}>
-            {isPhotographer ? t('bookings.subtitle') : clientSubtitle}
+        <div
+          style={{
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <h1 style={styles.pageTitle}>{t('bookings.title')}</h1>
+          <p style={{ ...styles.pageSubtitle, margin: 0 }}>
+            {tPlural('bookings.upcomingCount', upcomingCount)}
           </p>
         </div>
-        {!isPhotographer && (
-          <div style={styles.headerActions}>
-            <button
-              type="button"
-              style={styles.primaryButton}
-              onClick={() => setShowRequest(true)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              {t('bookings.requestSession')}
-            </button>
+        <div style={{ ...styles.headerActions, alignItems: 'center' }}>
+          {/* Master-pane view switcher. Calendar mode swaps the searchable
+                list on the left for the FullCalendar grid. */}
+          <div
+            role="tablist"
+            aria-label={t('bookings.view.aria')}
+            style={{
+              display: 'inline-flex',
+              padding: '3px',
+              borderRadius: '10px',
+              border: `1px solid ${colors.border}`,
+              background: colors.surface,
+              gap: '2px',
+            }}
+          >
+            {(['table', 'calendar'] as const).map((mode) => {
+              const active = viewMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setViewMode(mode)}
+                  style={{
+                    minHeight: 30,
+                    padding: '0 14px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    background: active ? colors.surfaceActive : 'transparent',
+                    color: active ? colors.text : colors.textMuted,
+                    fontSize: '0.8125rem',
+                    fontWeight: active ? 500 : 400,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {mode === 'table' ? t('bookings.view.table') : t('bookings.view.calendar')}
+                </button>
+              );
+            })}
           </div>
-        )}
-        {isPhotographer && (
-          <div style={styles.headerActions}>
-            {/* Master-pane view switcher. Calendar mode swaps the searchable
-                list on the left for the FullCalendar grid; the detail panel
-                on the right is unaffected, so status actions stay reachable
-                in either mode. */}
-            <div
-              role="tablist"
-              aria-label={t('bookings.view.aria')}
-              style={{
-                display: 'inline-flex',
-                padding: '2px',
-                borderRadius: '10px',
-                border: `1px solid ${colors.border}`,
-                background: colors.surface,
-                gap: '2px',
-              }}
-            >
-              {(['table', 'calendar'] as const).map((mode) => {
-                const active = viewMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setViewMode(mode)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      // Use the muted primary background instead of the solid
-                      // primary fill — the segmented control sits next to the
-                      // dark "New booking" CTA, and a second saturated blue
-                      // pulls the eye away from the actual action.
-                      background: active ? colors.primaryBg : 'transparent',
-                      color: active ? colors.primaryText : colors.textMuted,
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {mode === 'table' ? t('bookings.view.table') : t('bookings.view.calendar')}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              style={styles.primaryButton}
-              onClick={() => setShowCreate(true)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
               {t('bookings.newBooking')}
-            </button>
-          </div>
-        )}
+            </span>
+          </Button>
+        </div>
       </header>
 
-      {/* Metrics strip — the photographer sees business metrics (revenue,
-          awaiting payment); the client sees their own session/payment view
-          framed in personal terms (never "revenue"). Kept to a slim band so
-          the list + detail work area starts near the top of the page. */}
-      <StatStrip
-        aria-label={t('bookings.title')}
-        items={
-          isPhotographer
-            ? [
-                {
-                  label: t('bookings.stat.active'),
-                  value: String(stats.active),
-                  trend: t('bookings.stat.activeTrend', {
-                    confirmed: stats.confirmed,
-                    progress: Math.max(stats.active - stats.confirmed, 0),
-                  }),
-                },
-                {
-                  label: t('bookings.stat.revenue'),
-                  value: format.eur(stats.revenue),
-                  trend: t('bookings.stat.revenueTrend', {
-                    amount: format.eur(stats.collected),
-                  }),
-                  trendColor: colors.successText,
-                },
-                {
-                  label: t('bookings.stat.awaiting'),
-                  value: format.eur(stats.pending),
-                  trend:
-                    stats.openBalance === 0
-                      ? t('bookings.stat.allBalancesSettled')
-                      : tPlural('bookings.stat.openBalance', stats.openBalance),
-                  trendColor: stats.openBalance === 0 ? colors.successText : colors.warningText,
-                },
-              ]
-            : [
-                {
-                  label: t('bookings.stat.nextSession'),
-                  value: nextSession ? format.dayMonth(nextSession.eventDate) : '—',
-                  trend: nextSession
-                    ? [
-                        nextSession.eventType ?? t('bookings.sessionFallback'),
-                        daysUntilNext == null
-                          ? null
-                          : tPlural('bookings.stat.inDays', daysUntilNext),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : t('bookings.stat.noneScheduled'),
-                },
-                {
-                  label: t('bookings.stat.paidSoFar'),
-                  value: format.eur(stats.collected),
-                  trend: t('bookings.stat.ofTotal', { amount: format.eur(stats.revenue) }),
-                  bar: stats.revenue > 0 ? Math.round((stats.collected / stats.revenue) * 100) : 0,
-                  barColor: colors.success,
-                },
-                {
-                  label: t('bookings.stat.outstanding'),
-                  value: format.eur(stats.pending),
-                  trend:
-                    stats.pending === 0
-                      ? t('bookings.stat.allSettled')
-                      : t('bookings.stat.dueBefore'),
-                  trendColor: stats.pending === 0 ? colors.successText : colors.warningText,
-                },
-              ]
-        }
-      />
+      {/* The overview is four tiles, three of which filter the list. */}
+      {/* On a phone with a booking open, the tiles would push the booking a
+          screen down; they come back with the list. */}
+      {!(isNarrow && mobilePane === 'detail') && (
+        <BookingsOverview
+          bookings={bookings}
+          ctxFor={ctxFor}
+          today={today}
+          filter={filter}
+          colors={colors}
+          onFilter={(key) => {
+            setFilter(key);
+            if (viewMode === 'calendar') setViewMode('table');
+          }}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setParams({ view: null, status: null, id });
+            if (isNarrow) setMobilePane('detail');
+          }}
+        />
+      )}
 
       {/* Calendar mode is a single full-width pane: the detail rail used to sit
           beside it, permanently eating ~30% of the width to show a panel built
@@ -638,15 +569,11 @@ function BookingsView() {
               setParams({ view: null, id });
               setMobilePane('detail');
             }}
-            onDateClick={
-              isPhotographer
-                ? (dateStr) => {
-                    setCreateDate(dateStr);
-                    setShowCreate(true);
-                  }
-                : undefined
-            }
-            isPhotographer={isPhotographer}
+            onDateClick={(dateStr) => {
+              setCreateDate(dateStr);
+              setShowCreate(true);
+            }}
+            isPhotographer
             styles={styles}
             colors={colors}
             isDark={theme === 'dark'}
@@ -660,11 +587,10 @@ function BookingsView() {
               ...(isNarrow && mobilePane === 'detail' ? { display: 'none' } : {}),
             }}
           >
-            {/* Search and the status filter share a single row — the filter is a
-              dropdown rather than a wrapping row of count chips, so the panel
-              spends one band on controls instead of two. */}
-            <div style={styles.listHeader}>
-              <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            {/* Search, then the filters as chips with their counts — the
+                dropdown they replaced hid the counts until opened. */}
+            <div style={{ ...styles.listHeader, flexDirection: 'column', alignItems: 'stretch' }}>
+              <div style={{ position: 'relative', minWidth: 0 }}>
                 <span
                   style={{
                     position: 'absolute',
@@ -679,7 +605,7 @@ function BookingsView() {
                   {ICONS.search}
                 </span>
                 <input
-                  type="text"
+                  type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t('bookings.search.placeholder')}
@@ -688,34 +614,56 @@ function BookingsView() {
                     ...styles.searchBox,
                     paddingLeft: 34,
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.primary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.primaryBg}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = colors.border;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
                 />
               </div>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterKey)}
+              <div
+                role="group"
                 aria-label={t('bookings.filter.aria')}
-                style={styles.filterSelect}
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
               >
                 {FILTERS.map((f) => {
-                  const count = filterCount(bookings, f.key);
+                  const count = filterCount(bookings, f.key, ctxFor);
+                  const active = filter === f.key;
                   // Empty buckets are hidden, but never the active one — its
                   // count can drop to zero while it's still selected.
-                  if (count === 0 && f.key !== 'all' && filter !== f.key) return null;
+                  if (count === 0 && f.key !== 'all' && !active) return null;
                   return (
-                    <option key={f.key} value={f.key}>
-                      {`${t(f.labelKey)} (${count})`}
-                    </option>
+                    <button
+                      key={f.key}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setFilter(f.key)}
+                      className="bk-chip"
+                      style={{
+                        minHeight: 30,
+                        padding: '0 10px 0 12px',
+                        borderRadius: 999,
+                        fontSize: '0.8125rem',
+                        fontFamily: 'inherit',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        cursor: 'pointer',
+                        background: active ? colors.primarySolid : colors.surface,
+                        color: active ? colors.onPrimary : colors.text,
+                        border: `1px solid ${active ? colors.primarySolid : colors.border}`,
+                      }}
+                    >
+                      {t(f.labelKey)}
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontVariantNumeric: 'tabular-nums',
+                          opacity: active ? 0.75 : 1,
+                          color: active ? colors.onPrimary : colors.textSubtle,
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </button>
                   );
                 })}
-              </select>
+              </div>
             </div>
 
             {/* Arrow keys move the selection through the list; the handler sits on
@@ -735,29 +683,16 @@ function BookingsView() {
                   }}
                 >
                   {bookings.length === 0 ? (
-                    isPhotographer ? (
-                      <>
-                        <span>{t('bookings.empty.photographer')}</span>
-                        <button
-                          type="button"
-                          style={styles.primaryButton}
-                          onClick={() => setShowCreate(true)}
-                        >
-                          {t('bookings.newBooking')}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span>{t('bookings.empty.client')}</span>
-                        <button
-                          type="button"
-                          style={styles.primaryButton}
-                          onClick={() => setShowRequest(true)}
-                        >
-                          {t('bookings.requestSession')}
-                        </button>
-                      </>
-                    )
+                    <>
+                      <span>{t('bookings.empty.photographer')}</span>
+                      <button
+                        type="button"
+                        style={styles.primaryButton}
+                        onClick={() => setShowCreate(true)}
+                      >
+                        {t('bookings.newBooking')}
+                      </button>
+                    </>
                   ) : (
                     <span>{t('bookings.empty.filters')}</span>
                   )}
@@ -786,9 +721,12 @@ function BookingsView() {
                           if (el) itemRefs.current.set(booking.id, el);
                           else itemRefs.current.delete(booking.id);
                         }}
-                        isPhotographer={isPhotographer}
+                        isPhotographer
                         styles={styles}
                         colors={colors}
+                        attention={attentionFor(booking, ctxFor(booking))}
+                        openCents={openBalanceCents(booking)}
+                        isPast={isPast(booking, today)}
                       />
                     </React.Fragment>
                   );
@@ -833,31 +771,27 @@ function BookingsView() {
               </div>
             )}
             {selected ? (
-              isPhotographer ? (
-                <BookingDetail
-                  booking={selected}
-                  styles={styles}
-                  colors={colors}
-                  theme={theme}
-                  isPhotographer={isPhotographer}
-                  actionError={actionError}
-                  onTransition={handleTransition}
-                  onEdit={() => setEditingBooking(selected)}
-                />
-              ) : (
-                <CustomerBookingDetail
-                  booking={selected}
-                  styles={styles}
-                  colors={colors}
-                  photographerLabel={photographerLabel}
-                />
-              )
+              <BookingDetail
+                key={selected.id}
+                booking={selected}
+                ctx={ctxFor(selected)}
+                packageName={packages?.find((p) => p.id === selected.packageId)?.name ?? null}
+                clientBookingCount={
+                  bookings.filter(
+                    (b) => b.clientEmail.toLowerCase() === selected.clientEmail.toLowerCase()
+                  ).length
+                }
+                subdomain={user?.tenant?.subdomain ?? null}
+                styles={styles}
+                colors={colors}
+                theme={theme}
+                isNarrow={isPhone}
+                actionError={actionError}
+                onTransition={handleTransition}
+                onEdit={() => setEditingBooking(selected)}
+              />
             ) : (
-              <div style={styles.emptyState}>
-                {isPhotographer
-                  ? t('bookings.empty.selectPhotographer')
-                  : t('bookings.empty.selectClient')}
-              </div>
+              <div style={styles.emptyState}>{t('bookings.empty.selectPhotographer')}</div>
             )}
           </section>
         )}
@@ -883,14 +817,6 @@ function BookingsView() {
           booking={editingBooking}
           onClose={() => setEditingBooking(null)}
           onCreated={handleEdited}
-        />
-      )}
-
-      {showRequest && (
-        <RequestSessionModal
-          styles={styles}
-          colors={colors}
-          onClose={() => setShowRequest(false)}
         />
       )}
 
@@ -929,21 +855,32 @@ function BookingsView() {
 }
 
 /**
- * Reading the view/filter/selection out of the URL requires `useSearchParams`,
- * which needs a Suspense boundary in the app router. The fallback is the same
- * skeleton the data-loading state uses, so the two are indistinguishable.
+ * One route, two audiences: the studio's bookings workspace, or the client's
+ * portal (`CustomerPortal`). Both read the URL with `useSearchParams`, which
+ * needs a Suspense boundary in the app router. The studio's fallback is the
+ * skeleton its data-loading state uses, so the two are indistinguishable.
  */
 export default function BookingsPage() {
   const { theme } = useThemeStore();
   const { t } = useTranslation();
   const styles = useMemo(() => getBookingsStyles(theme), [theme]);
   const colors = useMemo(() => getBookingsColors(theme), [theme]);
+  const isPhotographer = useIsPhotographer();
 
   return (
     <React.Suspense
-      fallback={<BookingsSkeleton styles={styles} colors={colors} label={t('bookings.loading')} />}
+      fallback={
+        isPhotographer ? (
+          <BookingsSkeleton
+            styles={styles}
+            colors={colors}
+            label={t('bookings.loading')}
+            photographer
+          />
+        ) : null
+      }
     >
-      <BookingsView />
+      {isPhotographer ? <BookingsView /> : <CustomerPortal />}
     </React.Suspense>
   );
 }

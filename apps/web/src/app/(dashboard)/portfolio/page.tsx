@@ -5,7 +5,7 @@ import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { StatStrip } from '@/components/StatStrip';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { getColors, type Theme, pageTitle } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   UploadError,
@@ -199,7 +199,7 @@ export default function PortfolioAdminPage() {
         maxWidth: '1400px',
         width: '100%',
         margin: '0 auto',
-        fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         transition: 'background 0.2s ease, color 0.2s ease',
       }}
     >
@@ -328,17 +328,7 @@ function Header({ colors, onUploadClick }: { colors: ColorTokens; onUploadClick:
       }}
     >
       <div>
-        <h1
-          style={{
-            margin: 0,
-            fontSize: '1.875rem',
-            fontWeight: 800,
-            letterSpacing: '-0.025em',
-            color: colors.text,
-          }}
-        >
-          {t('portfolio.title')}
-        </h1>
+        <h1 style={{ ...pageTitle, margin: 0, color: colors.text }}>{t('portfolio.title')}</h1>
         <p
           style={{
             margin: '6px 0 0',
@@ -442,8 +432,6 @@ function UploadQueue({ colors, items }: { colors: ColorTokens; items: PendingUpl
       <div
         style={{
           fontSize: 12,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
           color: colors.subText,
           marginBottom: 12,
         }}
@@ -616,7 +604,7 @@ function Card({
             padding: '3px 8px',
             borderRadius: 999,
             fontSize: 11,
-            fontWeight: 700,
+            fontWeight: 600,
             letterSpacing: '0.04em',
             background: photo.published ? colors.successBg : colors.warningBg,
             color: photo.published ? colors.successText : colors.warningText,
@@ -996,7 +984,7 @@ function EmptyState({ colors, onUploadClick }: { colors: ColorTokens; onUploadCl
           <path d="m21 15-5-5L5 21" />
         </svg>
       </div>
-      <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: colors.text }}>
+      <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600, color: colors.text }}>
         {t('portfolio.empty.title')}
       </h3>
       <p style={{ margin: '0 0 20px', fontSize: 14 }}>{t('portfolio.empty.body')}</p>

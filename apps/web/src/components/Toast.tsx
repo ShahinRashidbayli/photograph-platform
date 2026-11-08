@@ -106,7 +106,7 @@ export function Toast({
             background: 'transparent',
             color: '#F8FAFC',
             fontSize: fontSize.base,
-            fontWeight: 700,
+            fontWeight: 600,
             fontFamily: 'inherit',
             cursor: 'pointer',
             whiteSpace: 'nowrap',

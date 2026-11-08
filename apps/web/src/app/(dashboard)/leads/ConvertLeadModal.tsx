@@ -210,7 +210,7 @@ export function ConvertLeadModal({
   const primaryBtn: React.CSSProperties = {
     padding: '9px 18px',
     background: c.primarySolid,
-    color: '#fff',
+    color: c.onPrimary,
     border: 'none',
     borderRadius: '8px',
     fontSize: '0.88rem',
@@ -235,7 +235,7 @@ export function ConvertLeadModal({
       >
         <div style={header}>
           <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.text }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 600, color: c.text }}>
               {t('leads.convertToBooking')}
             </div>
             <div style={{ fontSize: '0.85rem', color: c.textMuted, marginTop: '4px' }}>
@@ -267,10 +267,8 @@ export function ConvertLeadModal({
             <div
               style={{
                 fontSize: '0.78rem',
-                fontWeight: 700,
+                fontWeight: 550,
                 color: c.textMuted,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
                 marginBottom: '8px',
               }}
             >

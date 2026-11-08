@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import { getColors, pageTitle } from '@/lib/design-tokens';
 import { Alert, Note } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { ROADMAP_IDEAS } from '@/lib/roadmap';
@@ -44,7 +44,7 @@ export default function RoadmapPage() {
 
   return (
     <div style={{ padding: '28px 28px 40px', maxWidth: 820, margin: '0 auto', color: c.text }}>
-      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 6 }}>{t('roadmap.title')}</h1>
+      <h1 style={pageTitle}>{t('roadmap.title')}</h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: 20, lineHeight: 1.6 }}>
         {t('roadmap.subtitle')}
       </p>

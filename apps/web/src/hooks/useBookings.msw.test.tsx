@@ -5,6 +5,7 @@ import { http, HttpResponse, server } from '@/test-utils/msw';
 import {
   bookingsQueryKey,
   useBookingConflicts,
+  type ConflictQuery,
   useSaveBooking,
   useUpdateBookingStatus,
   type BookingPayload,
@@ -26,8 +27,13 @@ function booking(id: string, eventDate: string, status: Booking['status'] = 'CON
 const PAYLOAD = { clientName: 'x', eventDate: '2026-09-02' } as BookingPayload;
 
 function setup() {
+  // The app's staleTime (QueryProvider), so a cached answer is served rather
+  // than re-asked — which is what hid a stale clash warning.
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity, staleTime: 30_000 },
+      mutations: { retry: false },
+    },
   });
   client.setQueryData(bookingsQueryKey(true), [
     booking('a', '2026-09-01'),
@@ -146,5 +152,57 @@ describe('useBookingConflicts', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(query).toContain('resourceIds=r1&resourceIds=r2');
+  });
+});
+
+describe('a write and the clash warning', () => {
+  const DAY: ConflictQuery = { eventDate: '2026-09-02', assignedUserId: 'u1', resourceIds: [] };
+  const CLASH = { id: 'b', clientName: 'b', eventTime: null, status: 'CONFIRMED' };
+
+  /** The server's clash list, which the writes below change as a real one would. */
+  function fakeServer(initial: (typeof CLASH)[]) {
+    let clashes = initial;
+    server.use(
+      http.get('/api/bookings/conflicts', () =>
+        HttpResponse.json({ conflicts: clashes, resourceClashes: [] })
+      ),
+      http.post('/api/bookings', () => {
+        clashes = [CLASH];
+        return HttpResponse.json(booking('b', '2026-09-02'));
+      }),
+      http.patch('/api/bookings/b/status', () => {
+        clashes = [];
+        return HttpResponse.json(booking('b', '2026-09-02', 'CANCELLED'));
+      })
+    );
+  }
+
+  async function clashesShown(wrapper: ReturnType<typeof setup>['wrapper']) {
+    const { result, unmount } = renderHook(() => useBookingConflicts(DAY), { wrapper });
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    unmount();
+    return result.current.data?.conflicts.length;
+  }
+
+  it('warns about a booking saved moments ago for the same photographer and day', async () => {
+    fakeServer([]);
+    const { wrapper } = setup();
+    expect(await clashesShown(wrapper)).toBe(0);
+
+    const { result } = renderHook(() => useSaveBooking(), { wrapper });
+    await act(() => result.current.mutateAsync({ payload: PAYLOAD }));
+
+    expect(await clashesShown(wrapper)).toBe(1);
+  });
+
+  it('stops warning about a booking cancelled moments ago', async () => {
+    fakeServer([CLASH]);
+    const { wrapper } = setup();
+    expect(await clashesShown(wrapper)).toBe(1);
+
+    const { result } = renderHook(() => useUpdateBookingStatus(), { wrapper });
+    await act(() => result.current.mutateAsync({ id: 'b', from: 'CONFIRMED', to: 'CANCELLED' }));
+
+    expect(await clashesShown(wrapper)).toBe(0);
   });
 });

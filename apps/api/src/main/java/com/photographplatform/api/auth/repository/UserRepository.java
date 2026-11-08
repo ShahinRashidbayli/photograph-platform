@@ -31,6 +31,15 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByTenantIdAndEmail(UUID tenantId, String email);
 
     /**
+     * Every customer account for an address, one per studio that knows them.
+     *
+     * <p>Many-valued on purpose — see above: a client of two photographers has
+     * two rows. Used only by sign-in by email, which must find them all.
+     */
+    @Query("SELECT u FROM User u WHERE u.email = :email AND u.role = 'CUSTOMER'")
+    java.util.List<User> findCustomersByEmail(@Param("email") String email);
+
+    /**
      * The PHOTOGRAPHER/ADMIN account for an address, if there is one.
      *
      * <p>Single-valued because {@code uq_users_staff_email} enforces it, not

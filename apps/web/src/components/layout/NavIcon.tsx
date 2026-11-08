@@ -102,13 +102,20 @@ const ICONS: Record<NavIconKey, React.ReactNode> = {
       />
     </>
   ),
+  // A picture, not a house: the house sat beside the client's "Overview",
+  // which is where a house would send you.
   galleries: (
-    <path
-      d="M2.5 12V6.5l4.5-4 4.5 4V12H9V9H5v3H2.5z"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinejoin="round"
-    />
+    <>
+      <rect x="1" y="1.5" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="4.75" cy="5" r="1.1" stroke="currentColor" strokeWidth="1.1" />
+      <path
+        d="M1.5 11l3.5-3.5 2.5 2.5 2-2 3 3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </>
   ),
   // A key rather than a room: what is yours about a rentable space is that
   // you hold it and hand it over, which is also what separates this row from

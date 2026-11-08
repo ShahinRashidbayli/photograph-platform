@@ -60,7 +60,7 @@ export function UpgradeCard({
             />
           </svg>
         </span>
-        <span style={{ fontWeight: 700, fontSize: compact ? '0.92rem' : '1.02rem', color: c.text }}>
+        <span style={{ fontWeight: 600, fontSize: compact ? '0.92rem' : '1.02rem', color: c.text }}>
           {title}
         </span>
         {required && (
@@ -72,7 +72,7 @@ export function UpgradeCard({
               color: c.primaryText,
               border: `1px solid ${c.primaryBorder}`,
               fontSize: '0.7rem',
-              fontWeight: 800,
+              fontWeight: 600,
               letterSpacing: '0.06em',
             }}
           >

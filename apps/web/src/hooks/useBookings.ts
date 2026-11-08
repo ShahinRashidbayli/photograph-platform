@@ -96,6 +96,13 @@ export function bookingsQueryKey(isPhotographer: boolean) {
   return ['bookings', isPhotographer ? 'photographer' : 'customer'] as const;
 }
 
+/** Every clash check; with a query, the one for that date, photographer and resources. */
+export function bookingConflictsKey(query?: ConflictQuery | null) {
+  return query === undefined
+    ? (['bookings', 'conflicts'] as const)
+    : (['bookings', 'conflicts', query] as const);
+}
+
 async function fetchBookings(isPhotographer: boolean): Promise<Booking[]> {
   const base = isPhotographer ? '/api/photographerBookings' : '/api/customerBookings';
   try {
@@ -107,10 +114,13 @@ async function fetchBookings(isPhotographer: boolean): Promise<Booking[]> {
       if (chunk.length < PAGE_SIZE) break;
     }
     // Dev-only preview fallback when the account genuinely has no bookings.
-    return all.length === 0 && SHOW_DEMO_DATA ? DUMMY_BOOKINGS : all;
+    // Photographer side only: the client portal turns bookings into things to
+    // do ("pay €700", "sign the contract"), and invented ones there read as
+    // real requests for money.
+    return all.length === 0 && isPhotographer && SHOW_DEMO_DATA ? DUMMY_BOOKINGS : all;
   } catch (err) {
     // In dev, show demo data instead of an error screen; in prod, surface it.
-    if (SHOW_DEMO_DATA) return DUMMY_BOOKINGS;
+    if (isPhotographer && SHOW_DEMO_DATA) return DUMMY_BOOKINGS;
     throw err;
   }
 }
@@ -140,7 +150,12 @@ export interface BookingPayload {
   depositAmountCents: number;
   internalNotes: string | null;
   assignedUserId: string | null;
-  resourceIds: string[];
+  /**
+   * Absent means "leave them as they are" on an edit — the API reads an
+   * omitted list that way. An inline save that only touches one field (the
+   * detail's note) leaves it out rather than echo back a list it never loaded.
+   */
+  resourceIds?: string[];
 }
 
 /**
@@ -164,8 +179,13 @@ export function useSaveBooking() {
           saved
         )
       );
+      // A clash answer cached before this save no longer holds: without this,
+      // the next booking for the same photographer and day showed no warning.
       // A client's totals are derived from their bookings.
-      return qc.invalidateQueries({ queryKey: clientsKey() });
+      return Promise.all([
+        qc.invalidateQueries({ queryKey: bookingConflictsKey() }),
+        qc.invalidateQueries({ queryKey: clientsKey() }),
+      ]);
     },
   });
 }
@@ -196,8 +216,13 @@ export function useUpdateBookingStatus() {
       qc.setQueryData<Booking[]>(key, (old = []) =>
         old.map((b) => (b.id === saved.id ? saved : b))
       );
-      // Cancelling or completing changes what a client counts as upcoming or spent.
-      return qc.invalidateQueries({ queryKey: clientsKey() });
+      // Cancelling frees the day, and reinstating takes it again, so cached clash
+      // answers are stale. Cancelling or completing changes what a client counts
+      // as upcoming or spent.
+      return Promise.all([
+        qc.invalidateQueries({ queryKey: bookingConflictsKey() }),
+        qc.invalidateQueries({ queryKey: clientsKey() }),
+      ]);
     },
     onError: (_err, input) => setStatus(input.id, input.from),
   });
@@ -230,7 +255,7 @@ const NO_CONFLICTS: BookingConflicts = { conflicts: [], resourceClashes: [] };
  */
 export function useBookingConflicts(query: ConflictQuery | null) {
   return useQuery({
-    queryKey: ['bookings', 'conflicts', query] as const,
+    queryKey: bookingConflictsKey(query),
     enabled: query !== null,
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<BookingConflicts> => {

@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import { getColors, pageTitle } from '@/lib/design-tokens';
 import { Alert, Card, Note } from '@/components/ui';
 import { ComingSoon } from '@/components/ComingSoon';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
@@ -35,7 +35,7 @@ export function RoadmapIdeaCard({
   return (
     <Card>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{t(idea.titleKey)}</h2>
+        <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>{t(idea.titleKey)}</h2>
         <ComingSoon size="sm" />
       </div>
 
@@ -133,7 +133,7 @@ export function PlannedArea({
           marginBottom: 6,
         }}
       >
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>{t(titleKey)}</h1>
+        <h1 style={{ ...pageTitle, margin: 0 }}>{t(titleKey)}</h1>
         <ComingSoon size="md" />
       </div>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: 20, lineHeight: 1.6 }}>

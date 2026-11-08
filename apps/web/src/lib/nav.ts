@@ -221,7 +221,7 @@ export const CLIENT_NAV: NavGroup[] = [
   {
     mode: 'workspace',
     items: [
-      { labelKey: 'nav.myBookings', href: '/bookings', icon: 'bookings' },
+      { labelKey: 'nav.overview', href: '/bookings', icon: 'bookings' },
       { labelKey: 'nav.payments', href: '/payments', icon: 'payments' },
       { labelKey: 'nav.galleries', href: '/galleries', icon: 'galleries' },
       { labelKey: 'nav.documents', href: '/documents', icon: 'documents' },

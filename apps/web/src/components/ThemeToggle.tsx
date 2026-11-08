@@ -46,28 +46,27 @@ export function ThemeToggle({ variant = 'pill', style }: Readonly<ThemeTogglePro
     : { width: 34, height: 34, borderRadius: 8, border: 'none' };
 
   return (
+    // Hover comes from the stylesheet, fed this theme's colours as variables.
+    // It used to be written inline on mouseenter — with the colours of the
+    // theme current at that moment, so a click switched the theme under the
+    // pointer and left a light hover square, its icon invisible, until the
+    // pointer moved off.
     <button
       type="button"
       onClick={toggleTheme}
       aria-label={switchLabel}
       title={switchLabel}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = c.surfaceHover;
-        if (isPill) e.currentTarget.style.borderColor = c.primaryBorder;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        if (isPill) e.currentTarget.style.borderColor = c.border;
-      }}
+      className={`ui-press ui-btn-ghost${isPill ? ' ui-toggle-pill' : ''}`}
       style={{
         ...shell,
+        ['--ui-btn-hover' as string]: c.surfaceHover,
+        ['--ui-toggle-hover-border' as string]: c.primaryBorder,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: 'transparent',
         cursor: 'pointer',
         color: c.text,
-        transition: 'background 0.18s ease, border-color 0.18s ease',
         ...style,
       }}
     >

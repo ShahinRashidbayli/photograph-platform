@@ -39,7 +39,6 @@ export const common = {
   'contact.noPhone': 'No phone number on file',
   'contact.email': 'Email',
   'contact.emailTitle': 'Email {email}',
-  'contact.noEmail': 'No email on file',
 
   // ── Plan gates ────────────────────────────────────────────────────────────
   // One vocabulary for "your plan does not include this", wherever it is said.

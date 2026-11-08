@@ -214,7 +214,8 @@ function Block({ block, c }: { block: LegalBlock; c: Colors }) {
         }}
       >
         {block.items.map((item, i) => (
-          <li key={i} style={{ ...pStyle, margin: 0 }}>
+          // anywhere: a credit's source URL is one unbroken word, wider than a phone.
+          <li key={i} style={{ ...pStyle, margin: 0, overflowWrap: 'anywhere' }}>
             {renderText(item, c)}
           </li>
         ))}

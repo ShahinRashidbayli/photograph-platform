@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -549,6 +550,23 @@ public class GalleryService {
 
     private String presignedUrl(String r2Key) {
         return storage.map(s -> s.generateDownloadUrl(r2Key)).orElse(null);
+    }
+
+    /**
+     * The thumbnail a client sees for a gallery: its first photo, through the
+     * same watermark rule as the public view — the portal must not become the
+     * way round it. Null when there is nothing to show yet, including a
+     * watermarked gallery whose first photo has not been processed.
+     */
+    String clientCoverUrl(Gallery gallery) {
+        boolean watermarked = Boolean.TRUE.equals(gallery.getWatermarkEnabled());
+        return deliveryPhotoRepository
+            .findByGalleryIdOrderBySortOrderAsc(gallery.getId(), Limit.of(1))
+            .stream()
+            .findFirst()
+            .map(p -> watermarked ? toWatermarkedResponse(p) : toPhotoResponse(p))
+            .map(DeliveryPhotoResponse::thumbnailUrl)
+            .orElse(null);
     }
 
     /**

@@ -15,9 +15,12 @@ import { useThemeStore } from '@/store/themeStore';
  *
  * <h2>Series colours</h2>
  * Two series only: invoiced and collected. The pair is validated for
- * colour-blind separation against both surfaces — light `#6366F1`/`#16A34A`,
- * dark `#6366F1`/`#059669`, chosen because the light green sits outside the
- * dark mode's lightness band and would have gone muddy on the dark surface.
+ * colour-blind separation against both surfaces — light `#44403C`/`#16A34A`,
+ * dark `#D6D3D1`/`#059669`. The first series is the interface's own ink, so the
+ * only saturated colour in a chart is the money that actually arrived; the
+ * pair differs in lightness as well as hue, which is what survives every kind
+ * of colour blindness. The light green sits outside the dark mode's lightness
+ * band and would have gone muddy on the dark surface, hence the second value.
  *
  * <p>Their tritan separation lands in the warn band, so colour is never the
  * only cue: the legend is always present, the paired bars carry a 2px surface
@@ -26,8 +29,8 @@ import { useThemeStore } from '@/store/themeStore';
  */
 
 export const SERIES = {
-  light: { a: '#6366F1', b: '#16A34A' },
-  dark: { a: '#6366F1', b: '#059669' },
+  light: { a: '#44403C', b: '#16A34A' },
+  dark: { a: '#D6D3D1', b: '#059669' },
 } as const;
 
 export function useSeriesColors() {

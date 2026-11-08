@@ -1,4 +1,6 @@
-import { FILTERS, filterCount, groupFor, matchesFilter } from './bookings.filters';
+import { FILTERS, filterCount, groupFor, matchesFilter, parseFilter } from './bookings.filters';
+import type { BookingContext } from './bookings.insights';
+import type { Contract } from '@/hooks/useContracts';
 import type { Booking } from '@/types/api';
 
 /**
@@ -23,56 +25,76 @@ function booking(overrides: Partial<Booking> = {}): Booking {
   };
 }
 
+// A fixed "today" (Sunday 8 Nov 2026) so nothing depends on when the suite runs.
+const TODAY = new Date(2026, 10, 8);
+
+function ctx(overrides: Partial<BookingContext> = {}): BookingContext {
+  return { today: TODAY, contract: null, gallery: null, contractsEnabled: true, ...overrides };
+}
+
 describe('matchesFilter', () => {
   it('lets everything through on "all"', () => {
-    expect(matchesFilter(booking({ status: 'CANCELLED' }), 'all')).toBe(true);
+    expect(matchesFilter(booking({ status: 'CANCELLED' }), 'all', ctx())).toBe(true);
   });
 
   /**
-   * "Awaiting payment" is derived from the invoice/payment rows, not from the
-   * lifecycle status — a CONFIRMED booking with nothing invoiced owes nothing
-   * yet, and showing it as awaiting payment sends the photographer chasing
-   * money they never asked for.
+   * "Unpaid" is what the client still owes on an agreed booking. An enquiry
+   * owes nothing yet and a cancelled booking owes nothing any more — counting
+   * either sends the photographer chasing money nobody agreed to.
    */
-  it.each(['OPEN', 'PARTIALLY_PAID', 'OVERDUE'] as const)(
-    'counts %s as awaiting payment',
-    (paymentState) => {
-      expect(matchesFilter(booking({ paymentState }), 'deposit')).toBe(true);
-    }
-  );
-
-  it.each(['NOT_INVOICED', 'PAID'] as const)(
-    'does not count %s as awaiting payment',
-    (paymentState) => {
-      expect(matchesFilter(booking({ paymentState }), 'deposit')).toBe(false);
-    }
-  );
-
-  it('ignores lifecycle status when filtering on payment', () => {
-    expect(matchesFilter(booking({ status: 'ENQUIRY', paymentState: 'OPEN' }), 'deposit')).toBe(
-      true
-    );
+  it('counts an agreed booking with money outstanding as unpaid', () => {
+    expect(matchesFilter(booking({ amountPaidCents: 30_000 }), 'unpaid', ctx())).toBe(true);
     expect(
-      matchesFilter(booking({ status: 'CONFIRMED', paymentState: 'NOT_INVOICED' }), 'deposit')
+      matchesFilter(booking({ status: 'COMPLETED', amountPaidCents: 0 }), 'unpaid', ctx())
+    ).toBe(true);
+  });
+
+  it.each(['ENQUIRY', 'CANCELLED', 'DECLINED'] as const)('never counts %s as unpaid', (status) => {
+    expect(matchesFilter(booking({ status }), 'unpaid', ctx())).toBe(false);
+  });
+
+  it('does not count a fully paid booking as unpaid', () => {
+    expect(
+      matchesFilter(booking({ amountPaidCents: 119_000, paymentState: 'PAID' }), 'unpaid', ctx())
     ).toBe(false);
   });
 
-  it('matches the lifecycle filters exactly', () => {
-    expect(matchesFilter(booking({ status: 'CONFIRMED' }), 'confirmed')).toBe(true);
-    expect(matchesFilter(booking({ status: 'ENQUIRY' }), 'pending')).toBe(true);
-    expect(matchesFilter(booking({ status: 'COMPLETED' }), 'completed')).toBe(true);
-    expect(matchesFilter(booking({ status: 'COMPLETED' }), 'confirmed')).toBe(false);
+  it('splits upcoming and past at today', () => {
+    expect(matchesFilter(booking({ eventDate: '2026-11-08' }), 'upcoming', ctx())).toBe(true);
+    expect(matchesFilter(booking({ eventDate: '2026-11-07' }), 'upcoming', ctx())).toBe(false);
+    expect(matchesFilter(booking({ eventDate: '2026-11-07' }), 'past', ctx())).toBe(true);
+    // Completed is past even if it was closed before the date.
+    expect(
+      matchesFilter(booking({ status: 'COMPLETED', eventDate: '2026-12-01' }), 'past', ctx())
+    ).toBe(true);
   });
 
-  it('exposes one filter per tab, "all" first', () => {
-    expect(FILTERS[0].key).toBe('all');
-    expect(FILTERS.map((f) => f.key)).toEqual([
-      'all',
-      'deposit',
-      'confirmed',
-      'pending',
-      'completed',
-    ]);
+  it('puts enquiries, shoots to close and unsigned contracts under "needs you"', () => {
+    expect(matchesFilter(booking({ status: 'ENQUIRY' }), 'needs', ctx())).toBe(true);
+    expect(matchesFilter(booking({ eventDate: '2026-11-05' }), 'needs', ctx())).toBe(true);
+    const sent = { status: 'SENT', sentAt: '2026-11-03T10:00:00Z' } as Contract;
+    expect(matchesFilter(booking(), 'needs', ctx({ contract: sent }))).toBe(true);
+    expect(matchesFilter(booking(), 'needs', ctx())).toBe(false);
+  });
+
+  it('offers the five questions in order', () => {
+    expect(FILTERS.map((f) => f.key)).toEqual(['all', 'needs', 'upcoming', 'unpaid', 'past']);
+  });
+});
+
+describe('parseFilter', () => {
+  // Links and bookmarks made before the rename keep landing somewhere sensible.
+  it('maps the old status filters onto the new questions', () => {
+    expect(parseFilter('deposit')).toBe('unpaid');
+    expect(parseFilter('pending')).toBe('needs');
+    expect(parseFilter('confirmed')).toBe('upcoming');
+    expect(parseFilter('completed')).toBe('past');
+  });
+
+  it('falls back to "all" for anything unknown', () => {
+    expect(parseFilter(null)).toBe('all');
+    expect(parseFilter('nonsense')).toBe('all');
+    expect(parseFilter('needs')).toBe('needs');
   });
 });
 
@@ -81,13 +103,13 @@ describe('filterCount', () => {
     const list = [
       booking({ id: '1', status: 'CONFIRMED' }),
       booking({ id: '2', status: 'ENQUIRY' }),
-      booking({ id: '3', status: 'CONFIRMED' }),
+      booking({ id: '3', status: 'CONFIRMED', eventDate: '2026-10-01' }),
     ];
 
-    expect(filterCount(list, 'confirmed')).toBe(2);
-    expect(filterCount(list, 'pending')).toBe(1);
-    expect(filterCount(list, 'all')).toBe(3);
-    expect(filterCount([], 'all')).toBe(0);
+    expect(filterCount(list, 'needs', () => ctx())).toBe(2);
+    expect(filterCount(list, 'upcoming', () => ctx())).toBe(2);
+    expect(filterCount(list, 'all', () => ctx())).toBe(3);
+    expect(filterCount([], 'all', () => ctx())).toBe(0);
   });
 });
 

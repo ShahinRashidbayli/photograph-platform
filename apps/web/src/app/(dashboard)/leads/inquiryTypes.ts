@@ -1,5 +1,5 @@
 import type { TranslationKey } from '@/lib/i18n';
-import type { LeadPipelineFilter, LeadScore } from './leadTypes';
+import type { LeadScore } from './leadTypes';
 
 /**
  * An authenticated-customer session request (the `inquiry_requests` table).
@@ -42,23 +42,6 @@ export const INQUIRY_BUDGET_LABEL_KEY: Record<string, TranslationKey> = {
   '1000_2000': 'inquiries.budget.1000_2000',
   OVER_2000: 'inquiries.budget.OVER_2000',
 };
-
-export const INQUIRY_STATUS_LABEL_KEY: Record<InquiryStatus, TranslationKey> = {
-  PENDING: 'inquiries.status.PENDING',
-  ACCEPTED: 'inquiries.status.ACCEPTED',
-  REJECTED: 'inquiries.status.REJECTED',
-  BOOKING_CREATED: 'inquiries.status.BOOKING_CREATED',
-};
-
-/**
- * Map an inquiry's status onto the lead pipeline axis so both sources answer
- * the same Active / Booked / Rejected filter coherently.
- */
-export function inquiryPipeline(status: InquiryStatus): Exclude<LeadPipelineFilter, 'All'> {
-  if (status === 'BOOKING_CREATED') return 'Booked';
-  if (status === 'REJECTED') return 'Rejected';
-  return 'Active'; // PENDING, ACCEPTED
-}
 
 export function inquiryDisplayName(inq: Inquiry): string {
   return (

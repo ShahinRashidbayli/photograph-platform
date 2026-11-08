@@ -1,5 +1,5 @@
 import React from 'react';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { getColors, type Theme, pageTitle } from '@/lib/design-tokens';
 
 export type LeadsTheme = Theme;
 
@@ -21,7 +21,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       margin: '0 auto',
       background: c.bg,
       color: c.text,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -31,14 +31,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       gap: '20px',
       flexWrap: 'wrap',
     },
-    pageTitle: {
-      fontSize: '1.875rem',
-      fontWeight: 800,
-      color: c.text,
-      letterSpacing: '-0.025em',
-      lineHeight: 1.15,
-      marginBottom: '6px',
-    },
+    pageTitle: { ...pageTitle, color: c.text },
     pageSubtitle: {
       fontSize: '0.9rem',
       color: c.textMuted,
@@ -116,7 +109,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
     },
     listItemName: {
       fontSize: '0.9rem',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
       lineHeight: 1.3,
       whiteSpace: 'nowrap',
@@ -183,7 +176,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '0.95rem',
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
       letterSpacing: '0.02em',
     },
@@ -201,7 +194,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
     },
     detailTitle: {
       fontSize: '1.2rem',
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.015em',
     },
@@ -231,11 +224,9 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       gap: '12px',
     },
     sectionTitle: {
-      fontSize: '0.7rem',
-      fontWeight: 700,
+      fontSize: '0.75rem',
+      fontWeight: 550,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
     },
 
     messageQuote: {
@@ -260,7 +251,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       padding: '4px 10px',
       borderRadius: '999px',
       fontSize: '0.7rem',
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
@@ -278,7 +269,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       padding: '3px 8px',
       borderRadius: '999px',
       fontSize: '0.65rem',
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
@@ -309,11 +300,11 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
-      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
+      boxShadow: 'none',
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
@@ -358,7 +349,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
     },
     errorPanelTitle: {
       fontSize: '1rem',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
     },
     errorPanelText: {
@@ -370,7 +361,7 @@ export const getLeadsStyles = (theme: LeadsTheme): Record<string, React.CSSPrope
     retryButton: {
       padding: '9px 20px',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       border: 'none',
       borderRadius: '10px',
       fontSize: '0.875rem',

@@ -5,6 +5,7 @@ import { useTranslation } from '@/lib/i18n';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { Alert, Card, EmptyState, useColors } from '@/components/ui';
+import { pageTitle } from '@/lib/design-tokens';
 
 /**
  * The frame both report screens share: title, year picker, and the three
@@ -54,7 +55,7 @@ export function ReportShell({
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px' }}>{title}</h1>
+          <h1 style={pageTitle}>{title}</h1>
           <p style={{ fontSize: '0.95rem', color: c.textMuted, margin: 0 }}>{subtitle}</p>
         </div>
 
@@ -133,7 +134,7 @@ export function StatTile({
       <div
         style={{
           fontSize: '1.5rem',
-          fontWeight: 700,
+          fontWeight: 600,
           color: tone ?? c.text,
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1.15,
@@ -169,7 +170,7 @@ export function ChartCard({
           marginBottom: 18,
         }}
       >
-        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: c.text, margin: 0 }}>{title}</h2>
+        <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: c.text, margin: 0 }}>{title}</h2>
         {aside}
       </div>
       {children}

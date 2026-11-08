@@ -1,384 +1,608 @@
 'use client';
 
 import React from 'react';
-import { Booking } from '@/types/api';
-import {
-  getBookingStatusMeta,
-  getCustomerBookingStatusLabelKey,
-  isBillableStatus,
-  toneToVisual,
-} from '@/lib/booking-status';
+import Link from 'next/link';
+import type { Booking, Invoice } from '@/types/api';
+import type { getColors } from '@/lib/design-tokens';
+import { fontSize, pageTitle, radius, space } from '@/lib/design-tokens';
 import { useTranslation } from '@/lib/i18n';
-import { ComingSoon } from '@/components/ComingSoon';
-import { ComingSoonButton } from '@/components/ComingSoonButton';
-import { InvoicePayList } from '@/components/InvoicePayList';
-import { parseApiDate, startOfToday } from '@/lib/date';
-import { getBookingsColors } from './bookings.styles';
+import { Button } from '@/components/ui';
+import {
+  contractsFor,
+  daysUntil,
+  galleryFor,
+  icsFor,
+  invoicesFor,
+  isCancelled,
+  moneyText,
+  stepsFor,
+  type PortalData,
+} from './customer.portal';
+import { getPortalStyles, linkButton, pill } from './customer.styles';
+import {
+  BookingStatusPill,
+  PortalIcon,
+  StepBar,
+  initialsOf,
+  useOccasion,
+  type StudioContact,
+} from './PortalParts';
+import { relativeDay } from './BookingProgress';
+
+type Colors = ReturnType<typeof getColors>;
 
 type Props = {
-  booking: Booking;
-  styles: Record<string, React.CSSProperties>;
-  colors: ReturnType<typeof getBookingsColors>;
-  photographerLabel: string;
+  booking: Booking | null;
+  data: PortalData;
+  studio: StudioContact;
+  subdomain: string | null;
+  colors: Colors;
+  onPay: (_invoice: Invoice) => void;
 };
 
-function initialsFor(label: string): string {
-  const parts = label.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
-}
-
-function daysUntil(iso: string): number {
-  const today = startOfToday();
-  return Math.round((parseApiDate(iso).getTime() - today.getTime()) / 86_400_000);
-}
-
-type Step = { label: string; meta: string; done: boolean };
-
-export function CustomerBookingDetail({ booking, styles, colors, photographerLabel }: Props) {
+/**
+ * One shoot, from the client's side: when and where, then what is left to do
+ * in the order it happens — sign, pay, receive the photos.
+ *
+ * <p>It used to be a side panel of a list copied from the studio's screen, with
+ * the contract on another page entirely and a due date that read "11 days
+ * before your session" when it was the session's own date.
+ */
+export function CustomerBookingDetail({
+  booking,
+  data,
+  studio,
+  subdomain,
+  colors: c,
+  onPay,
+}: Props) {
   const { t, tPlural, format } = useTranslation();
-  const meta = getBookingStatusMeta(booking.status);
-  const statusVisual = toneToVisual(meta.tone, colors);
+  const s = getPortalStyles(c);
+  const occasion = useOccasion();
 
-  const total = booking.totalAmountCents;
-  // `depositAmount` is the *quoted* deposit (what's owed); `paid` is what's
-  // actually been collected, derived server-side from real invoice/payment
-  // rows (never guessed from the lifecycle status) — so the client never
-  // sees a deposit marked "done" before they've actually paid it.
-  const depositAmount = booking.depositAmountCents || 0;
-  const paid = booking.amountPaidCents ?? 0;
-  const remaining = Math.max(total - paid, 0);
+  const back = (
+    <Link
+      href="/bookings"
+      style={{
+        alignSelf: 'flex-start',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: fontSize.md,
+        color: c.textMuted,
+        textDecoration: 'none',
+        padding: '6px 0',
+      }}
+    >
+      {PortalIcon.back}
+      {t('portal.detail.back')}
+    </Link>
+  );
 
-  const isPaidStage = booking.paymentState === 'PAID';
-  const depositDone = paid > 0;
-  const showPaymentAlert = isBillableStatus(booking.status) && !isPaidStage && remaining > 0;
-
-  const daysLeft = daysUntil(booking.eventDate);
-  const dueDate = format.dayMonth(booking.eventDate);
-
-  const steps: Step[] = [
-    {
-      label: t('customerBooking.step.requestSent'),
-      meta: format.dayMonth(booking.createdAt),
-      done: true,
-    },
-    {
-      label: depositDone
-        ? t('customerBooking.step.depositReceived', { amount: format.eur(depositAmount) })
-        : t('customerBooking.step.deposit'),
-      meta: depositDone ? t('customerBooking.step.confirmed') : t('customerBooking.step.pending'),
-      done: depositDone,
-    },
-    {
-      label: t('customerBooking.step.remaining'),
-      meta:
-        remaining > 0
-          ? t('customerBooking.step.by', { date: format.dayMonth(booking.eventDate) })
-          : t('customerBooking.step.paid'),
-      done: remaining === 0 && total > 0,
-    },
-    {
-      label: t('customerBooking.step.gallery'),
-      meta:
-        booking.status === 'COMPLETED'
-          ? t('customerBooking.step.delivered')
-          : t('customerBooking.step.galleryEta'),
-      done: booking.status === 'COMPLETED',
-    },
-  ];
-
-  return (
-    <>
-      {/* Header */}
-      <div style={{ ...styles.detailHeader, alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={styles.detailTitleRow}>
-            <span style={styles.detailTitle}>
-              {booking.eventType ?? t('bookings.sessionFallback')}
-            </span>
-            <span
-              style={{ ...styles.badge, background: statusVisual.bg, color: statusVisual.color }}
-            >
-              <span style={{ ...styles.badgeDot, background: statusVisual.dot }} />
-              {t(getCustomerBookingStatusLabelKey(booking.status))}
-            </span>
-          </div>
-          <div style={styles.detailSubtitle}>
-            {format.dayMonthYearLong(booking.eventDate)}
-            {booking.eventTime ? ` · ${booking.eventTime}` : ''}
-            {booking.location ? ` · ${booking.location}` : ''}
-          </div>
+  if (!booking) {
+    return (
+      <div style={{ ...s.page, gap: space.xxl }}>
+        {back}
+        <div style={s.card}>
+          <p style={s.empty}>{t('portal.detail.notFound')}</p>
         </div>
       </div>
+    );
+  }
 
-      <div style={styles.detailBody}>
-        {/* Payment call-to-action — a neutral card with an amber left accent
-            and the amount in amber; the CTA uses the app's indigo primary so
-            amber stays an accent rather than dominating the panel. */}
-        {showPaymentAlert && (
-          <div
-            style={{
-              background: colors.surface,
-              border: `1px solid ${colors.border}`,
-              borderLeft: `3px solid ${colors.warning}`,
-              borderRadius: '12px',
-              padding: '16px 18px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                color: colors.textMuted,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-              }}
-            >
-              {t('customerBooking.nextPayment')}
-            </div>
-            <div
-              style={{
-                fontSize: '1.15rem',
-                fontWeight: 800,
-                color: colors.warningText,
-                margin: '2px 0',
-              }}
-            >
-              {format.eur(remaining)}
-            </div>
-            <div style={{ fontSize: '0.83rem', color: colors.textMuted }}>
-              {daysLeft <= 0
-                ? t('customerBooking.dueOn', { date: dueDate })
-                : tPlural('customerBooking.dueOnDays', daysLeft, { date: dueDate })}
-            </div>
+  const cancelled = isCancelled(booking);
+  const days = daysUntil(booking.eventDate, data.today);
+  const ahead = !cancelled && days >= 0 && booking.status !== 'COMPLETED';
+  const contracts = contractsFor(booking.id, data.contracts);
+  const invoices = invoicesFor(booking.id, data.invoices);
+  const gallery = galleryFor(booking.id, data.galleries);
+  const total = booking.totalAmountCents;
+  const paid = booking.amountPaidCents ?? 0;
+  const open = Math.max(total - paid, 0);
+  const paidInFull = booking.paymentState === 'PAID' || (total > 0 && open === 0);
+  const showPayment = !cancelled && (total > 0 || invoices.length > 0);
+  const time = booking.eventTime?.slice(0, 5) ?? null;
+
+  // Numbered in the order the client meets them; a section that does not
+  // apply takes no number, so the count never skips.
+  let n = 0;
+  const number = () => ++n;
+
+  return (
+    <div style={{ ...s.page, maxWidth: 1040, gap: 28 }}>
+      {back}
+
+      <header style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={s.shootTop}>
+          <div style={s.headerText}>
+            <h1 style={{ ...pageTitle, margin: 0 }}>{occasion(booking.eventType)}</h1>
+            <p style={s.subtitle}>
+              {[
+                format.dayMonthYearLong(booking.eventDate),
+                time,
+                ahead ? relativeDay(days, t, tPlural) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
           </div>
-        )}
+          <BookingStatusPill booking={booking} hasGallery={gallery !== null} colors={c} />
+        </div>
+        <StepBar steps={stepsFor(booking, data)} booking={booking} colors={c} />
+      </header>
 
-        {/* Invoices — the only thing that is actually payable. The card above
-            shows the balance on the *agreed* total, which is not the same
-            number until the photographer has invoiced it; paying against the
-            document rather than the agreement is what keeps the client's
-            receipt, the §14 invoice and the money in agreement. */}
-        {isBillableStatus(booking.status) && (
-          <section style={styles.section}>
-            <div style={styles.sectionTitle}>{t('invoices.title')}</div>
-            <InvoicePayList bookingId={booking.id} emptyKey="invoices.emptyForBooking" />
-          </section>
-        )}
-
-        {isPaidStage && (
-          <div
-            style={{
-              background: colors.successBg,
-              border: `1px solid ${colors.successBorder}`,
-              borderRadius: '12px',
-              padding: '14px 18px',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              color: colors.successText,
-            }}
-          >
-            {t('customerBooking.paidInFull', { amount: format.eur(total) })}
-          </div>
-        )}
-
-        {/* Progress timeline */}
-        <section style={styles.section}>
-          <div style={styles.sectionTitle}>{t('customerBooking.progress')}</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {steps.map((step, i) => {
-              const last = i === steps.length - 1;
-              return (
-                <div key={step.label} style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <span
-                      aria-hidden
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: step.done ? colors.success : 'transparent',
-                        color: '#fff',
-                        border: step.done ? 'none' : `1.5px dashed ${colors.border}`,
-                      }}
-                    >
-                      {step.done && (
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                          <path
-                            d="M2 6l3 3 5-5"
-                            stroke="#fff"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </span>
-                    {!last && (
-                      <span
-                        style={{
-                          width: 2,
-                          flex: 1,
-                          minHeight: 24,
-                          background: step.done ? colors.success : colors.border,
-                          opacity: step.done ? 0.45 : 1,
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div style={{ paddingBottom: last ? 0 : '16px' }}>
-                    <div
-                      style={{
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                        color: step.done ? colors.text : colors.textMuted,
-                      }}
-                    >
-                      {step.label}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: colors.textMuted, marginTop: '2px' }}>
-                      {step.meta}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Photographer contact card */}
-        <section
+      <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div
           style={{
-            ...styles.section,
-            borderTop: `1px solid ${colors.divider}`,
-            paddingTop: '18px',
+            flex: '2 1 520px',
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
           }}
         >
-          <div
+          {cancelled ? (
+            <div style={s.card}>
+              <p style={s.empty}>{t('portal.detail.cancelled')}</p>
+            </div>
+          ) : (
+            <>
+              <h2 style={s.h2}>{t('portal.detail.nextSteps')}</h2>
+
+              {contracts.length > 0 && (
+                <StepCard
+                  number={number()}
+                  active={contracts.some((k) => k.status === 'SENT')}
+                  title={
+                    contracts.some((k) => k.status === 'SENT')
+                      ? t('portal.todo.sign')
+                      : t('portal.detail.contract')
+                  }
+                  colors={c}
+                >
+                  {contracts.map((k) => {
+                    const toSign = k.status === 'SENT';
+                    const action = linkButton(c, toSign ? 'primary' : 'ghost');
+                    const when = toSign ? k.sentAt : k.signedAt;
+                    return (
+                      <div
+                        key={k.id}
+                        style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}
+                      >
+                        <span style={{ ...s.rowText, flex: '1 1 240px' }}>
+                          <span style={{ ...s.rowTitle, fontSize: fontSize.md }}>{k.title}</span>
+                          {when && (
+                            <span style={s.rowMeta}>
+                              {toSign
+                                ? t('portal.detail.contractSent', {
+                                    date: format.dayMonthYearLong(when),
+                                  })
+                                : t('portal.detail.contractSigned', {
+                                    date: format.dayMonthYearLong(when),
+                                  })}
+                            </span>
+                          )}
+                        </span>
+                        <Link
+                          href={`/documents?id=${k.id}`}
+                          className={action.className}
+                          style={action.style}
+                        >
+                          {toSign ? t('portal.todo.signAction') : t('portal.detail.contractView')}
+                        </Link>
+                      </div>
+                    );
+                  })}
+                  {contracts.some((k) => k.status === 'SENT') && (
+                    <p style={{ ...s.rowMeta, margin: 0 }}>{t('portal.detail.contractNote')}</p>
+                  )}
+                </StepCard>
+              )}
+
+              {showPayment && (
+                <StepCard
+                  number={number()}
+                  active={!paidInFull}
+                  title={paidInFull ? t('portal.detail.paidTitle') : t('portal.detail.payTitle')}
+                  colors={c}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gap: 12,
+                    }}
+                  >
+                    <Figure
+                      label={t('bookings.detail.total')}
+                      value={moneyText(total, format)}
+                      colors={c}
+                    />
+                    <Figure
+                      label={t('bookings.detail.paid')}
+                      value={moneyText(paid, format)}
+                      colors={c}
+                    />
+                    <Figure
+                      label={t('bookings.detail.open')}
+                      value={moneyText(open, format)}
+                      colors={c}
+                    />
+                  </div>
+                  {total > 0 && (
+                    <div
+                      role="progressbar"
+                      aria-label={t('bookings.detail.paid')}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.min(100, Math.round((paid / total) * 100))}
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: c.borderSoft,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(100, (paid / total) * 100)}%`,
+                          height: 6,
+                          background: c.primarySolid,
+                        }}
+                      />
+                    </div>
+                  )}
+                  {!paidInFull && open > 0 && ahead && (
+                    <p style={{ ...s.rowMeta, margin: 0 }}>
+                      {t('portal.detail.dueBy', {
+                        date: format.dayMonthYearLong(booking.eventDate),
+                      })}
+                    </p>
+                  )}
+                  {invoices.length === 0 ? (
+                    <p style={{ ...s.rowMeta, margin: 0 }}>{t('invoices.emptyForBooking')}</p>
+                  ) : (
+                    <div style={{ borderTop: `1px solid ${c.borderSoft}` }}>
+                      {invoices.map((inv) => (
+                        <InvoiceRow key={inv.id} invoice={inv} colors={c} onPay={onPay} />
+                      ))}
+                    </div>
+                  )}
+                </StepCard>
+              )}
+
+              <StepCard
+                number={number()}
+                active={gallery !== null}
+                muted={gallery === null}
+                title={t('portal.detail.photos')}
+                colors={c}
+              >
+                {gallery ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                    {gallery.coverUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element -- a presigned R2 URL; the image optimizer stays off for these
+                      <img
+                        src={gallery.coverUrl}
+                        alt=""
+                        style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover' }}
+                      />
+                    )}
+                    <span style={{ ...s.rowText, flex: '1 1 200px' }}>
+                      <span style={{ ...s.rowTitle, fontSize: fontSize.md }}>
+                        {tPlural('portal.meta.photos', gallery.photoCount)}
+                      </span>
+                      {gallery.expiresAt && (
+                        <span style={s.rowMeta}>
+                          {t('portal.meta.until', {
+                            date: format.dayMonthYearLong(gallery.expiresAt),
+                          })}
+                        </span>
+                      )}
+                    </span>
+                    {subdomain && (
+                      <a
+                        href={`/g/${subdomain}/${gallery.accessToken}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        {...linkButton(c, 'primary')}
+                      >
+                        {t('portal.todo.photosAction')}
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ ...s.rowMeta, margin: 0, fontSize: fontSize.md }}>
+                    {t('portal.detail.photosPending')}
+                  </p>
+                )}
+              </StepCard>
+            </>
+          )}
+        </div>
+
+        <aside
+          style={{
+            flex: '1 1 280px',
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <section
+            aria-labelledby="portal-when"
             style={{
-              background: colors.surfaceAlt,
-              border: `1px solid ${colors.border}`,
-              borderRadius: '14px',
-              padding: '16px',
+              ...s.card,
+              padding: '20px 22px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '14px',
+              gap: 14,
             }}
           >
-            {/* Identity row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: '50%',
-                  background: colors.primary,
-                  color: '#fff',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  flexShrink: 0,
-                }}
-                aria-hidden
-              >
-                {initialsFor(photographerLabel)}
-              </span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: colors.text }}>
-                  {photographerLabel}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: colors.textMuted }}>
-                  {t('customerBooking.yourPhotographer')}
-                </div>
-              </div>
-              {/* Quick-action icons */}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  type="button"
-                  disabled
-                  title={t('customerBooking.phoneSoon')}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '10px',
-                    border: `1px solid ${colors.border}`,
-                    background: colors.surface,
-                    color: colors.textMuted,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'not-allowed',
-                    opacity: 0.55,
-                  }}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.18 6.18l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  title={t('customerBooking.messagingSoon')}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '10px',
-                    border: `1px solid ${colors.border}`,
-                    background: colors.surface,
-                    color: colors.textMuted,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'not-allowed',
-                    opacity: 0.55,
-                  }}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {/* Message Now CTA */}
-            <ComingSoonButton
-              variant="outline"
-              title={t('customerBooking.messagingSoon')}
-              style={{ width: '100%', padding: '10px', background: colors.surface, opacity: 0.6 }}
+            <h2 id="portal-when" style={{ ...s.h2, fontSize: '15px' }}>
+              {t('portal.detail.when')}
+            </h2>
+            <dl
+              style={{
+                margin: 0,
+                display: 'grid',
+                gridTemplateColumns: '76px 1fr',
+                gap: '10px 12px',
+                fontSize: fontSize.md,
+              }}
             >
-              {t('customerBooking.messageNow')}
-            </ComingSoonButton>
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
-              <ComingSoon />
-            </div>
-          </div>
-        </section>
+              <dt style={{ color: c.textSubtle }}>{t('portal.detail.date')}</dt>
+              <dd style={{ margin: 0 }}>{format.fullDate(booking.eventDate)}</dd>
+              {time && (
+                <>
+                  <dt style={{ color: c.textSubtle }}>{t('portal.detail.time')}</dt>
+                  <dd style={{ margin: 0 }}>{time}</dd>
+                </>
+              )}
+              {booking.location && (
+                <>
+                  <dt style={{ color: c.textSubtle }}>{t('portal.detail.place')}</dt>
+                  <dd style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span>{booking.location}</span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: fontSize.base, color: c.textMuted }}
+                    >
+                      {t('portal.detail.map')}
+                    </a>
+                  </dd>
+                </>
+              )}
+            </dl>
+            {ahead && (
+              <Button
+                style={{ alignSelf: 'flex-start' }}
+                onClick={() => downloadIcs(booking, occasion(booking.eventType))}
+              >
+                {t('portal.detail.addToCalendar')}
+              </Button>
+            )}
+          </section>
+
+          {(studio.name || studio.email || studio.phone) && (
+            <section
+              aria-labelledby="portal-contact"
+              style={{
+                ...s.card,
+                padding: '20px 22px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}
+            >
+              <h2 id="portal-contact" style={{ ...s.h2, fontSize: '15px' }}>
+                {t('portal.contact.heading')}
+              </h2>
+              {studio.name && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span aria-hidden style={s.avatar}>
+                    {initialsOf(studio.name)}
+                  </span>
+                  <span style={{ fontSize: fontSize.md, fontWeight: 500 }}>{studio.name}</span>
+                </div>
+              )}
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: fontSize.md }}
+              >
+                {studio.email && (
+                  <a href={`mailto:${studio.email}`} style={{ color: c.text }}>
+                    {studio.email}
+                  </a>
+                )}
+                {studio.phone && (
+                  <a href={`tel:${studio.phone.replace(/[^\d+]/g, '')}`} style={{ color: c.text }}>
+                    {studio.phone}
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
+        </aside>
       </div>
-    </>
+    </div>
+  );
+}
+
+/** Hands the browser a one-event .ics, which every calendar app opens. */
+function downloadIcs(booking: Booking, title: string) {
+  const blob = new Blob([icsFor(booking, title, new Date())], {
+    type: 'text/calendar;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'shooting'}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function StepCard({
+  number,
+  title,
+  active,
+  muted = false,
+  colors: c,
+  children,
+}: {
+  number: number;
+  title: string;
+  active: boolean;
+  muted?: boolean;
+  colors: Colors;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      style={{
+        background: muted ? c.surfaceAlt : c.surface,
+        border: `1px ${muted ? 'dashed' : 'solid'} ${c.border}`,
+        borderRadius: radius.card,
+        padding: '20px 22px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      <h3
+        style={{
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          fontSize: '15px',
+          fontWeight: 600,
+          color: muted ? c.textMuted : c.text,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: fontSize.sm,
+            fontWeight: 600,
+            ...(active
+              ? { background: c.primarySolid, color: c.onPrimary }
+              : { border: `1px solid ${c.border}`, color: c.textMuted }),
+          }}
+        >
+          {number}
+        </span>
+        {title}
+      </h3>
+      <div style={{ paddingLeft: 34, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Figure({ label, value, colors: c }: { label: string; value: string; colors: Colors }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: fontSize.base, color: c.textSubtle }}>{label}</span>
+      <span
+        style={{
+          fontSize: fontSize.xl,
+          fontWeight: 600,
+          letterSpacing: '-0.02em',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * One invoice: what it is, whether it is settled, its PDF, and — while money
+ * is open — the pay action and the transfer reference for those who prefer
+ * their bank.
+ */
+function InvoiceRow({
+  invoice,
+  colors: c,
+  onPay,
+}: {
+  invoice: Invoice;
+  colors: Colors;
+  onPay: (_invoice: Invoice) => void;
+}) {
+  const { t, format } = useTranslation();
+  const s = getPortalStyles(c);
+  const settled = invoice.outstandingCents <= 0;
+  const pdf = linkButton(c, 'ghost');
+  return (
+    <div
+      style={{
+        padding: '12px 0',
+        borderBottom: `1px solid ${c.borderSoft}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ ...s.rowText, flex: '1 1 220px' }}>
+          <span style={{ ...s.rowTitle, fontSize: fontSize.md }}>
+            {t('invoices.number', { number: invoice.invoiceNumber })} ·{' '}
+            {moneyText(invoice.totalCents, format)}
+          </span>
+          <span style={s.rowMeta}>
+            {[
+              t('portal.detail.invoiceIssued', { date: format.dayMonthYearLong(invoice.issuedAt) }),
+              !settled && invoice.paidCents > 0
+                ? t('invoices.partiallyPaid', { amount: moneyText(invoice.paidCents, format) })
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        </span>
+        {settled ? (
+          <span style={pill(c.successText, c.successBg)}>{t('invoices.paid')}</span>
+        ) : (
+          <span style={pill(c.warningText, c.warningBg)}>{t('bookings.detail.open')}</span>
+        )}
+        {invoice.pdfDownloadUrl && (
+          <a
+            href={invoice.pdfDownloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t('portal.payments.pdfFor', { number: invoice.invoiceNumber })}
+            className={pdf.className}
+            style={pdf.style}
+          >
+            PDF
+          </a>
+        )}
+        {!settled && (
+          <Button onClick={() => onPay(invoice)}>
+            {t('invoices.pay', { amount: moneyText(invoice.outstandingCents, format) })}
+          </Button>
+        )}
+      </div>
+      {!settled && (
+        <p style={{ ...s.rowMeta, margin: 0 }}>
+          {t('invoices.bankTransferHint', { reference: invoice.verwendungszweck })}
+        </p>
+      )}
+    </div>
   );
 }

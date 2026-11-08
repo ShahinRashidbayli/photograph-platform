@@ -149,6 +149,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         customerOnly("GET /api/customer/contracts/{id}");
         customerOnly("GET /api/customer/contracts/{id}/pdf");
         customerOnly("POST /api/customer/contracts/{id}/sign");
+        customerOnly("GET /api/customer/galleries");
         customerOnly("GET /api/customer/inquiry-requests");
         customerOnly("POST /api/customer/inquiry-requests");
         customerOnly("GET /api/customer/invoices");

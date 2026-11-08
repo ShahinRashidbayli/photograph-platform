@@ -47,7 +47,7 @@ export function SettingsSection({
         id={id}
         style={{
           fontSize: '1rem',
-          fontWeight: 700,
+          fontWeight: 600,
           color: danger ? c.danger : c.text,
           marginBottom: description ? '4px' : '20px',
         }}

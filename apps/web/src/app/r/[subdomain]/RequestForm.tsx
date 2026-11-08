@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 
 interface Props {
   subdomain: string;
@@ -9,20 +10,22 @@ interface Props {
   variant?: 'light' | 'dark';
 }
 
-const EVENT_TYPES = [
-  { value: 'WEDDING', label: 'Wedding' },
-  { value: 'ENGAGEMENT', label: 'Engagement' },
-  { value: 'PORTRAIT', label: 'Portrait' },
-  { value: 'FAMILY', label: 'Family' },
-  { value: 'CORPORATE', label: 'Corporate' },
-  { value: 'OTHER', label: 'Other' },
+/** The lead vocabulary's labels, so the photographer's inbox and this form say the same thing. */
+const EVENT_TYPES: { value: string; labelKey: TranslationKey }[] = [
+  { value: 'WEDDING', labelKey: 'leadEvent.WEDDING' },
+  { value: 'ENGAGEMENT', labelKey: 'leadEvent.ENGAGEMENT' },
+  { value: 'PORTRAIT', labelKey: 'leadEvent.PORTRAIT' },
+  { value: 'FAMILY', labelKey: 'leadEvent.FAMILY' },
+  { value: 'CORPORATE', labelKey: 'leadEvent.CORPORATE' },
+  { value: 'OTHER', labelKey: 'leadEvent.OTHER' },
 ];
 
-const BUDGET_RANGES = [
-  { value: 'UNDER_200', label: 'Under €200' },
-  { value: '200_500', label: '€200 – €500' },
-  { value: '500_1000', label: '€500 – €1000' },
-  { value: 'OVER_1000', label: 'Over €1000' },
+/** Bounds in cents; amounts go through the locale formatter ("€200" / "200 €"). */
+const BUDGET_RANGES: { value: string; from?: number; to?: number }[] = [
+  { value: 'UNDER_200', to: 20_000 },
+  { value: '200_500', from: 20_000, to: 50_000 },
+  { value: '500_1000', from: 50_000, to: 100_000 },
+  { value: 'OVER_1000', from: 100_000 },
 ];
 
 type SubmitState =
@@ -32,7 +35,15 @@ type SubmitState =
   | { kind: 'error'; message: string };
 
 export default function RequestForm({ subdomain, variant = 'light' }: Props) {
+  const { t, format } = useTranslation();
   const [state, setState] = useState<SubmitState>({ kind: 'idle' });
+
+  const budgetLabel = (b: (typeof BUDGET_RANGES)[number]) =>
+    b.from === undefined
+      ? t('request.budget.under', { amount: format.eur(b.to) })
+      : b.to === undefined
+        ? t('request.budget.over', { amount: format.eur(b.from) })
+        : t('request.budget.range', { from: format.eur(b.from), to: format.eur(b.to) });
   const isDark = variant === 'dark';
 
   const palette = isDark
@@ -130,28 +141,24 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
       if (res.status === 429) {
         setState({
           kind: 'error',
-          message: 'Too many requests — please try again in a few minutes.',
+          message: t('request.error.rateLimited'),
         });
         return;
       }
       if (res.status === 404) {
-        setState({ kind: 'error', message: 'This photographer was not found.' });
+        setState({ kind: 'error', message: t('request.error.notFound') });
         return;
       }
       if (!res.ok && res.status !== 202) {
-        const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-        const message = typeof body?.error === 'string' ? body.error : 'Failed to send request.';
-        setState({ kind: 'error', message });
+        // The API's own message is English and written for developers.
+        setState({ kind: 'error', message: t('request.error.failed') });
         return;
       }
 
       setState({ kind: 'ok' });
       form.reset();
-    } catch (err) {
-      setState({
-        kind: 'error',
-        message: err instanceof Error ? err.message : 'Network error.',
-      });
+    } catch {
+      setState({ kind: 'error', message: t('request.error.network') });
     }
   }
 
@@ -167,10 +174,8 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         }}
       >
         <div style={{ fontSize: 22, marginBottom: 8 }}>✓</div>
-        <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600 }}>Request sent</h3>
-        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-          You will receive a personal reply with availability and packages within a few hours.
-        </p>
+        <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600 }}>{t('request.okTitle')}</h3>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>{t('request.okText')}</p>
       </div>
     );
   }
@@ -206,7 +211,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         }}
       >
         <label>
-          Leave this field empty
+          {t('request.honeypot')}
           <input type="text" name="website" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
@@ -220,7 +225,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
       >
         <div>
           <label style={labelStyle} htmlFor="name">
-            Your name *
+            {t('request.name')} *
           </label>
           <input
             id="name"
@@ -233,7 +238,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         </div>
         <div>
           <label style={labelStyle} htmlFor="email">
-            Email *
+            {t('request.email')} *
           </label>
           <input
             id="email"
@@ -255,7 +260,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
       >
         <div>
           <label style={labelStyle} htmlFor="phone">
-            Phone (optional)
+            {t('request.phone')}
           </label>
           <input
             id="phone"
@@ -267,7 +272,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         </div>
         <div>
           <label style={labelStyle} htmlFor="eventDate">
-            Event date *
+            {t('request.date')} *
           </label>
           <input
             id="eventDate"
@@ -289,7 +294,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
       >
         <div>
           <label style={labelStyle} htmlFor="eventType">
-            Session type *
+            {t('request.type')} *
           </label>
           <select
             id="eventType"
@@ -300,18 +305,18 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
             style={inputStyle}
           >
             <option value="" disabled>
-              Select…
+              {t('request.select')}
             </option>
             {EVENT_TYPES.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.labelKey)}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label style={labelStyle} htmlFor="budgetRange">
-            Budget *
+            {t('request.budget')} *
           </label>
           <select
             id="budgetRange"
@@ -322,11 +327,11 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
             style={inputStyle}
           >
             <option value="" disabled>
-              Select…
+              {t('request.select')}
             </option>
             {BUDGET_RANGES.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {budgetLabel(opt)}
               </option>
             ))}
           </select>
@@ -335,7 +340,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
 
       <div>
         <label style={labelStyle} htmlFor="message">
-          Tell us about your shoot
+          {t('request.message')}
         </label>
         <textarea
           id="message"
@@ -383,7 +388,7 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
         }}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
       >
-        {state.kind === 'submitting' ? 'Sending…' : 'Send request →'}
+        {state.kind === 'submitting' ? t('request.sending') : `${t('request.send')} →`}
       </button>
     </form>
   );

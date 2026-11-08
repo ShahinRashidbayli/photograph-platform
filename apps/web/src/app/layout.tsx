@@ -1,16 +1,24 @@
 import type { Metadata } from 'next';
-import { Cormorant_Garamond, Inter } from 'next/font/google';
+import { Geist, Instrument_Serif } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '@/components/QueryProvider';
 import { HtmlLangSync } from '@/components/HtmlLangSync';
+import { ThemeSync } from '@/components/ThemeSync';
 import { DEFAULT_LOCALE } from '@/lib/i18n/config';
 
-const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+// One working sans for every label, figure and paragraph, and one editorial
+// serif kept for page titles and the marketing headlines. Geist's figures are
+// tabular-capable and its German umlauts sit inside the cap height, which
+// matters on a screen of "Übersicht", "Verträge" and euro amounts. The serif
+// is the studio's voice — a photo-book title, not a UI face — so it never
+// appears in a button, a label or a number.
+const sans = Geist({ subsets: ['latin', 'latin-ext'], display: 'swap', variable: '--font-sans' });
+const serif = Instrument_Serif({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400'],
+  style: ['normal', 'italic'],
   display: 'swap',
-  variable: '--font-cormorant',
+  variable: '--font-serif',
 });
 
 export const metadata: Metadata = {
@@ -56,20 +64,21 @@ export const metadata: Metadata = {
 // class>` (the font variables below) and may drop a script-added class when it
 // reconciles that attribute on hydration, and `html.js …` would outrank the
 // `.in` rule the observer relies on — see the note in globals.css.
-const CLIENT_INIT = `(function(){document.documentElement.setAttribute('data-js','');try{var r=localStorage.getItem('theme-storage');if(r){var t=JSON.parse(r);var m=t&&t.state&&t.state.theme;var el=document.documentElement;if(m==='dark'){el.style.backgroundColor='#0A0A0C';el.style.colorScheme='dark';}else{el.style.backgroundColor='#F7F8FB';el.style.colorScheme='light';}}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
+const CLIENT_INIT = `(function(){document.documentElement.setAttribute('data-js','');try{var r=localStorage.getItem('theme-storage');if(r){var t=JSON.parse(r);var m=t&&t.state&&t.state.theme;var el=document.documentElement;if(m==='dark'){el.style.backgroundColor='#0E0E0D';el.style.colorScheme='dark';el.setAttribute('data-theme','dark');}else{el.style.backgroundColor='#FAFAF9';el.style.colorScheme='light';el.setAttribute('data-theme','light');}}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang={DEFAULT_LOCALE}
       suppressHydrationWarning
-      className={`${inter.variable} ${cormorant.variable}`}
+      className={`${sans.variable} ${serif.variable}`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: CLIENT_INIT }} />
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={sans.className} suppressHydrationWarning>
         <HtmlLangSync />
+        <ThemeSync />
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>

@@ -39,3 +39,21 @@ export function useSaveTenantLegal() {
     onSuccess: (saved) => qc.setQueryData(tenantLegalKey(), saved),
   });
 }
+
+export function publicTenantLegalKey(subdomain: string) {
+  return ['tenant', 'legal', 'public', subdomain] as const;
+}
+
+/**
+ * The studio's published contact details — the Impressum the studio already
+ * shows the world — which is what the client portal can honestly offer as
+ * "how to reach your photographer". Fields the studio has not filled are null.
+ */
+export function usePublicTenantLegal(subdomain: string | null | undefined) {
+  return useQuery({
+    queryKey: publicTenantLegalKey(subdomain ?? ''),
+    enabled: Boolean(subdomain),
+    queryFn: async () =>
+      (await api.get<TenantLegal>(`/api/public/legal/${encodeURIComponent(subdomain ?? '')}`)).data,
+  });
+}

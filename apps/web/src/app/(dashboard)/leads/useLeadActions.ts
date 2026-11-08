@@ -2,14 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { asyncError, type AsyncError } from '@/lib/async-error';
-import { useTriageInquiry, useUpdateLeadStatus } from '@/hooks/useLeads';
+import type { TranslationKey } from '@/lib/i18n';
+import { useTriageInquiry } from '@/hooks/useLeads';
 import type { Booking, Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
-
-export interface LeadActionsDeps {
-  selectedLead: Lead | null;
-  selectedInquiry: Inquiry | null;
-}
 
 export interface ConvertSuccess {
   bookingId: string;
@@ -28,47 +24,27 @@ export interface LeadActions {
   addOpen: boolean;
   openAdd: () => void;
   closeAdd: () => void;
-  // Add/edit-note modal.
-  notingLead: Lead | null;
-  startNote: (_lead: Lead) => void;
-  cancelNote: () => void;
-  // Reject confirmation.
-  rejectingLead: Lead | null;
-  startReject: (_lead: Lead) => void;
-  cancelReject: () => void;
-  rejectBusy: boolean;
-  confirmReject: () => void;
-  // Inquiry triage + mark-lead-replied.
-  inquiryBusyId: string | null;
-  triageInquiry: (_status: 'ACCEPTED' | 'REJECTED') => void;
-  markSelectedReplied: () => void;
+  // Accepting a client's request (creates the booking).
+  acceptInquiry: (_inquiry: Inquiry) => void;
   // A failed mutation surfaces here so the user sees it went wrong instead of
   // the click seeming to do nothing.
   actionError: AsyncError | null;
+  reportError: (_err: unknown, _key: TranslationKey) => void;
   dismissActionError: () => void;
 }
 
 /**
  * The inbox's transient UI state — which modal is open, the success and error
  * banners — and the actions that drive it. The data and its cache updates live
- * in `hooks/useLeads.ts`; this decides only what the screen shows around them.
- *
- * <p>When a mutation fails the affordances stay clickable so the user can
- * retry, but the failure is also surfaced via {@link LeadActions.actionError}
- * rather than swallowed — a click that silently does nothing is exactly the
- * confusion this inbox is trying to avoid.
+ * in `hooks/useLeads.ts`; replying and declining (with their undo window) in
+ * `useDeferredStatus`.
  */
-export function useLeadActions({ selectedLead, selectedInquiry }: LeadActionsDeps): LeadActions {
-  const updateStatus = useUpdateLeadStatus();
-  const triage = useTriageInquiry();
-  const { mutate: mutateStatus } = updateStatus;
-  const { mutate: mutateTriage } = triage;
+export function useLeadActions(): LeadActions {
+  const { mutate: mutateTriage } = useTriageInquiry();
 
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [convertSuccess, setConvertSuccess] = useState<ConvertSuccess | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [notingLead, setNotingLead] = useState<Lead | null>(null);
-  const [rejectingLead, setRejectingLead] = useState<Lead | null>(null);
   const [actionError, setActionError] = useState<AsyncError | null>(null);
 
   // Auto-dismiss the success banner after 6s. Cleanup on unmount / re-entry so
@@ -79,7 +55,6 @@ export function useLeadActions({ selectedLead, selectedInquiry }: LeadActionsDep
     return () => clearTimeout(timer);
   }, [convertSuccess]);
 
-  // Same auto-dismiss for the error banner.
   useEffect(() => {
     if (!actionError) return;
     const timer = setTimeout(() => setActionError(null), 6000);
@@ -95,55 +70,30 @@ export function useLeadActions({ selectedLead, selectedInquiry }: LeadActionsDep
     });
   }, []);
 
-  const confirmReject = useCallback(() => {
-    if (!rejectingLead) return;
-    setActionError(null);
-    mutateStatus(
-      { id: rejectingLead.id, status: 'REJECTED' },
-      {
-        onSuccess: () => setRejectingLead(null),
-        onError: (err) => {
-          // Closed either way, with the failure in the banner above the inbox.
-          setRejectingLead(null);
-          setActionError(asyncError(err, 'leads.error.reject'));
-        },
-      }
-    );
-  }, [rejectingLead, mutateStatus]);
-
-  const triageInquiry = useCallback(
-    (status: 'ACCEPTED' | 'REJECTED') => {
-      if (!selectedInquiry) return;
+  const acceptInquiry = useCallback(
+    (inquiry: Inquiry) => {
       setActionError(null);
       mutateTriage(
-        { id: selectedInquiry.id, status },
+        { id: inquiry.id, status: 'ACCEPTED' },
         {
-          onSuccess: (updated) => {
-            // Accepting creates a booking on the server (status -> BOOKING_CREATED),
-            // so surface it exactly like a lead conversion — the "view in bookings"
-            // banner — rather than letting the row just quietly move buckets.
-            if (status === 'ACCEPTED') {
-              setConvertSuccess({
-                bookingId: '',
-                leadName: updated.customerName ?? selectedInquiry.customerName ?? '',
-              });
-            }
-          },
+          // Accepting creates a booking on the server, so it is announced
+          // exactly like a lead conversion — the "view in bookings" banner.
+          onSuccess: (updated) =>
+            setConvertSuccess({
+              bookingId: '',
+              leadName: updated.customerName ?? inquiry.customerName ?? '',
+            }),
           onError: (err) => setActionError(asyncError(err, 'leads.error.triage')),
         }
       );
     },
-    [selectedInquiry, mutateTriage]
+    [mutateTriage]
   );
 
-  const markSelectedReplied = useCallback(() => {
-    if (!selectedLead) return;
-    setActionError(null);
-    mutateStatus(
-      { id: selectedLead.id, status: 'REPLIED' },
-      { onError: (err) => setActionError(asyncError(err, 'leads.error.reply')) }
-    );
-  }, [selectedLead, mutateStatus]);
+  const reportError = useCallback(
+    (err: unknown, key: TranslationKey) => setActionError(asyncError(err, key)),
+    []
+  );
 
   return {
     convertingLead,
@@ -155,18 +105,9 @@ export function useLeadActions({ selectedLead, selectedInquiry }: LeadActionsDep
     addOpen,
     openAdd: () => setAddOpen(true),
     closeAdd: () => setAddOpen(false),
-    notingLead,
-    startNote: setNotingLead,
-    cancelNote: () => setNotingLead(null),
-    rejectingLead,
-    startReject: setRejectingLead,
-    cancelReject: () => setRejectingLead(null),
-    rejectBusy: updateStatus.isPending && updateStatus.variables?.status === 'REJECTED',
-    confirmReject,
-    inquiryBusyId: triage.isPending ? (triage.variables?.id ?? null) : null,
-    triageInquiry,
-    markSelectedReplied,
+    acceptInquiry,
     actionError,
+    reportError,
     dismissActionError: () => setActionError(null),
   };
 }

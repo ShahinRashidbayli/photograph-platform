@@ -185,7 +185,9 @@ export function useAcceptInvitation() {
 /** A client's sign-in code, mailed. Used for the first request and every resend. */
 export function useRequestLoginCode() {
   return useMutation({
-    mutationFn: (input: { email: string; subdomain: string; fullName: string | null }) =>
+    // Without a subdomain the server finds the studios that know the address
+    // and emails a code for each (sign-in by email).
+    mutationFn: (input: { email: string; subdomain: string | null; fullName: string | null }) =>
       api.post('/api/auth/customer/login-code/request', input),
   });
 }
@@ -196,8 +198,8 @@ export function useRequestLoginCode() {
  */
 export function useVerifyLoginCode() {
   return useMutation({
-    mutationFn: (input: { email: string; subdomain: string; code: string }) =>
-      api.post('/api/auth/customer/login-code/verify', input),
+    mutationFn: (input: { email: string; subdomain: string | null; code: string }) =>
+      api.post<{ tenant?: { subdomain?: string } }>('/api/auth/customer/login-code/verify', input),
   });
 }
 

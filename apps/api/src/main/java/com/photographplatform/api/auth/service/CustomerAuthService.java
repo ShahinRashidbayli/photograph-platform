@@ -9,6 +9,7 @@ import com.photographplatform.api.auth.dto.AuthResult;
 import com.photographplatform.api.auth.repository.LoginCodeRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -28,6 +29,12 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,7 +132,14 @@ public class CustomerAuthService {
     private final Clock clock;
     private final AuditService auditService;
     private final AvatarUrlResolver avatarUrlResolver;
+    private final BookingQueryService bookingQueryService;
     private final long refreshTokenExpiryMs;
+
+    /**
+     * Studios one email request may send codes for. A real client has one or
+     * two; the cap only bounds what a single request can make us write and send.
+     */
+    private static final int MAX_STUDIOS_PER_REQUEST = 10;
 
     public CustomerAuthService(
         TenantRepository tenantRepository,
@@ -138,6 +152,7 @@ public class CustomerAuthService {
         Clock clock,
         AuditService auditService,
         AvatarUrlResolver avatarUrlResolver,
+        BookingQueryService bookingQueryService,
         @Value("${app.jwt.refresh-token-expiry-ms}") long refreshTokenExpiryMs
     ) {
         this.tenantRepository = tenantRepository;
@@ -150,6 +165,7 @@ public class CustomerAuthService {
         this.clock = clock;
         this.auditService = auditService;
         this.avatarUrlResolver = avatarUrlResolver;
+        this.bookingQueryService = bookingQueryService;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
     }
 
@@ -300,6 +316,181 @@ public class CustomerAuthService {
             throw new UnauthorizedException(INVALID_CODE);
         }
 
+        return completeLogin(user, tenant, token, ipAddress);
+    }
+
+    // ── sign-in by email alone ────────────────────────────────────────────────
+
+    /**
+     * Emails sign-in codes to a client who named no studio — one code per
+     * studio that knows the address, in a single email.
+     *
+     * <p>A client used to have to type their photographer's subdomain, which
+     * they had never been told and could not guess. The studios are found from
+     * the two places that can know a client: their customer accounts (global)
+     * and the studios' bookings, asked through {@link
+     * BookingQueryService#tenantsWithClientEmail} without leaving RLS. A studio
+     * that has only booked them gets the account created here, as the
+     * subdomain flow does on first request.
+     *
+     * <p>Each studio gets its own code, so the code typed back decides which
+     * studio the session is for — no picker, and nothing about the other
+     * studios is revealed to whoever holds the page.
+     *
+     * <p>Like {@link #requestLoginCode}, this answers the same whatever is on
+     * file. An address no studio knows gets an email saying so — the person at
+     * that mailbox is the only one who learns it.
+     */
+    @Transactional
+    public void requestLoginCodeByEmail(String email, String fullName, String ipAddress) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        String normalizedEmail = Normalize.email(email);
+
+        // Its own key, not the per-studio one: otherwise naming no studio would
+        // be a way round the per-mailbox ceiling.
+        enforceRateLimit("login:req:email:any:" + normalizedEmail, REQUEST_MAX_PER_EMAIL_PER_HOUR);
+        if (ipAddress != null && !ipAddress.isBlank()) {
+            enforceRateLimit("login:req:ip:" + ipAddress, REQUEST_MAX_PER_IP_PER_HOUR);
+        }
+
+        List<User> customers = customersKnowing(normalizedEmail, fullName);
+        if (customers.isEmpty()) {
+            sendNoStudioEmail(normalizedEmail);
+            return;
+        }
+
+        // Distinct within the email, so the code alone names the studio.
+        Set<String> issued = new HashSet<>();
+        Map<Tenant, String> codes = new LinkedHashMap<>();
+        OffsetDateTime windowStart = OffsetDateTime.now(clock).minus(REQUEST_WINDOW);
+        for (User user : customers) {
+            // The Postgres-side ceiling (see requestLoginCode), per account.
+            if (tokenRepository.countByUserIdAndCreatedAtAfter(user.getId(), windowStart)
+                    >= REQUEST_MAX_PER_EMAIL_PER_HOUR) {
+                continue;
+            }
+            Tenant tenant = tenantRepository.findById(user.getTenantId()).orElse(null);
+            if (tenant == null) {
+                continue;
+            }
+            String code;
+            do {
+                code = generateCode();
+            } while (!issued.add(code));
+            issueCode(user, code);
+            codes.put(tenant, code);
+            auditService.logQuietly("CUSTOMER_LOGIN_CODE_REQUESTED", "USER", user.getId(),
+                tenant.getId(), user.getId(), ipAddress);
+        }
+        if (codes.isEmpty()) {
+            throw new TooManyRequestsException(
+                "Too many login attempts. Please try again later.", REQUEST_WINDOW);
+        }
+        sendStudioCodesEmail(normalizedEmail, codes);
+    }
+
+    /**
+     * Signs in with a code from {@link #requestLoginCodeByEmail}: the studio is
+     * whichever one the code was issued for.
+     *
+     * <p>The guessing budget is the subdomain flow's, held across studios: a
+     * wrong code counts against every live code for the address at once, so
+     * having three studios does not buy an attacker three times the guesses.
+     */
+    @Transactional(noRollbackFor = UnauthorizedException.class)
+    public AuthResult verifyLoginCodeByEmail(String email, String code, String ipAddress) {
+        if (ipAddress != null && !ipAddress.isBlank()) {
+            enforceRateLimit("login:vrf:ip:" + ipAddress, VERIFY_MAX_PER_IP_PER_HOUR);
+        }
+        if (email == null || email.isBlank() || code == null || code.isBlank()) {
+            throw new UnauthorizedException(INVALID_CODE);
+        }
+
+        List<User> candidates = new ArrayList<>();
+        List<LoginCode> live = new ArrayList<>();
+        for (User user : userRepository.findCustomersByEmail(Normalize.email(email))) {
+            tokenRepository.findFirstByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getId())
+                .filter(t -> !t.isUsed() && !t.isExpired())
+                .ifPresent(t -> {
+                    candidates.add(user);
+                    live.add(t);
+                });
+        }
+        if (live.isEmpty()) {
+            throw new UnauthorizedException(INVALID_CODE);
+        }
+
+        int match = -1;
+        int matches = 0;
+        for (int i = 0; i < live.size(); i++) {
+            // Constant-time, for the reason given in verifyLoginCode.
+            if (MessageDigest.isEqual(
+                live.get(i).getTokenHash().getBytes(StandardCharsets.UTF_8),
+                hashLoginCode(candidates.get(i).getId(), code.trim()).getBytes(StandardCharsets.UTF_8))) {
+                match = i;
+                matches++;
+            }
+        }
+
+        // Exactly one, or nothing: two studios accepting the same digits would
+        // leave the session's studio to chance, so that counts as a miss.
+        if (matches != 1) {
+            for (int i = 0; i < live.size(); i++) {
+                recordFailedAttempt(live.get(i), candidates.get(i));
+            }
+            throw new UnauthorizedException(INVALID_CODE);
+        }
+
+        User user = candidates.get(match);
+        Tenant tenant = tenantRepository.findById(user.getTenantId())
+            .orElseThrow(() -> new UnauthorizedException(INVALID_CODE));
+        return completeLogin(user, tenant, live.get(match), ipAddress);
+    }
+
+    /**
+     * The customer accounts sign-in by email should send codes for: existing
+     * ones, plus one created for each studio that has booked the address but
+     * never seen it sign in. A staff account on the same address is never one
+     * of them — staff sign in with a password.
+     */
+    private List<User> customersKnowing(String email, String fullName) {
+        Map<UUID, User> byTenant = new LinkedHashMap<>();
+        for (User user : userRepository.findCustomersByEmail(email)) {
+            byTenant.putIfAbsent(user.getTenantId(), user);
+        }
+        for (UUID tenantId : bookingQueryService.tenantsWithClientEmail(email)) {
+            if (byTenant.size() >= MAX_STUDIOS_PER_REQUEST || byTenant.containsKey(tenantId)) {
+                continue;
+            }
+            Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
+            if (tenant == null || userRepository.findByTenantIdAndEmail(tenantId, email).isPresent()) {
+                // Present but not a customer: the address belongs to staff there.
+                continue;
+            }
+            byTenant.put(tenantId, createCustomer(tenant, email, fullName));
+        }
+        return byTenant.values().stream()
+            .filter(u -> tenantRepository.findById(u.getTenantId())
+                .map(t -> "ACTIVE".equals(t.getStatus()))
+                .orElse(false))
+            .limit(MAX_STUDIOS_PER_REQUEST)
+            .toList();
+    }
+
+    private void recordFailedAttempt(LoginCode token, User user) {
+        token.recordFailedAttempt();
+        if (token.getAttempts() >= MAX_VERIFY_ATTEMPTS) {
+            token.markUsed();
+            LOG.warn("Login code for user {} destroyed after {} failed attempts",
+                user.getId(), token.getAttempts());
+        }
+        tokenRepository.save(token);
+    }
+
+    /** The code checked out: spend it, mark the address verified, open the session. */
+    private AuthResult completeLogin(User user, Tenant tenant, LoginCode token, String ipAddress) {
         token.markUsed();
         tokenRepository.save(token);
         // Belt-and-braces: kill any other outstanding codes too.
@@ -357,15 +548,99 @@ public class CustomerAuthService {
      * rather than widening it: there is never more than one live code per user.
      */
     private void issueAndSendCode(User user) {
-        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
-
         String code = generateCode();
+        issueCode(user, code);
+        sendCodeEmail(user, code);
+    }
+
+    /** Replaces whatever code the user had with this one. */
+    private void issueCode(User user, String code) {
+        tokenRepository.invalidateAllForUser(user.getId(), OffsetDateTime.now(clock));
         tokenRepository.save(new LoginCode(
             user.getId(),
             hashLoginCode(user.getId(), code),
             OffsetDateTime.now(clock).plus(CODE_TTL)
         ));
-        sendCodeEmail(user, code);
+    }
+
+    /** How a studio is named to its client: its legal name, else its business name, else its address. */
+    private static String studioName(Tenant tenant) {
+        if (tenant.getLegalName() != null && !tenant.getLegalName().isBlank()) {
+            return tenant.getLegalName().trim();
+        }
+        if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
+            return tenant.getBusinessName().trim();
+        }
+        return tenant.getSubdomain();
+    }
+
+    /**
+     * One email for every studio. With one studio it reads like the subdomain
+     * flow's (code in the subject, for the phone's notification); with several,
+     * each code stands under the studio it opens.
+     */
+    private void sendStudioCodesEmail(String email, Map<Tenant, String> codes) {
+        long minutes = CODE_TTL.toMinutes();
+        StringBuilder blocks = new StringBuilder();
+        for (Map.Entry<Tenant, String> entry : codes.entrySet()) {
+            if (codes.size() > 1) {
+                blocks.append(EmailTemplate.paragraph(
+                    "<strong>" + HtmlEscape.escape(studioName(entry.getKey())) + "</strong>"));
+            }
+            blocks.append(codeBlock(entry.getValue()));
+        }
+        String intro = codes.size() == 1
+            ? "Enter this code in the tab you already have open to sign in to "
+                + HtmlEscape.escape(studioName(codes.keySet().iterator().next())) + ". No password needed."
+            : "You are a client of more than one photographer. Each code below signs you in to that "
+                + "photographer only — enter the one you want in the tab you already have open.";
+        String html = EmailTemplate.document(
+            "Your Fotolio sign-in code — expires in " + minutes + " minutes.",
+            EmailTemplate.heading(codes.size() == 1 ? "Your sign-in code" : "Your sign-in codes")
+                + EmailTemplate.paragraph(intro)
+                + blocks
+                + EmailTemplate.note("Codes expire in " + minutes
+                    + " minutes and can only be used once. If you didn't request this, "
+                    + "you can safely ignore this email."));
+        String subject = codes.size() == 1
+            ? "Your sign-in code: " + codes.values().iterator().next()
+            : "Your sign-in codes";
+        UUID tenantId = codes.keySet().iterator().next().getId();
+        try {
+            emailService.send(new EmailMessage(email, subject, html, EmailType.LOGIN_CODE, tenantId));
+        } catch (RuntimeException ex) {
+            LOG.warn("Failed to send login-code email to {}", email, ex);
+        }
+    }
+
+    /**
+     * Sent when no studio knows the address. Saying so in the mailbox — rather
+     * than on the page — tells the owner of the address what happened and
+     * tells nobody else whether it is anyone's client.
+     */
+    private void sendNoStudioEmail(String email) {
+        String html = EmailTemplate.document(
+            "We couldn't find your photographer.",
+            EmailTemplate.heading("We couldn't find your photographer")
+                + EmailTemplate.paragraph("Someone asked to sign in to Fotolio with this address, "
+                    + "but no photographer has it on file yet.")
+                + EmailTemplate.paragraph("Use the address you gave your photographer, or ask them "
+                    + "for their sign-in link.")
+                + EmailTemplate.note("If this wasn't you, you can safely ignore this email."));
+        try {
+            emailService.send(new EmailMessage(email, "Signing in to Fotolio", html,
+                EmailType.LOGIN_CODE, null));
+        } catch (RuntimeException ex) {
+            LOG.warn("Failed to send no-studio email to {}", email, ex);
+        }
+    }
+
+    private static String codeBlock(String code) {
+        // Letter-spaced and oversized because the whole point is that it can be
+        // read off a phone at a glance and typed into the tab already open.
+        return "<p style=\"font-size:32px;font-weight:700;letter-spacing:8px;"
+            + "text-align:center;margin:24px 0;font-family:monospace;\">"
+            + HtmlEscape.escape(code) + "</p>";
     }
 
     /** Zero-padded so every code is exactly six digits — "004182", never "4182". */
@@ -388,18 +663,13 @@ public class CustomerAuthService {
         String greetingName = user.getFullName() != null && !user.getFullName().isBlank()
             ? user.getFullName() : "there";
         long minutes = CODE_TTL.toMinutes();
-        // Letter-spaced and oversized because the whole point is that it can be
-        // read off a phone at a glance and typed into the tab already open.
-        String codeBlock = "<p style=\"font-size:32px;font-weight:700;letter-spacing:8px;"
-            + "text-align:center;margin:24px 0;font-family:monospace;\">"
-            + HtmlEscape.escape(code) + "</p>";
         String html = EmailTemplate.document(
             "Your Fotolio sign-in code — expires in " + minutes + " minutes.",
             EmailTemplate.heading("Your sign-in code")
                 + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(greetingName)
                     + ", enter this code in the tab you already have open. "
                     + "No password needed.")
-                + codeBlock
+                + codeBlock(code)
                 + EmailTemplate.note("This code expires in " + minutes
                     + " minutes and can only be used once. If you didn't request it, "
                     + "you can safely ignore this email."));

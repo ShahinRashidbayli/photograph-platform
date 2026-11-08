@@ -39,7 +39,6 @@ export const common: Record<keyof EnCommon, string> = {
   'contact.noPhone': 'Keine Telefonnummer hinterlegt',
   'contact.email': 'E-Mail',
   'contact.emailTitle': 'E-Mail an {email}',
-  'contact.noEmail': 'Keine E-Mail-Adresse hinterlegt',
 
   'upgrade.cta': 'Tarife ansehen',
   'upgrade.ctaNamed': 'Auf {plan} upgraden',

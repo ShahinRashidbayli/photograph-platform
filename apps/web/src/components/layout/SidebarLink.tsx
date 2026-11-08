@@ -11,14 +11,12 @@ export function SidebarLink({
   item,
   active,
   theme,
-  colors,
   lockedBehind = null,
   badgeCount,
 }: {
   item: NavLeaf;
   active: boolean;
   theme: string;
-  colors: { text: string; subText: string; primary: string };
   /** Plan that would unlock this row, when the current plan does not. */
   lockedBehind?: string | null;
   // Optional unread-style count. Rendered as a small pill on the right of
@@ -34,8 +32,6 @@ export function SidebarLink({
   const soon = Boolean(item.soon);
   const locked = !soon && Boolean(lockedBehind);
   const c = getColors(theme as Theme);
-  const activeColor = theme === 'light' ? '#EEF2FF' : 'rgba(99, 102, 241, 0.14)';
-  const hoverColor = theme === 'light' ? '#F8FAFC' : '#1C1C22';
   const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
   return (
     <Link
@@ -47,59 +43,52 @@ export function SidebarLink({
             ? t('upgrade.navLocked', { plan: lockedBehind as string })
             : undefined
       }
+      // Hover lives in globals.css so it is gated on a hover-capable pointer;
+      // the old mouseenter handler left a row lit after a tap on a phone.
+      className={active ? undefined : 'ui-row-hover'}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '10px 12px',
-        marginBottom: '5px',
+        gap: '10px',
+        minHeight: 34,
+        padding: '0 10px',
+        marginBottom: '1px',
         borderRadius: '8px',
-        color: active ? colors.text : colors.subText,
-        opacity: locked || soon ? 0.62 : 1,
-        background: active ? activeColor : 'transparent',
+        color: active ? c.text : c.textMuted,
+        opacity: locked || soon ? 0.55 : 1,
+        background: active ? c.primaryBg : 'transparent',
         textDecoration: 'none',
-        fontWeight: active ? 700 : 500,
-        fontSize: '0.9rem',
-        transition: 'all 0.2s ease',
+        fontWeight: active ? 550 : 450,
+        fontSize: '0.875rem',
+        letterSpacing: '-0.005em',
+        transition: 'background-color 120ms ease-out, color 120ms ease-out',
         cursor: 'pointer',
-        borderLeft: active ? `3px solid ${colors.primary}` : '3px solid transparent',
+        ['--ui-row-hover' as string]: c.surfaceHover,
       }}
-      onMouseEnter={(e) => !active && (e.currentTarget.style.background = hoverColor)}
-      onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
       aria-current={active ? 'page' : undefined}
     >
       <span
         style={{
-          opacity: active ? 1 : 0.65,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: active ? colors.primary : colors.subText,
-          transition: 'color 0.3s ease',
+          color: active ? c.text : c.textSubtle,
         }}
       >
         <NavIcon name={item.icon} />
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>{t(item.labelKey)}</span>
-      {/* The same outline chip a plan lock uses, in the amber that means "not
-          built" rather than "not on your plan" — the hue carries the
-          difference, the shape carries the fact that neither row is usable
-          yet. It is deliberately not the filled `ComingSoon` pill: that badge
-          is built to catch the eye once on a landing page, and six filled
-          amber blocks in a fifteen-row sidebar out-shouted both the active row
-          and the work the photographer actually came here to do. */}
+      {/* "Not built" and "not on your plan" are both quiet text, not chips: a
+          sidebar of six outlined pills out-shouted the active row and the
+          work the photographer came here to do. The dimmed row already says
+          "unavailable"; the word only says why. */}
       {soon && (
         <span
           aria-label={t('common.comingSoon')}
           style={{
-            padding: '1px 7px',
-            borderRadius: '999px',
-            border: `1px solid ${c.warningBorder}`,
-            color: c.warningText,
-            fontSize: '0.6rem',
-            fontWeight: 800,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
+            color: c.textSubtle,
+            fontSize: '0.6875rem',
+            fontWeight: 500,
             whiteSpace: 'nowrap',
           }}
         >
@@ -110,13 +99,14 @@ export function SidebarLink({
         <span
           aria-label={t('upgrade.navLocked', { plan: lockedBehind as string })}
           style={{
-            padding: '1px 7px',
-            borderRadius: '999px',
-            border: `1px solid ${colors.subText}`,
-            color: colors.subText,
-            fontSize: '0.6rem',
-            fontWeight: 800,
-            letterSpacing: '0.06em',
+            padding: '0 6px',
+            borderRadius: '4px',
+            border: `1px solid ${c.border}`,
+            color: c.textMuted,
+            fontSize: '0.625rem',
+            fontWeight: 600,
+            letterSpacing: '0.02em',
+            lineHeight: '16px',
           }}
         >
           {lockedBehind}
@@ -125,19 +115,19 @@ export function SidebarLink({
       {showBadge && (
         <span
           aria-label={t('nav.aria.badgeUnread', { count: badgeCount })}
+          data-numeric
           style={{
-            minWidth: '20px',
+            minWidth: '18px',
             height: '18px',
-            padding: '0 6px',
+            padding: '0 5px',
             borderRadius: '999px',
-            background: colors.primary,
-            color: '#fff',
-            fontSize: '0.65rem',
-            fontWeight: 700,
+            background: c.primarySolid,
+            color: c.onPrimary,
+            fontSize: '0.6875rem',
+            fontWeight: 600,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            letterSpacing: '0.02em',
           }}
         >
           {badgeCount > 99 ? '99+' : badgeCount}
@@ -148,7 +138,7 @@ export function SidebarLink({
 }
 
 /**
- * Uppercase section header for sidebar groups (Content / Analytics). Skipped
+ * Section header for sidebar groups (Content / Analytics). Skipped
  * when the group has no title — the first group is the untitled "primary
  * pages" cluster which renders without a header for visual lightness.
  */
@@ -162,12 +152,10 @@ export function SidebarSectionHeader({
   return (
     <div
       style={{
-        padding: '16px 12px 7px',
-        fontSize: '0.65rem',
-        fontWeight: 700,
+        padding: '18px 10px 6px',
+        fontSize: '0.75rem',
+        fontWeight: 500,
         color: colors.subText,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
       }}
     >
       {title}

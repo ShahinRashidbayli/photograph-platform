@@ -47,16 +47,14 @@ export function LanguageToggle({ variant = 'pill', style }: Readonly<LanguageTog
       onClick={toggleLang}
       aria-label={title}
       title={title}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = c.surfaceHover;
-        if (isPill) e.currentTarget.style.borderColor = c.primaryBorder;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        if (isPill) e.currentTarget.style.borderColor = c.border;
-      }}
+      // Hover from the stylesheet, fed this theme's colours as variables — as
+      // ThemeToggle does. Written inline on mouseenter, it painted the light
+      // theme's hover square on bars that are dark in both themes.
+      className={`ui-press ui-btn-ghost${isPill ? ' ui-toggle-pill' : ''}`}
       style={{
         ...shell,
+        ['--ui-btn-hover' as string]: c.surfaceHover,
+        ['--ui-toggle-hover-border' as string]: c.primaryBorder,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -66,7 +64,6 @@ export function LanguageToggle({ variant = 'pill', style }: Readonly<LanguageTog
         fontSize: isPill ? '0.82rem' : '0.8rem',
         fontWeight: 700,
         letterSpacing: '0.03em',
-        transition: 'background 0.18s ease, border-color 0.18s ease',
         ...style,
       }}
     >

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useIsPhotographer } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import { getColors } from '@/lib/design-tokens';
+import { getColors, pageTitle } from '@/lib/design-tokens';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { isAtLeast } from '@/lib/plan-gate';
@@ -49,13 +49,11 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         padding: '28px 28px 40px',
         maxWidth: '860px',
         margin: '0 auto',
-        fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         color: c.text,
       }}
     >
-      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: c.text, marginBottom: '6px' }}>
-        {t('settings.title')}
-      </h1>
+      <h1 style={{ ...pageTitle, color: c.text }}>{t('settings.title')}</h1>
       <p style={{ fontSize: '0.95rem', color: c.textMuted, marginBottom: '22px' }}>
         {isPhotographer ? t('settings.subtitle.photographer') : t('settings.subtitle.client')}
       </p>
@@ -112,7 +110,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                       borderRadius: '999px',
                       border: `1px solid ${c.textMuted}`,
                       fontSize: '0.58rem',
-                      fontWeight: 800,
+                      fontWeight: 600,
                       letterSpacing: '0.06em',
                     }}
                   >

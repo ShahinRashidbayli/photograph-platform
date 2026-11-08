@@ -8,6 +8,7 @@ import com.photographplatform.api.auth.repository.LoginCodeRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.auth.service.CustomerAuthService;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.auth.service.AvatarUrlResolver;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -68,6 +69,7 @@ class CustomerLoginCodeServiceTest {
     @Mock private RateLimiter rateLimiter;
     @Mock private AuditService auditService;
     @Mock private AvatarUrlResolver avatarUrlResolver;
+    @Mock private BookingQueryService bookingQueryService;
 
     private CustomerAuthService service;
     private Tenant tenant;
@@ -78,7 +80,7 @@ class CustomerLoginCodeServiceTest {
         service = new CustomerAuthService(
             tenantRepository, userRepository, tokenRepository, refreshTokenRepository,
             jwtService, emailService, rateLimiter, Clock.systemUTC(), auditService,
-            avatarUrlResolver, 3_600_000L);
+            avatarUrlResolver, bookingQueryService, 3_600_000L);
 
         tenant = new Tenant(SUBDOMAIN, "anna@studio.de");
         setId(tenant, TENANT_ID);

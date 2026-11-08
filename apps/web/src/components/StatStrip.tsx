@@ -57,15 +57,13 @@ export function getStatStripStyles(
       gap: space.xxs,
       minWidth: 0,
     },
-    // The eyebrow stays small and quiet on purpose: it names the number, it
+    // The label stays small and quiet on purpose: it names the number, it
     // isn't the thing being read. Bumping it to 700 made it compete with the
     // value it labels, which is what flattened the strip.
     label: {
-      fontSize: fontSize.xs,
+      fontSize: fontSize.base,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-      fontWeight: 600,
+      fontWeight: 450,
     },
     valueRow: {
       display: 'flex',
@@ -77,7 +75,8 @@ export function getStatStripStyles(
     // at a glance, so it needs a clear step above the card titles below it.
     value: {
       fontSize: inline ? fontSize.lg : fontSize.xl,
-      fontWeight: 800,
+      fontWeight: 550,
+      fontVariantNumeric: 'tabular-nums',
       color: c.text,
       letterSpacing: '-0.02em',
       lineHeight: leading.tight,
@@ -177,7 +176,7 @@ export function StatStrip({
                 marginTop: '5px',
                 height: 4,
                 borderRadius: 999,
-                background: c.isDark ? 'rgba(148,163,184,0.15)' : '#E5E7EB',
+                background: c.surfaceActive,
                 overflow: 'hidden',
               }}
               role="progressbar"

@@ -35,7 +35,6 @@ export const chrome = {
   'nav.documents': 'Documents',
   'nav.reports': 'Reports',
   'nav.revenue': 'Revenue',
-  'nav.myBookings': 'My Bookings',
   'nav.payments': 'Payments',
   'nav.aria.main': 'Main navigation',
   'nav.aria.badgeUnread': '{count} unread',

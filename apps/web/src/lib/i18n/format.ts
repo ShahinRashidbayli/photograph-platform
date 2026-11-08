@@ -20,6 +20,9 @@ type DateStyle = Intl.DateTimeFormatOptions;
 
 const DATE_STYLES = {
   monthAbbr: { month: 'short' },
+  weekdayShort: { weekday: 'short' },
+  time: { hour: '2-digit', minute: '2-digit' },
+  weekdayDayMonth: { weekday: 'short', day: 'numeric', month: 'short' },
   dayMonth: { day: 'numeric', month: 'short' },
   monthDay: { month: 'short', day: 'numeric' },
   monthYear: { month: 'short', year: 'numeric' },

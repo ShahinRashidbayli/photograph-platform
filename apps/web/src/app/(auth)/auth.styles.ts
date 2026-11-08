@@ -21,11 +21,11 @@ export const getAuthStyles = (theme: Theme) => {
       marginBottom: '28px',
     },
     title: {
-      // Editorial serif display face, shared with the landing page headings so
-      // the marketing site and the auth screens read as one brand.
-      fontFamily: fonts.serif,
-      fontSize: '2rem',
-      fontWeight: 500,
+      // The UI face, like every page title and the landing headlines, so the
+      // marketing site, sign-in and the app read as one product.
+      fontFamily: fonts.sans,
+      fontSize: '1.875rem',
+      fontWeight: 600,
       color: c.text,
       margin: '0 0 8px 0',
       lineHeight: 1.15,
@@ -68,7 +68,7 @@ export const getAuthStyles = (theme: Theme) => {
     inputFocus: {
       border: `1px solid ${c.primary}`,
       outline: 'none',
-      boxShadow: `0 0 0 3px ${isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.14)'}`,
+      boxShadow: `0 0 0 3px ${isDark ? 'rgba(245, 245, 244, 0.16)' : 'rgba(28, 25, 23, 0.12)'}`,
     },
     helperText: {
       fontSize: fontSize.sm,
@@ -89,13 +89,13 @@ export const getAuthStyles = (theme: Theme) => {
     },
     buttonPrimary: {
       background: c.primarySolid,
-      color: '#FFFFFF',
-      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.30)',
+      color: c.onPrimary,
+      boxShadow: 'none',
     },
     buttonPrimaryHover: {
       background: c.primarySolidHover,
       transform: 'translateY(-1px)',
-      boxShadow: '0 6px 16px rgba(99, 102, 241, 0.38)',
+      boxShadow: 'none',
     },
     buttonSecondary: {
       background: 'transparent',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { getColors, type Theme, pageTitle } from '@/lib/design-tokens';
 
 export const getGalleriesColors = getColors;
 
@@ -17,7 +17,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       width: '100%',
       background: c.bg,
       color: c.text,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
     pageHeader: {
       display: 'flex',
@@ -35,12 +35,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       gap: '12px',
       flexWrap: 'wrap',
     },
-    pageTitle: {
-      fontSize: '22px',
-      fontWeight: 800,
-      marginBottom: '4px',
-      color: c.text,
-    },
+    pageTitle: { ...pageTitle, color: c.text },
     pageSubtitle: {
       fontSize: '13px',
       maxWidth: '560px',
@@ -86,7 +81,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     },
     listTitle: {
       fontSize: '17px',
-      fontWeight: 700,
+      fontWeight: 600,
       marginBottom: 0,
       letterSpacing: '-0.01em',
       lineHeight: '1.2',
@@ -117,7 +112,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       border: `1px solid ${c.border}`,
       borderRadius: '10px',
       fontSize: '13.5px',
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',
@@ -157,7 +152,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       background: c.surface,
       border: `1px solid ${c.border}`,
       color: c.text,
-      fontWeight: 700,
+      fontWeight: 600,
       boxShadow: c.overlayShadow,
     },
 
@@ -182,7 +177,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       borderTop: `1px solid ${c.border}`,
       borderBottom: `1px solid ${c.border}`,
       fontSize: '12px',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.textSubtle,
     },
     groupHeaderWarning: {
@@ -243,7 +238,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     },
     rowTitle: {
       fontSize: '14px',
-      fontWeight: 700,
+      fontWeight: 600,
       letterSpacing: '-0.01em',
       color: c.text,
       overflow: 'hidden',
@@ -293,7 +288,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       background: 'transparent',
       color: c.primaryText,
       fontSize: '13px',
-      fontWeight: 700,
+      fontWeight: 600,
       fontFamily: 'inherit',
       cursor: 'pointer',
     },
@@ -319,7 +314,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     },
     detailTitle: {
       fontSize: '18px',
-      fontWeight: 700,
+      fontWeight: 600,
       marginBottom: '2px',
       letterSpacing: '-0.01em',
       color: c.text,
@@ -355,9 +350,9 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     },
     actionButtonPrimary: {
       background: c.primary,
-      color: '#fff',
+      color: c.onPrimary,
       border: `1px solid ${c.primary}`,
-      fontWeight: 700,
+      fontWeight: 600,
     },
     // ── Detail header identity ────────────────────────────────────────────
     detailAvatar: {
@@ -368,7 +363,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '15px',
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
     },
     detailTitleRow: {
@@ -398,7 +393,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     },
     metricValue: {
       fontSize: '24px',
-      fontWeight: 800,
+      fontWeight: 600,
       letterSpacing: '-0.02em',
       lineHeight: 1.1,
       color: c.text,
@@ -526,7 +521,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     // like fine print above the thing that matters.
     sectionTitle: {
       fontSize: '15px',
-      fontWeight: 700,
+      fontWeight: 600,
       letterSpacing: '-0.01em',
       marginBottom: '10px',
       color: c.text,
@@ -534,7 +529,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
 
     expiryBadge: {
       fontSize: '11px',
-      fontWeight: 700,
+      fontWeight: 600,
       padding: '6px 12px',
       borderRadius: '8px',
       display: 'inline-flex',
@@ -588,7 +583,7 @@ export const getGalleriesStyles = (theme: Theme): Record<string, React.CSSProper
     retryButton: {
       padding: '9px 20px',
       background: c.primary,
-      color: '#fff',
+      color: c.onPrimary,
       border: 'none',
       borderRadius: '10px',
       fontSize: '0.875rem',

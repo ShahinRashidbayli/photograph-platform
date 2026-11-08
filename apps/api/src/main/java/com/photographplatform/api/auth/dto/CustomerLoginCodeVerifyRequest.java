@@ -19,7 +19,9 @@ import jakarta.validation.constraints.Size;
  */
 public record CustomerLoginCodeVerifyRequest(
     @NotBlank @Email @Size(max = 320) String email,
-    @NotBlank @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
+    // Optional: without it the studio is found from the address (sign-in by
+    // email). Null passes @Pattern; a value must still be a well-formed label.
+    @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
         message = "subdomain must be 3-63 chars, start and end with alphanumeric, hyphens allowed in between")
     String subdomain,
     @NotBlank @Pattern(regexp = "^\\d{6}$", message = "code must be 6 digits")

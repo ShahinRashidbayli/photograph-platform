@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
+import { CustomerGalleries } from './CustomerGalleries';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
@@ -910,7 +911,7 @@ function CreateGalleryModal({
   return (
     <div style={overlay} onClick={onClose}>
       <div style={card} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 4 }}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: 4 }}>
           {t('galleries.create.title')}
         </h2>
         <p style={{ fontSize: '0.85rem', color: colors.textMuted, marginBottom: 18 }}>
@@ -931,9 +932,7 @@ function CreateGalleryModal({
             <label
               style={{
                 fontSize: '0.78rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
+                fontWeight: 550,
                 color: colors.textMuted,
               }}
             >
@@ -992,7 +991,7 @@ function CreateGalleryModal({
               borderRadius: 10,
               border: 'none',
               background: colors.primarySolid,
-              color: '#fff',
+              color: colors.onPrimary,
               fontWeight: 600,
               cursor: !bookingId || submitting ? 'default' : 'pointer',
               opacity: !bookingId || submitting ? 0.6 : 1,
@@ -1185,64 +1184,10 @@ export default function GalleriesPage() {
     [galleries]
   );
 
-  // Client view: no tenant-wide gallery list for them (and no customer gallery
-  // API yet), so present a calm empty state instead of a retry-loop error.
+  // The client's own galleries come from their own endpoint — the list above
+  // is the studio's and is never fetched for them.
   if (!isPhotographer) {
-    return (
-      <div style={styles.pageWrapper}>
-        <header style={styles.pageHeader}>
-          <div>
-            <h1 style={styles.pageTitle}>{t('galleries.title')}</h1>
-            <p style={styles.pageSubtitle}>{t('galleries.subtitleClient')}</p>
-          </div>
-        </header>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            padding: '64px 24px',
-            gap: '14px',
-            color: colors.textMuted,
-          }}
-        >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: '14px',
-              background: colors.surfaceAlt,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="4" width="18" height="15" rx="2" />
-              <circle cx="8.5" cy="9.5" r="1.5" />
-              <path d="M21 16l-5-5-6 6-3-3-4 4" />
-            </svg>
-          </div>
-          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: colors.text }}>
-            No galleries yet
-          </div>
-          <div style={{ fontSize: '0.9rem', maxWidth: 360 }}>
-            Your photos will appear here once your photographer delivers them.
-          </div>
-        </div>
-      </div>
-    );
+    return <CustomerGalleries />;
   }
 
   if (loading) {
@@ -1292,7 +1237,7 @@ export default function GalleriesPage() {
     return (
       <div style={styles.pageWrapper}>
         <div style={styles.errorPanel}>
-          <div style={{ fontWeight: 700, fontSize: '1rem' }}>{t('galleries.loadError')}</div>
+          <div style={{ fontWeight: 600, fontSize: '1rem' }}>{t('galleries.loadError')}</div>
           <div style={styles.errorText}>{t('galleries.loadErrorBody')}</div>
           <button style={styles.retryButton} onClick={() => galleriesQuery.refetch()}>
             Try again

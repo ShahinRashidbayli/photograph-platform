@@ -1,5 +1,5 @@
 import React from 'react';
-import { getColors, type Theme } from '@/lib/design-tokens';
+import { getColors, type Theme, pageTitle } from '@/lib/design-tokens';
 
 export type ClientsTheme = Theme;
 
@@ -21,7 +21,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       margin: '0 auto',
       background: c.bg,
       color: c.text,
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
 
     pageHeader: {
@@ -31,14 +31,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       gap: '20px',
       flexWrap: 'wrap',
     },
-    pageTitle: {
-      fontSize: '1.875rem',
-      fontWeight: 800,
-      color: c.text,
-      letterSpacing: '-0.025em',
-      lineHeight: 1.15,
-      marginBottom: '6px',
-    },
+    pageTitle: { ...pageTitle, color: c.text },
     pageSubtitle: {
       fontSize: '0.9rem',
       color: c.textMuted,
@@ -79,7 +72,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     },
     listTitle: {
       fontSize: '1rem',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.01em',
     },
@@ -106,7 +99,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       border: `1px solid ${c.border}`,
       borderRadius: '10px',
       fontSize: '0.875rem',
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       outline: 'none',
@@ -134,7 +127,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     },
     filterTabActive: {
       background: c.primary,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       border: `1px solid ${c.primary}`,
     },
 
@@ -175,7 +168,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '0.85rem',
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
       letterSpacing: '0.02em',
     },
@@ -187,7 +180,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     },
     listItemName: {
       fontSize: '0.9rem',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
       lineHeight: 1.3,
       whiteSpace: 'nowrap',
@@ -263,7 +256,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '1rem',
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
       letterSpacing: '0.02em',
     },
@@ -281,7 +274,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     },
     detailTitle: {
       fontSize: '1.2rem',
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.015em',
     },
@@ -320,15 +313,13 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       gap: '10px',
     },
     statBoxLabel: {
-      fontSize: '0.68rem',
-      fontWeight: 700,
+      fontSize: '0.75rem',
+      fontWeight: 550,
       color: c.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
     },
     statBoxValue: {
       fontSize: '1.4rem',
-      fontWeight: 800,
+      fontWeight: 600,
       color: c.text,
       letterSpacing: '-0.02em',
       lineHeight: 1.1,
@@ -340,11 +331,9 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       gap: '12px',
     },
     sectionTitle: {
-      fontSize: '0.7rem',
-      fontWeight: 700,
+      fontSize: '0.75rem',
+      fontWeight: 550,
       color: c.textMuted,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
     },
     sectionCard: {
       padding: '16px 18px',
@@ -368,11 +357,9 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       minWidth: 0,
     },
     infoLabel: {
-      fontSize: '0.7rem',
-      fontWeight: 700,
+      fontSize: '0.75rem',
+      fontWeight: 550,
       color: c.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
     },
     infoValue: {
       fontSize: '0.9rem',
@@ -388,7 +375,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       border: `1px solid ${c.border}`,
       borderRadius: '12px',
       fontSize: '0.875rem',
-      fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontFamily: "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       color: c.text,
       backgroundColor: c.surfaceAlt,
       minHeight: '110px',
@@ -415,7 +402,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       padding: '4px 10px',
       borderRadius: '999px',
       fontSize: '0.7rem',
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
@@ -433,7 +420,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       padding: '3px 8px',
       borderRadius: '999px',
       fontSize: '0.65rem',
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap',
       letterSpacing: '0.02em',
       display: 'inline-flex',
@@ -464,11 +451,11 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
-      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
+      boxShadow: 'none',
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
@@ -480,11 +467,11 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       fontWeight: 600,
       border: '1px solid transparent',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       whiteSpace: 'nowrap',
-      boxShadow: c.isDark ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.28)',
+      boxShadow: 'none',
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
@@ -540,7 +527,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     },
     errorPanelTitle: {
       fontSize: '1rem',
-      fontWeight: 700,
+      fontWeight: 600,
       color: c.text,
     },
     errorPanelText: {
@@ -552,7 +539,7 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
     retryButton: {
       padding: '9px 20px',
       background: c.primarySolid,
-      color: '#FFFFFF',
+      color: c.onPrimary,
       border: 'none',
       borderRadius: '10px',
       fontSize: '0.875rem',

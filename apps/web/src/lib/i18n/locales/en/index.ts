@@ -8,7 +8,6 @@ import { leads } from './leads';
 import { clients } from './clients';
 import { inquiries } from './inquiries';
 import { invoices } from './invoices';
-import { payments } from './payments';
 import { galleries } from './galleries';
 import { portfolio } from './portfolio';
 import { settings } from './settings';
@@ -17,6 +16,7 @@ import { analytics } from './analytics';
 import { contracts } from './contracts';
 import { roadmap } from './roadmap';
 import { privacy } from './privacy';
+import { portal } from './portal';
 
 /**
  * The English dictionary, assembled from one file per surface. Keys stay flat
@@ -34,7 +34,6 @@ export const en = {
   ...clients,
   ...inquiries,
   ...invoices,
-  ...payments,
   ...galleries,
   ...portfolio,
   ...settings,
@@ -43,4 +42,5 @@ export const en = {
   ...contracts,
   ...roadmap,
   ...privacy,
+  ...portal,
 };

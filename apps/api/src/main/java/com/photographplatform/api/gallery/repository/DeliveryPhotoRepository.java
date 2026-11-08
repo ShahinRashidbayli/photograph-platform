@@ -15,6 +15,8 @@ public interface DeliveryPhotoRepository extends JpaRepository<DeliveryPhoto, UU
 
     List<DeliveryPhoto> findByGalleryIdOrderBySortOrderAsc(UUID galleryId, Limit limit);
 
+    long countByGalleryId(UUID galleryId);
+
     /**
      * Photos in a gallery that have no watermarked derivative yet — the work
      * list for a backfill after watermarking is switched on. Backed by the

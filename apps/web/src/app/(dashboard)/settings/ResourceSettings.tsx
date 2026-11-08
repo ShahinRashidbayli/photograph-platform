@@ -106,8 +106,6 @@ export function ResourceSettings() {
                   style={{
                     fontSize: '0.78rem',
                     fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
                     color: c.textSubtle,
                     marginBottom: 8,
                   }}

@@ -54,6 +54,10 @@ public class CustomerAuthController {
         @Valid @RequestBody CustomerMagicLinkRequest request,
         HttpServletRequest httpRequest
     ) {
+        if (request.subdomain() == null || request.subdomain().isBlank()) {
+            service.requestLoginCodeByEmail(request.email(), request.fullName(), ClientIp.from(httpRequest));
+            return;
+        }
         service.requestLoginCode(
             request.subdomain(),
             request.email(),
@@ -72,8 +76,10 @@ public class CustomerAuthController {
         HttpServletRequest httpRequest,
         HttpServletResponse response
     ) {
-        AuthResult result = service.verifyLoginCode(
-            request.subdomain(), request.email(), request.code(), ClientIp.from(httpRequest));
+        AuthResult result = request.subdomain() == null || request.subdomain().isBlank()
+            ? service.verifyLoginCodeByEmail(request.email(), request.code(), ClientIp.from(httpRequest))
+            : service.verifyLoginCode(
+                request.subdomain(), request.email(), request.code(), ClientIp.from(httpRequest));
         cookies.setAuthCookies(response, result.accessToken(), result.refreshToken());
         return result.response();
     }

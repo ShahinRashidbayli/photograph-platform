@@ -1,15 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useCreateInquiryRequest } from '@/hooks/useInquiryRequests';
 import { extractApiError, todayIso } from '@/lib/helpers';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useThemeStore } from '@/store/themeStore';
 import { DateField } from '@/components/DateField';
-import { getBookingsColors } from './bookings.styles';
+import { Button } from '@/components/ui';
+import { fontSize, radius } from '@/lib/design-tokens';
+import { getBookingsColors, getBookingsStyles } from './bookings.styles';
+import { BUDGET_RANGES } from './customer.portal';
 
 type RequestSessionModalProps = {
-  styles: Record<string, React.CSSProperties>;
-  colors: ReturnType<typeof getBookingsColors>;
+  /** Where the photographer's answer goes — said in the footer so nobody wonders. */
+  email: string | null;
   onClose: () => void;
 };
 
@@ -24,13 +28,6 @@ const EVENT_TYPES: ReadonlyArray<{ value: string; labelKey: TranslationKey }> = 
   { value: 'ANDERES', labelKey: 'requestSession.type.ANDERES' },
 ];
 
-const BUDGET_RANGES: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'UNDER_500', label: '€200–500' },
-  { value: '500_1000', label: '€500–1000' },
-  { value: '1000_2000', label: '€1000–2000' },
-  { value: 'OVER_2000', label: '€2000+' },
-];
-
 const EMPTY_FORM = {
   eventType: '',
   budgetRange: '',
@@ -42,8 +39,32 @@ const EMPTY_FORM = {
   website: '',
 };
 
-export function RequestSessionModal({ styles, colors, onClose }: RequestSessionModalProps) {
+/**
+ * A bordered pill: an unselected choice in a form still has to look clickable,
+ * which the list filters' borderless chips do not.
+ */
+function chip(colors: ReturnType<typeof getBookingsColors>, active: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: 36,
+    padding: '0 14px',
+    borderRadius: radius.pill,
+    border: `1px solid ${active ? colors.primarySolid : colors.border}`,
+    background: active ? colors.primarySolid : colors.surface,
+    color: active ? colors.onPrimary : colors.text,
+    fontFamily: 'inherit',
+    fontSize: fontSize.md,
+    cursor: 'pointer',
+    ['--ui-btn-hover' as string]: colors.surfaceHover,
+  };
+}
+
+export function RequestSessionModal({ email, onClose }: RequestSessionModalProps) {
   const { t } = useTranslation();
+  const { theme } = useThemeStore();
+  const styles = useMemo(() => getBookingsStyles(theme), [theme]);
+  const colors = useMemo(() => getBookingsColors(theme), [theme]);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -160,7 +181,7 @@ export function RequestSessionModal({ styles, colors, onClose }: RequestSessionM
               ✓
             </div>
             <div
-              style={{ fontWeight: 700, fontSize: '1.05rem', color: colors.text, marginBottom: 6 }}
+              style={{ fontWeight: 600, fontSize: '1.05rem', color: colors.text, marginBottom: 6 }}
             >
               {t('requestSession.sentTitle')}
             </div>
@@ -168,9 +189,9 @@ export function RequestSessionModal({ styles, colors, onClose }: RequestSessionM
               {t('requestSession.sentBody')}
             </p>
             <div style={{ marginTop: 24 }}>
-              <button type="button" style={styles.primaryButton} onClick={onClose}>
+              <Button variant="primary" onClick={onClose}>
                 {t('requestSession.done')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -182,47 +203,49 @@ export function RequestSessionModal({ styles, colors, onClose }: RequestSessionM
                 </div>
               )}
 
-              {/* Session type */}
-              <div style={styles.formField}>
-                <label style={styles.formLabel} htmlFor="rq-eventType">
+              {/* Occasion — one tap each, like the budget below. */}
+              <fieldset style={{ ...styles.formField, border: 0, margin: 0, padding: 0 }}>
+                <legend style={{ ...styles.formLabel, padding: 0 }}>
                   {t('requestSession.sessionType')}
-                </label>
-                <select
-                  id="rq-eventType"
-                  value={form.eventType}
-                  onChange={(e) => update('eventType', e.target.value)}
-                  style={inputStyle('eventType')}
-                >
-                  <option value="">{t('requestSession.choose')}</option>
-                  {EVENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {t(type.labelKey)}
-                    </option>
-                  ))}
-                </select>
+                </legend>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {EVENT_TYPES.map((type) => {
+                    const active = form.eventType === type.value;
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        className={active ? undefined : 'ui-press ui-btn-secondary'}
+                        onClick={() => update('eventType', type.value)}
+                        aria-pressed={active}
+                        style={chip(colors, active)}
+                      >
+                        {t(type.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
                 {fieldErrors.eventType && (
                   <span style={styles.fieldError}>{fieldErrors.eventType}</span>
                 )}
-              </div>
+              </fieldset>
 
-              {/* Budget range — chip selection */}
-              <div style={styles.formField}>
-                <label style={styles.formLabel}>{t('requestSession.budget')}</label>
+              {/* Budget range */}
+              <fieldset style={{ ...styles.formField, border: 0, margin: 0, padding: 0 }}>
+                <legend style={{ ...styles.formLabel, padding: 0 }}>
+                  {t('requestSession.budget')}
+                </legend>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {BUDGET_RANGES.map((b) => {
                     const active = form.budgetRange === b.value;
-                    // Shared chip styling, so a selected budget reads exactly
-                    // like any other selected pill in the product.
                     return (
                       <button
                         key={b.value}
                         type="button"
+                        className={active ? undefined : 'ui-press ui-btn-secondary'}
                         onClick={() => update('budgetRange', b.value)}
                         aria-pressed={active}
-                        style={{
-                          ...styles.chip,
-                          ...(active ? styles.chipActive : {}),
-                        }}
+                        style={chip(colors, active)}
                       >
                         {b.label}
                       </button>
@@ -232,7 +255,7 @@ export function RequestSessionModal({ styles, colors, onClose }: RequestSessionM
                 {fieldErrors.budgetRange && (
                   <span style={styles.fieldError}>{fieldErrors.budgetRange}</span>
                 )}
-              </div>
+              </fieldset>
 
               <div className="bk-form-row" style={styles.formRow}>
                 <div style={styles.formField}>
@@ -294,26 +317,25 @@ export function RequestSessionModal({ styles, colors, onClose }: RequestSessionM
               />
             </div>
 
-            <div style={styles.modalFooter}>
-              <button
-                type="button"
-                style={styles.secondaryButton}
-                onClick={onClose}
-                disabled={submitting}
-              >
+            <div style={{ ...styles.modalFooter, alignItems: 'center', flexWrap: 'wrap' }}>
+              {email && (
+                <span
+                  style={{ flex: '1 1 200px', fontSize: fontSize.base, color: colors.textSubtle }}
+                >
+                  {t('requestSession.reply', { email })}
+                </span>
+              )}
+              <Button onClick={onClose} disabled={submitting}>
                 {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                style={{
-                  ...styles.primaryButton,
-                  ...(submitting ? { opacity: 0.6, cursor: 'wait' } : {}),
-                }}
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleSubmit}
-                disabled={submitting}
+                busy={submitting}
+                busyLabel={t('requestSession.submitting')}
               >
-                {submitting ? t('requestSession.submitting') : t('requestSession.submit')}
-              </button>
+                {t('requestSession.submit')}
+              </Button>
             </div>
           </>
         )}

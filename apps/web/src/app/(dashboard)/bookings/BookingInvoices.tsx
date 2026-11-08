@@ -2,24 +2,38 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { getColors, type Theme } from '@/lib/design-tokens';
-import { formatEURExact, formatMonthDayYear, eurosToCents, extractApiError } from '@/lib/helpers';
+import { eurosToCents, extractApiError } from '@/lib/helpers';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Alert, Button, Modal, ModalHeader, Note } from '@/components/ui';
+import { Alert, Button, Modal, ModalHeader } from '@/components/ui';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
-  useBookingInvoices,
   useBillingProfile,
+  useBookingInvoices,
   useIssueInvoice,
-  useStornoInvoice,
   useRecordManualPayment,
+  useStornoInvoice,
   type CreateInvoiceLineItemInput,
 } from '@/hooks/useInvoices';
 import { calculateTotals, netFromGross, taxRateFor } from '@/lib/invoice-totals';
 import type { Booking, Invoice, TaxCategory } from '@/types/api';
+import { BookingActionMenu } from './BookingActionMenu';
+import { dot, getDetailStyles, pill } from './bookingDetail.styles';
+import { getBookingsStyles } from './bookings.styles';
 
 type Colors = ReturnType<typeof getColors>;
 
 /**
- * The photographer's invoicing surface for one booking.
+ * An invoice the client can still pay something on. A Storno is a credit note
+ * and a cancelled invoice is legally withdrawn — neither is collectable.
+ */
+export function isCollectable(invoice: Invoice): boolean {
+  return (
+    invoice.stornoOfId === null && invoice.status !== 'STORNIERT' && invoice.outstandingCents > 0
+  );
+}
+
+/**
+ * The invoices issued for one booking, as rows under the payment summary.
  *
  * <p>Everything here is irreversible by design, and the UI says so rather than
  * softening it: issuing consumes a gap-free sequence number and writes a row
@@ -28,81 +42,49 @@ type Colors = ReturnType<typeof getColors>;
  * document. That is also why the totals shown are read back from the server
  * after issuing instead of being predicted here: the tax split is computed
  * server-side from the tenant's Kleinunternehmer/Regelbesteuerung setting.
+ *
+ * <p>Issuing is started from the payment section's header (and from the
+ * detail's lead action), which is why this renders only the rows.
  */
 export function BookingInvoices({ booking, theme }: { booking: Booking; theme: Theme }) {
   const c = useMemo(() => getColors(theme), [theme]);
-  const { data: invoices, isLoading, isError } = useBookingInvoices(booking.id);
-  const [showCreate, setShowCreate] = useState(false);
+  const s = useMemo(() => getDetailStyles(c), [c]);
+  const { t } = useTranslation();
+  const { data: invoices, isLoading, isError, refetch } = useBookingInvoices(booking.id);
 
-  const hasInvoices = (invoices?.length ?? 0) > 0;
+  if (isLoading) return <p style={{ ...s.body, marginTop: 20 }}>{t('invoices.loading')}</p>;
+
+  // A quiet row with a way forward, not a bare sentence: the payment figures
+  // above still come from the booking, so the section is not empty — only the
+  // document list could not be read.
+  if (isError) {
+    return (
+      <div style={s.quietError} role="status">
+        <span>{t('invoices.manage.loadError')}</span>
+        <Button variant="secondary" size="sm" onClick={() => refetch()}>
+          {t('invoices.manage.retry')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (!invoices || invoices.length === 0) {
+    return <p style={s.emptyNote}>{t('invoices.manage.empty')}</p>;
+  }
 
   return (
-    <section style={{ borderTop: `1px solid ${c.divider}`, paddingTop: '18px', marginTop: '18px' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <div
-          style={{
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-            color: c.textMuted,
-          }}
-        >
-          Invoices
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '9px',
-            border: `1px solid ${c.border}`,
-            background: c.surface,
-            color: c.text,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          New invoice
-        </button>
-      </div>
-
-      {isLoading && <Note style={{ marginBottom: 10 }}>Loading invoices…</Note>}
-      {isError && (
-        <Note style={{ marginBottom: 10 }}>Could not load invoices for this booking.</Note>
-      )}
-      {!isLoading && !isError && !hasInvoices && (
-        <Note style={{ marginBottom: 10 }}>
-          Nothing invoiced yet. Issuing an invoice is what starts the payment side — the client can
-          pay it by card, SEPA or bank transfer.
-        </Note>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {(invoices ?? []).map((invoice) => (
-          <InvoiceRow
-            key={invoice.id}
-            invoice={invoice}
-            booking={booking}
-            colors={c}
-            theme={theme}
-          />
-        ))}
-      </div>
-
-      {showCreate && (
-        <CreateInvoiceModal booking={booking} colors={c} onClose={() => setShowCreate(false)} />
-      )}
-    </section>
+    <div style={s.table}>
+      {invoices.map((invoice, i) => (
+        <InvoiceRow
+          key={invoice.id}
+          invoice={invoice}
+          booking={booking}
+          theme={theme}
+          colors={c}
+          first={i === 0}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -111,16 +93,20 @@ export function BookingInvoices({ booking, theme }: { booking: Booking; theme: T
 function InvoiceRow({
   invoice,
   booking,
-  colors: c,
   theme,
+  colors: c,
+  first,
 }: {
   invoice: Invoice;
   booking: Booking;
-  colors: Colors;
   theme: Theme;
+  colors: Colors;
+  first: boolean;
 }) {
+  const { t, format } = useTranslation();
+  const s = useMemo(() => getDetailStyles(c), [c]);
+  const menuStyles = useMemo(() => getBookingsStyles(theme), [theme]);
   const storno = useStornoInvoice(booking.id);
-  const recordPayment = useRecordManualPayment(booking.id);
   const [confirmStorno, setConfirmStorno] = useState(false);
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,141 +117,120 @@ function InvoiceRow({
   // per invoice, and having the figures arrive after the invoice meant every
   // branch here needed a "not loaded yet" case — with "settled" as the value it
   // fell back to, on the screen the photographer chases money from.
-  const outstanding = invoice.outstandingCents;
-  // A Storno is a credit note and a cancelled invoice is legally withdrawn —
-  // neither is collectable, so no payment affordance on either.
-  const collectable = !isStorno && !isCancelled && outstanding > 0;
-  const settled = outstanding === 0;
+  const collectable = isCollectable(invoice);
+  const settled = invoice.outstandingCents === 0;
 
-  const tone = isCancelled || isStorno ? c.neutral : settled ? c.success : c.warning;
-  const label = isStorno ? 'Storno' : isCancelled ? 'Storniert' : settled ? 'Paid' : 'Open';
+  const [fg, bg, labelKey]: [string, string, TranslationKey] = isStorno
+    ? [c.neutralText, c.neutralBg, 'invoices.manage.status.storno']
+    : isCancelled
+      ? [c.neutralText, c.neutralBg, 'invoices.manage.status.cancelled']
+      : settled
+        ? [c.successText, c.successBg, 'invoices.manage.status.paid']
+        : [c.warningText, c.warningBg, 'invoices.manage.status.open'];
+
+  const menuItems = [
+    ...(collectable
+      ? [
+          {
+            key: 'record',
+            label: t('invoices.manage.recordTransfer'),
+            onSelect: () => setConfirmPayment(true),
+          },
+        ]
+      : []),
+    ...(!isStorno && !isCancelled
+      ? [
+          {
+            key: 'storno',
+            label: t('invoices.manage.storno'),
+            danger: true,
+            onSelect: () => setConfirmStorno(true),
+          },
+        ]
+      : []),
+  ];
 
   return (
-    <div
-      style={{
-        border: `1px solid ${c.border}`,
-        borderLeft: `3px solid ${tone}`,
-        borderRadius: '11px',
-        padding: '12px 14px',
-        background: c.surfaceAlt,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 10,
-          flexWrap: 'wrap',
-        }}
-      >
+    <div style={{ borderTop: first ? undefined : `1px solid ${c.borderSoft}` }}>
+      <div className="bk-inv-row" style={s.invoiceRow}>
         <div style={{ minWidth: 0 }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: c.text }}>
-            {invoice.invoiceNumber}
-          </span>
-          <span style={{ fontSize: '0.78rem', color: c.textMuted, marginLeft: 8 }}>
-            {formatMonthDayYear(invoice.issuedAt)}
-          </span>
+          <div style={s.invoiceNumber}>{invoice.invoiceNumber}</div>
+          <div style={s.invoiceMeta}>
+            {format.monthDayYear(invoice.issuedAt)}
+            {/* "€0.00 of €700.00 paid" and "€450.00 of €450.00 paid" say
+                nothing the badge does not; only a part payment earns a line.
+                The reference is shown when it is not just the number again. */}
+            {!isStorno && !isCancelled && invoice.paidCents > 0 && invoice.outstandingCents > 0 && (
+              <>
+                {' · '}
+                {t('invoices.manage.paidOf', {
+                  paid: format.eurExact(invoice.paidCents),
+                  total: format.eurExact(invoice.totalCents),
+                })}
+              </>
+            )}
+            {!isStorno && !isCancelled && invoice.verwendungszweck !== invoice.invoiceNumber && (
+              <>
+                {' · '}
+                {t('invoices.manage.reference', { reference: invoice.verwendungszweck })}
+              </>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: c.text }}>
-            {formatEURExact(invoice.totalCents)}
-          </span>
-          <span
-            style={{
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-              color: tone,
-            }}
-          >
-            {label}
-          </span>
-        </div>
+        <span style={s.amount}>{format.eurExact(invoice.totalCents)}</span>
+        {/* Its own width, not the grid cell's — on a phone the cell is half the row. */}
+        <span style={{ ...pill(fg, bg), justifySelf: 'start' }}>
+          <span style={dot(fg)} />
+          {t(labelKey)}
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          {invoice.pdfDownloadUrl && (
+            <a
+              href={invoice.pdfDownloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${t('invoices.downloadPdf')} — ${invoice.invoiceNumber}`}
+              className="ui-row-hover"
+              style={{ ...s.iconLink, ['--ui-row-hover' as string]: c.surfaceHover }}
+            >
+              <DownloadIcon />
+            </a>
+          )}
+          {menuItems.length > 0 && (
+            <BookingActionMenu
+              // Named for its invoice: the detail's own "More actions" menu is
+              // on the same screen, and two controls with one name are one
+              // control to a screen reader.
+              label={t('invoices.manage.actionsFor', { number: invoice.invoiceNumber })}
+              styles={menuStyles}
+              colors={c}
+              items={menuItems}
+            />
+          )}
+        </span>
       </div>
-
-      {!isStorno && !isCancelled && (
-        <div style={{ fontSize: '0.78rem', color: c.textMuted, marginTop: 4 }}>
-          {formatEURExact(invoice.paidCents)} collected
-          {outstanding > 0 ? ` · ${formatEURExact(outstanding)} outstanding` : ''}
-          {' · Verwendungszweck: '}
-          <span style={{ fontFamily: 'ui-monospace, monospace' }}>{invoice.verwendungszweck}</span>
-        </div>
-      )}
 
       {error && (
-        <div role="alert" style={{ fontSize: '0.78rem', color: c.dangerText, marginTop: 6 }}>
+        <Alert tone="danger" style={{ margin: '0 16px 12px' }}>
           {error}
-        </div>
+        </Alert>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        {invoice.pdfDownloadUrl && (
-          <a
-            href={invoice.pdfDownloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: '6px 12px',
-              borderRadius: '8px',
-              border: `1px solid ${c.border}`,
-              background: c.surface,
-              color: c.text,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            PDF
-          </a>
-        )}
-        {collectable && (
-          <button type="button" onClick={() => setConfirmPayment(true)} style={smallButton(c)}>
-            Record bank transfer
-          </button>
-        )}
-        {!isStorno && !isCancelled && (
-          <button
-            type="button"
-            onClick={() => setConfirmStorno(true)}
-            style={{ ...smallButton(c), color: c.dangerText, borderColor: c.dangerBorder }}
-          >
-            Storno
-          </button>
-        )}
-      </div>
-
-      <ConfirmDialog
-        open={confirmPayment}
+      <RecordPaymentDialog
+        invoice={invoice}
+        booking={booking}
         theme={theme}
-        tone="primary"
-        title="Record a bank transfer?"
-        message={`Marks ${formatEURExact(outstanding)} as received on invoice ${invoice.invoiceNumber}. Only do this once the money is actually in your account — the client sees it as paid immediately.`}
-        confirmLabel="Mark as received"
-        busy={recordPayment.isPending}
-        onCancel={() => setConfirmPayment(false)}
-        onConfirm={() => {
-          setError(null);
-          recordPayment.mutate(
-            { invoiceId: invoice.id, amountCents: null },
-            {
-              onSuccess: () => setConfirmPayment(false),
-              onError: (err) => {
-                setError(extractApiError(err, 'Could not record the payment.'));
-                setConfirmPayment(false);
-              },
-            }
-          );
-        }}
+        open={confirmPayment}
+        onClose={() => setConfirmPayment(false)}
+        onError={setError}
       />
 
       <ConfirmDialog
         open={confirmStorno}
         theme={theme}
-        title={`Storno invoice ${invoice.invoiceNumber}?`}
-        message="This issues a separate correction invoice that cancels this one out. Neither document can be deleted afterwards — that is what GoBD requires — so both stay in your records and in the DATEV export."
-        confirmLabel="Issue Storno"
+        title={t('invoices.manage.stornoTitle', { number: invoice.invoiceNumber })}
+        message={t('invoices.manage.stornoBody')}
+        confirmLabel={t('invoices.manage.stornoConfirm')}
         busy={storno.isPending}
         onCancel={() => setConfirmStorno(false)}
         onConfirm={() => {
@@ -273,7 +238,7 @@ function InvoiceRow({
           storno.mutate(invoice.id, {
             onSuccess: () => setConfirmStorno(false),
             onError: (err) => {
-              setError(extractApiError(err, 'Could not issue the Storno.'));
+              setError(extractApiError(err, t('invoices.manage.stornoError')));
               setConfirmStorno(false);
             },
           });
@@ -283,17 +248,75 @@ function InvoiceRow({
   );
 }
 
-function smallButton(c: Colors): React.CSSProperties {
-  return {
-    padding: '6px 12px',
-    borderRadius: '8px',
-    border: `1px solid ${c.border}`,
-    background: c.surface,
-    color: c.text,
-    fontSize: '0.78rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-  };
+/**
+ * "This money is in my account" for one invoice. Shared by the invoice row and
+ * the detail's lead action, so both ask the same question with the same
+ * warning. Closes on failure too and hands the error to the caller, which
+ * shows it outside the dialog.
+ */
+export function RecordPaymentDialog({
+  invoice,
+  booking,
+  theme,
+  open,
+  onClose,
+  onError,
+}: {
+  invoice: Invoice;
+  booking: Booking;
+  theme: Theme;
+  open: boolean;
+  onClose: () => void;
+  onError: (_message: string | null) => void;
+}) {
+  const { t, format } = useTranslation();
+  const recordPayment = useRecordManualPayment(booking.id);
+  return (
+    <ConfirmDialog
+      open={open}
+      theme={theme}
+      tone="primary"
+      title={t('invoices.manage.recordTitle')}
+      message={t('invoices.manage.recordBody', {
+        amount: format.eurExact(invoice.outstandingCents),
+        number: invoice.invoiceNumber,
+      })}
+      confirmLabel={t('invoices.manage.recordConfirm')}
+      busy={recordPayment.isPending}
+      onCancel={onClose}
+      onConfirm={() => {
+        onError(null);
+        recordPayment.mutate(
+          { invoiceId: invoice.id, amountCents: null },
+          {
+            onSuccess: onClose,
+            onError: (err) => {
+              onError(extractApiError(err, t('invoices.manage.recordError')));
+              onClose();
+            },
+          }
+        );
+      }}
+    />
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />
+    </svg>
+  );
 }
 
 // ── create ───────────────────────────────────────────────────────────────────
@@ -305,13 +328,17 @@ interface LineDraft {
   taxCategory: TaxCategory;
 }
 
-const TAX_CATEGORY_LABEL: Record<TaxCategory, string> = {
-  STANDARD: '19% USt.',
-  REDUCED: '7% USt.',
-  EXEMPT: '0% / steuerfrei',
+const TAX_LABEL: Record<TaxCategory, TranslationKey> = {
+  STANDARD: 'invoices.create.tax.STANDARD',
+  REDUCED: 'invoices.create.tax.REDUCED',
+  EXEMPT: 'invoices.create.tax.EXEMPT',
 };
 
-function CreateInvoiceModal({
+// Printed on the invoice itself, which goes to a German client whatever
+// language the photographer's screen is in — so it is document text, not UI.
+const DEFAULT_PAYMENT_TERMS = 'Zahlbar innerhalb von 14 Tagen ohne Abzug.';
+
+export function CreateInvoiceModal({
   booking,
   colors: c,
   onClose,
@@ -320,6 +347,7 @@ function CreateInvoiceModal({
   colors: Colors;
   onClose: () => void;
 }) {
+  const { t, format } = useTranslation();
   const issue = useIssueInvoice(booking.id);
   const { data: profile, isLoading: profileLoading } = useBillingProfile();
   const [error, setError] = useState<string | null>(null);
@@ -327,7 +355,7 @@ function CreateInvoiceModal({
 
   const [lines, setLines] = useState<LineDraft[]>([
     {
-      description: booking.eventType?.trim() || 'Fotoshooting',
+      description: booking.eventType?.trim() || t('invoices.create.defaultLine'),
       quantity: '1',
       unitPriceEuros: '0.00',
       taxCategory: 'STANDARD',
@@ -365,7 +393,7 @@ function CreateInvoiceModal({
     country: 'DE',
     reference: '',
   });
-  const [paymentTerms, setPaymentTerms] = useState('Zahlbar innerhalb von 14 Tagen ohne Abzug.');
+  const [paymentTerms, setPaymentTerms] = useState(DEFAULT_PAYMENT_TERMS);
 
   const taxMode = profile?.taxMode ?? 'KLEINUNTERNEHMER';
   const totals = calculateTotals(
@@ -394,11 +422,11 @@ function CreateInvoiceModal({
       }));
 
     if (payload.length === 0) {
-      setError('Add at least one line with a description.');
+      setError(t('invoices.create.errNoLines'));
       return;
     }
     if (payload.some((l) => l.quantity <= 0)) {
-      setError('Every line needs a quantity greater than zero.');
+      setError(t('invoices.create.errQuantity'));
       return;
     }
 
@@ -415,7 +443,7 @@ function CreateInvoiceModal({
       },
       {
         onSuccess: onClose,
-        onError: (err) => setError(extractApiError(err, 'Could not issue the invoice.')),
+        onError: (err) => setError(extractApiError(err, t('invoices.create.errIssue'))),
       }
     );
   };
@@ -440,21 +468,18 @@ function CreateInvoiceModal({
   };
 
   return (
-    <Modal label="Issue an invoice" onClose={onClose} onSubmit={submit} maxWidth={560}>
-      <ModalHeader title="Issue an invoice" onClose={onClose} />
+    <Modal label={t('invoices.create.title')} onClose={onClose} onSubmit={submit} maxWidth={560}>
+      <ModalHeader title={t('invoices.create.title')} onClose={onClose} />
       {profile && !profile.complete && (
         <Alert tone="warning" style={{ marginTop: 12 }}>
-          Your business details are incomplete, so the invoice would be rejected. Fill them in under
-          Settings → Business details first — §14 UStG needs your name, address and either your
-          Steuernummer or USt-IdNr.
+          {t('invoices.create.profileIncomplete')}
         </Alert>
       )}
       <p style={{ fontSize: '0.83rem', color: c.textMuted, margin: '4px 0 18px', lineHeight: 1.5 }}>
-        For {booking.clientName}. Once issued, the invoice cannot be edited or deleted — only
-        corrected with a Storno.
+        {t('invoices.create.intro', { name: booking.clientName })}
       </p>
 
-      <div style={{ ...sectionLabel(c) }}>Line items</div>
+      <div style={{ ...sectionLabel(c) }}>{t('invoices.create.lineItems')}</div>
       {lines.map((line, i) => (
         <div
           key={i}
@@ -469,20 +494,20 @@ function CreateInvoiceModal({
         >
           <div>
             <label style={label} htmlFor={`line-desc-${i}`}>
-              Description
+              {t('invoices.create.description')}
             </label>
             <input
               id={`line-desc-${i}`}
               style={input}
               value={line.description}
               onChange={(e) => updateLine(i, { description: e.target.value })}
-              placeholder="Hochzeitsreportage"
+              placeholder={t('invoices.create.descriptionPlaceholder')}
             />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '8px' }}>
             <div>
               <label style={label} htmlFor={`line-qty-${i}`}>
-                Qty
+                {t('invoices.create.quantity')}
               </label>
               <input
                 id={`line-qty-${i}`}
@@ -496,7 +521,7 @@ function CreateInvoiceModal({
             </div>
             <div>
               <label style={label} htmlFor={`line-price-${i}`}>
-                Unit price €
+                {t('invoices.create.unitPrice')}
               </label>
               <input
                 id={`line-price-${i}`}
@@ -510,7 +535,7 @@ function CreateInvoiceModal({
             </div>
             <div>
               <label style={label} htmlFor={`line-tax-${i}`}>
-                Tax
+                {t('invoices.create.tax')}
               </label>
               <select
                 id={`line-tax-${i}`}
@@ -531,43 +556,40 @@ function CreateInvoiceModal({
                   });
                 }}
               >
-                {(Object.keys(TAX_CATEGORY_LABEL) as TaxCategory[]).map((key) => (
+                {(Object.keys(TAX_LABEL) as TaxCategory[]).map((key) => (
                   <option key={key} value={key}>
-                    {TAX_CATEGORY_LABEL[key]}
+                    {t(TAX_LABEL[key])}
                   </option>
                 ))}
               </select>
             </div>
           </div>
           {lines.length > 1 && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
+              size="sm"
+              style={{ justifySelf: 'start' }}
               onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
-              style={{
-                ...smallButton(c),
-                justifySelf: 'start',
-                color: c.dangerText,
-                borderColor: c.dangerBorder,
-              }}
             >
-              Remove line
-            </button>
+              {t('invoices.create.removeLine')}
+            </Button>
           )}
         </div>
       ))}
 
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
+        style={{ marginBottom: 18 }}
         onClick={() =>
           setLines((prev) => [
             ...prev,
             { description: '', quantity: '1', unitPriceEuros: '0.00', taxCategory: 'STANDARD' },
           ])
         }
-        style={{ ...smallButton(c), marginBottom: 18 }}
       >
-        Add line
-      </button>
+        {t('invoices.create.addLine')}
+      </Button>
 
       {/* What the client will actually be billed. Shown before issuing
             because the document is immutable afterwards — and because the
@@ -583,51 +605,66 @@ function CreateInvoiceModal({
           color: c.textMuted,
         }}
       >
-        <Row label="Net" value={formatEURExact(totals.subtotalCents)} colors={c} />
+        <Row
+          label={t('invoices.create.net')}
+          value={format.eurExact(totals.subtotalCents)}
+          colors={c}
+        />
         {taxMode === 'REGELBESTEUERUNG' && (
-          <Row label="VAT" value={formatEURExact(totals.taxCents)} colors={c} />
+          <Row
+            label={t('invoices.create.vat')}
+            value={format.eurExact(totals.taxCents)}
+            colors={c}
+          />
         )}
-        <Row label="Client pays" value={formatEURExact(totals.totalCents)} colors={c} strong />
+        <Row
+          label={t('invoices.create.clientPays')}
+          value={format.eurExact(totals.totalCents)}
+          colors={c}
+          strong
+        />
         {taxMode === 'KLEINUNTERNEHMER' && (
           <div style={{ marginTop: 8, fontSize: '0.78rem' }}>
-            No VAT — you are registered as Kleinunternehmer (§19 UStG).
+            {t('invoices.create.smallBusiness')}
           </div>
         )}
         {totals.totalCents !== (booking.totalAmountCents ?? 0) && (
           <div style={{ marginTop: 8, fontSize: '0.78rem' }}>
-            The agreed booking total is {formatEURExact(booking.totalAmountCents ?? 0)}.
+            {t('invoices.create.agreedTotal', {
+              amount: format.eurExact(booking.totalAmountCents ?? 0),
+            })}
           </div>
         )}
       </div>
 
-      <div style={sectionLabel(c)}>Client address (optional)</div>
+      <div style={sectionLabel(c)}>{t('invoices.create.address')}</div>
       <div style={{ display: 'grid', gap: '10px', marginBottom: 18 }}>
         <input
           style={input}
-          placeholder="Street and number"
-          aria-label="Client street and number"
+          placeholder={t('invoices.create.street')}
+          aria-label={t('invoices.create.street')}
           value={buyer.addressLine1}
           onChange={(e) => setBuyer((b) => ({ ...b, addressLine1: e.target.value }))}
         />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '8px' }}>
           <input
             style={input}
-            placeholder="PLZ"
-            aria-label="Client postal code"
+            placeholder={t('invoices.create.postalCode')}
+            aria-label={t('invoices.create.postalCode')}
             value={buyer.postalCode}
             onChange={(e) => setBuyer((b) => ({ ...b, postalCode: e.target.value }))}
           />
           <input
             style={input}
-            placeholder="City"
-            aria-label="Client city"
+            placeholder={t('invoices.create.city')}
+            aria-label={t('invoices.create.city')}
             value={buyer.city}
             onChange={(e) => setBuyer((b) => ({ ...b, city: e.target.value }))}
           />
           <input
             style={input}
             placeholder="DE"
-            aria-label="Client country code"
+            aria-label={t('invoices.create.country')}
             maxLength={2}
             value={buyer.country}
             onChange={(e) => setBuyer((b) => ({ ...b, country: e.target.value.toUpperCase() }))}
@@ -635,8 +672,8 @@ function CreateInvoiceModal({
         </div>
         <input
           style={input}
-          placeholder="Payment terms"
-          aria-label="Payment terms"
+          placeholder={t('invoices.create.paymentTerms')}
+          aria-label={t('invoices.create.paymentTerms')}
           value={paymentTerms}
           onChange={(e) => setPaymentTerms(e.target.value)}
         />
@@ -650,16 +687,16 @@ function CreateInvoiceModal({
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <Button variant="secondary" size="sm" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button
           type="submit"
           variant="primary"
           busy={issue.isPending}
-          busyLabel="Issuing…"
+          busyLabel={t('invoices.create.submitting')}
           disabled={profileLoading || profile?.complete === false}
         >
-          Issue invoice
+          {t('invoices.create.submit')}
         </Button>
       </div>
     </Modal>
@@ -687,7 +724,7 @@ function Row({
         paddingTop: strong ? 6 : 0,
         borderTop: strong ? `1px solid ${c.borderSoft}` : undefined,
         color: strong ? c.text : undefined,
-        fontWeight: strong ? 700 : 400,
+        fontWeight: strong ? 600 : 400,
       }}
     >
       <span>{label}</span>
@@ -698,10 +735,8 @@ function Row({
 
 function sectionLabel(c: Colors): React.CSSProperties {
   return {
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    letterSpacing: '0.07em',
-    textTransform: 'uppercase',
+    fontSize: '0.75rem',
+    fontWeight: 550,
     color: c.textMuted,
     marginBottom: 10,
   };

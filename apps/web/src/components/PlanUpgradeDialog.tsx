@@ -65,7 +65,7 @@ export function PlanUpgradeDialog() {
               color: c.primaryText,
               border: `1px solid ${c.primaryBorder}`,
               fontSize: '0.72rem',
-              fontWeight: 800,
+              fontWeight: 600,
               letterSpacing: '0.06em',
             }}
           >

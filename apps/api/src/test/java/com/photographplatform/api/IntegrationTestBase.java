@@ -174,6 +174,39 @@ public abstract class IntegrationTestBase {
         }
     }
 
+    /** Reads one value as the container superuser, so it sees every tenant. */
+    protected String valueAcrossTenants(String sql, Object... params) {
+        try (Connection conn = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Cross-tenant read failed: " + sql, e);
+        }
+    }
+
+    /**
+     * Runs a statement as the container superuser — for arranging data in
+     * several tenants at once, which the application role cannot do by design.
+     */
+    protected void executeAcrossTenants(String sql, Object... params) {
+        try (Connection conn = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            ps.execute();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Cross-tenant statement failed: " + sql, e);
+        }
+    }
+
     /**
      * The {@link TestRestTemplate} instances already stripped of their retry
      * behaviour, by identity: one per cached application context, swapped once

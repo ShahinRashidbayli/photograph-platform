@@ -90,6 +90,15 @@ public class BookingQueryService {
     }
 
     /**
+     * The studios that have booked this address — for a client signing in by
+     * email before any studio is known. Tenant ids only; see {@link
+     * BookingRepository#findTenantsWithClientEmail}.
+     */
+    public List<UUID> tenantsWithClientEmail(String email) {
+        return bookingRepository.findTenantsWithClientEmail(email);
+    }
+
+    /**
      * List the bookings owned by the currently authenticated customer.
      *
      * <p>The caller's identity is resolved from the JWT, never from a request

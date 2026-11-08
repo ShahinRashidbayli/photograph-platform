@@ -15,6 +15,19 @@ import org.springframework.data.repository.query.Param;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
+    /**
+     * The studios that have a booking for this address, across tenants.
+     *
+     * <p>The one query in the application that looks past the tenant a
+     * transaction is bound to, and it does so through {@code
+     * customer_login_tenants} (V38), which stays under RLS: it runs as the
+     * application role and binds each studio in turn. It returns tenant ids
+     * only. Its sole caller is sign-in by email, which needs to know which
+     * studios to send a code for.
+     */
+    @Query(value = "SELECT CAST(t AS uuid) FROM customer_login_tenants(:email) AS t", nativeQuery = true)
+    List<UUID> findTenantsWithClientEmail(@Param("email") String email);
+
     /*
      * The list methods return Slice, not Page. A Page runs a second COUNT query
      * to populate totals, and every caller here immediately discarded them: the

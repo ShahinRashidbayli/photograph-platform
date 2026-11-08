@@ -3,6 +3,7 @@
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { lpDisplay, lpSans } from '@/app/_landing/fonts';
 import { fonts, getColors } from '@/lib/design-tokens';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
@@ -23,12 +24,14 @@ interface AuthSplitLayoutProps {
    * not a translation. An optional prop with a plausible-looking fallback hides
    * the omission; a required one cannot.
    */
+  /** A word wrapped in `*asterisks*` is set as the panel's one accent word. */
   visualTitle: string;
   visualSubtitle: string;
   /**
-   * Photo shown on the brand panel. Defaults to the photographer-facing craft
-   * shot; the client sign-in passes a warmer, memory-focused image because its
-   * audience cares about their photos, not the gear.
+   * Photo shown on the brand panel. Defaults to the photographer-facing camera
+   * shot; the client sign-in passes the photobook, because its audience cares
+   * about their photos, not the gear — and the two sign-ins should not look
+   * like the same page.
    */
   visualImage?: string;
   /** Max width of the centred form content. Register needs a touch more. */
@@ -36,9 +39,26 @@ interface AuthSplitLayoutProps {
 }
 
 // Photography visuals for the brand panel, shipped in /public so they load with
-// no external request. The violet overlay below keeps white text legible on top
-// and ties the photo to the brand regardless of its own colours.
-const VISUAL_IMAGE = '/brand/auth-visual.jpg';
+// no external request.
+// Credited, with the landing page's photographs, in `app/_landing/stock.ts`.
+const VISUAL_IMAGE = '/brand/auth-photographer.webp';
+
+/**
+ * "Your *studio*, …" → the starred word in the display face, the way the
+ * landing hero sets "craft". Plain text passes through untouched, so a title
+ * without stars renders exactly as before.
+ */
+function withAccent(title: string): ReactNode[] {
+  return title.split(/(\*[^*]+\*)/).map((part, i) =>
+    part.length > 2 && part.startsWith('*') && part.endsWith('*') ? (
+      <em key={i} className="auth-visual-accent">
+        {part.slice(1, -1)}
+      </em>
+    ) : (
+      part
+    )
+  );
+}
 
 export function AuthSplitLayout({
   children,
@@ -74,8 +94,12 @@ export function AuthSplitLayout({
       style={{ fontFamily: fonts.sans }}
     >
       {/* ── Left: branded photography visual ─────────────────────────── */}
+      {/* The brand panel speaks the landing page's language — its faces, its
+          charcoal room, its one gold word — because it is the step between
+          that page and the app. The form column on the right stays the app's
+          (Geist, ink on paper): it is what the dashboard looks like next. */}
       <aside
-        className="auth-visual"
+        className={`auth-visual ${lpSans.variable} ${lpDisplay.variable}`}
         style={{
           position: 'relative',
           overflow: 'hidden',
@@ -83,19 +107,26 @@ export function AuthSplitLayout({
           flexDirection: 'column',
           justifyContent: 'space-between',
           padding: '44px 48px',
-          color: '#FFFFFF',
-          // Violet brand overlay layered over the photo (multi-background: the
-          // gradients paint on top, the image underneath). Weighted darker on
-          // the left — where the logo, headline and footer sit — and lighter on
-          // the right so the photographer stays visible. A bottom fade keeps the
-          // footer legible. If the image is ever missing, the gradient alone
-          // still reads as a finished brand panel.
+          color: '#F6F1E9',
+          fontFamily: 'var(--font-lp), ' + fonts.sans,
+          // A neutral darkroom scrim over the photo (multi-background: the
+          // gradients paint on top, the image underneath). It used to be a
+          // violet wash, which tinted a photography product's one photograph
+          // purple. Weighted darker on the left — where the logo, headline and
+          // footer sit — and toward the bottom so the footer stays legible; the
+          // right side is left almost clear so the photograph reads as itself.
+          // If the image is ever missing, the scrim alone still reads as a
+          // finished panel. The landing hero's charcoal (#1C1A17), so the two
+          // pages are one room.
           background:
-            'linear-gradient(100deg, rgba(49,46,129,0.92) 0%, rgba(67,56,202,0.70) 38%, rgba(79,70,229,0.42) 68%, rgba(99,102,241,0.30) 100%),' +
-            'linear-gradient(0deg, rgba(24,22,60,0.60) 0%, transparent 32%),' +
+            'linear-gradient(100deg, rgba(28,26,23,0.82) 0%, rgba(28,26,23,0.55) 40%, rgba(28,26,23,0.15) 75%, rgba(28,26,23,0.05) 100%),' +
+            'linear-gradient(0deg, rgba(28,26,23,0.78) 0%, transparent 40%),' +
+            '#1C1A17 ' +
             `url('${visualImage}')`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          // Left of centre, so the subject of the photograph lands on the panel's
+          // clear right side and the headline on the left sits on the scrim.
+          backgroundPosition: '6% center',
         }}
       >
         {/* Brand */}
@@ -107,40 +138,25 @@ export function AuthSplitLayout({
 
         {/* Headline */}
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 420 }}>
-          <div
-            aria-hidden="true"
-            style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}
-          >
-            {[0.9, 0.55, 0.32, 0.32].map((o, i) => (
-              <span
-                key={i}
-                style={{
-                  width: i === 0 ? 28 : 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background: `rgba(255,255,255,${o})`,
-                }}
-              />
-            ))}
-          </div>
           <h1
             style={{
-              fontFamily: fonts.serif,
-              fontSize: '2.4rem',
+              fontSize: '2.5rem',
               fontWeight: 500,
-              lineHeight: 1.12,
-              letterSpacing: '-0.02em',
+              lineHeight: 1.06,
+              letterSpacing: '-0.035em',
               margin: '0 0 14px 0',
+              // A title may carry its own line break ("Your photos,\nyour moments").
+              whiteSpace: 'pre-line',
             }}
           >
-            {visualTitle}
+            {withAccent(visualTitle)}
           </h1>
           <p
             style={{
               fontSize: '1rem',
               lineHeight: 1.6,
               margin: 0,
-              color: 'rgba(255,255,255,0.82)',
+              color: '#BDB5A8',
             }}
           >
             {visualSubtitle}
@@ -154,7 +170,7 @@ export function AuthSplitLayout({
             position: 'relative',
             zIndex: 1,
             fontSize: '0.82rem',
-            color: 'rgba(255,255,255,0.62)',
+            color: '#A69E91',
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -167,11 +183,7 @@ export function AuthSplitLayout({
             { href: '/datenschutz', label: 'Datenschutz' },
             { href: '/agb', label: 'AGB' },
           ].map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              style={{ color: 'rgba(255,255,255,0.72)', textDecoration: 'none' }}
-            >
+            <Link key={l.href} href={l.href} style={{ color: '#BDB5A8', textDecoration: 'none' }}>
               {l.label}
             </Link>
           ))}

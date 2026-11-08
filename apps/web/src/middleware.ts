@@ -137,7 +137,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // The trailing `.*\.[\w]+$` alternative skips any request for a file with an
-  // extension (e.g. /brand/auth-visual.jpg, *.svg) so static assets in /public
+  // extension (e.g. /brand/auth-photographer.webp, *.svg) so static assets in /public
   // aren't caught by the auth gate and redirected to /login.
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.[\\w]+$).*)'],
 };

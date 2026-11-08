@@ -30,6 +30,26 @@ paths:
 - **UI**: use `components/ui` primitives for new/edited UI. Most old screens still
   hand-roll inline styles — migrate the part you touch, don't add new hand-rolled buttons/modals.
   No new styling library. Theme via `useColors()` / `useThemeStore`.
+- **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
+  purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
+  `primary`/`primarySolid` fill is `c.onPrimary`, never `#fff` (dark mode inverts the
+  fill). Page `<h1>` spreads `pageTitle` (Geist 600, tight tracking) — never a
+  hand-rolled title. The Instrument Serif face is for the public portfolio
+  (`app/p/`) only, never in the app or auth screens. One exception: the auth brand panel
+  (left side of `AuthSplitLayout`) uses the landing faces and its `*accent*` word, as the
+  step between landing and app — the form column stays Geist. No uppercase/tracked eyebrow labels, no gradients, no glow
+  shadows, weights ≤ 600. Hover/press come from `globals.css` classes (`ui-press`,
+  `ui-btn-*`, `ui-row-hover` + `--ui-row-hover`), not `onMouseEnter`. A row that
+  highlights on hover must be a link. Static style objects use `var(--ui-ink)` /
+  `var(--ui-paper)`.
+- **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
+  palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
+  `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
+  the theme (the hero stays dark in both),
+  its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
+  claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
+  lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
+  `_landing/stock.ts`.
 - **i18n**: no hardcoded user-visible strings. Add keys to both `locales/en/<surface>.ts`
   and `locales/de/<surface>.ts` (new surface → register in both `index.ts`). Keys are flat,
   dot-namespaced (`clients.filter.All`). `npm run i18n:check` catches placeholder/plural/orphan issues.

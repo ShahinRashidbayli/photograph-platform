@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import RequestForm from './RequestForm';
+import { RequestHeader } from './RequestHeader';
 import { PhotographerLegalFooter } from '@/components/legal/PhotographerLegalFooter';
 
 export const revalidate = 300; // Matches /p/[subdomain] — same upstream payload.
@@ -63,12 +64,7 @@ export default async function PublicRequestPage({ params }: Props) {
       }}
     >
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px', color: '#0F172A' }}>
-          Request a session
-        </h1>
-        <p style={{ color: '#475569', margin: '0 0 32px' }}>
-          Send {photographer.displayName} a few details about your shoot — they will reply shortly.
-        </p>
+        <RequestHeader displayName={photographer.displayName} />
         <RequestForm subdomain={subdomain} />
         {/*
           §5 DDG requires the Impressum to be reachable from every page of a

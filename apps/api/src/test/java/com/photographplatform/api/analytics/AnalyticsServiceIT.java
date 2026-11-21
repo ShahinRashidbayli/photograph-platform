@@ -167,6 +167,47 @@ class AnalyticsServiceIT extends IntegrationTestBase {
         assertThat(revenue.averageInvoiceCents()).isEqualTo(200_000L);
     }
 
+    /**
+     * ADR-004 §3: Collected is counted when the money arrived, as in an EÜR,
+     * not in the month of the invoice it pays. Counting it by invoice month
+     * put January money into last year's report.
+     */
+    @Test
+    void aDecemberInvoicePaidInJanuaryIsInvoicedInDecemberAndCollectedInJanuary() {
+        Fixture fx = createStudio();
+        UUID december = issueInvoice(fx, 180_000, berlin(YEAR, 12, 12, 10, 0));
+        pay(fx, december, 180_000, berlin(YEAR + 1, 1, 8, 9, 0));
+
+        AnalyticsResponse decembersYear = report(fx, YEAR);
+        AnalyticsResponse januarysYear = report(fx, YEAR + 1);
+
+        assertThat(invoicedIn(decembersYear.revenue(), 12)).isEqualTo(180_000L);
+        assertThat(collectedIn(decembersYear.revenue(), 12)).isZero();
+        assertThat(januarysYear.revenue().invoicedCents()).isZero();
+        assertThat(collectedIn(januarysYear.revenue(), 1)).isEqualTo(180_000L);
+        // Paid in full, so nothing on December's invoice is still owed, even
+        // though its money is in the other year's Collected.
+        assertThat(decembersYear.revenue().outstandingCents()).isZero();
+        // The year only a payment lives in is still one the picker offers.
+        assertThat(decembersYear.availableYears()).containsExactly(YEAR + 1, YEAR);
+    }
+
+    /**
+     * 00:30 on 1 April in Berlin is 22:30 on 31 March in UTC. The money
+     * arrived in April on the studio's calendar, so it is April's Collected.
+     */
+    @Test
+    void aPaymentThatSucceedsJustAfterMidnightOnTheFirstCountsInThatMonth() {
+        Fixture fx = createStudio();
+        UUID march = issueInvoice(fx, 120_000, berlin(YEAR, 3, 20, 10, 0));
+        pay(fx, march, 120_000, berlin(YEAR, 4, 1, 0, 30));
+
+        RevenueSummary revenue = report(fx).revenue();
+
+        assertThat(collectedIn(revenue, 3)).isZero();
+        assertThat(collectedIn(revenue, 4)).isEqualTo(120_000L);
+    }
+
     // ── fixtures ──────────────────────────────────────────────────────────
 
     private record Fixture(UUID tenantId, UUID userId) {
@@ -208,15 +249,23 @@ class AnalyticsServiceIT extends IntegrationTestBase {
         return revenue.months().get(month - 1).invoicedCents();
     }
 
+    private static long collectedIn(RevenueSummary revenue, int month) {
+        return revenue.months().get(month - 1).collectedCents();
+    }
+
+    private AnalyticsResponse report(Fixture fx) {
+        return report(fx, YEAR);
+    }
+
     /**
      * The report, read over a database session in UTC, the zone a container
      * runs in. The JDBC driver otherwise hands the session the JVM's zone, and
      * on a laptop in Berlin that hides every month-boundary bug.
      */
-    private AnalyticsResponse report(Fixture fx) {
+    private AnalyticsResponse report(Fixture fx, int year) {
         return asUser(fx, () -> new TransactionTemplate(txManager).execute(tx -> {
             jdbc.execute("SET LOCAL TIME ZONE 'UTC'");
-            return analyticsService.forYear(YEAR);
+            return analyticsService.forYear(year);
         }));
     }
 
@@ -278,6 +327,27 @@ class AnalyticsServiceIT extends IntegrationTestBase {
                 .executeUpdate();
             entityManager.createNativeQuery("UPDATE invoices SET status = 'STORNIERT' WHERE id = :originalId")
                 .setParameter("originalId", originalId)
+                .executeUpdate();
+            return null;
+        }));
+    }
+
+    /**
+     * What a manual payment writes (PaymentService#recordManualPayment): a
+     * succeeded bank transfer, confirmed at a chosen instant.
+     */
+    private void pay(Fixture fx, UUID invoiceId, long amountCents, ZonedDateTime confirmedAt) {
+        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
+            entityManager.createNativeQuery("""
+                INSERT INTO payments (tenant_id, invoice_id, method, status, amount_cents, confirmed_by_user_id,
+                    confirmed_at)
+                VALUES (:tenantId, :invoiceId, 'UEBERWEISUNG', 'SUCCEEDED', :amount, :userId, :confirmedAt)
+                """)
+                .setParameter("tenantId", fx.tenantId())
+                .setParameter("invoiceId", invoiceId)
+                .setParameter("amount", amountCents)
+                .setParameter("userId", fx.userId())
+                .setParameter("confirmedAt", confirmedAt.toOffsetDateTime())
                 .executeUpdate();
             return null;
         }));

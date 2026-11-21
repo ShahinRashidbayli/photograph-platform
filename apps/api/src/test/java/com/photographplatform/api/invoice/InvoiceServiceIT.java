@@ -348,7 +348,7 @@ class InvoiceServiceIT extends IntegrationTestBase {
         // "already storniert" check alone let it be storniert in turn. That
         // negates the already-negated line items back to positive, producing a
         // third document that silently re-bills the client and breaks the
-        // net-to-zero invariant BookingPaymentStateResolver relies on.
+        // net-to-zero invariant Settlement relies on.
         TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
 
         InvoiceResponse original = asUser(fx, () -> invoiceService.issueForBooking(
@@ -532,9 +532,9 @@ class InvoiceServiceIT extends IntegrationTestBase {
      *
      * <p>They exist so a page of invoices costs one request instead of one per
      * row (see {@code InvoiceResponse}), which only holds if the list path
-     * actually populates them — there they come from a grouped query, where the
-     * single-invoice path does a direct read. Two code paths to the same number
-     * is exactly the shape that drifts, so this pins them against each other.
+     * actually populates them. The figures themselves are Settlement's (see
+     * {@code SettlementIT}); this pins that both the list and the single-invoice
+     * response carry them.
      */
     @Test
     void listedInvoicesCarryTheirOwnPaidAndOutstandingFigures() {

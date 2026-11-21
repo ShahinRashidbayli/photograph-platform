@@ -17,7 +17,8 @@ import com.photographplatform.api.invoice.service.DatevInvoiceExporter;
 import com.photographplatform.api.invoice.service.InvoiceDate;
 import com.photographplatform.api.invoice.service.InvoicePdfRenderer;
 import com.photographplatform.api.invoice.service.InvoiceService;
-import com.photographplatform.api.payment.repository.PaymentRepository;
+import com.photographplatform.api.invoice.service.Settlement;
+import com.photographplatform.api.payment.service.SucceededPayments;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.TaxMode;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -181,8 +182,13 @@ class InvoiceNumberYearTest {
         R2StorageService storage = mock(R2StorageService.class);
         when(storage.generateDownloadUrl(anyString())).thenReturn("https://cdn.example/i.pdf");
 
-        PaymentRepository paymentRepository = mock(PaymentRepository.class);
-        when(paymentRepository.sumSucceededAmountCents(any())).thenReturn(0L);
+        // The zone matters as much as the instant: this is the clock
+        // ClockConfig builds, and the whole point is that the year is read
+        // through it rather than beside it.
+        Clock clock = Clock.fixed(now, com.photographplatform.api.common.util.BusinessZone.ID);
+
+        // No payments: a mocked SucceededPayments answers an empty map.
+        Settlement settlement = new Settlement(invoiceRepository, mock(SucceededPayments.class), clock);
 
         return new InvoiceService(
             invoiceRepository,
@@ -195,11 +201,8 @@ class InvoiceNumberYearTest {
             Optional.of(storage),
             mock(AuditService.class),
             mock(DatevInvoiceExporter.class),
-            paymentRepository,
-            // The zone matters as much as the instant: this is the clock
-            // ClockConfig builds, and the whole point is that the year is read
-            // through it rather than beside it.
-            Clock.fixed(now, com.photographplatform.api.common.util.BusinessZone.ID));
+            settlement,
+            clock);
     }
 
     private static Booking booking() {

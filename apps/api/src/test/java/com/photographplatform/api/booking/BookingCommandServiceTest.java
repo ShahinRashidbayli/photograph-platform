@@ -3,13 +3,11 @@ package com.photographplatform.api.booking;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
-import com.photographplatform.api.booking.domain.BookingPaymentState;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
-import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
 import com.photographplatform.api.booking.service.BookingMapper;
 import com.photographplatform.api.booking.service.BookingCommandService;
 import com.photographplatform.api.booking.service.BookingPricingResolver;
@@ -20,6 +18,8 @@ import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.invoice.domain.BookingSettlement;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
 import java.time.LocalDate;
@@ -71,9 +71,8 @@ class BookingCommandServiceTest {
         packageRepository = mock(PackageRepository.class);
         auditService = mock(AuditService.class);
         UserRepository userRepository = mock(UserRepository.class);
-        BookingPaymentStateResolver paymentStateResolver = mock(BookingPaymentStateResolver.class);
-        when(paymentStateResolver.resolve(any())).thenReturn(
-            new BookingPaymentStateResolver.Summary(BookingPaymentState.NOT_INVOICED, 0, 0));
+        Settlement settlement = mock(Settlement.class);
+        when(settlement.ofBooking(any())).thenReturn(BookingSettlement.none());
 
         studioResourceRepository = mock(StudioResourceRepository.class);
         BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
@@ -81,7 +80,7 @@ class BookingCommandServiceTest {
             bookingRepository, clientRepository, userRepository, studioResourceRepository,
             bookingResourceRepository, new BookingPricingResolver(packageRepository),
             new CustomerAccountResolver(userRepository), auditService,
-            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
+            new BookingMapper(userRepository, bookingResourceRepository, settlement));
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));

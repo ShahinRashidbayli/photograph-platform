@@ -12,6 +12,7 @@ import com.photographplatform.api.invoice.dto.CreateInvoiceLineItemRequest;
 import com.photographplatform.api.invoice.dto.CreateInvoiceRequest;
 import com.photographplatform.api.invoice.dto.InvoiceResponse;
 import com.photographplatform.api.invoice.service.InvoiceService;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.payment.domain.PaymentMethod;
 import com.photographplatform.api.payment.dto.CreatePaymentIntentRequest;
 import com.photographplatform.api.payment.dto.InvoicePaymentSummaryResponse;
@@ -28,6 +29,11 @@ import java.time.LocalDate;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
@@ -38,6 +44,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,9 +64,11 @@ class PaymentServiceIT extends IntegrationTestBase {
     @Autowired private PaymentService paymentService;
     @Autowired private StripeWebhookService webhookService;
     @Autowired private InvoiceService invoiceService;
+    @Autowired private Settlement settlement;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private BookingRepository bookingRepository;
+    @Autowired private PlatformTransactionManager txManager;
 
     @MockitoBean
     private R2StorageService r2StorageService;
@@ -187,6 +197,78 @@ class PaymentServiceIT extends IntegrationTestBase {
 
         InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
         assertThat(summary.paidCents()).isZero();
+    }
+
+    @Test
+    void aFullyPaidInvoiceTakesNoFurtherPayment() {
+        TestFixture fx = createTenantAndInvoice();
+        asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(null), "203.0.113.5"));
+
+        // Defaulting to the Outstanding amount books nothing...
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(null), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class);
+        // ...and any explicit amount is more than is Outstanding.
+        assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+            fx.invoiceId(), new RecordManualPaymentRequest(1), "203.0.113.5")))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("exceeds the 0 cents outstanding");
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.payments()).hasSize(1);
+        assertThat(summary.paidCents()).isEqualTo(fx.totalCents());
+    }
+
+    /**
+     * Two payment attempts on one invoice cannot both decide from the same
+     * Outstanding amount: whoever holds the invoice's lock goes first, and the
+     * other is refused outright (NOWAIT) rather than queued.
+     *
+     * <p>The first attempt is held open on the lock itself, through the same
+     * {@code Settlement#lockForPayment} both payment paths take, because two
+     * racing calls to the service are not guaranteed to overlap (see {@code
+     * BookingConcurrencyIT} for why a race that might not happen proves
+     * nothing).
+     */
+    @Test
+    void aPaymentAttemptWhileAnotherHoldsTheInvoiceIsRefused() throws Exception {
+        TestFixture fx = createTenantAndInvoice();
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> first = pool.submit(() -> asUser(fx, () -> new TransactionTemplate(txManager)
+                .execute(status -> {
+                    settlement.lockForPayment(fx.invoiceId());
+                    locked.countDown();
+                    awaitQuietly(release);
+                    return null;
+                })));
+            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+
+            assertThatThrownBy(() -> asUser(fx, () -> paymentService.recordManualPayment(
+                fx.invoiceId(), new RecordManualPaymentRequest(null), "203.0.113.5")))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already being processed");
+
+            release.countDown();
+            first.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+
+        InvoicePaymentSummaryResponse summary = asUser(fx, () -> paymentService.getSummary(fx.invoiceId()));
+        assertThat(summary.paidCents()).isZero();
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            latch.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Test

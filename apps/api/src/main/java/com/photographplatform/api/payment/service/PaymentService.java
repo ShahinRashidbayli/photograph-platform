@@ -10,8 +10,8 @@ import com.photographplatform.api.common.exception.UpstreamServiceException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.invoice.domain.Invoice;
-import com.photographplatform.api.invoice.domain.InvoiceStatus;
-import com.photographplatform.api.invoice.repository.InvoiceRepository;
+import com.photographplatform.api.invoice.domain.InvoiceSettlement;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.payment.domain.Payment;
 import com.photographplatform.api.payment.domain.PaymentMethod;
 import com.photographplatform.api.payment.domain.PaymentStatus;
@@ -36,7 +36,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +67,7 @@ public class PaymentService {
     private static final Logger LOG = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
-    private final InvoiceRepository invoiceRepository;
+    private final Settlement settlement;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
@@ -80,7 +79,7 @@ public class PaymentService {
 
     public PaymentService(
         PaymentRepository paymentRepository,
-        InvoiceRepository invoiceRepository,
+        Settlement settlement,
         BookingRepository bookingRepository,
         UserRepository userRepository,
         TenantRepository tenantRepository,
@@ -90,7 +89,7 @@ public class PaymentService {
         Clock clock
     ) {
         this.paymentRepository = paymentRepository;
-        this.invoiceRepository = invoiceRepository;
+        this.settlement = settlement;
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
@@ -116,9 +115,10 @@ public class PaymentService {
         }
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        Invoice invoice = lockInvoiceForPayment(invoiceId);
+        InvoiceSettlement settled = settlement.lockForPayment(invoiceId);
+        Invoice invoice = settled.invoice();
         requireOwnedByCallerIfCustomer(invoice);
-        requirePayable(invoice);
+        settled.requireLive();
 
         // The charge goes onto the photographer's connected account, so there
         // is no fallback if they haven't finished Stripe's onboarding: taking
@@ -134,7 +134,7 @@ public class PaymentService {
         }
         String connectedAccountId = tenant.getStripeAccountId();
 
-        long outstanding = outstandingCents(invoice);
+        long outstanding = settled.outstandingCents();
         if (outstanding <= 0) {
             throw new ConflictException("Invoice " + invoice.getInvoiceNumber() + " is already fully paid");
         }
@@ -253,10 +253,11 @@ public class PaymentService {
     public PaymentResponse recordManualPayment(UUID invoiceId, RecordManualPaymentRequest req, String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        Invoice invoice = lockInvoiceForPayment(invoiceId);
-        requirePayable(invoice);
+        InvoiceSettlement settled = settlement.lockForPayment(invoiceId);
+        Invoice invoice = settled.invoice();
+        settled.requireLive();
 
-        long outstanding = outstandingCents(invoice);
+        long outstanding = settled.outstandingCents();
         int amount = req.amountCents() != null ? req.amountCents() : (int) outstanding;
         if (amount <= 0) {
             throw new ConflictException("Payment amount must be positive");
@@ -284,15 +285,15 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public InvoicePaymentSummaryResponse getSummary(UUID invoiceId) {
-        Invoice invoice = requireInvoice(invoiceId);
+        InvoiceSettlement settled = settlement.ofInvoice(invoiceId);
+        Invoice invoice = settled.invoice();
         requireOwnedByCallerIfCustomer(invoice);
         List<Payment> payments = paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(invoiceId);
-        long paid = paymentRepository.sumSucceededAmountCents(invoiceId);
         List<PaymentResponse> responses = payments.stream().map(this::toResponse).toList();
         return new InvoicePaymentSummaryResponse(
             invoice.getTotalCents(),
-            (int) paid,
-            (int) Math.max(0, invoice.getTotalCents() - paid),
+            settled.paidCents(),
+            settled.outstandingCents(),
             invoice.getVerwendungszweck(),
             responses
         );
@@ -320,24 +321,6 @@ public class PaymentService {
             // 404, not 403: an invoice this caller does not own is not theirs
             // to learn the existence of.
             throw new NotFoundException("Invoice not found: " + invoice.getId());
-        }
-    }
-
-    /**
-     * A storniert invoice has been legally withdrawn — its Storno counterpart
-     * already nets it to zero, so collecting against it books money that no
-     * document claims. Neither payment path checked this, so a client sitting
-     * on a payment link (or a photographer on a stale invoice screen) could
-     * still pay an invoice that had been cancelled underneath them.
-     */
-    private void requirePayable(Invoice invoice) {
-        if (invoice.getStatus() == InvoiceStatus.STORNIERT) {
-            throw new ConflictException(
-                "Invoice " + invoice.getInvoiceNumber() + " has been storniert and can no longer be paid");
-        }
-        if (invoice.getStornoOfId() != null) {
-            throw new ConflictException(
-                "Invoice " + invoice.getInvoiceNumber() + " is a Storno correction, not a payable invoice");
         }
     }
 
@@ -378,44 +361,6 @@ public class PaymentService {
      */
     private RequestOptions accountOptions(String connectedAccountId) {
         return RequestOptions.builder().setStripeAccount(connectedAccountId).build();
-    }
-
-    private long outstandingCents(Invoice invoice) {
-        long paid = paymentRepository.sumSucceededAmountCents(invoice.getId());
-        return Math.max(0, invoice.getTotalCents() - paid);
-    }
-
-    private Invoice requireInvoice(UUID invoiceId) {
-        return invoiceRepository.findById(invoiceId)
-            .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
-    }
-
-    /**
-     * Loads the invoice with a row lock held for the rest of the transaction,
-     * making every operation that collects money against one invoice mutually
-     * exclusive.
-     *
-     * <p>Both callers below are check-then-act on the outstanding balance —
-     * "no open intent, so mint one", "this amount fits, so book it" — and
-     * neither conclusion survives a concurrent writer. Serialising them per
-     * invoice is what makes those reads still true at the moment they are
-     * acted on. See {@code InvoiceRepository#findByIdForPayment} for why the
-     * lock is NOWAIT rather than blocking.
-     */
-    private Invoice lockInvoiceForPayment(UUID invoiceId) {
-        try {
-            return invoiceRepository.findByIdForPayment(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
-        } catch (PessimisticLockingFailureException ex) {
-            // Someone else is mid-payment on this invoice. Not an error worth a
-            // stack trace — the honest answer is that the caller should look
-            // again in a second, by which time the other request has settled
-            // and the balance they'd be paying may well have changed.
-            LOG.info("Invoice {} is locked by another payment operation", invoiceId);
-            throw new ConflictException(
-                "A payment for this invoice is already being processed. "
-                    + "Please reload the page and try again in a moment.");
-        }
     }
 
     /**

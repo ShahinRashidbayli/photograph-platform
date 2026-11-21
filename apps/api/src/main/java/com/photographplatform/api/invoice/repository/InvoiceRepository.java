@@ -32,8 +32,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
      * length of someone else's network call and most likely time out the HTTP
      * request anyway. Failing immediately lets the caller say something true —
      * "a payment is already being processed, try again in a moment" — instead
-     * of hanging. The service translates the resulting
-     * {@code PessimisticLockingFailureException} into a 409.
+     * of hanging. {@code Settlement#lockForPayment}, the only caller, translates
+     * the resulting {@code PessimisticLockingFailureException} into a 409.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))

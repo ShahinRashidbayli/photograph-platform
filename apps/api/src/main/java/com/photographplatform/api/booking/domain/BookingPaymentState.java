@@ -2,7 +2,7 @@ package com.photographplatform.api.booking.domain;
 
 /**
  * A booking's payment progress — always computed from real {@code Invoice}
- * and {@code Payment} rows (see {@code BookingPaymentStateResolver}), never
+ * and {@code Payment} rows (see invoice's {@code Settlement}), never
  * stored. Independent of {@link BookingStatus}: a booking can be {@code
  * CONFIRMED} and {@code OVERDUE} at the same time, which the old conflated
  * model (payment as a lifecycle state) couldn't represent at all.

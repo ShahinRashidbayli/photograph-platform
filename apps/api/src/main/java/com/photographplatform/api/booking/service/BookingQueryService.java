@@ -9,11 +9,12 @@ import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
-import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.Paging;
+import com.photographplatform.api.invoice.domain.BookingSettlement;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -53,20 +54,20 @@ public class BookingQueryService {
     private final BookingRepository bookingRepository;
     private final StudioResourceRepository studioResourceRepository;
     private final UserRepository userRepository;
-    private final BookingPaymentStateResolver paymentStateResolver;
+    private final Settlement settlement;
     private final BookingMapper mapper;
 
     public BookingQueryService(
         BookingRepository bookingRepository,
         StudioResourceRepository studioResourceRepository,
         UserRepository userRepository,
-        BookingPaymentStateResolver paymentStateResolver,
+        Settlement settlement,
         BookingMapper mapper
     ) {
         this.bookingRepository = bookingRepository;
         this.studioResourceRepository = studioResourceRepository;
         this.userRepository = userRepository;
-        this.paymentStateResolver = paymentStateResolver;
+        this.settlement = settlement;
         this.mapper = mapper;
     }
 
@@ -127,7 +128,7 @@ public class BookingQueryService {
                 .getContent()
             : bookingRepository.findOwnedBy(user.getId(), email, pageable).getContent();
 
-        Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
+        Map<UUID, BookingSettlement> paymentStates = settlement.ofBookings(
             bookings.stream().map(Booking::getId).toList());
         return bookings.stream()
             .map(b -> mapper.toCustomerResponse(b, paymentStates.get(b.getId())))

@@ -3,9 +3,9 @@ package com.photographplatform.api.booking;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper;
-import com.photographplatform.api.booking.service.BookingPaymentStateResolver;
 import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.exception.ConflictException;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,11 +33,11 @@ class BookingQueryServiceTest {
         bookingRepository = mock(BookingRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
         BookingResourceRepository bookingResourceRepository = mock(BookingResourceRepository.class);
-        BookingPaymentStateResolver paymentStateResolver = mock(BookingPaymentStateResolver.class);
+        Settlement settlement = mock(Settlement.class);
         queryService = new BookingQueryService(
             bookingRepository, mock(StudioResourceRepository.class), userRepository,
-            paymentStateResolver,
-            new BookingMapper(userRepository, bookingResourceRepository, paymentStateResolver));
+            settlement,
+            new BookingMapper(userRepository, bookingResourceRepository, settlement));
     }
 
     @Test

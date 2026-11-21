@@ -1,5 +1,6 @@
 package com.photographplatform.api.invoice.dto;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +16,9 @@ import java.util.UUID;
  * grouped query it was making anyway.
  *
  * <p>They are derived, not stored: a payment row settling is what changes them,
- * and an invoice itself is immutable (GoBD).
+ * and an invoice itself is immutable (GoBD). All of them are Settlement's; a
+ * screen renders them and never works out Live, Collectable or Overdue itself
+ * (ADR-004).
  */
 public record InvoiceResponse(
     UUID id,
@@ -31,8 +34,16 @@ public record InvoiceResponse(
     Integer totalCents,
     /** Sum of SUCCEEDED payments against this invoice. */
     Integer paidCents,
-    /** {@code totalCents - paidCents}, floored at zero. */
+    /** {@code totalCents - paidCents}, floored at zero; zero unless the invoice is Live. */
     Integer outstandingCents,
+    /** The day it is to be paid by; {@code null} unless the invoice is Live. */
+    LocalDate dueDate,
+    /** Neither a Storno nor Storniert: the only kind a Customer can owe money on. */
+    boolean live,
+    /** Live with something Outstanding: whether a pay action belongs on it at all. */
+    boolean collectable,
+    /** Collectable with its Due date passed. */
+    boolean overdue,
     /** Bank-transfer reference, e.g. {@code RE-2026-0001}. */
     String verwendungszweck,
     UUID stornoOfId,

@@ -12,7 +12,7 @@ import { useBookings } from '@/hooks/useBookings';
 import { useCustomerInvoices } from '@/hooks/useInvoices';
 import { usePublicTenantLegal } from '@/hooks/useTenantLegal';
 import type { Booking, Invoice } from '@/types/api';
-import { daysUntil, isLiveInvoice, moneyText } from '../bookings/customer.portal';
+import { daysUntil, moneyText } from '../bookings/customer.portal';
 import { getPortalStyles, linkButton, pill } from '../bookings/customer.styles';
 import { useOccasion } from '../bookings/PortalParts';
 
@@ -52,8 +52,10 @@ export default function PaymentsPage() {
 
   const invoices = useMemo(
     () =>
+      // Live and Collectable are the server's (ADR-004): a Storno and the
+      // invoice it withdraws are never the client's to pay.
       (invoicesQ.data ?? NO_INVOICES)
-        .filter(isLiveInvoice)
+        .filter((i) => i.live)
         .sort((a, b) => Date.parse(b.issuedAt) - Date.parse(a.issuedAt)),
     [invoicesQ.data]
   );
@@ -67,7 +69,7 @@ export default function PaymentsPage() {
   // The next thing to pay: the open invoice whose shoot comes first.
   const today = startOfToday();
   const next = invoices
-    .filter((i) => i.outstandingCents > 0)
+    .filter((i) => i.collectable)
     .map((i) => ({ invoice: i, booking: i.bookingId ? bookingById.get(i.bookingId) : undefined }))
     .sort((a, b) => shootTime(a.booking) - shootTime(b.booking))[0];
   const nextDate =
@@ -176,7 +178,7 @@ export default function PaymentsPage() {
                 <tbody>
                   {invoices.map((inv, i) => {
                     const booking = inv.bookingId ? bookingById.get(inv.bookingId) : undefined;
-                    const settled = inv.outstandingCents <= 0;
+                    const settled = !inv.collectable;
                     const cell: React.CSSProperties = {
                       padding: '14px 16px',
                       borderTop: i > 0 ? `1px solid ${c.borderSoft}` : undefined,
@@ -246,11 +248,11 @@ export default function PaymentsPage() {
                 </tbody>
               </table>
             </div>
-            {invoices.some((i) => i.outstandingCents > 0) && (
+            {invoices.some((i) => i.collectable) && (
               <p style={{ ...s.rowMeta, margin: 0 }}>
                 {t('invoices.bankTransferHint', {
                   reference: invoices
-                    .filter((i) => i.outstandingCents > 0)
+                    .filter((i) => i.collectable)
                     .map((i) => i.verwendungszweck)
                     .join(', '),
                 })}

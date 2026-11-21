@@ -161,7 +161,20 @@ export interface Invoice {
    * per invoice on every list that showed them.
    */
   paidCents: number;
+  /** Zero unless the invoice is Live. */
   outstandingCents: number;
+  /**
+   * `YYYY-MM-DD`; null unless the invoice is Live. This and the three flags
+   * below are the server's Settlement (ADR-004): render them, never work out
+   * Live, Collectable or Overdue from the other fields.
+   */
+  dueDate: string | null;
+  /** Neither a Storno nor Storniert: the only kind a Customer can owe money on. */
+  live: boolean;
+  /** Live with something Outstanding: the only kind a pay action belongs on. */
+  collectable: boolean;
+  /** Collectable with its Due date passed. */
+  overdue: boolean;
   /** Bank-transfer reference, e.g. `RE-2026-0001`. */
   verwendungszweck: string;
   /** Set on a Storno, pointing at the invoice it corrects. */

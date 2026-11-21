@@ -3,13 +3,14 @@ package com.photographplatform.api.invoice.service;
 import com.photographplatform.api.booking.domain.BookingPaymentState;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.invoice.domain.BookingSettlement;
 import com.photographplatform.api.invoice.domain.Invoice;
 import com.photographplatform.api.invoice.domain.InvoiceSettlement;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.service.SucceededPayments;
 import java.time.Clock;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -25,7 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Where an invoice, or all invoices of one booking, stand: what was paid, what
- * is Outstanding, whether it is Overdue. The one place that works it out
+ * is Outstanding, when it is due, whether it is Collectable and whether it is
+ * Overdue. The one place that works it out
  * (ADR-004 §1). Booking, payment and invoice's own responses ask here; none of
  * them reads invoice or payment rows to decide it for themselves.
  *
@@ -139,9 +141,26 @@ public class Settlement {
             Invoice::getId, inv -> settle(inv, paidByInvoice.getOrDefault(inv.getId(), 0L))));
     }
 
-    private static InvoiceSettlement settle(Invoice invoice, long paidCents) {
-        return new InvoiceSettlement(
-            invoice, (int) paidCents, (int) Math.max(0, invoice.getTotalCents() - paidCents));
+    /**
+     * Only a Live invoice owes anything. A Storniert invoice is never paid and
+     * its Storno is a correction, not a bill, so neither has an Outstanding
+     * amount or a day to pay it by, whatever was paid on them before. The
+     * withdrawn invoice used to report its total less its payments, which
+     * read as money still owed on a document nobody can pay.
+     *
+     * <p>The Due date is counted from the day printed on the invoice, not from
+     * the UTC instant (see {@link InvoiceDate}), and it is a whole day: Overdue
+     * starts the day after it.
+     */
+    private InvoiceSettlement settle(Invoice invoice, long paidCents) {
+        if (!invoice.isLive()) {
+            return new InvoiceSettlement(invoice, (int) paidCents, 0, null, false, false);
+        }
+        int outstanding = (int) Math.max(0, invoice.getTotalCents() - paidCents);
+        LocalDate dueDate = InvoiceDate.of(invoice.getIssuedAt()).plusDays(DEFAULT_DUE_DAYS);
+        boolean collectable = outstanding > 0;
+        boolean overdue = collectable && LocalDate.ofInstant(clock.instant(), BusinessZone.ID).isAfter(dueDate);
+        return new InvoiceSettlement(invoice, (int) paidCents, outstanding, dueDate, collectable, overdue);
     }
 
     /**
@@ -165,21 +184,17 @@ public class Settlement {
         if (paid >= invoiced) {
             return new BookingSettlement(BookingPaymentState.PAID, invoiced, paid);
         }
-        if (invoices.stream().filter(Invoice::isLive).anyMatch(this::isPastDue)) {
+        // Overdue is each invoice's own: its own Due date, its own Outstanding.
+        // Read across the booking instead, a paid deposit past its Due date made
+        // the booking Overdue while the final invoice was still inside its
+        // window, and a withdrawn document's old issue date did the same to a
+        // corrected booking.
+        if (invoices.stream()
+            .anyMatch(inv -> settle(inv, paidByInvoice.getOrDefault(inv.getId(), 0L)).overdue())) {
             return new BookingSettlement(BookingPaymentState.OVERDUE, invoiced, paid);
         }
         BookingPaymentState state = paid <= 0 ? BookingPaymentState.OPEN : BookingPaymentState.PARTIALLY_PAID;
         return new BookingSettlement(state, invoiced, paid);
-    }
-
-    /**
-     * Only a Live invoice can be Overdue. A Storniert invoice and its Storno
-     * both keep their original {@code issued_at}, so counting them showed a
-     * corrected and re-invoiced booking as OVERDUE from the withdrawn
-     * document's date while the replacement was still inside its own window.
-     */
-    private boolean isPastDue(Invoice invoice) {
-        return invoice.getIssuedAt().plusDays(DEFAULT_DUE_DAYS).isBefore(OffsetDateTime.now(clock));
     }
 
     private static List<UUID> ids(List<Invoice> invoices) {

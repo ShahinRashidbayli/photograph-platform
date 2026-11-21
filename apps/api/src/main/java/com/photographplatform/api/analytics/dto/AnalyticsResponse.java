@@ -28,14 +28,18 @@ public record AnalyticsResponse(
     /**
      * Money, in cents, split by what actually happened to it.
      *
-     * @param invoicedCents  total of every invoice issued in the year, cancelled
-     *                       ones excluded — a Storno reverses its original, so
-     *                       counting both would double-count the sale and then
-     *                       show revenue the studio never had
+     * @param invoicedCents  Invoiced: every document issued in the year, net of
+     *                       Storno, as the DATEV export books it. A Storniert
+     *                       original stays in its own month and its Storno
+     *                       counts against the Storno's month (ADR-004 §3)
      * @param collectedCents of that, what has been paid. The gap between the two
      *                       is the number a photographer actually chases
      * @param outstandingCents invoiced minus collected, never negative
-     * @param months         twelve entries, January first, zero-filled — a month
+     * @param invoiceCount   Live invoices issued in the year: neither a Storno
+     *                       nor Storniert
+     * @param averageInvoiceCents the mean total of those Live invoices
+     * @param months         twelve entries, January first, zero-filled, by
+     *                       Europe/Berlin month — a month
      *                       with no invoices is a fact about the year, and
      *                       dropping it would silently rescale the chart
      */

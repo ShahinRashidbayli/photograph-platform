@@ -4,19 +4,28 @@ import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PackageCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PhotographerCount;
+import com.photographplatform.api.analytics.dto.AnalyticsResponse.RevenueSummary;
 import com.photographplatform.api.analytics.service.AnalyticsService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.invoice.service.InvoiceService;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -35,12 +44,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AnalyticsServiceIT extends IntegrationTestBase {
 
     private static final int YEAR = 2025;
+    /** Spelled out rather than taken from the code under test: the spec says Berlin. */
+    private static final ZoneId BERLIN = ZoneId.of("Europe/Berlin");
 
     @Autowired private AnalyticsService analyticsService;
+    @Autowired private InvoiceService invoiceService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager entityManager;
     @Autowired private PlatformTransactionManager txManager;
+    @Autowired private JdbcTemplate jdbc;
+
+    /** Unique per (tenant, issue year) is all the schema asks; one counter for the test is enough. */
+    private int nextSequenceNumber = 1;
 
     @Test
     void onlyBillableBookingsCountInThePackageMixAndPhotographerSplit() {
@@ -57,6 +73,98 @@ class AnalyticsServiceIT extends IntegrationTestBase {
         assertThat(report.bookings().byPhotographer())
             .extracting(PhotographerCount::count, PhotographerCount::revenueCents)
             .containsExactly(org.assertj.core.groups.Tuple.tuple(1, 100_000L));
+    }
+
+    /**
+     * A Storno withdraws its original, and the two net to zero (GLOSSARY.md).
+     * Counting only the documents still marked ISSUED left the original out and
+     * kept the Storno, so a reversed sale showed as negative money.
+     */
+    @Test
+    void aStornoInTheSameMonthLeavesThatMonthAtZero() {
+        Fixture fx = createStudio();
+        UUID sale = issueInvoice(fx, 150_000, berlin(YEAR, 6, 3, 11, 0));
+        storno(fx, sale, berlin(YEAR, 6, 24, 16, 0));
+
+        RevenueSummary revenue = report(fx).revenue();
+
+        assertThat(invoicedIn(revenue, 6)).isZero();
+        assertThat(revenue.invoicedCents()).isZero();
+    }
+
+    /**
+     * ADR-004 §3, the way DATEV books it: the original stays +X in its own
+     * month after it is Storniert, and the correction shows up in the month it
+     * was made.
+     */
+    @Test
+    void aStornoInALaterMonthCountsInItsOwnMonth() {
+        Fixture fx = createStudio();
+        UUID march = issueInvoice(fx, 150_000, berlin(YEAR, 3, 10, 14, 0));
+        storno(fx, march, berlin(YEAR, 4, 2, 9, 0));
+
+        RevenueSummary revenue = report(fx).revenue();
+
+        assertThat(invoicedIn(revenue, 3)).isEqualTo(150_000L);
+        assertThat(invoicedIn(revenue, 4)).isEqualTo(-150_000L);
+        assertThat(revenue.invoicedCents()).isZero();
+    }
+
+    /**
+     * 00:30 on 1 April in Berlin is 22:30 on 31 March in UTC. The DATEV
+     * Belegdatum is the Berlin date, so the report has to agree with it.
+     */
+    @Test
+    void anInvoiceIssuedJustAfterMidnightOnTheFirstCountsInThatMonth() {
+        Fixture fx = createStudio();
+        issueInvoice(fx, 120_000, berlin(YEAR, 4, 1, 0, 30));
+
+        RevenueSummary revenue = report(fx).revenue();
+
+        assertThat(invoicedIn(revenue, 3)).isZero();
+        assertThat(invoicedIn(revenue, 4)).isEqualTo(120_000L);
+    }
+
+    /**
+     * The figure a studio sees and the file its accountant receives must not
+     * disagree. The year's edges are where they would: an invoice at 00:30 on
+     * 1 January is this year's in Berlin and last year's in UTC.
+     */
+    @Test
+    void yearlyTotalsMatchWhatTheDatevExportBooksForTheSameYear() {
+        Fixture fx = createStudio();
+        issueInvoice(fx, 214_200, berlin(YEAR, 1, 1, 0, 30));
+        UUID reversed = issueInvoice(fx, 90_000, berlin(YEAR, 5, 5, 10, 0));
+        storno(fx, reversed, berlin(YEAR, 5, 20, 10, 0));
+        UUID lastYears = issueInvoice(fx, 50_000, berlin(YEAR - 1, 12, 15, 10, 0));
+        storno(fx, lastYears, berlin(YEAR, 2, 3, 10, 0));
+        issueInvoice(fx, 33_300, berlin(YEAR, 12, 31, 23, 30));
+        issueInvoice(fx, 77_700, berlin(YEAR + 1, 1, 1, 0, 30));
+
+        long invoiced = report(fx).revenue().invoicedCents();
+
+        // 2142.00 + 900.00 − 900.00 − 500.00 + 333.00
+        assertThat(invoiced).isEqualTo(197_500L);
+        assertThat(invoiced).isEqualTo(datevBookedCents(fx, YEAR));
+    }
+
+    /**
+     * The average describes a sale that stands. A Storno and the invoice it
+     * withdrew are a correction, not two more sales, so the count is of Live
+     * invoices (GLOSSARY.md) and one reversed sale does not drag down the
+     * average of the real one.
+     */
+    @Test
+    void theAverageInvoiceIsTakenOverLiveInvoicesOnly() {
+        Fixture fx = createStudio();
+        issueInvoice(fx, 200_000, berlin(YEAR, 7, 1, 10, 0));
+        UUID reversed = issueInvoice(fx, 80_000, berlin(YEAR, 7, 2, 10, 0));
+        storno(fx, reversed, berlin(YEAR, 7, 3, 10, 0));
+
+        RevenueSummary revenue = report(fx).revenue();
+
+        assertThat(revenue.invoiceCount()).isEqualTo(1);
+        assertThat(revenue.averageInvoiceCents()).isEqualTo(200_000L);
     }
 
     // ── fixtures ──────────────────────────────────────────────────────────
@@ -90,6 +198,115 @@ class AnalyticsServiceIT extends IntegrationTestBase {
                 .executeUpdate();
             return null;
         }));
+    }
+
+    private static ZonedDateTime berlin(int year, int month, int day, int hour, int minute) {
+        return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, BERLIN);
+    }
+
+    private static long invoicedIn(RevenueSummary revenue, int month) {
+        return revenue.months().get(month - 1).invoicedCents();
+    }
+
+    /**
+     * The report, read over a database session in UTC, the zone a container
+     * runs in. The JDBC driver otherwise hands the session the JVM's zone, and
+     * on a laptop in Berlin that hides every month-boundary bug.
+     */
+    private AnalyticsResponse report(Fixture fx) {
+        return asUser(fx, () -> new TransactionTemplate(txManager).execute(tx -> {
+            jdbc.execute("SET LOCAL TIME ZONE 'UTC'");
+            return analyticsService.forYear(YEAR);
+        }));
+    }
+
+    /**
+     * An issued invoice as InvoiceService writes it, at a chosen instant. Its
+     * issue year is the Berlin year, as the numbering derives it.
+     */
+    private UUID issueInvoice(Fixture fx, long totalCents, ZonedDateTime issuedAt) {
+        UUID id = UUID.randomUUID();
+        int issueYear = issuedAt.withZoneSameInstant(BERLIN).getYear();
+        int sequence = nextSequenceNumber++;
+        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
+            entityManager.createNativeQuery("""
+                INSERT INTO invoices (id, tenant_id, invoice_number, issue_year, sequence_number, status,
+                    tax_mode, issuer_business_name, issuer_address_line1, issuer_postal_code, issuer_city,
+                    issuer_country, buyer_name, buyer_email, subtotal_cents, tax_cents, total_cents, issued_at)
+                VALUES (:id, :tenantId, :number, :issueYear, :sequence, 'ISSUED',
+                    'KLEINUNTERNEHMER', 'Anna Fotografie', 'Hauptstr. 1', '10115', 'Berlin',
+                    'DE', 'Maria Kellner', 'maria@example.test', :total, 0, :total, :issuedAt)
+                """)
+                .setParameter("id", id)
+                .setParameter("tenantId", fx.tenantId())
+                .setParameter("number", invoiceNumber(issueYear, sequence))
+                .setParameter("issueYear", issueYear)
+                .setParameter("sequence", sequence)
+                .setParameter("total", totalCents)
+                .setParameter("issuedAt", issuedAt.toOffsetDateTime())
+                .executeUpdate();
+            return null;
+        }));
+        return id;
+    }
+
+    /**
+     * What InvoiceService.storno writes: a document of its own with the
+     * original's amounts negated, issued at its own instant, and then the
+     * original flipped to Storniert.
+     */
+    private void storno(Fixture fx, UUID originalId, ZonedDateTime issuedAt) {
+        int issueYear = issuedAt.withZoneSameInstant(BERLIN).getYear();
+        int sequence = nextSequenceNumber++;
+        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
+            entityManager.createNativeQuery("""
+                INSERT INTO invoices (tenant_id, invoice_number, issue_year, sequence_number, status,
+                    tax_mode, issuer_business_name, issuer_address_line1, issuer_postal_code, issuer_city,
+                    issuer_country, buyer_name, buyer_email, subtotal_cents, tax_cents, total_cents,
+                    storno_of_id, issued_at)
+                SELECT tenant_id, :number, :issueYear, :sequence, 'ISSUED',
+                    tax_mode, issuer_business_name, issuer_address_line1, issuer_postal_code, issuer_city,
+                    issuer_country, buyer_name, buyer_email, -subtotal_cents, -tax_cents, -total_cents,
+                    id, :issuedAt
+                FROM invoices WHERE id = :originalId
+                """)
+                .setParameter("number", invoiceNumber(issueYear, sequence))
+                .setParameter("issueYear", issueYear)
+                .setParameter("sequence", sequence)
+                .setParameter("issuedAt", issuedAt.toOffsetDateTime())
+                .setParameter("originalId", originalId)
+                .executeUpdate();
+            entityManager.createNativeQuery("UPDATE invoices SET status = 'STORNIERT' WHERE id = :originalId")
+                .setParameter("originalId", originalId)
+                .executeUpdate();
+            return null;
+        }));
+    }
+
+    /**
+     * Sums the DATEV export's postings for the year: H is revenue, S reverses
+     * it, and the amount column is always positive with a comma decimal.
+     */
+    private long datevBookedCents(Fixture fx, int year) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        asUser(fx, () -> {
+            invoiceService.exportDatevCsv(out, year);
+            return null;
+        });
+        String csv = new String(out.toByteArray(), Charset.forName("windows-1252"));
+        return Arrays.stream(csv.split("\r\n"))
+            .skip(2)
+            .filter(row -> !row.isBlank())
+            .mapToLong(row -> {
+                String[] fields = row.split(";");
+                long cents = Long.parseLong(fields[0].replace(",", ""));
+                return "S".equals(fields[1]) ? -cents : cents;
+            })
+            .sum();
+    }
+
+    private static String invoiceNumber(int issueYear, int sequence) {
+        return issueYear + "-" + String.format(Locale.ROOT, "%04d", sequence);
     }
 
     private <T> T asUser(Fixture fx, Supplier<T> action) {

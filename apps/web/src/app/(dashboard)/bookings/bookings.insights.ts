@@ -1,3 +1,4 @@
+import { isBillable, isNotHappening } from '@/lib/booking-status';
 import { parseApiDate } from '@/lib/date';
 import type { Contract } from '@/hooks/useContracts';
 import type { Gallery } from '@/hooks/useGalleries';
@@ -33,9 +34,6 @@ export type BookingContext = {
   contractsEnabled: boolean;
 };
 
-const BILLABLE = new Set(['CONFIRMED', 'POSTPONED', 'COMPLETED']);
-const OPEN = new Set(['ENQUIRY', 'CONFIRMED', 'POSTPONED']);
-
 /** Whole days from today to the shoot; negative once it has passed. */
 export function daysFromToday(eventDate: string, today: Date): number {
   const date = parseApiDate(eventDate);
@@ -49,17 +47,21 @@ export function daysFromToday(eventDate: string, today: Date): number {
  * "€850 open" on either reads as money being chased that is not.
  */
 export function openBalanceCents(booking: Booking): number {
-  if (!BILLABLE.has(booking.status)) return 0;
+  if (!isBillable(booking.status)) return 0;
   return Math.max((booking.totalAmountCents || 0) - (booking.amountPaidCents ?? 0), 0);
 }
 
 export function isUpcoming(booking: Booking, today: Date): boolean {
-  return OPEN.has(booking.status) && daysFromToday(booking.eventDate, today) >= 0;
+  return (
+    !isNotHappening(booking.status) &&
+    booking.status !== 'COMPLETED' &&
+    daysFromToday(booking.eventDate, today) >= 0
+  );
 }
 
 export function isPast(booking: Booking, today: Date): boolean {
   if (booking.status === 'COMPLETED') return true;
-  if (booking.status === 'CANCELLED' || booking.status === 'DECLINED') return false;
+  if (isNotHappening(booking.status)) return false;
   return daysFromToday(booking.eventDate, today) < 0;
 }
 
@@ -115,7 +117,7 @@ export type ProgressStep =
  * something that will not happen is noise.
  */
 export function progressSteps(booking: Booking, ctx: BookingContext): ProgressStep[] | null {
-  if (booking.status === 'CANCELLED' || booking.status === 'DECLINED') return null;
+  if (isNotHappening(booking.status)) return null;
   const isEnquiry = booking.status === 'ENQUIRY';
   const days = daysFromToday(booking.eventDate, ctx.today);
   const shootDone = booking.status === 'COMPLETED' || (!isEnquiry && days < 0);

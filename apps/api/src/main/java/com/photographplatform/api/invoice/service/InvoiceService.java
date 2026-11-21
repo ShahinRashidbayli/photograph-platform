@@ -101,7 +101,7 @@ public class InvoiceService {
             .orElseThrow(() -> new NotFoundException("Tenant not found"));
 
         BookingStatus bookingStatus = booking.getStatus();
-        if (bookingStatus == BookingStatus.DECLINED || bookingStatus == BookingStatus.CANCELLED) {
+        if (bookingStatus.isNotHappening()) {
             throw new ConflictException(
                 "Cannot issue an invoice for a " + bookingStatus.name().toLowerCase(Locale.ROOT) + " booking");
         }

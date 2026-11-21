@@ -17,6 +17,7 @@ import {
   getBookingStatusMeta,
   getCustomerBookingStatusLabelKey,
   getPaymentStateMeta,
+  isNotHappening,
   toneToVisual,
   type BookingStatusKey,
 } from '@/lib/booking-status';
@@ -44,7 +45,7 @@ type Colors = ReturnType<typeof getBookingsColors>;
  * without competing with live work.
  */
 function paletteFor(status: string, c: Colors) {
-  if (status === 'CANCELLED' || status === 'DECLINED') {
+  if (isNotHappening(status)) {
     return { bg: c.neutralBg, border: c.neutral, text: c.textMuted };
   }
   const visual = toneToVisual(getBookingStatusMeta(status).tone, c);
@@ -102,7 +103,7 @@ function bookingToEvent(b: Booking, c: Colors): EventInput {
       paymentState: b.paymentState,
       clientEmail: b.clientEmail,
     },
-    classNames: b.status === 'CANCELLED' || b.status === 'DECLINED' ? ['booking-cancelled'] : [],
+    classNames: isNotHappening(b.status) ? ['booking-cancelled'] : [],
   };
 }
 

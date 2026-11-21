@@ -77,4 +77,22 @@ class BookingStatusTest {
             .isInstanceOf(ConflictException.class)
             .hasMessageContaining("already");
     }
+
+    // Glossary: Billable is "will happen or has happened"; an enquiry never is.
+    @Test
+    void onlyConfirmedPostponedAndCompletedBookingsAreBillable() {
+        assertThat(BookingStatus.BILLABLE).containsExactlyInAnyOrder(
+            BookingStatus.CONFIRMED, BookingStatus.POSTPONED, BookingStatus.COMPLETED);
+    }
+
+    @Test
+    void onlyCancelledAndDeclinedBookingsAreNotHappening() {
+        assertThat(BookingStatus.CANCELLED.isNotHappening()).isTrue();
+        assertThat(BookingStatus.DECLINED.isNotHappening()).isTrue();
+
+        assertThat(BookingStatus.ENQUIRY.isNotHappening()).isFalse();
+        assertThat(BookingStatus.CONFIRMED.isNotHappening()).isFalse();
+        assertThat(BookingStatus.POSTPONED.isNotHappening()).isFalse();
+        assertThat(BookingStatus.COMPLETED.isNotHappening()).isFalse();
+    }
 }

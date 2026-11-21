@@ -8,6 +8,7 @@ import com.photographplatform.api.analytics.dto.AnalyticsResponse.PackageCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PhotographerCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.RevenueSummary;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.StatusCount;
+import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.entitlement.domain.Capability;
 import com.photographplatform.api.entitlement.service.EntitlementService;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,12 +54,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AnalyticsService {
 
+    /**
+     * Bound as a list parameter, so the queries below take Billable from
+     * {@link BookingStatus#BILLABLE} instead of spelling their own list.
+     */
+    private static final List<String> BILLABLE = BookingStatus.namesOf(BookingStatus.BILLABLE);
+
     private final JdbcTemplate jdbc;
+    /** Same connection; only for the queries that bind a status list. */
+    private final NamedParameterJdbcTemplate namedJdbc;
     private final EntitlementService entitlementService;
     private final Clock clock;
 
     public AnalyticsService(JdbcTemplate jdbc, EntitlementService entitlementService, Clock clock) {
         this.jdbc = jdbc;
+        this.namedJdbc = new NamedParameterJdbcTemplate(jdbc);
         this.entitlementService = entitlementService;
         this.clock = clock;
     }
@@ -181,22 +192,23 @@ public class AnalyticsService {
             months.add(new MonthlyCount(m, counts.getOrDefault(m, 0)));
         }
 
-        // Cancelled and declined bookings are left out of the package mix: the
-        // question this answers is "what sells", and a package someone backed
-        // out of did not.
-        List<PackageCount> topPackages = jdbc.queryForList("""
+        // Only Billable bookings count in the package mix: the question this
+        // answers is "what sells", and neither an enquiry nobody has agreed to
+        // nor a package someone backed out of has sold.
+        Map<String, Object> billableInYear = Map.of("tenantId", tenantId, "year", year, "billable", BILLABLE);
+        List<PackageCount> topPackages = namedJdbc.queryForList("""
             SELECT COALESCE(p.name, '—')                    AS name,
                    COUNT(*)                                 AS cnt,
                    COALESCE(SUM(b.total_amount_cents), 0)   AS revenue
             FROM bookings b
             LEFT JOIN packages p ON p.id = b.package_id AND p.tenant_id = b.tenant_id
-            WHERE b.tenant_id = ?
-              AND EXTRACT(YEAR FROM b.event_date) = ?
-              AND b.status NOT IN ('CANCELLED', 'DECLINED')
+            WHERE b.tenant_id = :tenantId
+              AND EXTRACT(YEAR FROM b.event_date) = :year
+              AND b.status IN (:billable)
             GROUP BY 1
             ORDER BY cnt DESC, revenue DESC
             LIMIT 5
-            """, tenantId, year).stream()
+            """, billableInYear).stream()
             .map(r -> new PackageCount(
                 (String) r.get("name"), (int) num(r.get("cnt")), num(r.get("revenue"))))
             .toList();
@@ -217,23 +229,23 @@ public class AnalyticsService {
             WHERE l.tenant_id = ? AND EXTRACT(YEAR FROM l.created_at) = ?
             """, Long.class, tenantId, year));
 
-        // Cancelled and declined are left out for the same reason as the package
-        // mix: this answers "who did the work", and work somebody backed out of
-        // was not done. Unassigned bookings keep their own row so the split
-        // still reconciles against the year.
-        List<PhotographerCount> byPhotographer = jdbc.queryForList("""
+        // Only Billable bookings, for the same reason as the package mix: this
+        // answers "who did the work", and work that was never agreed or was
+        // backed out of was not done. Unassigned bookings keep their own row so
+        // the split still reconciles against the year.
+        List<PhotographerCount> byPhotographer = namedJdbc.queryForList("""
             SELECT u.full_name                              AS name,
                    u.email                                  AS email,
                    COUNT(*)                                 AS cnt,
                    COALESCE(SUM(b.total_amount_cents), 0)   AS revenue
             FROM bookings b
             LEFT JOIN users u ON u.id = b.assigned_user_id AND u.tenant_id = b.tenant_id
-            WHERE b.tenant_id = ?
-              AND EXTRACT(YEAR FROM b.event_date) = ?
-              AND b.status NOT IN ('CANCELLED', 'DECLINED')
+            WHERE b.tenant_id = :tenantId
+              AND EXTRACT(YEAR FROM b.event_date) = :year
+              AND b.status IN (:billable)
             GROUP BY u.full_name, u.email
             ORDER BY cnt DESC, revenue DESC
-            """, tenantId, year).stream()
+            """, billableInYear).stream()
             .map(r -> {
                 String name = (String) r.get("name");
                 if (name == null || name.isBlank()) {

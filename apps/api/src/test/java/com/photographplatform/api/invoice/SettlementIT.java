@@ -97,8 +97,8 @@ class SettlementIT extends IntegrationTestBase {
             inTenant(() -> settlementOn(NOV_5).ofBookings(List.of(invoiced, uninvoiced)));
 
         assertThat(settled).containsOnlyKeys(invoiced, uninvoiced);
-        assertThat(settled.get(uninvoiced)).isEqualTo(new BookingSettlement(NOT_INVOICED, 0, 0));
-        assertThat(settled.get(invoiced)).isEqualTo(new BookingSettlement(OPEN, 100_000, 0));
+        assertThat(settled.get(uninvoiced)).isEqualTo(new BookingSettlement(NOT_INVOICED, 0, 0, 0));
+        assertThat(settled.get(invoiced)).isEqualTo(new BookingSettlement(OPEN, 100_000, 0, 0));
     }
 
     @Test
@@ -107,9 +107,9 @@ class SettlementIT extends IntegrationTestBase {
         invoice(booking, 100_000, NOV_1);
 
         assertThat(inTenant(() -> settlementOn(NOV_14).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(OPEN, 100_000, 0));
+            .isEqualTo(new BookingSettlement(OPEN, 100_000, 0, 0));
         assertThat(inTenant(() -> settlementOn(NOV_16).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(OVERDUE, 100_000, 0));
+            .isEqualTo(new BookingSettlement(OVERDUE, 100_000, 0, 0));
     }
 
     @Test
@@ -118,9 +118,9 @@ class SettlementIT extends IntegrationTestBase {
         pay(invoice(booking, 100_000, NOV_1), 40_000);
 
         assertThat(inTenant(() -> settlementOn(NOV_5).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(PARTIALLY_PAID, 100_000, 40_000));
+            .isEqualTo(new BookingSettlement(PARTIALLY_PAID, 100_000, 40_000, 0));
         assertThat(inTenant(() -> settlementOn(NOV_16).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(OVERDUE, 100_000, 40_000));
+            .isEqualTo(new BookingSettlement(OVERDUE, 100_000, 40_000, 0));
     }
 
     /** A deposit invoice and a final invoice: the booking is settled across both. */
@@ -131,7 +131,7 @@ class SettlementIT extends IntegrationTestBase {
         pay(invoice(booking, 70_000, NOV_5), 70_000);
 
         assertThat(inTenant(() -> settlementOn(DEC_1).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(PAID, 100_000, 100_000));
+            .isEqualTo(new BookingSettlement(PAID, 100_000, 100_000, 0));
     }
 
     /**
@@ -145,7 +145,7 @@ class SettlementIT extends IntegrationTestBase {
         invoice(booking, 70_000, NOV_14);
 
         assertThat(inTenant(() -> settlementOn(NOV_20).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(PARTIALLY_PAID, 100_000, 30_000));
+            .isEqualTo(new BookingSettlement(PARTIALLY_PAID, 100_000, 30_000, 0));
     }
 
     /**
@@ -158,7 +158,7 @@ class SettlementIT extends IntegrationTestBase {
         storno(invoice(booking, 100_000, NOV_1), NOV_5);
 
         assertThat(inTenant(() -> settlementOn(DEC_1).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(NOT_INVOICED, 0, 0));
+            .isEqualTo(new BookingSettlement(NOT_INVOICED, 0, 0, 0));
     }
 
     /**
@@ -172,7 +172,25 @@ class SettlementIT extends IntegrationTestBase {
         invoice(booking, 80_000, NOV_10);
 
         assertThat(inTenant(() -> settlementOn(NOV_20).ofBooking(booking)))
-            .isEqualTo(new BookingSettlement(OPEN, 80_000, 0));
+            .isEqualTo(new BookingSettlement(OPEN, 80_000, 0, 0));
+    }
+
+    /**
+     * Two bookingless invoices are not one booking: a payment on a withdrawn
+     * invoice with no booking has no Live invoice to carry over to, so it stays
+     * Credit and an unrelated bookingless invoice still owes its whole total.
+     */
+    @Test
+    void aPaymentOnAWithdrawnInvoiceWithoutABookingIsNotCarriedOver() {
+        Invoice withdrawn = invoice(null, 100_000, NOV_1);
+        pay(withdrawn, 100_000);
+        storno(withdrawn, NOV_5);
+        Invoice unrelated = invoice(null, 100_000, NOV_10);
+
+        InvoiceSettlement settled = inTenant(() -> settlementOn(NOV_14).ofInvoice(unrelated.getId()));
+
+        assertThat(settled.outstandingCents()).isEqualTo(100_000);
+        assertThat(settled.collectable()).isTrue();
     }
 
     // ── one invoice's settlement ─────────────────────────────────────────────

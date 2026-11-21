@@ -130,6 +130,12 @@ export function BookingDetail({
   const remaining = Math.max(total - paid, 0);
   const percent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   const paymentVisual = toneToVisual(getPaymentStateMeta(booking.paymentState).tone, c);
+  // Money the studio holds for the client: a payment on an invoice that was
+  // Storniert after it was paid, beyond what the Live invoices ask for. The
+  // payment state alone cannot say so — a booking with no replacement invoice
+  // reads "Not invoiced" while the money is still in the studio's account.
+  const credit = booking.creditCents ?? 0;
+  const creditVisual = toneToVisual('info', c);
 
   function run(action: ActionKey) {
     const transition = ACTION_TRANSITION[action];
@@ -312,6 +318,14 @@ export function BookingDetail({
               <span style={dot(paymentVisual.dot)} />
               {t(getPaymentStateMeta(booking.paymentState).labelKey)}
             </span>
+            {credit > 0 && (
+              <span
+                style={pill(creditVisual.color, creditVisual.bg)}
+                title={t('bookings.detail.creditHint')}
+              >
+                {t('bookings.detail.credit', { amount: format.eurExact(credit) })}
+              </span>
+            )}
           </div>
           {!notHappening && (
             <Button variant="secondary" size="sm" onClick={() => setShowCreateInvoice(true)}>

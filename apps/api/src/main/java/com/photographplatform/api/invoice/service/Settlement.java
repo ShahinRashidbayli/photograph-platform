@@ -11,10 +11,14 @@ import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.service.SucceededPayments;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -31,10 +35,17 @@ import org.springframework.transaction.annotation.Transactional;
  * (ADR-004 §1). Booking, payment and invoice's own responses ask here; none of
  * them reads invoice or payment rows to decide it for themselves.
  *
+ * <p>Money in is settled per booking (ADR-004 §2): a payment on an invoice
+ * that was later Storniert counts against the same booking's Live invoices
+ * (see {@link #carryOver}). So an invoice's Outstanding amount depends on its
+ * booking's other invoices, and even a single invoice is settled together
+ * with them.
+ *
  * <p>Derived fresh on every call and never stored, so it cannot drift from
  * the rows it is computed from. The rules themselves sit in the two {@code
- * settle} methods, one per invoice and one per booking; a change to what
- * counts as Outstanding or Overdue belongs there, not in a caller.
+ * settle} methods, one per invoice and one per booking, and in {@link
+ * #carryOver}; a change to what counts as Outstanding or Overdue belongs
+ * there, not in a caller.
  */
 @Service
 public class Settlement {
@@ -47,6 +58,10 @@ public class Settlement {
      * FU-13 replaces this with a real Due date; only this class changes then.
      */
     private static final int DEFAULT_DUE_DAYS = 14;
+
+    /** Issue order. The sequence number breaks a tie between two documents issued in the same instant. */
+    private static final Comparator<Invoice> OLDEST_FIRST =
+        Comparator.comparing(Invoice::getIssuedAt).thenComparing(Invoice::getSequenceNumber);
 
     private final InvoiceRepository invoiceRepository;
     private final SucceededPayments succeededPayments;
@@ -95,7 +110,7 @@ public class Settlement {
     public InvoiceSettlement ofInvoice(UUID invoiceId) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
             .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
-        return settle(invoice, succeededPayments.totalCents(invoiceId));
+        return withItsBooking(invoice);
     }
 
     /**
@@ -112,6 +127,11 @@ public class Settlement {
      * <p>The lock is NOWAIT (see {@code InvoiceRepository#findByIdForPayment}):
      * a second caller is told to retry with a 409 instead of queueing behind
      * someone else's Stripe round-trip.
+     *
+     * <p>Only this invoice's row is locked, not its booking's other invoices.
+     * This invoice's share of a Carried-over payment cannot shrink under it: a
+     * Storniert invoice takes no more money, and a payment on another Live
+     * invoice fills that invoice before anything is carried past it.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public InvoiceSettlement lockForPayment(UUID invoiceId) {
@@ -128,17 +148,45 @@ public class Settlement {
                 "A payment for this invoice is already being processed. "
                     + "Please reload the page and try again in a moment.");
         }
-        return settle(invoice, succeededPayments.totalCents(invoiceId));
+        return withItsBooking(invoice);
     }
 
     /**
-     * Invoices the caller already holds, in one grouped query. Package-private:
-     * only {@code InvoiceService} has invoice rows in hand to pass.
+     * Invoices the caller already holds, each settled with its booking's other
+     * invoices, in two queries however many there are. Package-private: only
+     * {@code InvoiceService} and {@code SettlementPeriods} have invoice rows in
+     * hand to pass.
+     *
+     * <p>The booking's other invoices are loaded even when the caller passed
+     * only Live ones or only one page: a payment on a withdrawn invoice on
+     * another page, or from another year, still counts against these.
      */
     Map<UUID, InvoiceSettlement> ofInvoices(List<Invoice> invoices) {
-        Map<UUID, Long> paidByInvoice = succeededPayments.totalCentsByInvoice(ids(invoices));
-        return invoices.stream().collect(Collectors.toMap(
-            Invoice::getId, inv -> settle(inv, paidByInvoice.getOrDefault(inv.getId(), 0L))));
+        Map<UUID, Invoice> withSiblings = new LinkedHashMap<>();
+        invoices.forEach(inv -> withSiblings.put(inv.getId(), inv));
+        List<UUID> bookingIds = invoices.stream()
+            .map(Invoice::getBookingId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (!bookingIds.isEmpty()) {
+            invoiceRepository.findByBookingIdInOrderByIssuedAtDesc(bookingIds)
+                .forEach(inv -> withSiblings.putIfAbsent(inv.getId(), inv));
+        }
+        Map<UUID, Long> paidByInvoice = succeededPayments.totalCentsByInvoice(withSiblings.keySet());
+
+        Map<UUID, InvoiceSettlement> settled = new HashMap<>();
+        for (List<Invoice> booking : byBooking(withSiblings.values())) {
+            CarryOver carried = carryOver(booking, paidByInvoice);
+            for (Invoice inv : booking) {
+                settled.put(inv.getId(), settle(inv, paidOn(inv, paidByInvoice), carried.into(inv)));
+            }
+        }
+        return invoices.stream().collect(Collectors.toMap(Invoice::getId, inv -> settled.get(inv.getId())));
+    }
+
+    private InvoiceSettlement withItsBooking(Invoice invoice) {
+        return ofInvoices(List.of(invoice)).get(invoice.getId());
     }
 
     /**
@@ -148,15 +196,21 @@ public class Settlement {
      * withdrawn invoice used to report its total less its payments, which
      * read as money still owed on a document nobody can pay.
      *
+     * <p>A Live invoice owes its total less its own payments and less its
+     * share of the booking's Carried-over payments ({@link #carryOver}).
+     * {@code paidCents} stays its own payments only: that is the money that
+     * arrived against it, and Collected counts those, not the carried-over
+     * share, so nothing is Collected twice.
+     *
      * <p>The Due date is counted from the day printed on the invoice, not from
      * the UTC instant (see {@link InvoiceDate}), and it is a whole day: Overdue
      * starts the day after it.
      */
-    private InvoiceSettlement settle(Invoice invoice, long paidCents) {
+    private InvoiceSettlement settle(Invoice invoice, long paidCents, long carriedOverCents) {
         if (!invoice.isLive()) {
             return new InvoiceSettlement(invoice, (int) paidCents, 0, null, false, false);
         }
-        int outstanding = (int) Math.max(0, invoice.getTotalCents() - paidCents);
+        int outstanding = (int) Math.max(0, invoice.getTotalCents() - paidCents - carriedOverCents);
         LocalDate dueDate = InvoiceDate.of(invoice.getIssuedAt()).plusDays(DEFAULT_DUE_DAYS);
         boolean collectable = outstanding > 0;
         boolean overdue = collectable && LocalDate.ofInstant(clock.instant(), BusinessZone.ID).isAfter(dueDate);
@@ -167,22 +221,28 @@ public class Settlement {
      * Every invoice's total is summed regardless of status: a Storno's
      * negative total exists to net against the original it withdraws (see
      * {@code InvoiceService#storno}).
+     *
+     * <p>Credit never changes the state. A booking whose only invoice was
+     * Storniert after it was paid stays NOT_INVOICED; the Credit is what says
+     * the studio is holding the Customer's money.
      */
     private BookingSettlement settle(List<Invoice> invoices, Map<UUID, Long> paidByInvoice) {
         int invoiced = invoices.stream().mapToInt(Invoice::getTotalCents).sum();
         int paid = invoices.stream()
-            .mapToInt(inv -> paidByInvoice.getOrDefault(inv.getId(), 0L).intValue())
+            .mapToInt(inv -> (int) paidOn(inv, paidByInvoice))
             .sum();
+        CarryOver carried = carryOver(invoices, paidByInvoice);
+        int credit = carried.creditCents();
 
         // invoiced <= 0 means every invoice against this booking has been
         // fully storniert. That is "nothing currently owed", the same as never
         // having invoiced — not PAID, which would claim the full quoted total
         // was actually collected.
         if (invoiced <= 0) {
-            return new BookingSettlement(BookingPaymentState.NOT_INVOICED, invoiced, paid);
+            return new BookingSettlement(BookingPaymentState.NOT_INVOICED, invoiced, paid, credit);
         }
         if (paid >= invoiced) {
-            return new BookingSettlement(BookingPaymentState.PAID, invoiced, paid);
+            return new BookingSettlement(BookingPaymentState.PAID, invoiced, paid, credit);
         }
         // Overdue is each invoice's own: its own Due date, its own Outstanding.
         // Read across the booking instead, a paid deposit past its Due date made
@@ -190,14 +250,80 @@ public class Settlement {
         // window, and a withdrawn document's old issue date did the same to a
         // corrected booking.
         if (invoices.stream()
-            .anyMatch(inv -> settle(inv, paidByInvoice.getOrDefault(inv.getId(), 0L)).overdue())) {
-            return new BookingSettlement(BookingPaymentState.OVERDUE, invoiced, paid);
+            .anyMatch(inv -> settle(inv, paidOn(inv, paidByInvoice), carried.into(inv)).overdue())) {
+            return new BookingSettlement(BookingPaymentState.OVERDUE, invoiced, paid, credit);
         }
         BookingPaymentState state = paid <= 0 ? BookingPaymentState.OPEN : BookingPaymentState.PARTIALLY_PAID;
-        return new BookingSettlement(state, invoiced, paid);
+        return new BookingSettlement(state, invoiced, paid, credit);
+    }
+
+    /**
+     * Money in is settled per booking (ADR-004 §2), so a Customer is never
+     * asked to pay twice for one booking. Each Live invoice first takes its
+     * own payments. What no invoice claims for itself, a payment on an invoice
+     * that was later Storniert (a Carried-over payment) or anything paid on a
+     * Live invoice beyond its total, then fills the booking's Live invoices
+     * that still owe something, oldest first. What is left after that is
+     * Credit.
+     *
+     * <p>Settled per invoice instead, a Customer who had paid invoice A was
+     * asked to pay its replacement B in full once A was Storniert.
+     *
+     * @param invoices one booking's invoices, every status included
+     */
+    private static CarryOver carryOver(List<Invoice> invoices, Map<UUID, Long> paidByInvoice) {
+        long unclaimed = 0;
+        for (Invoice inv : invoices) {
+            long paid = paidOn(inv, paidByInvoice);
+            unclaimed += inv.isLive() ? Math.max(0, paid - inv.getTotalCents()) : paid;
+        }
+        Map<UUID, Long> into = new HashMap<>();
+        for (Invoice inv : invoices.stream().filter(Invoice::isLive).sorted(OLDEST_FIRST).toList()) {
+            long owed = Math.max(0, inv.getTotalCents() - paidOn(inv, paidByInvoice));
+            long taken = Math.min(owed, unclaimed);
+            into.put(inv.getId(), taken);
+            unclaimed -= taken;
+        }
+        return new CarryOver(into, (int) unclaimed);
+    }
+
+    /**
+     * Invoices grouped by booking. An invoice with no booking has no other
+     * invoice to share money with, so it is settled alone, and money paid on
+     * it stays Credit once it is withdrawn.
+     */
+    private static List<List<Invoice>> byBooking(Collection<Invoice> invoices) {
+        Map<UUID, List<Invoice>> byBooking = new LinkedHashMap<>();
+        List<List<Invoice>> groups = new ArrayList<>();
+        for (Invoice inv : invoices) {
+            if (inv.getBookingId() == null) {
+                groups.add(List.of(inv));
+            } else {
+                byBooking.computeIfAbsent(inv.getBookingId(), id -> new ArrayList<>()).add(inv);
+            }
+        }
+        groups.addAll(byBooking.values());
+        return groups;
+    }
+
+    private static long paidOn(Invoice invoice, Map<UUID, Long> paidByInvoice) {
+        return paidByInvoice.getOrDefault(invoice.getId(), 0L);
     }
 
     private static List<UUID> ids(List<Invoice> invoices) {
         return invoices.stream().map(Invoice::getId).toList();
+    }
+
+    /**
+     * Where one booking's unclaimed money went.
+     *
+     * @param intoInvoice how much of it each Live invoice took
+     * @param creditCents what no Live invoice needed: Credit
+     */
+    private record CarryOver(Map<UUID, Long> intoInvoice, int creditCents) {
+
+        long into(Invoice invoice) {
+            return intoInvoice.getOrDefault(invoice.getId(), 0L);
+        }
     }
 }

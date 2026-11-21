@@ -78,6 +78,13 @@ export interface Booking {
   /** Derived server-side from real invoice/payment rows — never guessed client-side. */
   paymentState?: 'NOT_INVOICED' | 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
   amountPaidCents?: number;
+  /**
+   * Money Collected for this booking beyond what its Live invoices ask for,
+   * e.g. a payment on an invoice that was later Storniert with no replacement.
+   * The studio holds it until a new invoice uses it or it is paid back.
+   * Derived server-side like `paymentState`.
+   */
+  creditCents?: number;
   internalNotes?: string;
   /**
    * The photographer shooting it, or absent while nobody has been assigned.

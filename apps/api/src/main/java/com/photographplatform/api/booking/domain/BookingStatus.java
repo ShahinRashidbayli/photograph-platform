@@ -2,6 +2,7 @@ package com.photographplatform.api.booking.domain;
 
 import com.photographplatform.api.common.exception.ConflictException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,6 +54,20 @@ public enum BookingStatus {
      */
     public static final Set<BookingStatus> NOT_HAPPENING = EnumSet.of(CANCELLED, DECLINED);
 
+    /**
+     * Statuses whose quoted value is money the studio has earned or will earn
+     * (Billable, see GLOSSARY.md). An enquiry is not: it has not been agreed,
+     * and counting its quote is how the dashboard came to report revenue the
+     * bookings screen did not. Its own set rather than "not NOT_HAPPENING",
+     * which is exactly the reading that let enquiries in.
+     */
+    public static final Set<BookingStatus> BILLABLE = EnumSet.of(CONFIRMED, POSTPONED, COMPLETED);
+
+    /** A status set as names, for native SQL that compares the status column as text. */
+    public static List<String> namesOf(Set<BookingStatus> statuses) {
+        return statuses.stream().map(Enum::name).toList();
+    }
+
     public static BookingStatus parse(String value) {
         if (value == null) {
             throw new ConflictException("Booking status is required");
@@ -85,6 +100,10 @@ public enum BookingStatus {
      */
     public boolean isClosedForEdits() {
         return this == COMPLETED || this == DECLINED || this == CANCELLED;
+    }
+
+    public boolean isNotHappening() {
+        return NOT_HAPPENING.contains(this);
     }
 
     public boolean canTransitionTo(BookingStatus next) {

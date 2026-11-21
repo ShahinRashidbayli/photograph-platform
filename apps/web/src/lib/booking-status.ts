@@ -142,15 +142,24 @@ export const getAllowedTransitions = (status: string): BookingStatusKey[] =>
   BOOKING_TRANSITIONS[status as BookingStatusKey] ?? [];
 
 /**
- * Terminal statuses that never carry a real payment obligation: a cancelled
- * booking and a declined enquiry both owe nothing, so they must be excluded
- * from any "billable"/"active" filter — payment schedules, outstanding
- * balances, revenue/collected stats, and "next session" selection.
+ * Billable and Not happening (GLOSSARY.md), the same sets as the backend
+ * `BookingStatus.BILLABLE` / `NOT_HAPPENING`. Every screen asks these instead
+ * of keeping its own list.
+ *
+ * Billable is its own set, not "anything not cancelled": that reading is how
+ * an enquiry's quote came to count as revenue on the dashboard while the
+ * bookings overview, with its own stricter copy, left it out.
  */
-const NON_BILLABLE_STATUSES: readonly BookingStatusKey[] = ['CANCELLED', 'DECLINED'];
+const BILLABLE_STATUSES: readonly BookingStatusKey[] = ['CONFIRMED', 'POSTPONED', 'COMPLETED'];
+const NOT_HAPPENING_STATUSES: readonly BookingStatusKey[] = ['CANCELLED', 'DECLINED'];
 
-export const isBillableStatus = (status: string): boolean =>
-  !NON_BILLABLE_STATUSES.includes(status as BookingStatusKey);
+/** Its quoted value is money the studio has earned or will earn. An enquiry never is. */
+export const isBillable = (status: string): boolean =>
+  BILLABLE_STATUSES.includes(status as BookingStatusKey);
+
+/** Cancelled or declined: the shoot will not take place. */
+export const isNotHappening = (status: string): boolean =>
+  NOT_HAPPENING_STATUSES.includes(status as BookingStatusKey);
 
 /** Resolve a tone to its 3 visual slots ({ bg, text, dot }) from the active palette. */
 export const toneToVisual = (tone: StatusTone, c: AppColors) => {

@@ -3,6 +3,7 @@ import type { Contract } from '@/hooks/useContracts';
 import type { CustomerGallery } from '@/hooks/useGalleries';
 import type { CustomerInquiryRequest } from '@/hooks/useInquiryRequests';
 import type { TranslationKey } from '@/lib/i18n';
+import { isNotHappening } from '@/lib/booking-status';
 import { parseApiDate } from '@/lib/date';
 
 /**
@@ -23,10 +24,8 @@ export type PortalData = {
   galleries: CustomerGallery[];
 };
 
-const NOT_HAPPENING = new Set<Booking['status']>(['CANCELLED', 'DECLINED']);
-
 export function isCancelled(b: Booking): boolean {
-  return NOT_HAPPENING.has(b.status);
+  return isNotHappening(b.status);
 }
 
 /** Whole calendar days from today to the shoot (negative once it is past). */

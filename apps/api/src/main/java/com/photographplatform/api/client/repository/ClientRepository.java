@@ -3,6 +3,7 @@ package com.photographplatform.api.client.repository;
 import com.photographplatform.api.client.domain.Client;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,8 +15,14 @@ import org.springframework.data.repository.query.Param;
 public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     /**
-     * One projection row per client + count of currently-upcoming bookings
-     * (event in the future and status not COMPLETED/CANCELLED).
+     * One projection row per client + count of currently-upcoming bookings:
+     * event today or later, not yet completed, and not Not happening.
+     *
+     * <p>The Not happening statuses are a parameter, not literals, for the same
+     * reason as the clash queries in {@code BookingRepository}: spelled out here
+     * as {@code ('COMPLETED', 'CANCELLED')} they had already drifted, and a
+     * declined enquiry for next month counted as upcoming. {@code COMPLETED}
+     * stays in the SQL because it is this count's own rule, not a status group.
      *
      * The native query relies on RLS (see {@code V11__tenant_rls.sql}) so
      * `clients` and `bookings` resolve to only the calling tenant's rows —
@@ -34,18 +41,20 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
                COALESCE((SELECT COUNT(*) FROM bookings b
                          WHERE b.client_id = c.id
                            AND b.event_date >= CURRENT_DATE
-                           AND b.status NOT IN ('COMPLETED', 'CANCELLED')), 0)
+                           AND b.status <> 'COMPLETED'
+                           AND b.status NOT IN (:notHappening)), 0)
                  AS upcomingBookings
         FROM clients c
         ORDER BY c.created_at DESC
         """, nativeQuery = true)
-    List<ClientStatsView> findAllWithStats(Limit limit);
+    List<ClientStatsView> findAllWithStats(
+        Limit limit, @Param("notHappening") Collection<String> notHappening);
 
     /**
      * The same projection for a single client.
      *
      * <p>Exists because returning one updated client used to re-run {@link
-     * #findAllWithStats()} — the whole tenant's directory, plus its correlated
+     * #findAllWithStats} — the whole tenant's directory, plus its correlated
      * subquery per row — and then filter in memory for one id. It also could
      * not distinguish "no such client" from "found", which is how a notes
      * update on an unknown id ended up answering 200 with an empty body.
@@ -63,12 +72,14 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
                COALESCE((SELECT COUNT(*) FROM bookings b
                          WHERE b.client_id = c.id
                            AND b.event_date >= CURRENT_DATE
-                           AND b.status NOT IN ('COMPLETED', 'CANCELLED')), 0)
+                           AND b.status <> 'COMPLETED'
+                           AND b.status NOT IN (:notHappening)), 0)
                  AS upcomingBookings
         FROM clients c
         WHERE c.id = :id
         """, nativeQuery = true)
-    Optional<ClientStatsView> findStatsById(@Param("id") UUID id);
+    Optional<ClientStatsView> findStatsById(
+        @Param("id") UUID id, @Param("notHappening") Collection<String> notHappening);
 
     interface ClientStatsView {
         UUID getId();

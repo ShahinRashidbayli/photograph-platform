@@ -4,7 +4,6 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
-import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -94,8 +93,7 @@ public class ContractService {
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Tenant not found"));
 
-        if (booking.getStatus() == BookingStatus.CANCELLED
-            || booking.getStatus() == BookingStatus.DECLINED) {
+        if (booking.getStatus().isNotHappening()) {
             throw new ConflictException(
                 "Cannot draft a contract for a "
                     + booking.getStatus().name().toLowerCase(java.util.Locale.ROOT) + " booking");

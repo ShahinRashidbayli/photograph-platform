@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { isBillable } from '@/lib/booking-status';
 import { fontSize, getColors, radius, space } from '@/lib/design-tokens';
 import { useTranslation, type PluralKey } from '@/lib/i18n';
 import type { Booking } from '@/types/api';
@@ -22,7 +23,6 @@ const ATTENTION_COUNT: [AttentionKey, PluralKey][] = [
   ['overdue', 'bookings.attention.count.overdue'],
   ['contractUnsigned', 'bookings.attention.count.contractUnsigned'],
 ];
-const BILLABLE = new Set(['CONFIRMED', 'POSTPONED', 'COMPLETED']);
 
 /**
  * The photographer's four numbers above the list.
@@ -69,7 +69,7 @@ export function BookingsOverview({
     }
     const owing = bookings.filter((b) => openBalanceCents(b) > 0);
     const open = owing.reduce((sum, b) => sum + openBalanceCents(b), 0);
-    const billable = bookings.filter((b) => BILLABLE.has(b.status));
+    const billable = bookings.filter((b) => isBillable(b.status));
     const collected = billable.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
     const booked = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
     return { next, attention, needs, owing: owing.length, open, collected, booked };

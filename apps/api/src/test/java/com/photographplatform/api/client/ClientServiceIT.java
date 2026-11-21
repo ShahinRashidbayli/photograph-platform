@@ -106,9 +106,45 @@ class ClientServiceIT extends IntegrationTestBase {
             .isInstanceOf(NotFoundException.class);
     }
 
+    /**
+     * A shoot that is not happening is not upcoming, whatever its date. The
+     * count used to exclude only cancelled bookings, so a declined enquiry for
+     * next month still showed on the client as an upcoming booking.
+     */
+    @Test
+    void cancelledAndDeclinedFutureBookingsAreNotUpcoming() {
+        Fixture fx = createTenant();
+        UUID clientId = createClient(fx, "lea@example.test", "Lea Brandt");
+        for (String status : List.of("CONFIRMED", "ENQUIRY", "DECLINED", "CANCELLED")) {
+            createFutureBooking(fx, clientId, status);
+        }
+
+        ClientResponse listed = asUser(fx, () -> clientService.list()).get(0);
+        ClientResponse single = asUser(fx, () ->
+            clientService.updateNotes(clientId, new UpdateClientNotesRequest("note"), null));
+
+        assertThat(listed.upcomingBookings()).isEqualTo(2);
+        assertThat(single.upcomingBookings()).isEqualTo(2);
+    }
+
     // ── fixtures ──────────────────────────────────────────────────────────
 
     private record Fixture(UUID tenantId, UUID userId) {
+    }
+
+    private void createFutureBooking(Fixture fx, UUID clientId, String status) {
+        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
+            entityManager.createNativeQuery("""
+                INSERT INTO bookings (tenant_id, client_id, client_name, client_email, event_date, status)
+                VALUES (:tenantId, :clientId, 'Lea Brandt', 'lea@example.test', :eventDate, :status)
+                """)
+                .setParameter("tenantId", fx.tenantId())
+                .setParameter("clientId", clientId)
+                .setParameter("eventDate", java.time.LocalDate.now().plusDays(30))
+                .setParameter("status", status)
+                .executeUpdate();
+            return null;
+        }));
     }
 
     private Fixture createTenant() {

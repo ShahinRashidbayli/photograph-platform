@@ -193,9 +193,9 @@ export const PHOTOGRAPHER_NAV: NavGroup[] = [
       { labelKey: 'nav.gear', href: '/community/gear', icon: 'gear', soon: true },
     ],
   },
-  // Both pages read real figures now — revenue from issued invoices and
-  // succeeded payments, reports from bookings, leads and packages — so they
-  // are linked. Shown with a plan badge on a tier without ANALYTICS.
+  // Both pages read real figures now — Invoiced and Collected from issued
+  // invoices and succeeded payments, reports from bookings, leads and
+  // packages — so they are linked. Shown with a plan badge on a tier without ANALYTICS.
   {
     titleKey: 'nav.section.analytics',
     mode: 'workspace',

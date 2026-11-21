@@ -46,6 +46,18 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     List<Invoice> findByIssueYearOrderByIssuedAtAsc(Integer issueYear);
 
+    /**
+     * The same documents the DATEV export books for a year, with the tenant
+     * spelled out: {@code SettlementPeriods} sums a tenant's whole year from
+     * these, and a role with BYPASSRLS (a local {@code postgres} login) would
+     * otherwise hand it every tenant's invoices.
+     */
+    List<Invoice> findByTenantIdAndIssueYear(UUID tenantId, Integer issueYear);
+
+    /** The years a tenant has issued anything in. issue_year is the Europe/Berlin year (InvoiceDate). */
+    @Query("SELECT DISTINCT i.issueYear FROM Invoice i WHERE i.tenantId = :tenantId")
+    List<Integer> findIssueYearsByTenantId(UUID tenantId);
+
     /** Invoices for these bookings or issued to this person — reported, never touched, by Art. 17 erasure. */
     long countByBookingIdInOrBuyerEmailIgnoreCase(Collection<UUID> bookingIds, String email);
 }

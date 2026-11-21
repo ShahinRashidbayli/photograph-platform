@@ -7,6 +7,7 @@ import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
+import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.invoice.domain.TaxCategory;
 import com.photographplatform.api.invoice.dto.CreateInvoiceLineItemRequest;
 import com.photographplatform.api.invoice.dto.CreateInvoiceRequest;
@@ -26,8 +27,13 @@ import org.hibernate.stat.Statistics;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -36,8 +42,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -70,8 +80,15 @@ class InvoiceServiceIT extends IntegrationTestBase {
     @Autowired private EntityManager entityManager;
     @Autowired private PlatformTransactionManager txManager;
 
+    @Autowired private PinnableClock clock;
+
     @MockitoBean
     private R2StorageService r2StorageService;
+
+    @AfterEach
+    void releaseClock() {
+        clock.release();
+    }
 
     @Test
     void issuesInvoiceWithSequentialNumberAndCorrectTax() {
@@ -566,7 +583,116 @@ class InvoiceServiceIT extends IntegrationTestBase {
         assertThat(fetched.outstandingCents()).isEqualTo(listed.get(0).outstandingCents());
     }
 
+    /**
+     * The Due date and Overdue ride on every invoice the API returns, so no
+     * screen works them out for itself. The rules are Settlement's (see
+     * {@code SettlementIT}); this pins that the list and the single invoice
+     * both carry them, read against the application clock.
+     */
+    @Test
+    void everyInvoiceCarriesItsDueDateAndTurnsOverdueOnceItHasPassed() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        clock.pin(berlin(2026, 11, 1));
+
+        InvoiceResponse issued = asUser(fx, () -> invoiceService.issueForBooking(
+            fx.bookingId(),
+            new CreateInvoiceRequest(
+                List.of(new CreateInvoiceLineItemRequest(
+                    "Hochzeitspaket", BigDecimal.ONE, 100_000, TaxCategory.STANDARD)),
+                null, null, null, null, null, null, null),
+            "203.0.113.5"));
+
+        assertThat(issued.dueDate()).isEqualTo(LocalDate.of(2026, 11, 15));
+        assertThat(issued.live()).isTrue();
+        assertThat(issued.collectable()).isTrue();
+        assertThat(issued.overdue()).isFalse();
+
+        clock.pin(berlin(2026, 11, 16));
+
+        InvoiceResponse listed = asUser(fx, () -> invoiceService.listForBooking(fx.bookingId())).get(0);
+        InvoiceResponse fetched = asUser(fx, () -> invoiceService.get(issued.id()));
+        assertThat(listed.dueDate()).isEqualTo(LocalDate.of(2026, 11, 15));
+        assertThat(listed.overdue()).isTrue();
+        assertThat(fetched.overdue()).isTrue();
+    }
+
+    @Test
+    void aStornoAStorniertInvoiceAndAPaidInvoiceAreNotCollectable() {
+        TestFixture fx = createTenantAndBooking(TaxMode.REGELBESTEUERUNG);
+        CreateInvoiceRequest request = new CreateInvoiceRequest(
+            List.of(new CreateInvoiceLineItemRequest("Paket", BigDecimal.ONE, 100_000, TaxCategory.STANDARD)),
+            null, null, null, null, null, null, null);
+
+        InvoiceResponse paid = asUser(fx, () -> invoiceService.issueForBooking(fx.bookingId(), request, "203.0.113.5"));
+        asUser(fx, () -> paymentService.recordManualPayment(
+            paid.id(), new RecordManualPaymentRequest(null), "203.0.113.5"));
+        InvoiceResponse withdrawn =
+            asUser(fx, () -> invoiceService.issueForBooking(fx.bookingId(), request, "203.0.113.5"));
+        InvoiceResponse storno = asUser(fx, () -> invoiceService.storno(withdrawn.id(), "203.0.113.5"));
+
+        Map<UUID, InvoiceResponse> listed = asUser(fx, () -> invoiceService.listForBooking(fx.bookingId()))
+            .stream().collect(Collectors.toMap(InvoiceResponse::id, r -> r));
+
+        assertThat(listed.get(paid.id()).live()).isTrue();
+        assertThat(listed.get(paid.id()).collectable()).isFalse();
+        for (UUID id : List.of(withdrawn.id(), storno.id())) {
+            assertThat(listed.get(id).live()).isFalse();
+            assertThat(listed.get(id).collectable()).isFalse();
+            assertThat(listed.get(id).outstandingCents()).isZero();
+            assertThat(listed.get(id).dueDate()).isNull();
+        }
+    }
+
     private record TestFixture(UUID tenantId, UUID userId, UUID bookingId, String clientName) {
+    }
+
+    private static Instant berlin(int year, int month, int day) {
+        return LocalDateTime.of(year, month, day, 10, 0).atZone(BusinessZone.ID).toInstant();
+    }
+
+    /**
+     * The application clock, pinnable per test: Overdue is decided against
+     * it, and a test reading real time would pass or fail by the calendar.
+     * Runs on real time unless a test pins it, so the rest of this class is
+     * unaffected.
+     */
+    static final class PinnableClock extends Clock {
+
+        private volatile Instant pinned;
+
+        void pin(Instant at) {
+            pinned = at;
+        }
+
+        void release() {
+            pinned = null;
+        }
+
+        @Override
+        public Instant instant() {
+            Instant at = pinned;
+            return at != null ? at : Instant.now();
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return BusinessZone.ID;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.fixed(instant(), zone);
+        }
+    }
+
+    @TestConfiguration
+    static class PinnableClockConfig {
+
+        @Bean
+        @Primary
+        PinnableClock pinnableClock() {
+            return new PinnableClock();
+        }
     }
 
     private TestFixture createTenantAndBooking(TaxMode taxMode) {

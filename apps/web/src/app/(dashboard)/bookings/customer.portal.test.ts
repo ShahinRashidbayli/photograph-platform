@@ -71,6 +71,10 @@ const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
   totalCents: 70_000,
   paidCents: 0,
   outstandingCents: 70_000,
+  dueDate: '2026-11-18',
+  live: true,
+  collectable: true,
+  overdue: false,
   verwendungszweck: 'RE-2026-014',
   stornoOfId: null,
   pdfDownloadUrl: null,
@@ -78,6 +82,9 @@ const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
   lineItems: [],
   ...overrides,
 });
+
+/** What the server sends for a Storno and for the invoice it withdraws. */
+const withdrawn = { outstandingCents: 0, dueDate: null, live: false, collectable: false };
 
 const gallery = (overrides: Partial<CustomerGallery> = {}): CustomerGallery => ({
   id: 'g1',
@@ -115,9 +122,9 @@ describe('todosFor', () => {
       data({
         contracts: [contract({ status: 'SIGNED' }), contract({ id: 'k2', status: 'CANCELLED' })],
         invoices: [
-          invoice({ outstandingCents: 0, paidCents: 70_000 }),
-          invoice({ id: 'i2', status: 'STORNIERT' }),
-          invoice({ id: 'i3', stornoOfId: 'i2', totalCents: -70_000 }),
+          invoice({ outstandingCents: 0, paidCents: 70_000, collectable: false }),
+          invoice({ id: 'i2', status: 'STORNIERT', ...withdrawn }),
+          invoice({ id: 'i3', stornoOfId: 'i2', totalCents: -70_000, ...withdrawn }),
         ],
       })
     );

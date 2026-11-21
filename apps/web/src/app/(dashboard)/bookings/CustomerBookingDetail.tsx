@@ -546,7 +546,8 @@ function InvoiceRow({
 }) {
   const { t, format } = useTranslation();
   const s = getPortalStyles(c);
-  const settled = invoice.outstandingCents <= 0;
+  // Only a Collectable invoice gets the pay action, as the server decides it.
+  const settled = !invoice.collectable;
   const pdf = linkButton(c, 'ghost');
   return (
     <div

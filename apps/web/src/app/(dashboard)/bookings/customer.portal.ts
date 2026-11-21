@@ -36,15 +36,12 @@ export function daysUntil(eventDate: string, today: Date): number {
 // ─── What belongs to one booking ───────────────────────────────────────────
 
 /**
- * An invoice the client can owe. A Storno and the original it withdraws are
- * both out: neither is ever paid, and the audit trail lives on the studio's side.
+ * The invoices the client can owe on one booking: the Live ones, as the server
+ * says (ADR-004). A Storno and the original it withdraws are both out: neither
+ * is ever paid, and the audit trail lives on the studio's side.
  */
-export function isLiveInvoice(i: Invoice): boolean {
-  return i.stornoOfId === null && i.status !== 'STORNIERT';
-}
-
 export function invoicesFor(bookingId: string, invoices: Invoice[]): Invoice[] {
-  return invoices.filter((i) => i.bookingId === bookingId && isLiveInvoice(i));
+  return invoices.filter((i) => i.bookingId === bookingId && i.live);
 }
 
 /** Sent or signed; a cancelled contract is no longer the client's business. */
@@ -86,8 +83,11 @@ export function todosFor(bookings: Booking[], data: PortalData): Todo[] {
     .filter((t) => !(t.booking && isCancelled(t.booking)))
     .sort((a, b) => shootTime(a.booking) - shootTime(b.booking));
 
+  // Collectable is the server's answer (ADR-004), not something to work out
+  // from the status and the figures: a second copy of that rule is one that
+  // can disagree with the payment endpoint.
   const pay: Todo[] = data.invoices
-    .filter((i) => isLiveInvoice(i) && i.outstandingCents > 0)
+    .filter((i) => i.collectable)
     .map((i) => ({ kind: 'pay' as const, id: i.id, invoice: i, booking: bookingOf(i.bookingId) }))
     .sort(
       (a, b) =>

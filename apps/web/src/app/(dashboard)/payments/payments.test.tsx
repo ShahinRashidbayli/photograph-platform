@@ -34,6 +34,10 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     totalCents: 119_000,
     paidCents: 0,
     outstandingCents: 119_000,
+    dueDate: '2026-08-15',
+    live: true,
+    collectable: true,
+    overdue: false,
     verwendungszweck: 'RE-2026-0001',
     stornoOfId: null,
     pdfDownloadUrl: 'https://cdn.example/invoice.pdf',
@@ -42,6 +46,9 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     ...overrides,
   };
 }
+
+/** What the server sends for a Storno and for the invoice it withdraws. */
+const withdrawn = { outstandingCents: 0, dueDate: null, live: false, collectable: false };
 
 /**
  * One GET serves the whole list — settlement figures ride on the invoice. Any
@@ -91,7 +98,7 @@ describe('PaymentsPage (client)', () => {
   });
 
   it('marks a settled invoice paid and drops the pay action', async () => {
-    respond([invoice({ paidCents: 119_000, outstandingCents: 0 })]);
+    respond([invoice({ paidCents: 119_000, outstandingCents: 0, collectable: false })]);
 
     renderWithProviders(<PaymentsPage />, { lang: 'en' });
 
@@ -109,12 +116,13 @@ describe('PaymentsPage (client)', () => {
    */
   it('hides Storno invoices and the invoices they cancel', async () => {
     respond([
-      invoice({ id: 'inv-1', invoiceNumber: '2026-0001', status: 'STORNIERT' }),
+      invoice({ id: 'inv-1', invoiceNumber: '2026-0001', status: 'STORNIERT', ...withdrawn }),
       invoice({
         id: 'inv-2',
         invoiceNumber: '2026-0002',
         stornoOfId: 'inv-1',
         totalCents: -119_000,
+        ...withdrawn,
       }),
       invoice({ id: 'inv-3', invoiceNumber: '2026-0003' }),
     ]);

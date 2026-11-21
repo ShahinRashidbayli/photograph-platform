@@ -135,6 +135,20 @@ class SettlementIT extends IntegrationTestBase {
     }
 
     /**
+     * A booking is Overdue when one of its invoices is. The deposit's Due date
+     * has passed, but it is paid; the final invoice is still inside its own.
+     */
+    @Test
+    void aPaidDepositPastItsDueDateDoesNotMakeTheBookingOverdue() {
+        UUID booking = booking();
+        pay(invoice(booking, 30_000, NOV_1), 30_000);
+        invoice(booking, 70_000, NOV_14);
+
+        assertThat(inTenant(() -> settlementOn(NOV_20).ofBooking(booking)))
+            .isEqualTo(new BookingSettlement(PARTIALLY_PAID, 100_000, 30_000));
+    }
+
+    /**
      * Storniert and its Storno net to zero, which is nothing owed — not PAID,
      * which would claim the quoted total was collected.
      */
@@ -174,6 +188,68 @@ class SettlementIT extends IntegrationTestBase {
 
         assertThat(settled.paidCents()).isEqualTo(40_000);
         assertThat(settled.outstandingCents()).isEqualTo(60_000);
+    }
+
+    /**
+     * Fourteen days from the day printed on the invoice, which is the Berlin
+     * calendar day. Issued at half past midnight on 1 November, the row holds
+     * 31 October in UTC; counting from that would make it due a day early.
+     */
+    @Test
+    void aLiveInvoiceIsDueFourteenDaysAfterItsIssueDate() {
+        Invoice invoice = invoice(booking(), 100_000, berlin(2026, 11, 1, 0, 30));
+
+        InvoiceSettlement settled = inTenant(() -> settlementOn(NOV_5).ofInvoice(invoice.getId()));
+
+        assertThat(settled.dueDate()).isEqualTo(LocalDate.of(2026, 11, 15));
+    }
+
+    /** The Due date is a day: the whole of it is still in time, late evening included. */
+    @Test
+    void anUnpaidInvoiceIsOverdueOnlyOnceItsDueDateHasPassed() {
+        Invoice invoice = invoice(booking(), 100_000, NOV_1);
+
+        InvoiceSettlement onTheDueDate =
+            inTenant(() -> settlementOn(berlin(2026, 11, 15, 23, 30)).ofInvoice(invoice.getId()));
+        InvoiceSettlement theDayAfter =
+            inTenant(() -> settlementOn(berlin(2026, 11, 16, 0, 30)).ofInvoice(invoice.getId()));
+
+        assertThat(onTheDueDate.collectable()).isTrue();
+        assertThat(onTheDueDate.overdue()).isFalse();
+        assertThat(theDayAfter.collectable()).isTrue();
+        assertThat(theDayAfter.overdue()).isTrue();
+    }
+
+    /**
+     * Neither document of a Storno pair is ever paid, so neither owes
+     * anything or has a day to pay it by. The withdrawn invoice used to report
+     * its total less its part payment as Outstanding, as if it were still owed.
+     */
+    @Test
+    void aStornoAndTheInvoiceItWithdrawsAreNeverCollectable() {
+        Invoice original = invoice(booking(), 100_000, NOV_1);
+        pay(original, 40_000);
+        Invoice storno = storno(original, NOV_5);
+
+        for (UUID id : List.of(original.getId(), storno.getId())) {
+            InvoiceSettlement settled = inTenant(() -> settlementOn(DEC_1).ofInvoice(id));
+
+            assertThat(settled.outstandingCents()).isZero();
+            assertThat(settled.collectable()).isFalse();
+            assertThat(settled.overdue()).isFalse();
+            assertThat(settled.dueDate()).isNull();
+        }
+    }
+
+    @Test
+    void aFullyPaidInvoiceIsNotCollectableEvenPastItsDueDate() {
+        Invoice invoice = invoice(booking(), 100_000, NOV_1);
+        pay(invoice, 100_000);
+
+        InvoiceSettlement settled = inTenant(() -> settlementOn(DEC_1).ofInvoice(invoice.getId()));
+
+        assertThat(settled.collectable()).isFalse();
+        assertThat(settled.overdue()).isFalse();
     }
 
     @Test
@@ -272,6 +348,10 @@ class SettlementIT extends IntegrationTestBase {
     }
 
     private static OffsetDateTime berlin(int year, int month, int day) {
-        return LocalDateTime.of(year, month, day, 10, 0).atZone(BusinessZone.ID).toOffsetDateTime();
+        return berlin(year, month, day, 10, 0);
+    }
+
+    private static OffsetDateTime berlin(int year, int month, int day, int hour, int minute) {
+        return LocalDateTime.of(year, month, day, hour, minute).atZone(BusinessZone.ID).toOffsetDateTime();
     }
 }

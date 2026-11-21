@@ -248,6 +248,13 @@ security holes.
   consequence is that a failed send for those two paths logs `tenant=null` and
   cannot be attributed to a studio. Adding the field to the two events is the
   fix when someone is next in there.
+- **FU-13: an invoice's due date is a guess.** Overdue is computed as
+  `issued_at` + 14 days, because `payment_terms` is free text (200 chars) that
+  nothing can read a date from, so an invoice printed "zahlbar innerhalb 7
+  Tagen" turns Overdue a week late. The fix is a structured due date (EN 16931
+  BT-9), set at issuance and printed on the PDF, with existing rows backfilled
+  to `issued_at` + 14. The rule lives in one place once the Settlement module
+  exists (architecture review, 2026-11-21), so that is the only place to change.
 - **FU-7: Date/time** — `Booking` stores `LocalDate eventDate` + `LocalTime
   eventTime` with no zone; timestamps are `OffsetDateTime`. No concrete DST bug
   found yet; a booking near a DST boundary is the scenario to probe in a later

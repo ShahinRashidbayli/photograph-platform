@@ -32,6 +32,7 @@ Authoritative (decisions, intent, order of work):
 - `docs/DEVELOPMENT_PLAN.md` — build order (may lag behind the code; check the code)
 - `docs/BACKEND_FOUNDATION.md` — architecture standard for new backend modules
 - `docs/PRICING.md`, `docs/VISION_AND_EXTENSIBILITY.md`, `docs/adr/*.md`
+- `GLOSSARY.md` — domain terms; name things in code and UI copy after them
 
 **Stale — do not rely on them**: root `ENDPOINT_MAP.md`, `ENDPOINTS_AND_TESTING.md`,
 `TESTING_UI_PAGES.md`, `SPRINT_2_COMPLETION.md`, `REGISTER_DESIGN_IMPROVEMENTS.md`, and

@@ -26,7 +26,7 @@ export const analytics = {
 
   'analytics.revenue.title': 'Revenue',
   'analytics.revenue.subtitle':
-    'What you invoiced, and what actually arrived. Cancelled invoices are excluded.',
+    'What you invoiced, and what actually arrived. A Storno counts in the month it was issued, as in your DATEV export.',
   'analytics.revenue.summary': 'The year at a glance',
   'analytics.revenue.byMonth': 'Month by month',
   'analytics.revenue.outstanding': 'Still owed',

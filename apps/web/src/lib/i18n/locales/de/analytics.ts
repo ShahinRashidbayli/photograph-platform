@@ -19,7 +19,7 @@ export const analytics: Record<keyof EnAnalytics, string> = {
 
   'analytics.revenue.title': 'Umsatz',
   'analytics.revenue.subtitle':
-    'Was Sie in Rechnung gestellt haben und was tatsächlich eingegangen ist. Stornierte Rechnungen bleiben außen vor.',
+    'Was Sie in Rechnung gestellt haben und was tatsächlich eingegangen ist. Ein Storno zählt in dem Monat, in dem es ausgestellt wurde, wie in Ihrem DATEV-Export.',
   'analytics.revenue.summary': 'Das Jahr auf einen Blick',
   'analytics.revenue.byMonth': 'Monat für Monat',
   'analytics.revenue.outstanding': 'Noch offen',

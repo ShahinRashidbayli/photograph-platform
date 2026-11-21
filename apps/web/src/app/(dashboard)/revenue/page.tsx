@@ -26,7 +26,15 @@ export default function RevenuePage() {
 
   const months = monthLabels(lang);
   const rev = data?.revenue;
-  const isEmpty = !!data && rev !== undefined && rev.invoiceCount === 0;
+  // Not just "no Live invoices": a year whose only document is the Storno of
+  // last year's invoice still has an Invoiced figure (−X), and hiding it
+  // behind the empty state would hide the correction.
+  const isEmpty =
+    !!data &&
+    rev !== undefined &&
+    rev.invoiceCount === 0 &&
+    rev.invoicedCents === 0 &&
+    rev.collectedCents === 0;
 
   const invoiced = t('analytics.invoiced');
   const collected = t('analytics.collected');

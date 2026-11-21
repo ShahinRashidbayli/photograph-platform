@@ -10,6 +10,7 @@ import com.photographplatform.api.analytics.dto.AnalyticsResponse.RevenueSummary
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.StatusCount;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.entitlement.domain.Capability;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import java.time.Clock;
@@ -93,23 +94,41 @@ public class AnalyticsService {
     private List<Integer> availableYears(UUID tenantId) {
         return jdbc.queryForList("""
             SELECT DISTINCT y FROM (
-                SELECT EXTRACT(YEAR FROM issued_at)::int  AS y FROM invoices WHERE tenant_id = ?
+                SELECT EXTRACT(YEAR FROM issued_at AT TIME ZONE ?)::int AS y FROM invoices WHERE tenant_id = ?
                 UNION ALL
                 SELECT EXTRACT(YEAR FROM event_date)::int AS y FROM bookings WHERE tenant_id = ?
             ) t
             WHERE y IS NOT NULL
             ORDER BY y DESC
-            """, Integer.class, tenantId, tenantId);
+            """, Integer.class, BusinessZone.ID.getId(), tenantId, tenantId);
     }
 
+    /**
+     * Invoiced counts every issued document the way the DATEV export books it
+     * (ADR-004 §3): a Storniert original stays +X in its own month and its
+     * Storno is −X in the Storno's month. Counting only the rows still marked
+     * ISSUED kept the Storno and dropped the original, so a reversed sale
+     * showed as −X, and the report stopped matching what the accountant gets.
+     *
+     * <p>Months and years are Europe/Berlin, the zone the DATEV Belegdatum is
+     * taken in (see InvoiceDate). EXTRACT on a timestamptz otherwise uses the
+     * session's zone, which is UTC in a container: an invoice issued at 00:30
+     * on the 1st landed in the month before.
+     *
+     * <p>Collected still follows the invoice's month here, not yet the month the
+     * payment succeeded that ADR-004 §3 asks for. Because the Storniert
+     * originals are in the rows, money paid on one counts as Collected: it did
+     * arrive.
+     */
     private RevenueSummary revenue(UUID tenantId, int year) {
-        // Cancelled invoices and their storno documents both sit in the table —
-        // GoBD forbids deleting either — so counting every row would show the
-        // sale twice and then show revenue that was reversed. ISSUED only.
+        // The count and the average are of Live invoices only. A Storno and the
+        // invoice it withdrew are one correction, not two more sales.
         Map<String, Object> totals = jdbc.queryForMap("""
             SELECT
                 COALESCE(SUM(i.total_cents), 0)                       AS invoiced,
-                COUNT(*)                                              AS cnt,
+                COUNT(*) FILTER (WHERE i.status = 'ISSUED' AND i.storno_of_id IS NULL) AS live_count,
+                COALESCE(SUM(i.total_cents)
+                    FILTER (WHERE i.status = 'ISSUED' AND i.storno_of_id IS NULL), 0)  AS live_total,
                 COALESCE(SUM(paid.amount), 0)                         AS collected
             FROM invoices i
             LEFT JOIN LATERAL (
@@ -118,17 +137,17 @@ public class AnalyticsService {
                 WHERE p.invoice_id = i.id AND p.status = 'SUCCEEDED' AND p.tenant_id = ?
             ) paid ON TRUE
             WHERE i.tenant_id = ?
-              AND i.status = 'ISSUED'
-              AND EXTRACT(YEAR FROM i.issued_at) = ?
-            """, tenantId, tenantId, year);
+              AND EXTRACT(YEAR FROM i.issued_at AT TIME ZONE ?) = ?
+            """, tenantId, tenantId, BusinessZone.ID.getId(), year);
 
         long invoiced = num(totals.get("invoiced"));
         long collected = num(totals.get("collected"));
-        int count = (int) num(totals.get("cnt"));
+        int count = (int) num(totals.get("live_count"));
+        long liveTotal = num(totals.get("live_total"));
 
         List<Map<String, Object>> rows = jdbc.queryForList("""
             SELECT
-                EXTRACT(MONTH FROM i.issued_at)::int AS m,
+                EXTRACT(MONTH FROM i.issued_at AT TIME ZONE ?)::int AS m,
                 COALESCE(SUM(i.total_cents), 0)      AS invoiced,
                 COALESCE(SUM(paid.amount), 0)        AS collected
             FROM invoices i
@@ -138,10 +157,9 @@ public class AnalyticsService {
                 WHERE p.invoice_id = i.id AND p.status = 'SUCCEEDED' AND p.tenant_id = ?
             ) paid ON TRUE
             WHERE i.tenant_id = ?
-              AND i.status = 'ISSUED'
-              AND EXTRACT(YEAR FROM i.issued_at) = ?
+              AND EXTRACT(YEAR FROM i.issued_at AT TIME ZONE ?) = ?
             GROUP BY 1
-            """, tenantId, tenantId, year);
+            """, BusinessZone.ID.getId(), tenantId, tenantId, BusinessZone.ID.getId(), year);
 
         Map<Integer, MonthlyAmount> byMonth = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) {
@@ -160,7 +178,7 @@ public class AnalyticsService {
             // otherwise render as negative money owed.
             Math.max(0, invoiced - collected),
             count,
-            count == 0 ? 0 : invoiced / count,
+            count == 0 ? 0 : liveTotal / count,
             months);
     }
 

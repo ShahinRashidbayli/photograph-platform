@@ -26,15 +26,21 @@ public record AnalyticsResponse(
 ) {
 
     /**
-     * Money, in cents, split by what actually happened to it.
+     * Money, in cents: Invoiced and Collected, as invoice's
+     * {@code SettlementPeriods} counts them (ADR-004 §3). Named "revenue" on
+     * the wire only; the screen labels each figure by its own name.
      *
      * @param invoicedCents  Invoiced: every document issued in the year, net of
      *                       Storno, as the DATEV export books it. A Storniert
      *                       original stays in its own month and its Storno
-     *                       counts against the Storno's month (ADR-004 §3)
-     * @param collectedCents of that, what has been paid. The gap between the two
-     *                       is the number a photographer actually chases
-     * @param outstandingCents invoiced minus collected, never negative
+     *                       counts against the Storno's month
+     * @param collectedCents Collected: the payments that succeeded in the year,
+     *                       by the month the money arrived (cash basis). A
+     *                       December invoice paid in January is next year's
+     * @param outstandingCents what is still Outstanding on the Live invoices
+     *                       issued in the year, wherever their payments fell.
+     *                       No longer invoiced minus collected: with Collected
+     *                       on cash basis the two cover different invoices
      * @param invoiceCount   Live invoices issued in the year: neither a Storno
      *                       nor Storniert
      * @param averageInvoiceCents the mean total of those Live invoices

@@ -328,10 +328,12 @@ public class SecurityConfig {
             // only, so a customer could create and edit the studio's own
             // inventory.
             .requestMatchers("/api/resources/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
-            // The studio's revenue. The service already calls
+            // The studio's money. The report already calls
             // requireCapabilityForCurrentTenant(ANALYTICS) — but that is a
             // *plan* gate, not a *role* gate, so on a tenant whose plan
-            // includes analytics every authenticated caller passed it.
+            // includes analytics every authenticated caller passed it. The
+            // dashboard's /summary has no plan gate at all, so for it this
+            // rule is the only one.
             .requestMatchers("/api/analytics/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")
 
             // ── Deliberately open to any authenticated caller ───────────

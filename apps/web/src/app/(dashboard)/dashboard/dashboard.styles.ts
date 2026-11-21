@@ -67,12 +67,13 @@ export const getDashboardStyles = (theme: DashboardTheme): Record<string, React.
       flexWrap: 'wrap',
       justifyContent: 'flex-end',
     },
-    // The four headline figures as one band with hairline dividers, not four
-    // floating cards: they are one reading, left to right, and none of them is
-    // a thing you can click.
+    // The headline figures as one band with hairline dividers, not floating
+    // cards: they are one reading, left to right, and none of them is a thing
+    // you can click. Three across: the year's money (Booked, Invoiced,
+    // Collected) on one row, the studio's activity on the next.
     metricGrid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       marginBottom: '24px',
       background: c.surface,
       border: `1px solid ${c.border}`,

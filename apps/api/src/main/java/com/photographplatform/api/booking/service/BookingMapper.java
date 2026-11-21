@@ -127,12 +127,22 @@ public class BookingMapper {
             booking.getStatus().name(),
             payment.state().name(),
             payment.paidCents(),
+            openBalanceCents(booking, payment),
             booking.getInternalNotes(),
             booking.getAssignedUserId(),
             assigneeName,
             resourceIds,
             booking.getCreatedAt()
         );
+    }
+
+    /** See {@link BookingResponse#openBalanceCents()}. */
+    private static int openBalanceCents(Booking booking, BookingSettlement payment) {
+        if (!booking.getStatus().isBillable()) {
+            return 0;
+        }
+        int quoted = booking.getTotalAmountCents() != null ? booking.getTotalAmountCents() : 0;
+        return Math.max(quoted - payment.paidCents(), 0);
     }
 
     /**

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { yearSummaryKey } from '@/hooks/useAnalytics';
 import type {
   BillingProfile,
   Invoice,
@@ -149,6 +150,7 @@ export function useIssueInvoice(bookingId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
     },
   });
 }
@@ -165,6 +167,7 @@ export function useStornoInvoice(bookingId: string) {
       queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
     },
   });
 }
@@ -189,6 +192,7 @@ export function useRecordManualPayment(bookingId: string) {
       queryClient.invalidateQueries({ queryKey: paymentSummaryKey(variables.invoiceId) });
       queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
     },
   });
 }

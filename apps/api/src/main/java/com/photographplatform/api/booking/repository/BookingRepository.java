@@ -92,6 +92,26 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         @Param("excludeId") UUID excludeId,
         @Param("notHappening") Collection<BookingStatus> notHappening);
 
+    /**
+     * The summed quoted totals of the tenant's bookings in these statuses with
+     * an event between {@code from} and {@code to}, both inclusive.
+     *
+     * <p>The tenant is filtered on explicitly, unlike the queries above: this
+     * is a sum over a tenant's whole year, and RLS alone does not hold for a
+     * role with BYPASSRLS (see {@code AnalyticsService}).
+     */
+    @Query("""
+        SELECT COALESCE(SUM(b.totalAmountCents), 0) FROM Booking b
+        WHERE b.tenantId = :tenantId
+          AND b.status IN :statuses
+          AND b.eventDate BETWEEN :from AND :to
+        """)
+    long sumTotalAmountCents(
+        @Param("tenantId") UUID tenantId,
+        @Param("statuses") Collection<BookingStatus> statuses,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to);
+
     /*
      * ── What a signed-in customer owns ──────────────────────────────────────
      *

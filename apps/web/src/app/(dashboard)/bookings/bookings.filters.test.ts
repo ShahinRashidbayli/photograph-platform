@@ -20,6 +20,7 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     status: 'CONFIRMED',
     paymentState: 'NOT_INVOICED',
     amountPaidCents: 0,
+    openBalanceCents: 119_000,
     createdAt: '2026-08-01T10:00:00Z',
     ...overrides,
   };
@@ -38,24 +39,32 @@ describe('matchesFilter', () => {
   });
 
   /**
-   * "Unpaid" is what the client still owes on an agreed booking. An enquiry
-   * owes nothing yet and a cancelled booking owes nothing any more — counting
-   * either sends the photographer chasing money nobody agreed to.
+   * "Unpaid" is what the client still owes on an agreed booking, as the
+   * server's open balance says. An enquiry owes nothing yet and a cancelled
+   * booking owes nothing any more, so the server sends zero for both
+   * (BookingMapperTest) — counting either sends the photographer chasing money
+   * nobody agreed to.
    */
   it('counts an agreed booking with money outstanding as unpaid', () => {
-    expect(matchesFilter(booking({ amountPaidCents: 30_000 }), 'unpaid', ctx())).toBe(true);
+    expect(
+      matchesFilter(booking({ amountPaidCents: 30_000, openBalanceCents: 89_000 }), 'unpaid', ctx())
+    ).toBe(true);
     expect(
       matchesFilter(booking({ status: 'COMPLETED', amountPaidCents: 0 }), 'unpaid', ctx())
     ).toBe(true);
   });
 
   it.each(['ENQUIRY', 'CANCELLED', 'DECLINED'] as const)('never counts %s as unpaid', (status) => {
-    expect(matchesFilter(booking({ status }), 'unpaid', ctx())).toBe(false);
+    expect(matchesFilter(booking({ status, openBalanceCents: 0 }), 'unpaid', ctx())).toBe(false);
   });
 
   it('does not count a fully paid booking as unpaid', () => {
     expect(
-      matchesFilter(booking({ amountPaidCents: 119_000, paymentState: 'PAID' }), 'unpaid', ctx())
+      matchesFilter(
+        booking({ amountPaidCents: 119_000, paymentState: 'PAID', openBalanceCents: 0 }),
+        'unpaid',
+        ctx()
+      )
     ).toBe(false);
   });
 

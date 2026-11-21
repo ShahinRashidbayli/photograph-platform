@@ -42,15 +42,32 @@ function booking(id: string, clientName: string, status: string, total: number, 
   };
 }
 
+function fakeSummary(summary: {
+  year: number;
+  bookedCents: number;
+  invoicedCents: number;
+  collectedCents: number;
+}) {
+  server.use(http.get('/api/analytics/summary', () => HttpResponse.json(summary)));
+}
+
+/** The tile whose label is `label`: the label's cell holds the value and the help text. */
+async function tile(label: string): Promise<HTMLElement> {
+  return (await screen.findByText(label, { selector: 'span' })).parentElement as HTMLElement;
+}
+
 /**
  * The dashboard's figures against a faked API.
  *
- * <p>Revenue is quoted money, so only Billable bookings count (GLOSSARY.md):
- * an enquiry's quote used to be added in, and the dashboard disagreed with the
- * bookings overview for the same bookings. Collected and the upcoming list keep
- * their rule of "every booking that is still on": money paid on an enquiry is
- * not dropped, and an enquiry still ahead is still something to look at. (Both
- * screens' Collected move to one server figure in #69.)
+ * <p>Booked, Invoiced and Collected are the server's year summary, on every
+ * plan (ADR-004, Consequences). The page used to add up the booking list in the
+ * browser with its own Billable list and call the result "revenue", which
+ * counted enquiries at one point and disagreed with the bookings screen at
+ * another. The bookings below would add up to other figures, so a tile that
+ * matches the summary can only have come from the server.
+ *
+ * <p>The upcoming list and its count keep the rule of "every booking that is
+ * still on": an enquiry still ahead is still something to look at.
  */
 describe('DashboardPage', () => {
   beforeEach(() => {
@@ -65,21 +82,70 @@ describe('DashboardPage', () => {
       ),
       http.get('/api/leads', () => HttpResponse.json([]))
     );
+    fakeSummary({
+      year: 2026,
+      bookedCents: 812_000,
+      invoicedCents: 640_500,
+      collectedCents: 415_200,
+    });
   });
   afterEach(() => useAuthStore.setState({ user: null }));
 
-  it('counts only Billable bookings as revenue', async () => {
+  it('shows Booked, Invoiced and Collected for the year from the summary', async () => {
     renderWithProviders(<DashboardPage />, { lang: 'en' });
 
-    const revenue = (await screen.findByText('Total revenue')).parentElement as HTMLElement;
-    expect(await within(revenue).findByText('€1,000')).toBeInTheDocument();
+    const booked = await tile('Booked');
+    expect(await within(booked).findByText('€8,120')).toBeInTheDocument();
+    expect(
+      within(booked).getByText('Confirmed, postponed and completed shoots in 2026')
+    ).toBeInTheDocument();
+
+    const invoiced = await tile('Invoiced');
+    expect(within(invoiced).getByText('€6,405')).toBeInTheDocument();
+    expect(
+      within(invoiced).getByText('Invoices issued in 2026, net of Storno')
+    ).toBeInTheDocument();
+
+    const collected = await tile('Collected');
+    expect(within(collected).getByText('€4,152')).toBeInTheDocument();
+    expect(within(collected).getByText('Payments that arrived in 2026')).toBeInTheDocument();
   });
 
-  it('keeps money already paid on an enquiry in Collected', async () => {
+  it('names the figures in German', async () => {
+    renderWithProviders(<DashboardPage />, { lang: 'de' });
+
+    const booked = await tile('Gebucht');
+    expect(await within(booked).findByText(/8\.120/)).toBeInTheDocument();
+    expect(
+      within(booked).getByText('Bestätigte, verschobene und abgeschlossene Shootings in 2026')
+    ).toBeInTheDocument();
+    expect(
+      within(await tile('In Rechnung gestellt')).getByText(
+        '2026 ausgestellte Rechnungen, abzüglich Storno'
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(await tile('Eingegangen')).getByText('2026 eingegangene Zahlungen')
+    ).toBeInTheDocument();
+  });
+
+  it('shows a year with nothing in it yet as zero, not as missing', async () => {
+    fakeSummary({ year: 2027, bookedCents: 0, invoicedCents: 0, collectedCents: 0 });
     renderWithProviders(<DashboardPage />, { lang: 'en' });
 
-    const revenue = (await screen.findByText('Total revenue')).parentElement as HTMLElement;
-    expect(await within(revenue).findByText('€250 collected so far')).toBeInTheDocument();
+    for (const label of ['Booked', 'Invoiced', 'Collected']) {
+      expect(await within(await tile(label)).findByText('€0')).toBeInTheDocument();
+    }
+    expect(
+      screen.getByText('Confirmed, postponed and completed shoots in 2027')
+    ).toBeInTheDocument();
+  });
+
+  it('never calls a figure revenue', async () => {
+    renderWithProviders(<DashboardPage />, { lang: 'en' });
+
+    await within(await tile('Booked')).findByText('€8,120');
+    expect(screen.queryByText(/revenue/i)).not.toBeInTheDocument();
   });
 
   it('still lists an upcoming enquiry, and leaves out a cancelled one', async () => {

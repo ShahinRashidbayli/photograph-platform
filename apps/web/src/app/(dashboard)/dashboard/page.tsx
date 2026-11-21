@@ -7,13 +7,9 @@ import { useThemeStore } from '@/store/themeStore';
 import { parseApiDate, startOfToday } from '@/lib/date';
 import { useBookings } from '@/hooks/useBookings';
 import { useLeads } from '@/hooks/useLeads';
+import { useYearSummary } from '@/hooks/useAnalytics';
 import { Lead } from '@/types/api';
-import {
-  getBookingStatusMeta,
-  isBillable,
-  isNotHappening,
-  toneToVisual,
-} from '@/lib/booking-status';
+import { getBookingStatusMeta, isNotHappening, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
@@ -66,11 +62,19 @@ export default function DashboardPage() {
   const colors = useMemo(() => getDashboardColors(theme), [theme]);
 
   const router = useRouter();
-  // Every KPI below is a sum or a count over these two lists, so a truncated
-  // list is not a shorter screen — it is a wrong number, silently. Bookings
-  // came back capped at 50 and leads at the API's default of 20, so a studio
-  // past either threshold saw understated revenue, collected and client
-  // counts with nothing to indicate it.
+  // Booked, Invoiced and Collected are the server's, for the current year and
+  // on every plan (ADR-004): this page used to add up the booking list with
+  // its own status list, and counted enquiries as money for a while.
+  // Best-effort like leads: a failed read shows a dash, not an error.
+  const { data: summary } = useYearSummary();
+  // The help text names the year before the summary has said which it is.
+  const summaryYear = summary?.year ?? new Date().getFullYear();
+
+  // Every count below is taken over these two lists, so a truncated list is
+  // not a shorter screen — it is a wrong number, silently. Bookings came back
+  // capped at 50 and leads at the API's default of 20, so a studio past
+  // either threshold saw understated client and lead counts with nothing to
+  // indicate it.
   //
   // useBookings already pages through the whole list (and caches it, so the
   // bookings screen and this one share one fetch); leads get the same
@@ -87,18 +91,9 @@ export default function DashboardPage() {
     const now = startOfToday();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonthBookings = bookings.filter((b) => parseApiDate(b.eventDate) >= monthStart);
-    // Revenue is quoted money, so only Billable bookings count; an enquiry's
-    // quote is not money yet. Everything else here asks a different question
-    // ("is it still on?"), so it excludes Not happening rather than taking the
-    // money rule, which would drop enquiries from the counts and the list.
-    const revenue = bookings
-      .filter((b) => isBillable(b.status))
-      .reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    // These ask "is it still on?", so they exclude Not happening rather than
+    // keep only Billable, which would drop enquiries from the counts and the list.
     const happening = bookings.filter((b) => !isNotHappening(b.status));
-    // Collected must reflect what's actually been paid (derived server-side from
-    // real invoice/payment rows), not the quoted deposit — otherwise an accepted
-    // but unpaid booking shows its deposit as already banked.
-    const collected = happening.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
     const activeClients = new Set(
       happening.filter((b) => b.status !== 'COMPLETED').map((b) => b.clientEmail)
     ).size;
@@ -108,8 +103,6 @@ export default function DashboardPage() {
     const newLeads = leads.filter((l) => l.status === 'NEW').length;
     return {
       thisMonth: thisMonthBookings.length,
-      revenue,
-      collected,
       activeClients,
       upcoming,
       newLeads,
@@ -211,9 +204,12 @@ export default function DashboardPage() {
           50% { opacity: 0.55; }
         }
         .dash-metric-grid > * + * { border-left: 1px solid var(--dash-divider); }
+        .dash-metric-grid > :nth-child(3n + 1) { border-left: none; }
+        .dash-metric-grid > :nth-child(n + 4) { border-top: 1px solid var(--dash-divider); }
         @media (max-width: 960px) {
           .dash-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-          .dash-metric-grid > :nth-child(3) { border-left: none; }
+          .dash-metric-grid > :nth-child(2n) { border-left: 1px solid var(--dash-divider); }
+          .dash-metric-grid > :nth-child(2n + 1) { border-left: none; }
           .dash-metric-grid > :nth-child(n + 3) { border-top: 1px solid var(--dash-divider); }
           .dash-section-grid { grid-template-columns: minmax(0, 1fr) !important; }
         }
@@ -259,17 +255,33 @@ export default function DashboardPage() {
         <MetricCard
           styles={styles}
           colors={colors}
-          label={t('dashboard.kpi.bookingsThisMonth')}
-          value={String(kpis.thisMonth)}
-          trend={t('dashboard.kpi.upcomingTotal', { count: kpis.upcoming })}
+          label={t('dashboard.kpi.booked')}
+          value={summary ? format.eur(summary.bookedCents) : '—'}
+          trend={t('dashboard.kpi.bookedHelp', { year: summaryYear })}
           trendColor={colors.textMuted}
         />
         <MetricCard
           styles={styles}
           colors={colors}
-          label={t('dashboard.kpi.totalRevenue')}
-          value={format.eur(kpis.revenue)}
-          trend={t('dashboard.kpi.collected', { amount: format.eur(kpis.collected) })}
+          label={t('dashboard.kpi.invoiced')}
+          value={summary ? format.eur(summary.invoicedCents) : '—'}
+          trend={t('dashboard.kpi.invoicedHelp', { year: summaryYear })}
+          trendColor={colors.textMuted}
+        />
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label={t('dashboard.kpi.collected')}
+          value={summary ? format.eur(summary.collectedCents) : '—'}
+          trend={t('dashboard.kpi.collectedHelp', { year: summaryYear })}
+          trendColor={colors.textMuted}
+        />
+        <MetricCard
+          styles={styles}
+          colors={colors}
+          label={t('dashboard.kpi.bookingsThisMonth')}
+          value={String(kpis.thisMonth)}
+          trend={t('dashboard.kpi.upcomingTotal', { count: kpis.upcoming })}
           trendColor={colors.textMuted}
         />
         <MetricCard

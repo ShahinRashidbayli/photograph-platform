@@ -2,11 +2,12 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import api from '@/lib/api';
 import { insertSortedByDate } from '@/lib/helpers';
 import { clientsKey } from '@/hooks/useClients';
+import { yearSummaryKey } from '@/hooks/useAnalytics';
 import type { Booking } from '@/types/api';
 
 // Pull the whole booking list in pages rather than a single capped request.
-// A flat `?size=50` silently dropped booking #51+, and the revenue/active stat
-// cards are summed over this list — a truncated list meant wrong totals.
+// A flat `?size=50` silently dropped booking #51+, and the dashboard's counts
+// are taken over this list — a truncated list meant wrong totals.
 const PAGE_SIZE = 100;
 const MAX_PAGES = 25;
 
@@ -181,10 +182,11 @@ export function useSaveBooking() {
       );
       // A clash answer cached before this save no longer holds: without this,
       // the next booking for the same photographer and day showed no warning.
-      // A client's totals are derived from their bookings.
+      // A client's totals are derived from their bookings, and so is Booked.
       return Promise.all([
         qc.invalidateQueries({ queryKey: bookingConflictsKey() }),
         qc.invalidateQueries({ queryKey: clientsKey() }),
+        qc.invalidateQueries({ queryKey: yearSummaryKey() }),
       ]);
     },
   });
@@ -218,10 +220,11 @@ export function useUpdateBookingStatus() {
       );
       // Cancelling frees the day, and reinstating takes it again, so cached clash
       // answers are stale. Cancelling or completing changes what a client counts
-      // as upcoming or spent.
+      // as upcoming or spent, and whether its quote counts as Booked.
       return Promise.all([
         qc.invalidateQueries({ queryKey: bookingConflictsKey() }),
         qc.invalidateQueries({ queryKey: clientsKey() }),
+        qc.invalidateQueries({ queryKey: yearSummaryKey() }),
       ]);
     },
     onError: (_err, input) => setStatus(input.id, input.from),

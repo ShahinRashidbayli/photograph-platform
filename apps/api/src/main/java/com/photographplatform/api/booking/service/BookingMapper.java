@@ -5,7 +5,8 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
-import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
+import com.photographplatform.api.invoice.domain.BookingSettlement;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.resource.domain.BookingResource;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import java.util.List;
@@ -32,16 +33,16 @@ public class BookingMapper {
 
     private final UserRepository userRepository;
     private final BookingResourceRepository bookingResourceRepository;
-    private final BookingPaymentStateResolver paymentStateResolver;
+    private final Settlement settlement;
 
     public BookingMapper(
         UserRepository userRepository,
         BookingResourceRepository bookingResourceRepository,
-        BookingPaymentStateResolver paymentStateResolver
+        Settlement settlement
     ) {
         this.userRepository = userRepository;
         this.bookingResourceRepository = bookingResourceRepository;
-        this.paymentStateResolver = paymentStateResolver;
+        this.settlement = settlement;
     }
 
     /**
@@ -49,7 +50,7 @@ public class BookingMapper {
      * regardless of how many rows there are.
      */
     public record PageLookups(
-        Map<UUID, Summary> payments,
+        Map<UUID, BookingSettlement> payments,
         Map<UUID, String> assigneeNames,
         Map<UUID, List<UUID>> resourceIds) {
     }
@@ -58,7 +59,7 @@ public class BookingMapper {
     public BookingResponse withLookups(Booking booking) {
         return toResponse(
             booking,
-            paymentStateResolver.resolve(booking.getId()),
+            settlement.ofBooking(booking.getId()),
             assigneeName(booking.getAssignedUserId()),
             bookingResourceRepository.findByBookingId(booking.getId()).stream()
                 .map(BookingResource::getResourceId)
@@ -72,7 +73,7 @@ public class BookingMapper {
         }
         List<UUID> bookingIds = bookings.stream().map(Booking::getId).toList();
         return new PageLookups(
-            paymentStateResolver.resolveAll(bookingIds),
+            settlement.ofBookings(bookingIds),
             assigneeNames(bookings),
             resourceIdsFor(bookingIds));
     }
@@ -81,17 +82,17 @@ public class BookingMapper {
         UUID assignee = booking.getAssignedUserId();
         return toResponse(
             booking,
-            // resolveAll contracts to hold an entry per requested id, including
-            // NOT_INVOICED for bookings with no invoice at all — see the test
-            // that pins it. getOrDefault anyway, because a null here would 500
-            // the whole list over one row.
-            lookups.payments().getOrDefault(booking.getId(), Summary.none()),
+            // Settlement#ofBookings contracts to hold an entry per requested id,
+            // including bookings with no invoice at all (SettlementIT pins it).
+            // getOrDefault anyway, because a null here would 500 the whole
+            // list over one row.
+            lookups.payments().getOrDefault(booking.getId(), BookingSettlement.none()),
             assignee == null ? null : lookups.assigneeNames().get(assignee),
             lookups.resourceIds().getOrDefault(booking.getId(), List.of()));
     }
 
-    public CustomerBookingResponse toCustomerResponse(Booking booking, Summary payment) {
-        Summary p = payment != null ? payment : Summary.none();
+    public CustomerBookingResponse toCustomerResponse(Booking booking, BookingSettlement payment) {
+        BookingSettlement p = payment != null ? payment : BookingSettlement.none();
         return new CustomerBookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -111,7 +112,7 @@ public class BookingMapper {
     }
 
     private BookingResponse toResponse(
-        Booking booking, Summary payment, String assigneeName, List<UUID> resourceIds) {
+        Booking booking, BookingSettlement payment, String assigneeName, List<UUID> resourceIds) {
         return new BookingResponse(
             booking.getId(),
             booking.getClientName(),

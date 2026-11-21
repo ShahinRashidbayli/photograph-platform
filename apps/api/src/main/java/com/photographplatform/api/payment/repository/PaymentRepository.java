@@ -25,9 +25,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     /**
      * Batch form of {@link #sumSucceededAmountCents(UUID)} — one query for a
-     * whole page of invoices instead of one per invoice, for callers (e.g.
-     * {@code BookingPaymentStateResolver#resolveAll}) resolving payment state
-     * for a list of bookings rather than a single one.
+     * whole page of invoices instead of one per invoice. Read through {@code
+     * SucceededPayments}, never directly from outside payment.
      */
     @Query("""
         SELECT p.invoiceId AS invoiceId, COALESCE(SUM(p.amountCents), 0) AS total FROM Payment p

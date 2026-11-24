@@ -28,5 +28,7 @@ public record CustomerBookingResponse(
     String status,
     String paymentState,
     Integer amountPaidCents,
+    /** Credit: what the Customer paid beyond what this booking's Live invoices ask for. */
+    Integer creditCents,
     OffsetDateTime createdAt
 ) {}

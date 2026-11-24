@@ -137,6 +137,9 @@ export const bookings = {
   'bookings.detail.bookingsWithYou_other': '{count} bookings with you',
   'bookings.detail.paid': 'Paid',
   'bookings.detail.open': 'Open',
+  'bookings.detail.credit': 'Credit {amount}',
+  'bookings.detail.creditHint':
+    'Paid beyond what the invoices ask for. You are holding this for the client until a new invoice uses it or you pay it back.',
 
   // Lead actions the detail offers beside the lifecycle moves (statusAction.*).
   'bookings.action.recordPayment': 'Record payment',

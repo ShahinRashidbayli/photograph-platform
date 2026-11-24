@@ -30,13 +30,11 @@ public class SucceededPayments {
         this.paymentRepository = paymentRepository;
     }
 
-    public long totalCents(UUID invoiceId) {
-        return paymentRepository.sumSucceededAmountCents(invoiceId);
-    }
-
     /**
      * One grouped query for a whole page of invoices. An invoice with no
-     * succeeded payment is absent from the map, not present with 0.
+     * succeeded payment is absent from the map, not present with 0. There is
+     * no single-invoice form: Settlement settles an invoice together with its
+     * booking's other invoices (ADR-004 §2), so it always asks for several.
      */
     public Map<UUID, Long> totalCentsByInvoice(Collection<UUID> invoiceIds) {
         if (invoiceIds.isEmpty()) {

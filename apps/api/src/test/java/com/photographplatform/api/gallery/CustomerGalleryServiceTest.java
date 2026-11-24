@@ -79,7 +79,7 @@ class CustomerGalleryServiceTest {
 
     private static CustomerBookingResponse booking(UUID id, String type, LocalDate date) {
         return new CustomerBookingResponse(id, "Anna Schneider", "anna@example.test", date, null,
-            type, null, null, 100_000, 30_000, "COMPLETED", "PAID", 100_000, NOW.minusMonths(3));
+            type, null, null, 100_000, 30_000, "COMPLETED", "PAID", 100_000, 0, NOW.minusMonths(3));
     }
 
     private static Gallery gallery(UUID bookingId, boolean watermarked) {

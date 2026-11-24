@@ -130,6 +130,9 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.detail.bookingsWithYou_other': '{count} Buchungen bei Ihnen',
   'bookings.detail.paid': 'Bezahlt',
   'bookings.detail.open': 'Offen',
+  'bookings.detail.credit': 'Guthaben {amount}',
+  'bookings.detail.creditHint':
+    'Mehr bezahlt, als die Rechnungen verlangen. Sie verwahren das Geld für den Kunden, bis eine neue Rechnung es verrechnet oder Sie es zurückzahlen.',
 
   'bookings.action.recordPayment': 'Zahlung erfassen',
   'bookings.action.newInvoice': 'Rechnung erstellen',

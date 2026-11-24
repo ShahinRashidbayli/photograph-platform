@@ -17,16 +17,10 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findFirstByInvoiceIdAndStatusAndStripePaymentIntentIdIsNotNullOrderByCreatedAtDesc(
         UUID invoiceId, String status);
 
-    @Query("""
-        SELECT COALESCE(SUM(p.amountCents), 0) FROM Payment p
-        WHERE p.invoiceId = :invoiceId AND p.status = 'SUCCEEDED'
-        """)
-    long sumSucceededAmountCents(UUID invoiceId);
-
     /**
-     * Batch form of {@link #sumSucceededAmountCents(UUID)} — one query for a
-     * whole page of invoices instead of one per invoice. Read through {@code
-     * SucceededPayments}, never directly from outside payment.
+     * Succeeded totals per invoice, one query for a whole page of invoices
+     * instead of one per invoice. Read through {@code SucceededPayments},
+     * never directly from outside payment.
      */
     @Query("""
         SELECT p.invoiceId AS invoiceId, COALESCE(SUM(p.amountCents), 0) AS total FROM Payment p

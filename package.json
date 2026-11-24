@@ -10,9 +10,22 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspace=apps/web",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20"
+  },
+  "lint-staged": {
+    "apps/web/src/**/*.{ts,tsx,css,json}": "prettier --check --ignore-path apps/web/.prettierignore",
+    "apps/web/src/**/*.{ts,tsx}": "bash -c 'cd apps/web && npx eslint \"$@\"' eslint",
+    "apps/api/**/*.java": "bash -c \"cd apps/api && mvn -B -q checkstyle:check\""
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.2",
+    "tsx": "^4.23.15",
+    "zod": "^3.25.76"
   }
 }

@@ -7,6 +7,7 @@ import com.photographplatform.api.auth.dto.CustomerMagicLinkRequest;
 import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RegisterRequest;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.service.EmailService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,8 +24,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -185,7 +190,9 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
             Void.class
         );
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(emailService, org.mockito.Mockito.never()).send(org.mockito.ArgumentMatchers.any());
+        // send() is @Async: checked at once, a mail queued but not yet started
+        // would pass as "never sent". Wait for it to have had the chance.
+        verify(emailService, after(1_000).never()).send(any());
     }
 
     @Test
@@ -195,7 +202,10 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         // or passwordless login becomes a way around password auth.
         rest.postForEntity("/api/auth/customer/login-code/request",
             new CustomerMagicLinkRequest("eve@test.com", "eve-foto", null), Void.class);
-        verify(emailService, org.mockito.Mockito.never()).send(org.mockito.ArgumentMatchers.any());
+        // Only sign-in mails count: Eve's own verification mail from
+        // registration is @Async too and may land after the reset.
+        verify(emailService, after(1_000).never())
+            .send(argThat(m -> m != null && m.type() == EmailType.LOGIN_CODE));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -210,6 +220,10 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
     }
 
     private String extractLoginCode() {
+        // send() is @Async, so the call can reach the spy after the response;
+        // wait for the sign-in mail rather than verifying at once.
+        verify(emailService, timeout(5_000).atLeastOnce())
+            .send(argThat(m -> m != null && m.type() == EmailType.LOGIN_CODE));
         ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
         verify(emailService, atLeastOnce()).send(captor.capture());
         for (EmailMessage msg : captor.getAllValues()) {

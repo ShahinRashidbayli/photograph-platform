@@ -49,8 +49,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.m2/repository
-          key: maven-${{ hashFiles('apps/api/pom.xml') }}
-          restore-keys: maven-
+          key: maven-checkstyle-${{ hashFiles('apps/api/pom.xml') }}
+          restore-keys: maven-checkstyle-
 
       - name: Checkstyle (Java)
         working-directory: apps/api
@@ -126,11 +126,18 @@ jobs:
           java-version-file: .java-version
           distribution: temurin
 
+      # Its own key, not the one the format job uses. They used to share
+      # `maven-<pom hash>`: the format job (checkstyle only) finished first and
+      # saved a 26 MB cache, so this job always got an exact hit, logged "not
+      # saving cache", and fetched ~700 artifacts from Maven Central on every
+      # run. One dropped download (spring-boot-buildpack-platform's pom, PR
+      # #71) then failed a run whose 641 tests had all passed. `verify` needs
+      # everything `package` does, so the build job reads this cache too.
       - uses: actions/cache@v4
         with:
           path: ~/.m2/repository
-          key: maven-${{ hashFiles('apps/api/pom.xml') }}
-          restore-keys: maven-
+          key: maven-verify-${{ hashFiles('apps/api/pom.xml') }}
+          restore-keys: maven-verify-
 
       # `verify`, not `test`. The JaCoCo coverage floor and the SpotBugs
       # analysis are both bound to the verify phase, and `mvn test` stops one
@@ -244,8 +251,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.m2/repository
-          key: maven-${{ hashFiles('apps/api/pom.xml') }}
-          restore-keys: maven-
+          key: maven-verify-${{ hashFiles('apps/api/pom.xml') }}
+          restore-keys: maven-verify-
 
       - uses: actions/setup-node@v4
         with:

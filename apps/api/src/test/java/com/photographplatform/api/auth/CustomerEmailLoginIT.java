@@ -1,8 +1,10 @@
 package com.photographplatform.api.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import com.photographplatform.api.IntegrationTestBase;
@@ -11,6 +13,7 @@ import com.photographplatform.api.auth.dto.CustomerLoginCodeVerifyRequest;
 import com.photographplatform.api.auth.dto.CustomerMagicLinkRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.service.EmailService;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -66,7 +69,7 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
         book(studio, "maria@example.com");
 
         assertThat(request("maria@example.com").getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        List<String> codes = codesSent();
+        List<String> codes = codesSentTo("maria@example.com");
         assertThat(codes).hasSize(1);
 
         ResponseEntity<AuthResponse> session = signIn("maria@example.com", codes.get(0));
@@ -83,7 +86,7 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
         book(bob, "maria@example.com");
 
         request("maria@example.com");
-        String body = lastMail().htmlBody();
+        String body = lastMailTo("maria@example.com").htmlBody();
         String codeForBob = codeAfter(body, "bob-foto");
 
         ResponseEntity<AuthResponse> session = signIn("maria@example.com", codeForBob);
@@ -100,7 +103,7 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
 
         request("maria@example.com");
 
-        String body = lastMail().htmlBody();
+        String body = lastMailTo("maria@example.com").htmlBody();
         assertThat(codesIn(body)).hasSize(1);
         assertThat(body).doesNotContain("carol-foto");
     }
@@ -111,7 +114,7 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
 
         assertThat(request("nobody@example.com").getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        EmailMessage mail = lastMail();
+        EmailMessage mail = lastMailTo("nobody@example.com");
         assertThat(mail.subject()).isEqualTo("Signing in to Fotolio");
         assertThat(codesIn(mail.htmlBody())).isEmpty();
     }
@@ -170,7 +173,9 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER"),
             AuthResponse.class);
-        // Registration sends a verification email; start each test's capture clean.
+        // Registration queues a verification email; start each test's capture
+        // clean. It can still land after this reset (EmailService#send is
+        // @Async), which is why lastMailTo picks by recipient and type.
         reset(emailService);
         // The tenant id, read from outside the isolation boundary.
         return UUID.fromString(valueAcrossTenants("SELECT id FROM tenants WHERE subdomain = ?", subdomain));
@@ -183,15 +188,32 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
             """, tenantId, clientEmail);
     }
 
-    private EmailMessage lastMail() {
+    /**
+     * The last sign-in mail sent to {@code address}, waited for.
+     *
+     * <p>{@code EmailService#send} is {@code @Async}, so the spy records the
+     * call on an executor thread, which can be after the response is back.
+     * Verified straight away, a slow CI runner saw "zero interactions" about
+     * one run in ten. Picked by recipient and type because the studios'
+     * verification mails from registration are queued too, and one landing
+     * late was captured as the "last" mail, with no code in it.
+     */
+    private EmailMessage lastMailTo(String address) {
+        verify(emailService, timeout(5_000).atLeastOnce()).send(argThat(m -> isSignInMailTo(m, address)));
         ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
         verify(emailService, atLeastOnce()).send(captor.capture());
-        List<EmailMessage> all = captor.getAllValues();
-        return all.get(all.size() - 1);
+        List<EmailMessage> signInMails = captor.getAllValues().stream()
+            .filter(m -> isSignInMailTo(m, address))
+            .toList();
+        return signInMails.get(signInMails.size() - 1);
     }
 
-    private List<String> codesSent() {
-        return codesIn(lastMail().htmlBody());
+    private static boolean isSignInMailTo(EmailMessage mail, String address) {
+        return mail != null && mail.type() == EmailType.LOGIN_CODE && address.equals(mail.to());
+    }
+
+    private List<String> codesSentTo(String address) {
+        return codesIn(lastMailTo(address).htmlBody());
     }
 
     private static List<String> codesIn(String html) {

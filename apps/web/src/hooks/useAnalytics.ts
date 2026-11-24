@@ -34,9 +34,42 @@ export interface Analytics {
   };
 }
 
+/** Mirrors `YearSummaryResponse` on the API. */
+export interface YearSummary {
+  /** The current calendar year in Europe/Berlin. */
+  year: number;
+  /** The quoted value of this year's Billable bookings. */
+  bookedCents: number;
+  /** The year so far, net of Storno — the report's year total. */
+  invoicedCents: number;
+  /** The payments that arrived this year — the report's year total. */
+  collectedCents: number;
+}
+
 /** `null` is "the server's choice" — the current year, or the latest with data. */
 export function analyticsKey(year: number | null) {
   return ['analytics', year] as const;
+}
+
+export function yearSummaryKey() {
+  return ['yearSummary'] as const;
+}
+
+/**
+ * Booked, Invoiced and Collected for the current year: the dashboard tiles and
+ * the bookings overview. On every plan; unlike `useAnalytics`, the endpoint
+ * has no plan gate.
+ *
+ * <p>Booking, invoice and payment mutations invalidate it. `staleTime: 0` is
+ * for the payment none of them sees: a Customer paying by card lands through
+ * the Stripe webhook, on nobody's screen.
+ */
+export function useYearSummary() {
+  return useQuery({
+    queryKey: yearSummaryKey(),
+    staleTime: 0,
+    queryFn: async () => (await api.get<YearSummary>('/api/analytics/summary')).data,
+  });
 }
 
 /**

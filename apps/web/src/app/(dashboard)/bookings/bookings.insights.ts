@@ -1,4 +1,4 @@
-import { isBillable, isNotHappening } from '@/lib/booking-status';
+import { isNotHappening } from '@/lib/booking-status';
 import { parseApiDate } from '@/lib/date';
 import type { Contract } from '@/hooks/useContracts';
 import type { Gallery } from '@/hooks/useGalleries';
@@ -42,13 +42,13 @@ export function daysFromToday(eventDate: string, today: Date): number {
 }
 
 /**
- * What the client still owes. Zero for an enquiry (nothing is agreed yet) and
- * for a cancelled or declined booking (nothing is owed any more) — showing
- * "€850 open" on either reads as money being chased that is not.
+ * What the client still owes, as the server derives it: zero for an enquiry
+ * (nothing is agreed yet) and for a cancelled or declined booking (nothing is
+ * owed any more). Worked out here from a Billable list of web's own until the
+ * API sent it.
  */
 export function openBalanceCents(booking: Booking): number {
-  if (!isBillable(booking.status)) return 0;
-  return Math.max((booking.totalAmountCents || 0) - (booking.amountPaidCents ?? 0), 0);
+  return booking.openBalanceCents ?? 0;
 }
 
 export function isUpcoming(booking: Booking, today: Date): boolean {

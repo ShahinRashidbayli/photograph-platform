@@ -5,17 +5,23 @@ import com.photographplatform.api.analytics.dto.AnalyticsResponse;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PackageCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.PhotographerCount;
 import com.photographplatform.api.analytics.dto.AnalyticsResponse.RevenueSummary;
+import com.photographplatform.api.analytics.dto.YearSummaryResponse;
 import com.photographplatform.api.analytics.service.AnalyticsService;
+import com.photographplatform.api.analytics.service.YearSummaryService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.exception.PlanUpgradeRequiredException;
 import com.photographplatform.api.invoice.service.InvoiceService;
+import com.photographplatform.api.invoice.service.SettlementPeriods;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -32,6 +38,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The studio's yearly report against a real Postgres.
@@ -49,6 +56,8 @@ class AnalyticsServiceIT extends IntegrationTestBase {
 
     @Autowired private AnalyticsService analyticsService;
     @Autowired private InvoiceService invoiceService;
+    @Autowired private BookingQueryService bookingQueryService;
+    @Autowired private SettlementPeriods settlementPeriods;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager entityManager;
@@ -208,6 +217,93 @@ class AnalyticsServiceIT extends IntegrationTestBase {
         assertThat(collectedIn(revenue, 4)).isEqualTo(120_000L);
     }
 
+    // ── the dashboard's year summary ──────────────────────────────────────
+
+    /**
+     * The dashboard tiles are on every plan (ADR-004, Consequences): a STARTER
+     * studio, which has no reports, still sees what it Booked, Invoiced and
+     * Collected this year.
+     */
+    @Test
+    void theYearSummaryIsOnAPlanWithoutReports() {
+        Fixture fx = createStudio(Plan.STARTER);
+        createBooking(fx, "CONFIRMED", 100_000);
+        UUID march = issueInvoice(fx, 100_000, berlin(YEAR, 3, 2, 10, 0));
+        pay(fx, march, 40_000, berlin(YEAR, 3, 9, 10, 0));
+
+        assertThatThrownBy(() -> report(fx)).isInstanceOf(PlanUpgradeRequiredException.class);
+        YearSummaryResponse summary = summary(fx);
+
+        assertThat(summary.year()).isEqualTo(YEAR);
+        assertThat(summary.bookedCents()).isEqualTo(100_000L);
+        assertThat(summary.invoicedCents()).isEqualTo(100_000L);
+        assertThat(summary.collectedCents()).isEqualTo(40_000L);
+    }
+
+    /**
+     * Booked is the quoted value of this year's Billable bookings
+     * (GLOSSARY.md). An enquiry has not been agreed and a cancelled or
+     * declined shoot will not happen, so neither is money; a shoot on the
+     * last day of one year or the first of the next is that year's.
+     */
+    @Test
+    void bookedCountsOnlyBillableBookingsWithAnEventThisYear() {
+        Fixture fx = createStudio(Plan.STARTER);
+        createBooking(fx, "CONFIRMED", 100_000, LocalDate.of(YEAR, 6, 14));
+        createBooking(fx, "POSTPONED", 40_000, LocalDate.of(YEAR, 12, 31));
+        createBooking(fx, "COMPLETED", 20_000, LocalDate.of(YEAR, 1, 1));
+        createBooking(fx, "ENQUIRY", 50_000, LocalDate.of(YEAR, 6, 14));
+        createBooking(fx, "CANCELLED", 30_000, LocalDate.of(YEAR, 6, 14));
+        createBooking(fx, "DECLINED", 25_000, LocalDate.of(YEAR, 6, 14));
+        createBooking(fx, "COMPLETED", 60_000, LocalDate.of(YEAR - 1, 12, 31));
+        createBooking(fx, "CONFIRMED", 70_000, LocalDate.of(YEAR + 1, 1, 1));
+
+        // 1000.00 + 400.00 + 200.00
+        assertThat(summary(fx).bookedCents()).isEqualTo(160_000L);
+    }
+
+    /**
+     * The tile and the report are one figure, not two that happen to agree
+     * today: both come from invoice's Settlement periods. A Storno, a payment
+     * that arrived this year for last year's invoice, and a part payment are
+     * where two separate sums would drift.
+     */
+    @Test
+    void invoicedAndCollectedMatchTheReportForTheYearSoFar() {
+        Fixture fx = createStudio();
+        UUID lastYears = issueInvoice(fx, 50_000, berlin(YEAR - 1, 12, 15, 10, 0));
+        pay(fx, lastYears, 50_000, berlin(YEAR, 1, 5, 9, 0));
+        UUID march = issueInvoice(fx, 150_000, berlin(YEAR, 3, 10, 14, 0));
+        pay(fx, march, 60_000, berlin(YEAR, 3, 20, 9, 0));
+        UUID reversed = issueInvoice(fx, 90_000, berlin(YEAR, 5, 5, 10, 0));
+        storno(fx, reversed, berlin(YEAR, 5, 20, 10, 0));
+
+        YearSummaryResponse summary = summary(fx);
+        RevenueSummary revenue = report(fx).revenue();
+
+        // 1500.00 + 900.00 − 900.00
+        assertThat(summary.invoicedCents()).isEqualTo(150_000L);
+        // January's 500.00 for December's invoice, and March's 600.00
+        assertThat(summary.collectedCents()).isEqualTo(110_000L);
+        assertThat(summary.invoicedCents()).isEqualTo(revenue.invoicedCents());
+        assertThat(summary.collectedCents()).isEqualTo(revenue.collectedCents());
+    }
+
+    /** Last year's work is not this year's: a new year opens at zero, not empty. */
+    @Test
+    void aYearWithNothingInItYetIsAllZero() {
+        Fixture fx = createStudio(Plan.STARTER);
+        createBooking(fx, "CONFIRMED", 80_000, LocalDate.of(YEAR - 1, 9, 1));
+        issueInvoice(fx, 80_000, berlin(YEAR - 1, 9, 2, 10, 0));
+
+        YearSummaryResponse summary = summary(fx);
+
+        assertThat(summary.year()).isEqualTo(YEAR);
+        assertThat(summary.bookedCents()).isZero();
+        assertThat(summary.invoicedCents()).isZero();
+        assertThat(summary.collectedCents()).isZero();
+    }
+
     // ── fixtures ──────────────────────────────────────────────────────────
 
     private record Fixture(UUID tenantId, UUID userId) {
@@ -215,10 +311,14 @@ class AnalyticsServiceIT extends IntegrationTestBase {
 
     /** On STUDIO, because the report is gated on the analytics capability. */
     private Fixture createStudio() {
+        return createStudio(Plan.STUDIO);
+    }
+
+    private Fixture createStudio(Plan plan) {
         UUID tenantId = new TransactionTemplate(txManager).execute(status -> {
             Tenant tenant = new Tenant("analytics-test-" + UUID.randomUUID(),
                 "owner-" + UUID.randomUUID() + "@example.test");
-            tenant.setPlan(Plan.STUDIO);
+            tenant.setPlan(plan);
             return tenantRepository.save(tenant).getId();
         });
         UUID userId = asTenant(tenantId, () -> userRepository.save(
@@ -227,13 +327,17 @@ class AnalyticsServiceIT extends IntegrationTestBase {
     }
 
     private void createBooking(Fixture fx, String status, int totalAmountCents) {
+        createBooking(fx, status, totalAmountCents, LocalDate.of(YEAR, 6, 14));
+    }
+
+    private void createBooking(Fixture fx, String status, int totalAmountCents, LocalDate eventDate) {
         asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
             entityManager.createNativeQuery("""
                 INSERT INTO bookings (tenant_id, client_name, client_email, event_date, status, total_amount_cents)
                 VALUES (:tenantId, 'Maria Kellner', 'maria@example.test', :eventDate, :status, :total)
                 """)
                 .setParameter("tenantId", fx.tenantId())
-                .setParameter("eventDate", LocalDate.of(YEAR, 6, 14))
+                .setParameter("eventDate", eventDate)
                 .setParameter("status", status)
                 .setParameter("total", totalAmountCents)
                 .executeUpdate();
@@ -266,6 +370,20 @@ class AnalyticsServiceIT extends IntegrationTestBase {
         return asUser(fx, () -> new TransactionTemplate(txManager).execute(tx -> {
             jdbc.execute("SET LOCAL TIME ZONE 'UTC'");
             return analyticsService.forYear(year);
+        }));
+    }
+
+    /**
+     * The summary as it stands on 1 August of the test year in Berlin, so
+     * {@link #YEAR} is "this year" whenever the suite runs. Read over a UTC
+     * database session for the same reason as {@link #report(Fixture, int)}.
+     */
+    private YearSummaryResponse summary(Fixture fx) {
+        Clock august = Clock.fixed(berlin(YEAR, 8, 1, 12, 0).toInstant(), BERLIN);
+        YearSummaryService service = new YearSummaryService(bookingQueryService, settlementPeriods, august);
+        return asUser(fx, () -> new TransactionTemplate(txManager).execute(tx -> {
+            jdbc.execute("SET LOCAL TIME ZONE 'UTC'");
+            return service.currentYear();
         }));
     }
 

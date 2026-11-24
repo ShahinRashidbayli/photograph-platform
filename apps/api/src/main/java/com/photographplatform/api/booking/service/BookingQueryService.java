@@ -17,6 +17,8 @@ import com.photographplatform.api.invoice.domain.BookingSettlement;
 import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import java.time.LocalDate;
+import java.time.Month;
+import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -97,6 +99,18 @@ public class BookingQueryService {
      */
     public List<UUID> tenantsWithClientEmail(String email) {
         return bookingRepository.findTenantsWithClientEmail(email);
+    }
+
+    /**
+     * Booked (GLOSSARY.md): the quoted value of the tenant's Billable bookings
+     * with an event in {@code year}. Booking owns this figure because it owns
+     * which statuses are Billable (ADR-004 §4); the dashboard used to add it
+     * up in the browser from its own status list.
+     */
+    public long bookedCents(UUID tenantId, int year) {
+        Year y = Year.of(year);
+        return bookingRepository.sumTotalAmountCents(
+            tenantId, BookingStatus.BILLABLE, y.atDay(1), y.atMonth(Month.DECEMBER).atEndOfMonth());
     }
 
     /**

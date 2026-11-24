@@ -111,6 +111,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
 
     static {
         staffOnly("GET /api/analytics");
+        staffOnly("GET /api/analytics/summary");
         publicEndpoint("POST /api/auth/customer/login-code/request");
         publicEndpoint("POST /api/auth/customer/login-code/verify");
         publicEndpoint("POST /api/auth/login");

@@ -85,6 +85,11 @@ export interface Booking {
    * Derived server-side like `paymentState`.
    */
   creditCents?: number;
+  /**
+   * What is still to come in on the quote, derived server-side: zero unless the
+   * booking is Billable. Staff responses only; a Customer's booking omits it.
+   */
+  openBalanceCents?: number;
   internalNotes?: string;
   /**
    * The photographer shooting it, or absent while nobody has been assigned.

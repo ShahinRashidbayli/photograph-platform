@@ -6,7 +6,7 @@ import java.util.UUID;
  * The three money fields of a booking, which are only valid together.
  *
  * <p>A deposit larger than the total is a negative outstanding balance, which
- * {@code BookingPaymentStateResolver} and the invoice totals both read as
+ * invoice's {@code Settlement} and the invoice totals both read as
  * money the photographer owes the client. A negative total is the same kind of
  * nonsense one step earlier. Both are checked here, in the constructor, so
  * there is no way to hold an invalid combination — the rule used to live in a

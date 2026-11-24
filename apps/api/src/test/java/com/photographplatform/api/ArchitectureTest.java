@@ -1,5 +1,7 @@
 package com.photographplatform.api;
 
+import com.photographplatform.api.invoice.repository.InvoiceRepository;
+import com.photographplatform.api.payment.repository.PaymentRepository;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -151,6 +153,50 @@ class ArchitectureTest {
                     "..api.payment..", "..api.portfolio..", "..api.pricing..", "..api.tenant..")
                 .because("common is what every feature may depend on; depending back "
                     + "turns it into a second home for business rules"));
+
+        rule.check(classes);
+    }
+
+    // ── Settlement ownership (ADR-004 §1) ────────────────────────────────────
+
+    /**
+     * Only {@code invoice} touches {@link InvoiceRepository}.
+     *
+     * <p>Settlement (Live, Outstanding, Overdue) used to be worked out in three
+     * modules, each straight from the rows, and the copies disagreed. Every
+     * caller now asks {@code invoice.service.Settlement}; a module that goes
+     * back to the repository is a fourth copy in the making. Payment's row
+     * lock goes through {@code Settlement#lockForPayment} for the same reason.
+     */
+    @Test
+    @DisplayName("only invoice touches the invoice repository")
+    void invoiceRepositoryIsModulePrivate() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .noClasses().that().resideOutsideOfPackage("..api.invoice..")
+            .should().dependOnClassesThat().belongToAnyOf(InvoiceRepository.class)
+            .because("Settlement is owned by invoice; ask invoice.service.Settlement instead of "
+                + "reading invoice rows (ADR-004 §1)");
+
+        rule.check(classes);
+    }
+
+    /**
+     * Only {@code payment} touches {@link PaymentRepository}. Invoice gets
+     * succeeded totals from {@code payment.service.SucceededPayments}, so what
+     * counts as a succeeded payment is decided in one place.
+     *
+     * <p>Named classes rather than the whole {@code payment.repository}
+     * package: billing shares {@code ProcessedStripeEventRepository} for
+     * Stripe event idempotency, which has nothing to do with Settlement.
+     */
+    @Test
+    @DisplayName("only payment touches the payment repository")
+    void paymentRepositoryIsModulePrivate() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .noClasses().that().resideOutsideOfPackage("..api.payment..")
+            .should().dependOnClassesThat().belongToAnyOf(PaymentRepository.class)
+            .because("payment owns its rows; read succeeded totals through "
+                + "payment.service.SucceededPayments (ADR-004 §1)");
 
         rule.check(classes);
     }

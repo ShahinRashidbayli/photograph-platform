@@ -106,6 +106,10 @@ public enum BookingStatus {
         return NOT_HAPPENING.contains(this);
     }
 
+    public boolean isBillable() {
+        return BILLABLE.contains(this);
+    }
+
     public boolean canTransitionTo(BookingStatus next) {
         return ALLOWED.getOrDefault(this, EnumSet.noneOf(BookingStatus.class)).contains(next);
     }

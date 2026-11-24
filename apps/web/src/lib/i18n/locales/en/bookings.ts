@@ -79,8 +79,8 @@ export const bookings = {
   'bookings.overview.across_one': 'across {count} booking',
   'bookings.overview.across_other': 'across {count} bookings',
   'bookings.overview.allSettled': 'All settled',
-  'bookings.overview.collected': 'Collected',
-  'bookings.overview.ofBooked': 'of {amount} booked',
+  'bookings.overview.collected': 'Collected in {year}',
+  'bookings.overview.booked': '{amount} booked',
   'bookings.overview.filtered': 'Filtered',
   'bookings.attention.count.reply_one': '{count} enquiry',
   'bookings.attention.count.reply_other': '{count} enquiries',
@@ -137,6 +137,9 @@ export const bookings = {
   'bookings.detail.bookingsWithYou_other': '{count} bookings with you',
   'bookings.detail.paid': 'Paid',
   'bookings.detail.open': 'Open',
+  'bookings.detail.credit': 'Credit {amount}',
+  'bookings.detail.creditHint':
+    'Paid beyond what the invoices ask for. You are holding this for the client until a new invoice uses it or you pay it back.',
 
   // Lead actions the detail offers beside the lifecycle moves (statusAction.*).
   'bookings.action.recordPayment': 'Record payment',

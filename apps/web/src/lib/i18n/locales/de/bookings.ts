@@ -71,8 +71,8 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.overview.across_one': 'aus {count} Buchung',
   'bookings.overview.across_other': 'aus {count} Buchungen',
   'bookings.overview.allSettled': 'Alles beglichen',
-  'bookings.overview.collected': 'Eingenommen',
-  'bookings.overview.ofBooked': 'von {amount} gebucht',
+  'bookings.overview.collected': '{year} eingegangen',
+  'bookings.overview.booked': '{amount} gebucht',
   'bookings.overview.filtered': 'Gefiltert',
   'bookings.attention.count.reply_one': '{count} Anfrage',
   'bookings.attention.count.reply_other': '{count} Anfragen',
@@ -130,6 +130,9 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.detail.bookingsWithYou_other': '{count} Buchungen bei Ihnen',
   'bookings.detail.paid': 'Bezahlt',
   'bookings.detail.open': 'Offen',
+  'bookings.detail.credit': 'Guthaben {amount}',
+  'bookings.detail.creditHint':
+    'Mehr bezahlt, als die Rechnungen verlangen. Sie verwahren das Geld für den Kunden, bis eine neue Rechnung es verrechnet oder Sie es zurückzahlen.',
 
   'bookings.action.recordPayment': 'Zahlung erfassen',
   'bookings.action.newInvoice': 'Rechnung erstellen',

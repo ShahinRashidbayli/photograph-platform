@@ -9,13 +9,16 @@ import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
-import com.photographplatform.api.booking.service.BookingPaymentStateResolver.Summary;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.Paging;
+import com.photographplatform.api.invoice.domain.BookingSettlement;
+import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import java.time.LocalDate;
+import java.time.Month;
+import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -53,20 +56,20 @@ public class BookingQueryService {
     private final BookingRepository bookingRepository;
     private final StudioResourceRepository studioResourceRepository;
     private final UserRepository userRepository;
-    private final BookingPaymentStateResolver paymentStateResolver;
+    private final Settlement settlement;
     private final BookingMapper mapper;
 
     public BookingQueryService(
         BookingRepository bookingRepository,
         StudioResourceRepository studioResourceRepository,
         UserRepository userRepository,
-        BookingPaymentStateResolver paymentStateResolver,
+        Settlement settlement,
         BookingMapper mapper
     ) {
         this.bookingRepository = bookingRepository;
         this.studioResourceRepository = studioResourceRepository;
         this.userRepository = userRepository;
-        this.paymentStateResolver = paymentStateResolver;
+        this.settlement = settlement;
         this.mapper = mapper;
     }
 
@@ -99,6 +102,18 @@ public class BookingQueryService {
     }
 
     /**
+     * Booked (GLOSSARY.md): the quoted value of the tenant's Billable bookings
+     * with an event in {@code year}. Booking owns this figure because it owns
+     * which statuses are Billable (ADR-004 §4); the dashboard used to add it
+     * up in the browser from its own status list.
+     */
+    public long bookedCents(UUID tenantId, int year) {
+        Year y = Year.of(year);
+        return bookingRepository.sumTotalAmountCents(
+            tenantId, BookingStatus.BILLABLE, y.atDay(1), y.atMonth(Month.DECEMBER).atEndOfMonth());
+    }
+
+    /**
      * List the bookings owned by the currently authenticated customer.
      *
      * <p>The caller's identity is resolved from the JWT, never from a request
@@ -127,10 +142,10 @@ public class BookingQueryService {
                 .getContent()
             : bookingRepository.findOwnedBy(user.getId(), email, pageable).getContent();
 
-        Map<UUID, Summary> paymentStates = paymentStateResolver.resolveAll(
+        Map<UUID, BookingSettlement> settlements = settlement.ofBookings(
             bookings.stream().map(Booking::getId).toList());
         return bookings.stream()
-            .map(b -> mapper.toCustomerResponse(b, paymentStates.get(b.getId())))
+            .map(b -> mapper.toCustomerResponse(b, settlements.get(b.getId())))
             .toList();
     }
 

@@ -12,6 +12,7 @@ import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.invoice.domain.Invoice;
 import com.photographplatform.api.invoice.domain.InvoiceLineItem;
+import com.photographplatform.api.invoice.domain.InvoiceSettlement;
 import com.photographplatform.api.invoice.domain.InvoiceStatus;
 import com.photographplatform.api.invoice.dto.CreateInvoiceRequest;
 import com.photographplatform.api.invoice.dto.InvoiceLineItemResponse;
@@ -19,7 +20,6 @@ import com.photographplatform.api.invoice.dto.InvoiceResponse;
 import com.photographplatform.api.invoice.repository.InvoiceLineItemRepository;
 import com.photographplatform.api.invoice.repository.InvoiceNumberAllocator;
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
-import com.photographplatform.api.payment.repository.PaymentRepository;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -60,7 +60,7 @@ public class InvoiceService {
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
     private final DatevInvoiceExporter datevExporter;
-    private final PaymentRepository paymentRepository;
+    private final Settlement settlement;
 
     public InvoiceService(
         InvoiceRepository invoiceRepository,
@@ -73,7 +73,7 @@ public class InvoiceService {
         Optional<R2StorageService> storage,
         AuditService auditService,
         DatevInvoiceExporter datevExporter,
-        PaymentRepository paymentRepository,
+        Settlement settlement,
         Clock clock
     ) {
         this.invoiceRepository = invoiceRepository;
@@ -86,7 +86,7 @@ public class InvoiceService {
         this.storage = storage;
         this.auditService = auditService;
         this.datevExporter = datevExporter;
-        this.paymentRepository = paymentRepository;
+        this.settlement = settlement;
         this.clock = clock;
     }
 
@@ -182,7 +182,7 @@ public class InvoiceService {
         // guard it could be storniert in turn — producing a third document
         // whose line items are negated twice, i.e. a positive-amount "credit
         // note" that silently re-bills the client and breaks the net-to-zero
-        // invariant BookingPaymentStateResolver depends on. Correcting a
+        // invariant Settlement depends on. Correcting a
         // correction means issuing a fresh invoice, not stornoing the Storno.
         if (original.getStornoOfId() != null) {
             throw new ConflictException(
@@ -306,20 +306,12 @@ public class InvoiceService {
             .findByInvoiceIdInOrderByInvoiceIdAscSortOrderAsc(ids)
             .stream()
             .collect(Collectors.groupingBy(InvoiceLineItem::getInvoiceId));
-        // One grouped query for the whole page's settlement figures. Invoices
-        // with no successful payment are simply absent from the result, hence
-        // the getOrDefault rather than an entry per id.
-        Map<UUID, Long> paidByInvoice = paymentRepository
-            .sumSucceededAmountCentsGroupedByInvoiceId(ids)
-            .stream()
-            .collect(Collectors.toMap(
-                PaymentRepository.SucceededSum::getInvoiceId, PaymentRepository.SucceededSum::getTotal));
+        Map<UUID, InvoiceSettlement> settled = settlement.ofInvoices(invoices);
 
         return invoices.stream()
             .map(inv -> toResponse(
-                inv,
                 linesByInvoice.getOrDefault(inv.getId(), List.of()),
-                paidByInvoice.getOrDefault(inv.getId(), 0L)))
+                settled.get(inv.getId())))
             .toList();
     }
 
@@ -410,15 +402,16 @@ public class InvoiceService {
     }
 
     /**
-     * Reads the paid total for one invoice, then renders it. Only for the
-     * single-invoice paths — a list must use {@link #toResponses} instead,
-     * which resolves every invoice's total in one grouped query.
+     * Settles one invoice, then renders it. Only for the single-invoice paths;
+     * a list must use {@link #toResponses}, which settles the whole page in one
+     * grouped query.
      */
     private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines) {
-        return toResponse(invoice, lines, paymentRepository.sumSucceededAmountCents(invoice.getId()));
+        return toResponse(lines, settlement.withItsBooking(invoice));
     }
 
-    private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines, long paidCents) {
+    private InvoiceResponse toResponse(List<InvoiceLineItem> lines, InvoiceSettlement settled) {
+        Invoice invoice = settled.invoice();
         String downloadUrl = storage.map(s -> s.generateDownloadUrl(invoice.getPdfR2Key())).orElse(null);
         List<InvoiceLineItemResponse> lineResponses = lines.stream()
             .map(l -> new InvoiceLineItemResponse(
@@ -438,8 +431,12 @@ public class InvoiceService {
             invoice.getSubtotalCents(),
             invoice.getTaxCents(),
             invoice.getTotalCents(),
-            (int) paidCents,
-            (int) Math.max(0, invoice.getTotalCents() - paidCents),
+            settled.paidCents(),
+            settled.outstandingCents(),
+            settled.dueDate(),
+            invoice.isLive(),
+            settled.collectable(),
+            settled.overdue(),
             invoice.getVerwendungszweck(),
             invoice.getStornoOfId(),
             downloadUrl,

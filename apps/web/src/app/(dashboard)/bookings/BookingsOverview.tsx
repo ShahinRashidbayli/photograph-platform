@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { isBillable } from '@/lib/booking-status';
+import { summaryYear, useYearSummary } from '@/hooks/useAnalytics';
 import { fontSize, getColors, radius, space } from '@/lib/design-tokens';
 import { useTranslation, type PluralKey } from '@/lib/i18n';
 import type { Booking } from '@/types/api';
@@ -10,7 +10,7 @@ import {
   attentionFor,
   daysFromToday,
   isUpcoming,
-  openBalanceCents,
+  uncollectedCents,
   type AttentionKey,
   type BookingContext,
 } from './bookings.insights';
@@ -32,6 +32,10 @@ const ATTENTION_COUNT: [AttentionKey, PluralKey][] = [
  * €1,190 still owed — could not take you to that work. Now "Needs you" and
  * "Open balance" filter the list, and "Next shoot" opens it. "Collected" is a
  * fact, not a queue, and stays plain text.
+ *
+ * <p>Collected and Booked are the year's, from the server's summary — the same
+ * figures as the dashboard. They used to be summed here from the list with a
+ * Billable status list of this screen's own.
  */
 export function BookingsOverview({
   bookings,
@@ -51,6 +55,7 @@ export function BookingsOverview({
   onSelect: (_id: string) => void;
 }) {
   const { t, tPlural, format } = useTranslation();
+  const { data: summary } = useYearSummary();
 
   const numbers = useMemo(() => {
     const next =
@@ -67,12 +72,9 @@ export function BookingsOverview({
       needs += 1;
       attention.set(key, (attention.get(key) ?? 0) + 1);
     }
-    const owing = bookings.filter((b) => openBalanceCents(b) > 0);
-    const open = owing.reduce((sum, b) => sum + openBalanceCents(b), 0);
-    const billable = bookings.filter((b) => isBillable(b.status));
-    const collected = billable.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
-    const booked = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
-    return { next, attention, needs, owing: owing.length, open, collected, booked };
+    const owing = bookings.filter((b) => uncollectedCents(b) > 0);
+    const uncollected = owing.reduce((sum, b) => sum + uncollectedCents(b), 0);
+    return { next, attention, needs, owing: owing.length, uncollected };
   }, [bookings, ctxFor, today]);
 
   const needsBreakdown = ATTENTION_COUNT.filter(([k]) => numbers.attention.has(k))
@@ -193,8 +195,8 @@ export function BookingsOverview({
           {t('bookings.overview.openBalance')}
           {openActive && filteredChip}
         </span>
-        <span style={{ ...value, color: numbers.open > 0 ? c.warningText : c.text }}>
-          {format.eur(numbers.open)}
+        <span style={{ ...value, color: numbers.uncollected > 0 ? c.warningText : c.text }}>
+          {format.eur(numbers.uncollected)}
         </span>
         <span style={sub}>
           {numbers.owing > 0
@@ -204,11 +206,15 @@ export function BookingsOverview({
       </button>
 
       <div style={{ ...tile(false), cursor: 'default' }}>
-        <span style={label}>{t('bookings.overview.collected')}</span>
-        <span style={value}>{format.eur(numbers.collected)}</span>
-        <span style={sub}>
-          {t('bookings.overview.ofBooked', { amount: format.eur(numbers.booked) })}
+        <span style={label}>
+          {t('bookings.overview.collected', { year: summaryYear(summary, today) })}
         </span>
+        <span style={value}>{summary ? format.eur(summary.collectedCents) : '—'}</span>
+        {summary && (
+          <span style={sub}>
+            {t('bookings.overview.booked', { amount: format.eur(summary.bookedCents) })}
+          </span>
+        )}
       </div>
     </section>
   );

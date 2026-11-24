@@ -18,9 +18,20 @@ public record BookingResponse(
     Integer totalAmountCents,
     Integer depositAmountCents,
     String status,
-    /** Derived from real Invoice/Payment rows — see BookingPaymentStateResolver. Never stored. */
+    /** Derived from real Invoice/Payment rows by invoice's Settlement. Never stored. */
     String paymentState,
     Integer amountPaidCents,
+    /**
+     * Credit: what was paid for this booking beyond what its Live invoices ask
+     * for, such as a payment on an invoice Storniert without a replacement.
+     * The studio is holding it. Settlement's, like {@code paymentState}.
+     */
+    Integer creditCents,
+    /**
+     * Uncollected: what the quote has still to bring in, from {@code
+     * Booking#uncollectedCents}. Sent so web keeps no Billable list of its own.
+     */
+    int uncollectedCents,
     String internalNotes,
     /**
      * The photographer shooting this, or null while nobody has been assigned.

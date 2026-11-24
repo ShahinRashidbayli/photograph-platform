@@ -26,16 +26,26 @@ public record AnalyticsResponse(
 ) {
 
     /**
-     * Money, in cents, split by what actually happened to it.
+     * Money, in cents: Invoiced and Collected, as invoice's
+     * {@code SettlementPeriods} counts them (ADR-004 §3). Named "revenue" on
+     * the wire only; the screen labels each figure by its own name.
      *
-     * @param invoicedCents  total of every invoice issued in the year, cancelled
-     *                       ones excluded — a Storno reverses its original, so
-     *                       counting both would double-count the sale and then
-     *                       show revenue the studio never had
-     * @param collectedCents of that, what has been paid. The gap between the two
-     *                       is the number a photographer actually chases
-     * @param outstandingCents invoiced minus collected, never negative
-     * @param months         twelve entries, January first, zero-filled — a month
+     * @param invoicedCents  Invoiced: every document issued in the year, net of
+     *                       Storno, as the DATEV export books it. A Storniert
+     *                       original stays in its own month and its Storno
+     *                       counts against the Storno's month
+     * @param collectedCents Collected: the payments that succeeded in the year,
+     *                       by the month the money arrived (cash basis). A
+     *                       December invoice paid in January is next year's
+     * @param outstandingCents what is still Outstanding on the Live invoices
+     *                       issued in the year, wherever their payments fell.
+     *                       No longer invoiced minus collected: with Collected
+     *                       on cash basis the two cover different invoices
+     * @param invoiceCount   Live invoices issued in the year: neither a Storno
+     *                       nor Storniert
+     * @param averageInvoiceCents the mean total of those Live invoices
+     * @param months         twelve entries, January first, zero-filled, by
+     *                       Europe/Berlin month — a month
      *                       with no invoices is a fact about the year, and
      *                       dropping it would silently rescale the chart
      */

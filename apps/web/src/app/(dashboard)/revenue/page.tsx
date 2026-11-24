@@ -9,13 +9,14 @@ import { monthLabels } from '../analytics.data';
 import { ChartCard, DataTable, ReportShell, StatTile } from '../analytics.shell';
 
 /**
- * Revenue — what the studio invoiced, and what actually arrived.
+ * Invoiced and Collected — what the studio invoiced, and what actually arrived.
  *
  * <p>The gap between those two is the point of the screen. A report that only
  * showed turnover would tell a photographer they had a good year while the
  * money was still sitting in somebody else's account.
  *
- * <p>Every figure comes from issued invoices and succeeded payments. Nothing is
+ * <p>Every figure is derived by the API (ADR-004): Invoiced by issue month as
+ * DATEV books it, Collected by the month the money arrived. Nothing is
  * projected, annualised or smoothed — a half-finished year is shown as a
  * half-finished year.
  */
@@ -26,7 +27,15 @@ export default function RevenuePage() {
 
   const months = monthLabels(lang);
   const rev = data?.revenue;
-  const isEmpty = !!data && rev !== undefined && rev.invoiceCount === 0;
+  // Not just "no Live invoices": a year whose only document is the Storno of
+  // last year's invoice still has an Invoiced figure (−X), and hiding it
+  // behind the empty state would hide the correction.
+  const isEmpty =
+    !!data &&
+    rev !== undefined &&
+    rev.invoiceCount === 0 &&
+    rev.invoicedCents === 0 &&
+    rev.collectedCents === 0;
 
   const invoiced = t('analytics.invoiced');
   const collected = t('analytics.collected');
@@ -48,16 +57,14 @@ export default function RevenuePage() {
           <ChartCard title={t('analytics.revenue.summary')}>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               <StatTile label={invoiced} value={format.eur(rev.invoicedCents)} />
-              <StatTile
-                label={collected}
-                value={format.eur(rev.collectedCents)}
-                hint={t('analytics.revenue.ofInvoiced', {
-                  percent: percent(rev.collectedCents, rev.invoicedCents),
-                })}
-              />
+              {/* No "% of invoiced" hint: Collected counts payments in the
+                  month they arrived, so it can include last year's invoices
+                  and the ratio stopped meaning anything. */}
+              <StatTile label={collected} value={format.eur(rev.collectedCents)} />
               <StatTile
                 label={t('analytics.revenue.outstanding')}
                 value={format.eur(rev.outstandingCents)}
+                hint={t('analytics.revenue.outstandingHint')}
                 // Amber only when there is something to chase; an outstanding
                 // balance of zero is good news and should not wear a warning.
                 tone={rev.outstandingCents > 0 ? c.warningText : undefined}
@@ -101,9 +108,4 @@ export default function RevenuePage() {
       )}
     </ReportShell>
   );
-}
-
-function percent(part: number, whole: number): string {
-  if (whole <= 0) return '0%';
-  return `${Math.round((part / whole) * 100)}%`;
 }

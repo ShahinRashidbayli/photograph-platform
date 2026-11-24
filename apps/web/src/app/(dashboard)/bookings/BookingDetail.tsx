@@ -19,12 +19,7 @@ import type { Booking } from '@/types/api';
 import { BookingActionMenu, type MenuItem } from './BookingActionMenu';
 import { BookingContracts } from './BookingContracts';
 import { BookingGallery } from './BookingGallery';
-import {
-  BookingInvoices,
-  CreateInvoiceModal,
-  RecordPaymentDialog,
-  isCollectable,
-} from './BookingInvoices';
+import { BookingInvoices, CreateInvoiceModal, RecordPaymentDialog } from './BookingInvoices';
 import { BookingNotes } from './BookingNotes';
 import { BookingProgress, relativeDay } from './BookingProgress';
 import { dot, getDetailStyles, pill } from './bookingDetail.styles';
@@ -32,7 +27,7 @@ import { getStatusVisual } from './bookings.filters';
 import {
   daysFromToday,
   nextActions,
-  openBalanceCents,
+  uncollectedCents,
   progressSteps,
   type ActionKey,
   type BookingContext,
@@ -111,7 +106,7 @@ export function BookingDetail({
   const collectable = useMemo(
     () =>
       (invoices ?? [])
-        .filter(isCollectable)
+        .filter((i) => i.collectable)
         .sort((a, b) => a.issuedAt.localeCompare(b.issuedAt))[0] ?? null,
     [invoices]
   );
@@ -132,9 +127,17 @@ export function BookingDetail({
   // invoice/payment rows). Before anything is invoiced this is 0, so the bar
   // never shows a configured deposit as money already banked.
   const paid = booking.amountPaidCents ?? 0;
-  const remaining = Math.max(total - paid, 0);
+  // What is still to come in is the server's figure too (ADR-004): zero on an
+  // enquiry, whose total is a quote, and never worked out here from the total.
+  const uncollected = uncollectedCents(booking);
   const percent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   const paymentVisual = toneToVisual(getPaymentStateMeta(booking.paymentState).tone, c);
+  // Money the studio holds for the client: a payment on an invoice that was
+  // Storniert after it was paid, beyond what the Live invoices ask for. The
+  // payment state alone cannot say so — a booking with no replacement invoice
+  // reads "Not invoiced" while the money is still in the studio's account.
+  const credit = booking.creditCents ?? 0;
+  const creditVisual = toneToVisual('info', c);
 
   function run(action: ActionKey) {
     const transition = ACTION_TRANSITION[action];
@@ -317,6 +320,14 @@ export function BookingDetail({
               <span style={dot(paymentVisual.dot)} />
               {t(getPaymentStateMeta(booking.paymentState).labelKey)}
             </span>
+            {credit > 0 && (
+              <span
+                style={pill(creditVisual.color, creditVisual.bg)}
+                title={t('bookings.detail.creditHint')}
+              >
+                {t('bookings.detail.credit', { amount: format.eurExact(credit) })}
+              </span>
+            )}
           </div>
           {!notHappening && (
             <Button variant="secondary" size="sm" onClick={() => setShowCreateInvoice(true)}>
@@ -345,10 +356,8 @@ export function BookingDetail({
               />
               <Figure
                 label={t('bookings.detail.open')}
-                value={format.eur(remaining)}
-                // Amber only for money actually owed: an enquiry's total is a
-                // quote, not a debt.
-                color={openBalanceCents(booking) > 0 ? c.warningText : c.textSubtle}
+                value={format.eur(uncollected)}
+                color={uncollected > 0 ? c.warningText : c.textSubtle}
                 s={s}
               />
             </>

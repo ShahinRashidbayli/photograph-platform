@@ -78,6 +78,20 @@ export interface Booking {
   /** Derived server-side from real invoice/payment rows — never guessed client-side. */
   paymentState?: 'NOT_INVOICED' | 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
   amountPaidCents?: number;
+  /**
+   * Money Collected for this booking beyond what its Live invoices ask for,
+   * e.g. a payment on an invoice that was later Storniert with no replacement.
+   * The studio holds it until a new invoice uses it or it is paid back.
+   * Derived server-side like `paymentState`. Staff responses only; a
+   * Customer's booking omits it.
+   */
+  creditCents?: number;
+  /**
+   * Uncollected: what the quote has still to bring in, derived server-side:
+   * zero unless the booking is Billable. Staff responses only; a Customer's
+   * booking omits it.
+   */
+  uncollectedCents?: number;
   internalNotes?: string;
   /**
    * The photographer shooting it, or absent while nobody has been assigned.
@@ -161,7 +175,20 @@ export interface Invoice {
    * per invoice on every list that showed them.
    */
   paidCents: number;
+  /** Zero unless the invoice is Live. */
   outstandingCents: number;
+  /**
+   * `YYYY-MM-DD`; null unless the invoice is Live. This and the three flags
+   * below are the server's Settlement (ADR-004): render them, never work out
+   * Live, Collectable or Overdue from the other fields.
+   */
+  dueDate: string | null;
+  /** Neither a Storno nor Storniert: the only kind a Customer can owe money on. */
+  live: boolean;
+  /** Live with something Outstanding: the only kind a pay action belongs on. */
+  collectable: boolean;
+  /** Collectable with its Due date passed. */
+  overdue: boolean;
   /** Bank-transfer reference, e.g. `RE-2026-0001`. */
   verwendungszweck: string;
   /** Set on a Storno, pointing at the invoice it corrects. */

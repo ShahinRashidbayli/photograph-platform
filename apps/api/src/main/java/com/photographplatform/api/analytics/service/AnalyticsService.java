@@ -12,12 +12,17 @@ import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.entitlement.domain.Capability;
 import com.photographplatform.api.entitlement.service.EntitlementService;
+import com.photographplatform.api.invoice.domain.YearSettlement;
+import com.photographplatform.api.invoice.service.SettlementPeriods;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -29,6 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Plan-gated on {@link Capability#ANALYTICS}. The gate is the first thing
  * this does, because everything after it reads the whole tenant's history.
+ *
+ * <p>Invoiced and Collected are not worked out here. Invoice owns which period
+ * money counts in (ADR-004), so this asks {@link SettlementPeriods} and reads
+ * neither the invoices nor the payments table; the SQL below is bookings and
+ * leads only.
  *
  * <p>Written as aggregate SQL rather than by loading entities and summing them
  * in Java. A studio with three years of bookings is a few thousand rows, which
@@ -63,12 +73,15 @@ public class AnalyticsService {
     private final JdbcTemplate jdbc;
     /** Same connection; only for the queries that bind a status list. */
     private final NamedParameterJdbcTemplate namedJdbc;
+    private final SettlementPeriods settlementPeriods;
     private final EntitlementService entitlementService;
     private final Clock clock;
 
-    public AnalyticsService(JdbcTemplate jdbc, EntitlementService entitlementService, Clock clock) {
+    public AnalyticsService(
+        JdbcTemplate jdbc, SettlementPeriods settlementPeriods, EntitlementService entitlementService, Clock clock) {
         this.jdbc = jdbc;
         this.namedJdbc = new NamedParameterJdbcTemplate(jdbc);
+        this.settlementPeriods = settlementPeriods;
         this.entitlementService = entitlementService;
         this.clock = clock;
     }
@@ -86,81 +99,43 @@ public class AnalyticsService {
             // reads as a broken report rather than as a new year.
             : years.isEmpty() ? LocalDate.now(clock).getYear() : years.get(0);
 
-        return new AnalyticsResponse(year, years, revenue(tenantId, year), bookings(tenantId, year));
+        return new AnalyticsResponse(
+            year, years, invoicedAndCollected(tenantId, year), bookings(tenantId, year));
     }
 
-    /** Years the studio has invoices or bookings in, newest first. */
+    /**
+     * Years the studio has anything Invoiced, Collected or booked in, newest
+     * first. The money years come from invoice, which owns which period money
+     * counts in; only the bookings are read here.
+     */
     private List<Integer> availableYears(UUID tenantId) {
-        return jdbc.queryForList("""
-            SELECT DISTINCT y FROM (
-                SELECT EXTRACT(YEAR FROM issued_at)::int  AS y FROM invoices WHERE tenant_id = ?
-                UNION ALL
-                SELECT EXTRACT(YEAR FROM event_date)::int AS y FROM bookings WHERE tenant_id = ?
-            ) t
-            WHERE y IS NOT NULL
-            ORDER BY y DESC
-            """, Integer.class, tenantId, tenantId);
+        SortedSet<Integer> years = new TreeSet<>(Comparator.reverseOrder());
+        years.addAll(settlementPeriods.years(tenantId));
+        years.addAll(jdbc.queryForList("""
+            SELECT DISTINCT EXTRACT(YEAR FROM event_date)::int AS y
+            FROM bookings
+            WHERE tenant_id = ? AND event_date IS NOT NULL
+            """, Integer.class, tenantId));
+        return List.copyOf(years);
     }
 
-    private RevenueSummary revenue(UUID tenantId, int year) {
-        // Cancelled invoices and their storno documents both sit in the table —
-        // GoBD forbids deleting either — so counting every row would show the
-        // sale twice and then show revenue that was reversed. ISSUED only.
-        Map<String, Object> totals = jdbc.queryForMap("""
-            SELECT
-                COALESCE(SUM(i.total_cents), 0)                       AS invoiced,
-                COUNT(*)                                              AS cnt,
-                COALESCE(SUM(paid.amount), 0)                         AS collected
-            FROM invoices i
-            LEFT JOIN LATERAL (
-                SELECT COALESCE(SUM(p.amount_cents), 0) AS amount
-                FROM payments p
-                WHERE p.invoice_id = i.id AND p.status = 'SUCCEEDED' AND p.tenant_id = ?
-            ) paid ON TRUE
-            WHERE i.tenant_id = ?
-              AND i.status = 'ISSUED'
-              AND EXTRACT(YEAR FROM i.issued_at) = ?
-            """, tenantId, tenantId, year);
-
-        long invoiced = num(totals.get("invoiced"));
-        long collected = num(totals.get("collected"));
-        int count = (int) num(totals.get("cnt"));
-
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-            SELECT
-                EXTRACT(MONTH FROM i.issued_at)::int AS m,
-                COALESCE(SUM(i.total_cents), 0)      AS invoiced,
-                COALESCE(SUM(paid.amount), 0)        AS collected
-            FROM invoices i
-            LEFT JOIN LATERAL (
-                SELECT COALESCE(SUM(p.amount_cents), 0) AS amount
-                FROM payments p
-                WHERE p.invoice_id = i.id AND p.status = 'SUCCEEDED' AND p.tenant_id = ?
-            ) paid ON TRUE
-            WHERE i.tenant_id = ?
-              AND i.status = 'ISSUED'
-              AND EXTRACT(YEAR FROM i.issued_at) = ?
-            GROUP BY 1
-            """, tenantId, tenantId, year);
-
-        Map<Integer, MonthlyAmount> byMonth = new LinkedHashMap<>();
-        for (Map<String, Object> r : rows) {
-            int m = (int) num(r.get("m"));
-            byMonth.put(m, new MonthlyAmount(m, num(r.get("invoiced")), num(r.get("collected"))));
-        }
-        List<MonthlyAmount> months = new ArrayList<>(12);
-        for (int m = 1; m <= 12; m++) {
-            months.add(byMonth.getOrDefault(m, new MonthlyAmount(m, 0, 0)));
-        }
-
+    /**
+     * Invoiced and Collected, as invoice's {@link SettlementPeriods} counts
+     * them (ADR-004 §3). This screen holds none of those rules: it used to sum
+     * invoice and payment rows itself, and so counted a payment in the month of
+     * the invoice it paid, which put January money into last year's report.
+     */
+    private RevenueSummary invoicedAndCollected(UUID tenantId, int year) {
+        YearSettlement settled = settlementPeriods.ofYear(tenantId, year);
+        List<MonthlyAmount> months = settled.months().stream()
+            .map(m -> new MonthlyAmount(m.month(), m.invoicedCents(), m.collectedCents()))
+            .toList();
         return new RevenueSummary(
-            invoiced,
-            collected,
-            // Clamped: an overpayment (a client paying a rounded-up amount) would
-            // otherwise render as negative money owed.
-            Math.max(0, invoiced - collected),
-            count,
-            count == 0 ? 0 : invoiced / count,
+            settled.invoicedCents(),
+            settled.collectedCents(),
+            settled.outstandingCents(),
+            settled.liveInvoiceCount(),
+            settled.averageLiveInvoiceCents(),
             months);
     }
 

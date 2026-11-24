@@ -7,7 +7,7 @@ import {
   attentionFor,
   isPast,
   isUpcoming,
-  openBalanceCents,
+  uncollectedCents,
   type BookingContext,
 } from './bookings.insights';
 
@@ -61,7 +61,7 @@ export function matchesFilter(booking: Booking, filter: FilterKey, ctx: BookingC
     case 'upcoming':
       return isUpcoming(booking, ctx.today);
     case 'unpaid':
-      return openBalanceCents(booking) > 0;
+      return uncollectedCents(booking) > 0;
     case 'past':
       return isPast(booking, ctx.today);
     default:

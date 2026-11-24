@@ -142,20 +142,17 @@ export const getAllowedTransitions = (status: string): BookingStatusKey[] =>
   BOOKING_TRANSITIONS[status as BookingStatusKey] ?? [];
 
 /**
- * Billable and Not happening (GLOSSARY.md), the same sets as the backend
- * `BookingStatus.BILLABLE` / `NOT_HAPPENING`. Every screen asks these instead
- * of keeping its own list.
+ * Not happening (GLOSSARY.md), the same set as the backend
+ * `BookingStatus.NOT_HAPPENING`. Every screen asks this instead of keeping its
+ * own list. It decides what is still on, never money.
  *
- * Billable is its own set, not "anything not cancelled": that reading is how
- * an enquiry's quote came to count as revenue on the dashboard while the
- * bookings overview, with its own stricter copy, left it out.
+ * There is deliberately no Billable list here. Which bookings count as money is
+ * the server's rule (ADR-004): Booked comes from the year summary and a
+ * booking's Uncollected amount from `uncollectedCents`. Two copies of that
+ * rule, one here and one in the bookings overview, once disagreed about
+ * enquiries.
  */
-const BILLABLE_STATUSES: readonly BookingStatusKey[] = ['CONFIRMED', 'POSTPONED', 'COMPLETED'];
 const NOT_HAPPENING_STATUSES: readonly BookingStatusKey[] = ['CANCELLED', 'DECLINED'];
-
-/** Its quoted value is money the studio has earned or will earn. An enquiry never is. */
-export const isBillable = (status: string): boolean =>
-  BILLABLE_STATUSES.includes(status as BookingStatusKey);
 
 /** Cancelled or declined: the shoot will not take place. */
 export const isNotHappening = (status: string): boolean =>

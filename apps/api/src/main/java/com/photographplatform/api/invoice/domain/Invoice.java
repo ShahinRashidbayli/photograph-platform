@@ -337,6 +337,14 @@ public class Invoice implements Persistable<UUID> {
         this.status = InvoiceStatus.STORNIERT.name();
     }
 
+    /**
+     * A Live invoice (GLOSSARY): issued, neither a Storno nor Storniert. The
+     * only kind a Customer can owe money on.
+     */
+    public boolean isLive() {
+        return getStatus() != InvoiceStatus.STORNIERT && stornoOfId == null;
+    }
+
     public TaxMode getTaxMode() {
         return TaxMode.valueOf(taxMode);
     }

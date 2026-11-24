@@ -10,9 +10,11 @@ import java.util.UUID;
  *
  * <p>Deliberately a separate type from {@link BookingResponse}: it omits
  * {@code internalNotes}, which is the photographer's private working text and
- * must never reach the client. Keeping it a distinct record (rather than
- * nulling a field on the shared response) means a future field added to
- * {@code BookingResponse} cannot silently leak into the customer payload.
+ * must never reach the client. It omits Credit as well, which #67 shows on the
+ * staff booking only: the studio decides whether a new invoice uses it or it
+ * is paid back. Keeping it a distinct record (rather than nulling a field on
+ * the shared response) means a future field added to {@code BookingResponse}
+ * cannot silently leak into the customer payload.
  */
 public record CustomerBookingResponse(
     UUID id,

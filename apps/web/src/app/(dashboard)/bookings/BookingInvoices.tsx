@@ -23,16 +23,6 @@ import { getBookingsStyles } from './bookings.styles';
 type Colors = ReturnType<typeof getColors>;
 
 /**
- * An invoice the client can still pay something on. A Storno is a credit note
- * and a cancelled invoice is legally withdrawn — neither is collectable.
- */
-export function isCollectable(invoice: Invoice): boolean {
-  return (
-    invoice.stornoOfId === null && invoice.status !== 'STORNIERT' && invoice.outstandingCents > 0
-  );
-}
-
-/**
  * The invoices issued for one booking, as rows under the payment summary.
  *
  * <p>Everything here is irreversible by design, and the UI says so rather than
@@ -111,22 +101,21 @@ function InvoiceRow({
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isStorno = invoice.stornoOfId !== null;
-  const isCancelled = invoice.status === 'STORNIERT';
-  // Off the invoice itself. Fetching a payment summary per row cost one request
-  // per invoice, and having the figures arrive after the invoice meant every
-  // branch here needed a "not loaded yet" case — with "settled" as the value it
-  // fell back to, on the screen the photographer chases money from.
-  const collectable = isCollectable(invoice);
-  const settled = invoice.outstandingCents === 0;
+  // Live, Collectable, Overdue and the Due date are the server's Settlement,
+  // carried on the invoice itself (ADR-004). Working them out here is how the
+  // screens and the server came to disagree; fetching them per row cost one
+  // request per invoice. The Storno flag only picks the label.
+  const { live, collectable, overdue } = invoice;
 
-  const [fg, bg, labelKey]: [string, string, TranslationKey] = isStorno
-    ? [c.neutralText, c.neutralBg, 'invoices.manage.status.storno']
-    : isCancelled
-      ? [c.neutralText, c.neutralBg, 'invoices.manage.status.cancelled']
-      : settled
-        ? [c.successText, c.successBg, 'invoices.manage.status.paid']
-        : [c.warningText, c.warningBg, 'invoices.manage.status.open'];
+  const [fg, bg, labelKey]: [string, string, TranslationKey] = !live
+    ? invoice.stornoOfId !== null
+      ? [c.neutralText, c.neutralBg, 'invoices.manage.status.storno']
+      : [c.neutralText, c.neutralBg, 'invoices.manage.status.cancelled']
+    : overdue
+      ? [c.dangerText, c.dangerBg, 'invoices.manage.status.overdue']
+      : collectable
+        ? [c.warningText, c.warningBg, 'invoices.manage.status.open']
+        : [c.successText, c.successBg, 'invoices.manage.status.paid'];
 
   const menuItems = [
     ...(collectable
@@ -138,7 +127,7 @@ function InvoiceRow({
           },
         ]
       : []),
-    ...(!isStorno && !isCancelled
+    ...(live
       ? [
           {
             key: 'storno',
@@ -157,10 +146,16 @@ function InvoiceRow({
           <div style={s.invoiceNumber}>{invoice.invoiceNumber}</div>
           <div style={s.invoiceMeta}>
             {format.monthDayYear(invoice.issuedAt)}
+            {invoice.dueDate && (
+              <>
+                {' · '}
+                {t('invoices.manage.dueOn', { date: format.monthDayYear(invoice.dueDate) })}
+              </>
+            )}
             {/* "€0.00 of €700.00 paid" and "€450.00 of €450.00 paid" say
                 nothing the badge does not; only a part payment earns a line.
                 The reference is shown when it is not just the number again. */}
-            {!isStorno && !isCancelled && invoice.paidCents > 0 && invoice.outstandingCents > 0 && (
+            {collectable && invoice.paidCents > 0 && (
               <>
                 {' · '}
                 {t('invoices.manage.paidOf', {
@@ -169,7 +164,7 @@ function InvoiceRow({
                 })}
               </>
             )}
-            {!isStorno && !isCancelled && invoice.verwendungszweck !== invoice.invoiceNumber && (
+            {live && invoice.verwendungszweck !== invoice.invoiceNumber && (
               <>
                 {' · '}
                 {t('invoices.manage.reference', { reference: invoice.verwendungszweck })}

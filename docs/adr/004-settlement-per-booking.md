@@ -1,6 +1,6 @@
 # 004 — Settlement is owned by invoice and counted per booking
 
-**Status:** Accepted (2026-11-21) · **Not yet implemented.**
+**Status:** Accepted (2026-11-21) · **Implemented (2026-11-24)** by #64–#69.
 **Related:** `GLOSSARY.md` (Settlement, Booked / Invoiced / Collected, Carried-over
 payment, Credit), `docs/BUGS.md` FU-13, ADR-002 (module boundaries)
 

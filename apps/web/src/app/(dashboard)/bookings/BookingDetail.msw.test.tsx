@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders, setupUser } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
 import { getColors } from '@/lib/design-tokens';
+import type { Locale } from '@/lib/i18n';
 import type { Booking, Invoice } from '@/types/api';
 import { BookingDetail } from './BookingDetail';
 import { getBookingsStyles } from './bookings.styles';
@@ -63,6 +64,10 @@ const openInvoice = {
   totalCents: 70_000,
   paidCents: 0,
   outstandingCents: 70_000,
+  dueDate: '2026-11-15',
+  live: true,
+  collectable: true,
+  overdue: false,
   verwendungszweck: 'RE-2026-0021',
   stornoOfId: null,
   pdfDownloadUrl: null,
@@ -80,7 +85,7 @@ function fakeInvoices(invoices: Invoice[] | 'error') {
   );
 }
 
-function renderDetail(b: Booking, onTransition = jest.fn()) {
+function renderDetail(b: Booking, onTransition = jest.fn(), lang: Locale = 'en') {
   const theme = 'light' as const;
   renderWithProviders(
     <BookingDetail
@@ -97,7 +102,7 @@ function renderDetail(b: Booking, onTransition = jest.fn()) {
       onTransition={onTransition}
       onEdit={jest.fn()}
     />,
-    { lang: 'en' }
+    { lang }
   );
   return onTransition;
 }
@@ -145,6 +150,40 @@ describe('BookingDetail', () => {
     await user.click(retry);
 
     expect(await screen.findByText('RE-2026-0021')).toBeInTheDocument();
+  });
+
+  /**
+   * A paid invoice withdrawn by a Storno with no replacement: the money stays
+   * Collected, nothing asks for it, and the photographer has to see that they
+   * are holding it. The payment state itself keeps its usual value.
+   */
+  it('shows the Credit the studio is holding for the client', async () => {
+    fakeInvoices([]);
+    renderDetail(
+      booking({ paymentState: 'NOT_INVOICED', amountPaidCents: 100_000, creditCents: 100_050 })
+    );
+
+    expect(await screen.findByText('Credit €1,000.50')).toBeInTheDocument();
+    expect(screen.getByText('Not invoiced')).toBeInTheDocument();
+  });
+
+  it('names the Credit in German too', async () => {
+    fakeInvoices([]);
+    renderDetail(
+      booking({ paymentState: 'NOT_INVOICED', amountPaidCents: 100_000, creditCents: 100_050 }),
+      jest.fn(),
+      'de'
+    );
+
+    expect(await screen.findByText(/^Guthaben 1\.000,50\s€$/)).toBeInTheDocument();
+  });
+
+  it('shows no Credit while the Live invoices use up everything paid', async () => {
+    fakeInvoices([openInvoice]);
+    renderDetail(booking({ creditCents: 0 }));
+
+    expect(await screen.findByText('RE-2026-0021')).toBeInTheDocument();
+    expect(screen.queryByText(/Credit/)).toBeNull();
   });
 
   it('saves the note in place without sending a resource list it never loaded', async () => {

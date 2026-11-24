@@ -114,11 +114,12 @@ public class Settlement {
     }
 
     /**
-     * One invoice, with its row locked for the rest of the caller's
-     * transaction: the serialisation point for everything that collects money
-     * against it. Both payment paths are check-then-act on the Outstanding
-     * amount returned here ("no open intent, so mint one", "this amount fits,
-     * so book it"), and neither conclusion survives a concurrent writer.
+     * One invoice, with its row and its booking's other invoices locked for
+     * the rest of the caller's transaction: the serialisation point for
+     * everything that collects money against it. Both payment paths are
+     * check-then-act on the Outstanding amount returned here ("no open intent,
+     * so mint one", "this amount fits, so book it"), and neither conclusion
+     * survives a concurrent writer.
      *
      * <p>{@code MANDATORY} because the lock is only worth anything inside the
      * transaction that then writes the payment; outside one it would be
@@ -128,10 +129,14 @@ public class Settlement {
      * a second caller is told to retry with a 409 instead of queueing behind
      * someone else's Stripe round-trip.
      *
-     * <p>Only this invoice's row is locked, not its booking's other invoices.
-     * This invoice's share of a Carried-over payment cannot shrink under it: a
-     * Storniert invoice takes no more money, and a payment on another Live
-     * invoice fills that invoice before anything is carried past it.
+     * <p>The whole booking is locked because this invoice's Outstanding amount
+     * depends on its siblings ({@link #carryOver}). A Storno of a paid sibling
+     * turns that sibling's payment into a Carried-over payment, so this
+     * invoice's share of it grows. With only this row locked, a Storno landing
+     * after the check let the payment through for more than was still owed,
+     * and the Customer paid twice. The Storno writes the sibling's row, so the
+     * two exclude each other. An invoice without a booking has no siblings and
+     * locks only itself.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public InvoiceSettlement lockForPayment(UUID invoiceId) {
@@ -139,11 +144,15 @@ public class Settlement {
         try {
             invoice = invoiceRepository.findByIdForPayment(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
+            if (invoice.getBookingId() != null) {
+                invoiceRepository.findByBookingIdForPayment(invoice.getBookingId());
+            }
         } catch (PessimisticLockingFailureException ex) {
-            // Someone else is mid-payment on this invoice. Not an error worth a
-            // stack trace: by the time the caller looks again the other request
-            // has settled, and the amount they would pay may well have changed.
-            LOG.info("Invoice {} is locked by another payment operation", invoiceId);
+            // Someone else is mid-payment on this invoice or a sibling, or is
+            // withdrawing a sibling. Not an error worth a stack trace: by the
+            // time the caller looks again the other request has settled, and
+            // the amount they would pay may well have changed.
+            LOG.info("Invoice {} or a sibling is locked by another operation", invoiceId);
             throw new ConflictException(
                 "A payment for this invoice is already being processed. "
                     + "Please reload the page and try again in a moment.");

@@ -1,0 +1,4 @@
+# Checks only what is staged, so it stays fast enough to run on every commit,
+# by people and by the factory's agents alike. The full gate is CI (ci.yml) and
+# the Definition of done in .claude/CLAUDE.md.
+npx lint-staged

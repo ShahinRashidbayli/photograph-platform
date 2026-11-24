@@ -1,0 +1,5 @@
+{
+  "//": "ESM for the factory scripts only (top-level await, import.meta.dirname). The root package stays CommonJS.",
+  "private": true,
+  "type": "module"
+}

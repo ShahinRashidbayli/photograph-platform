@@ -22,6 +22,10 @@ The total of the payments that succeeded in a period, counted in the month the
 money arrived.
 _Avoid_: Revenue, received, paid (as a total)
 
+**Uncollected**:
+What a Billable booking's quote has still to bring in: its quoted value less what has been paid for it, never below zero. An enquiry or a booking that is Not happening has nothing Uncollected.
+_Avoid_: Open balance, remaining, Outstanding (that is an invoice's)
+
 **Billable**:
 A booking that will happen or has happened: confirmed, postponed or completed. An
 enquiry is never Billable.

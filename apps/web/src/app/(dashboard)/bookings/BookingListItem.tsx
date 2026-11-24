@@ -6,7 +6,7 @@ import { getCustomerBookingStatusLabelKey } from '@/lib/booking-status';
 import { useTranslation } from '@/lib/i18n';
 import type { Booking } from '@/types/api';
 import { getStatusVisual } from './bookings.filters';
-import type { AttentionKey } from './bookings.insights';
+import { uncollectedCents, type AttentionKey } from './bookings.insights';
 import type { TranslationKey } from '@/lib/i18n';
 
 const ATTENTION_LABEL: Record<AttentionKey, TranslationKey> = {
@@ -31,8 +31,6 @@ export type ListItemProps = {
   registerRef: (_el: HTMLButtonElement | null) => void;
   /** What waits on the photographer here, if anything (photographer only). */
   attention?: AttentionKey | null;
-  /** What the client still owes on it. */
-  openCents?: number;
   isPast?: boolean;
 };
 
@@ -46,27 +44,29 @@ export function BookingListItem({
   tabIndex,
   registerRef,
   attention = null,
-  openCents = 0,
   isPast = false,
 }: ListItemProps) {
   const { t, format } = useTranslation();
   const date = parseApiDate(booking.eventDate);
   const status = getStatusVisual(booking.status, colors, 'list');
+  // The server's figure (ADR-004). A Customer's booking omits it, so a row in a
+  // client's own list shows no amount due.
+  const uncollected = uncollectedCents(booking);
   // The photographer's list is client-first (whose booking is it); the client's
   // own list is session-first (what/where), since every row is theirs.
-  const remaining = Math.max(booking.totalAmountCents - (booking.amountPaidCents ?? 0), 0);
   const title = isPhotographer
     ? booking.clientName
     : (booking.eventType ?? t('bookings.sessionFallback'));
-  const deadlineDate = !isPhotographer && remaining > 0 ? format.dayMonth(booking.eventDate) : null;
+  const deadlineDate =
+    !isPhotographer && uncollected > 0 ? format.dayMonth(booking.eventDate) : null;
   const metaText = isPhotographer
     ? [booking.eventType ?? t('bookings.sessionFallback'), booking.location]
         .filter(Boolean)
         .join(' · ')
     : [
         booking.location,
-        remaining > 0 && deadlineDate
-          ? t('bookings.balanceDue', { amount: format.eur(remaining), date: deadlineDate })
+        uncollected > 0 && deadlineDate
+          ? t('bookings.balanceDue', { amount: format.eur(uncollected), date: deadlineDate })
           : null,
       ]
         .filter(Boolean)
@@ -102,9 +102,9 @@ export function BookingListItem({
         </div>
         <div style={styles.listItemBottomRow}>
           <span style={styles.listItemMeta}>{metaText}</span>
-          {isPhotographer && openCents > 0 && (
+          {isPhotographer && uncollected > 0 && (
             <span style={styles.listItemOpen}>
-              {t('bookings.list.open', { amount: format.eur(openCents) })}
+              {t('bookings.list.open', { amount: format.eur(uncollected) })}
             </span>
           )}
         </div>

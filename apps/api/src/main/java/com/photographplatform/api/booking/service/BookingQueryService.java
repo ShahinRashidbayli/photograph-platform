@@ -142,10 +142,10 @@ public class BookingQueryService {
                 .getContent()
             : bookingRepository.findOwnedBy(user.getId(), email, pageable).getContent();
 
-        Map<UUID, BookingSettlement> paymentStates = settlement.ofBookings(
+        Map<UUID, BookingSettlement> settlements = settlement.ofBookings(
             bookings.stream().map(Booking::getId).toList());
         return bookings.stream()
-            .map(b -> mapper.toCustomerResponse(b, paymentStates.get(b.getId())))
+            .map(b -> mapper.toCustomerResponse(b, settlements.get(b.getId())))
             .toList();
     }
 

@@ -28,12 +28,10 @@ public record BookingResponse(
      */
     Integer creditCents,
     /**
-     * What is still to come in on the quote: the quoted total less what was
-     * paid, never below zero. Zero unless the booking is Billable, because
-     * nothing is agreed on an enquiry and nothing is owed on a shoot that is
-     * Not happening. Derived here so web keeps no Billable list of its own.
+     * Uncollected: what the quote has still to bring in, from {@code
+     * Booking#uncollectedCents}. Sent so web keeps no Billable list of its own.
      */
-    int openBalanceCents,
+    int uncollectedCents,
     String internalNotes,
     /**
      * The photographer shooting this, or null while nobody has been assigned.

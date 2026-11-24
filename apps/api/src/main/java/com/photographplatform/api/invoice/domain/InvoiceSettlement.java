@@ -26,13 +26,11 @@ public record InvoiceSettlement(
      * withdrawn underneath them.
      */
     public void requireLive() {
-        if (invoice.getStatus() == InvoiceStatus.STORNIERT) {
-            throw new ConflictException(
-                "Invoice " + invoice.getInvoiceNumber() + " has been storniert and can no longer be paid");
+        if (invoice.isLive()) {
+            return;
         }
-        if (invoice.getStornoOfId() != null) {
-            throw new ConflictException(
-                "Invoice " + invoice.getInvoiceNumber() + " is a Storno correction, not a payable invoice");
-        }
+        throw new ConflictException(invoice.getStornoOfId() != null
+            ? "Invoice " + invoice.getInvoiceNumber() + " is a Storno correction, not a payable invoice"
+            : "Invoice " + invoice.getInvoiceNumber() + " has been storniert and can no longer be paid");
     }
 }

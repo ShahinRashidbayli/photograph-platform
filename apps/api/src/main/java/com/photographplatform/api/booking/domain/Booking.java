@@ -172,6 +172,24 @@ public class Booking {
         this.depositAmountCents = pricing.depositCents();
     }
 
+    /**
+     * What the quote has still to bring in (Uncollected): the quoted value
+     * less {@code paidCents}, never below zero. Zero unless the booking is
+     * Billable, because nothing is agreed on an enquiry and nothing is owed on
+     * a shoot that is Not happening. Here because Billable is booking's rule;
+     * web used to work this out from its own copy of the Billable statuses.
+     *
+     * @param paidCents what has been paid for this booking, as Settlement
+     *     counts it
+     */
+    public int uncollectedCents(int paidCents) {
+        if (!status.isBillable()) {
+            return 0;
+        }
+        int quoted = totalAmountCents != null ? totalAmountCents : 0;
+        return Math.max(quoted - paidCents, 0);
+    }
+
     /** @param userId the staff member shooting this, or null to clear it */
     public void assignTo(UUID userId) {
         this.assignedUserId = userId;

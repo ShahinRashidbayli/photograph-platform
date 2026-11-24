@@ -21,12 +21,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * The open balance a booking response carries: what is still to come in on
- * the quote.
+ * The Uncollected amount a booking response carries: what the quote has still
+ * to bring in.
  *
- * <p>Derived here because only Billable bookings are owed money (GLOSSARY.md),
- * and booking owns that set. Web used to work it out from its own copy of the
- * Billable statuses.
+ * <p>Derived in booking because only Billable bookings are owed money
+ * (GLOSSARY.md), and booking owns that set. Web used to work it out from its
+ * own copy of the Billable statuses.
  */
 class BookingMapperTest {
 
@@ -35,27 +35,27 @@ class BookingMapperTest {
 
     @Test
     void aBillableBookingStillAsksForItsQuoteLessWhatWasPaid() {
-        assertThat(openBalance(120_000, 45_000, BookingStatus.CONFIRMED)).isEqualTo(75_000);
-        assertThat(openBalance(120_000, 0, BookingStatus.CONFIRMED, BookingStatus.POSTPONED)).isEqualTo(120_000);
-        assertThat(openBalance(120_000, 120_000, BookingStatus.CONFIRMED, BookingStatus.COMPLETED)).isZero();
+        assertThat(uncollected(120_000, 45_000, BookingStatus.CONFIRMED)).isEqualTo(75_000);
+        assertThat(uncollected(120_000, 0, BookingStatus.CONFIRMED, BookingStatus.POSTPONED)).isEqualTo(120_000);
+        assertThat(uncollected(120_000, 120_000, BookingStatus.CONFIRMED, BookingStatus.COMPLETED)).isZero();
     }
 
     /** Nothing is agreed on an enquiry, and nothing is owed on a shoot that will not happen. */
     @Test
     void anEnquiryOrABookingThatIsNotHappeningIsOwedNothing() {
-        assertThat(openBalance(120_000, 0)).isZero();
-        assertThat(openBalance(120_000, 0, BookingStatus.CANCELLED)).isZero();
-        assertThat(openBalance(120_000, 0, BookingStatus.DECLINED)).isZero();
+        assertThat(uncollected(120_000, 0)).isZero();
+        assertThat(uncollected(120_000, 0, BookingStatus.CANCELLED)).isZero();
+        assertThat(uncollected(120_000, 0, BookingStatus.DECLINED)).isZero();
     }
 
     /** Money beyond the quote is the studio holding the Customer's money, not a negative debt. */
     @Test
-    void paidBeyondTheQuoteIsNotANegativeBalance() {
-        assertThat(openBalance(120_000, 150_000, BookingStatus.CONFIRMED)).isZero();
+    void paidBeyondTheQuoteIsNotANegativeAmount() {
+        assertThat(uncollected(120_000, 150_000, BookingStatus.CONFIRMED)).isZero();
     }
 
     /** @param path the status changes from ENQUIRY, in order */
-    private int openBalance(int quotedCents, int paidCents, BookingStatus... path) {
+    private int uncollected(int quotedCents, int paidCents, BookingStatus... path) {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria Kellner", "maria@example.test", LocalDate.of(2025, 6, 14));
         ReflectionTestUtils.setField(booking, "id", id);
@@ -65,6 +65,6 @@ class BookingMapperTest {
         }
         BookingSettlement settled = new BookingSettlement(BookingPaymentState.OPEN, quotedCents, paidCents, 0);
         return mapper.toResponse(booking, new PageLookups(Map.of(id, settled), Map.of(), Map.of(id, List.of())))
-            .openBalanceCents();
+            .uncollectedCents();
     }
 }

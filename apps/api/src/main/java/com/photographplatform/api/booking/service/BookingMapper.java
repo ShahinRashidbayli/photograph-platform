@@ -50,7 +50,7 @@ public class BookingMapper {
      * regardless of how many rows there are.
      */
     public record PageLookups(
-        Map<UUID, BookingSettlement> payments,
+        Map<UUID, BookingSettlement> settlements,
         Map<UUID, String> assigneeNames,
         Map<UUID, List<UUID>> resourceIds) {
     }
@@ -86,13 +86,13 @@ public class BookingMapper {
             // including bookings with no invoice at all (SettlementIT pins it).
             // getOrDefault anyway, because a null here would 500 the whole
             // list over one row.
-            lookups.payments().getOrDefault(booking.getId(), BookingSettlement.none()),
+            lookups.settlements().getOrDefault(booking.getId(), BookingSettlement.none()),
             assignee == null ? null : lookups.assigneeNames().get(assignee),
             lookups.resourceIds().getOrDefault(booking.getId(), List.of()));
     }
 
-    public CustomerBookingResponse toCustomerResponse(Booking booking, BookingSettlement payment) {
-        BookingSettlement p = payment != null ? payment : BookingSettlement.none();
+    public CustomerBookingResponse toCustomerResponse(Booking booking, BookingSettlement settlement) {
+        BookingSettlement settled = settlement != null ? settlement : BookingSettlement.none();
         return new CustomerBookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -105,14 +105,14 @@ public class BookingMapper {
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
             booking.getStatus().name(),
-            p.state().name(),
-            p.paidCents(),
+            settled.state().name(),
+            settled.paidCents(),
             booking.getCreatedAt()
         );
     }
 
     private BookingResponse toResponse(
-        Booking booking, BookingSettlement payment, String assigneeName, List<UUID> resourceIds) {
+        Booking booking, BookingSettlement settlement, String assigneeName, List<UUID> resourceIds) {
         return new BookingResponse(
             booking.getId(),
             booking.getClientName(),
@@ -125,25 +125,16 @@ public class BookingMapper {
             booking.getTotalAmountCents(),
             booking.getDepositAmountCents(),
             booking.getStatus().name(),
-            payment.state().name(),
-            payment.paidCents(),
-            payment.creditCents(),
-            openBalanceCents(booking, payment),
+            settlement.state().name(),
+            settlement.paidCents(),
+            settlement.creditCents(),
+            booking.uncollectedCents(settlement.paidCents()),
             booking.getInternalNotes(),
             booking.getAssignedUserId(),
             assigneeName,
             resourceIds,
             booking.getCreatedAt()
         );
-    }
-
-    /** See {@link BookingResponse#openBalanceCents()}. */
-    private static int openBalanceCents(Booking booking, BookingSettlement payment) {
-        if (!booking.getStatus().isBillable()) {
-            return 0;
-        }
-        int quoted = booking.getTotalAmountCents() != null ? booking.getTotalAmountCents() : 0;
-        return Math.max(quoted - payment.paidCents(), 0);
     }
 
     /**

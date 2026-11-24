@@ -7,7 +7,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { parseApiDate, startOfToday } from '@/lib/date';
 import { useBookings } from '@/hooks/useBookings';
 import { useLeads } from '@/hooks/useLeads';
-import { useYearSummary } from '@/hooks/useAnalytics';
+import { summaryYear, useYearSummary } from '@/hooks/useAnalytics';
 import { Lead } from '@/types/api';
 import { getBookingStatusMeta, isNotHappening, toneToVisual } from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
@@ -67,8 +67,7 @@ export default function DashboardPage() {
   // its own status list, and counted enquiries as money for a while.
   // Best-effort like leads: a failed read shows a dash, not an error.
   const { data: summary } = useYearSummary();
-  // The help text names the year before the summary has said which it is.
-  const summaryYear = summary?.year ?? new Date().getFullYear();
+  const year = summaryYear(summary);
 
   // Every count below is taken over these two lists, so a truncated list is
   // not a shorter screen — it is a wrong number, silently. Bookings came back
@@ -257,7 +256,7 @@ export default function DashboardPage() {
           colors={colors}
           label={t('dashboard.kpi.booked')}
           value={summary ? format.eur(summary.bookedCents) : '—'}
-          trend={t('dashboard.kpi.bookedHelp', { year: summaryYear })}
+          trend={t('dashboard.kpi.bookedHelp', { year })}
           trendColor={colors.textMuted}
         />
         <MetricCard
@@ -265,7 +264,7 @@ export default function DashboardPage() {
           colors={colors}
           label={t('dashboard.kpi.invoiced')}
           value={summary ? format.eur(summary.invoicedCents) : '—'}
-          trend={t('dashboard.kpi.invoicedHelp', { year: summaryYear })}
+          trend={t('dashboard.kpi.invoicedHelp', { year })}
           trendColor={colors.textMuted}
         />
         <MetricCard
@@ -273,7 +272,7 @@ export default function DashboardPage() {
           colors={colors}
           label={t('dashboard.kpi.collected')}
           value={summary ? format.eur(summary.collectedCents) : '—'}
-          trend={t('dashboard.kpi.collectedHelp', { year: summaryYear })}
+          trend={t('dashboard.kpi.collectedHelp', { year })}
           trendColor={colors.textMuted}
         />
         <MetricCard

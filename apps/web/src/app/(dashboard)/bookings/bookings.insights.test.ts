@@ -2,7 +2,7 @@ import {
   attentionFor,
   indexContracts,
   nextActions,
-  openBalanceCents,
+  uncollectedCents,
   progressSteps,
   type BookingContext,
 } from './bookings.insights';
@@ -32,7 +32,7 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     status: 'CONFIRMED',
     paymentState: 'NOT_INVOICED',
     amountPaidCents: 0,
-    openBalanceCents: 115_000,
+    uncollectedCents: 115_000,
     createdAt: '2026-10-01T10:00:00Z',
     ...overrides,
   };
@@ -60,7 +60,7 @@ describe('nextActions', () => {
     const upcoming = booking({
       paymentState: 'PARTIALLY_PAID',
       amountPaidCents: 45_000,
-      openBalanceCents: 70_000,
+      uncollectedCents: 70_000,
     });
     expect(nextActions(upcoming, ctx(), true)).toEqual({
       primary: 'recordPayment',
@@ -73,7 +73,7 @@ describe('nextActions', () => {
   });
 
   it('has no lead action on an upcoming booking that is fully paid', () => {
-    const paid = booking({ paymentState: 'PAID', amountPaidCents: 115_000, openBalanceCents: 0 });
+    const paid = booking({ paymentState: 'PAID', amountPaidCents: 115_000, uncollectedCents: 0 });
     expect(nextActions(paid, ctx(), false).primary).toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe('nextActions', () => {
       eventDate: '2026-11-05',
       paymentState: 'PAID',
       amountPaidCents: 115_000,
-      openBalanceCents: 0,
+      uncollectedCents: 0,
     });
     expect(nextActions(shot, ctx(), false)).toEqual({
       primary: 'complete',
@@ -91,7 +91,7 @@ describe('nextActions', () => {
   });
 
   it('answers an enquiry with confirm or decline', () => {
-    expect(nextActions(booking({ status: 'ENQUIRY', openBalanceCents: 0 }), ctx(), false)).toEqual({
+    expect(nextActions(booking({ status: 'ENQUIRY', uncollectedCents: 0 }), ctx(), false)).toEqual({
       primary: 'confirm',
       secondary: 'decline',
     });
@@ -102,14 +102,14 @@ describe('nextActions', () => {
       status: 'COMPLETED',
       paymentState: 'PAID',
       amountPaidCents: 115_000,
-      openBalanceCents: 0,
+      uncollectedCents: 0,
     });
     expect(nextActions(done, ctx(), false).primary).toBe('createGallery');
     expect(nextActions(done, ctx({ gallery }), false).primary).toBeNull();
   });
 
   it.each(['CANCELLED', 'DECLINED'] as const)('offers nothing on a %s booking', (status) => {
-    expect(nextActions(booking({ status, openBalanceCents: 0 }), ctx(), true)).toEqual({
+    expect(nextActions(booking({ status, uncollectedCents: 0 }), ctx(), true)).toEqual({
       primary: null,
       secondary: null,
     });
@@ -144,18 +144,18 @@ describe('attentionFor', () => {
 
 /**
  * Which bookings owe money is the server's rule now (BookingMapperTest): an
- * enquiry or a cancelled booking comes back with an open balance of zero. This
+ * enquiry or a cancelled booking comes back with nothing Uncollected. This
  * only reads it.
  */
-describe('openBalanceCents', () => {
+describe('uncollectedCents', () => {
   it('is what the server says is still to come in', () => {
-    expect(openBalanceCents(booking({ amountPaidCents: 45_000, openBalanceCents: 70_000 }))).toBe(
+    expect(uncollectedCents(booking({ amountPaidCents: 45_000, uncollectedCents: 70_000 }))).toBe(
       70_000
     );
   });
 
   it("is zero on a booking that does not carry it, as a Customer's does not", () => {
-    expect(openBalanceCents(booking({ openBalanceCents: undefined }))).toBe(0);
+    expect(uncollectedCents(booking({ uncollectedCents: undefined }))).toBe(0);
   });
 });
 

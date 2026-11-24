@@ -32,12 +32,13 @@ public record YearSettlement(
     public record Month(int month, long invoicedCents, long collectedCents) {
     }
 
-    /** Invoiced over the year, net of Storno. */
+    // The year's totals are summed from its months rather than carried beside
+    // them, so a report can never show a year that disagrees with its months.
+
     public long invoicedCents() {
         return months.stream().mapToLong(Month::invoicedCents).sum();
     }
 
-    /** Collected over the year. */
     public long collectedCents() {
         return months.stream().mapToLong(Month::collectedCents).sum();
     }

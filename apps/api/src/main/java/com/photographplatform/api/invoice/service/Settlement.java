@@ -194,7 +194,8 @@ public class Settlement {
         return invoices.stream().collect(Collectors.toMap(Invoice::getId, inv -> settled.get(inv.getId())));
     }
 
-    private InvoiceSettlement withItsBooking(Invoice invoice) {
+    /** One invoice the caller already holds; see {@link #ofInvoices}. */
+    InvoiceSettlement withItsBooking(Invoice invoice) {
         return ofInvoices(List.of(invoice)).get(invoice.getId());
     }
 

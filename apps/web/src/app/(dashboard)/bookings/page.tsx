@@ -41,7 +41,6 @@ import {
   indexGalleries,
   isPast,
   isUpcoming,
-  openBalanceCents,
   type BookingContext,
 } from './bookings.insights';
 import { BookingsOverview } from './BookingsOverview';
@@ -725,7 +724,6 @@ function BookingsView() {
                         styles={styles}
                         colors={colors}
                         attention={attentionFor(booking, ctxFor(booking))}
-                        openCents={openBalanceCents(booking)}
                         isPast={isPast(booking, today)}
                       />
                     </React.Fragment>

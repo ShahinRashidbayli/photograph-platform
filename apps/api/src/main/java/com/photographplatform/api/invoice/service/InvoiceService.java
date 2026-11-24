@@ -407,7 +407,7 @@ public class InvoiceService {
      * grouped query.
      */
     private InvoiceResponse toResponse(Invoice invoice, List<InvoiceLineItem> lines) {
-        return toResponse(lines, settlement.ofInvoices(List.of(invoice)).get(invoice.getId()));
+        return toResponse(lines, settlement.withItsBooking(invoice));
     }
 
     private InvoiceResponse toResponse(List<InvoiceLineItem> lines, InvoiceSettlement settled) {

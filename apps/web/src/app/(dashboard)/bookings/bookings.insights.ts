@@ -42,13 +42,13 @@ export function daysFromToday(eventDate: string, today: Date): number {
 }
 
 /**
- * What the client still owes, as the server derives it: zero for an enquiry
- * (nothing is agreed yet) and for a cancelled or declined booking (nothing is
- * owed any more). Worked out here from a Billable list of web's own until the
- * API sent it.
+ * Uncollected: what the quote has still to bring in, as the server derives it.
+ * Zero for an enquiry (nothing is agreed yet) and for a cancelled or declined
+ * booking (nothing is owed any more). Worked out here from a Billable list of
+ * web's own until the API sent it. A Customer's booking does not carry it.
  */
-export function openBalanceCents(booking: Booking): number {
-  return booking.openBalanceCents ?? 0;
+export function uncollectedCents(booking: Booking): number {
+  return booking.uncollectedCents ?? 0;
 }
 
 export function isUpcoming(booking: Booking, today: Date): boolean {
@@ -204,7 +204,7 @@ export function nextActions(
   // has been invoiced for yet.
   const money: ActionKey | null = hasCollectableInvoice
     ? 'recordPayment'
-    : openBalanceCents(booking) > 0 && booking.paymentState !== 'PAID'
+    : uncollectedCents(booking) > 0 && booking.paymentState !== 'PAID'
       ? 'newInvoice'
       : null;
 

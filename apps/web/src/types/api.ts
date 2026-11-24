@@ -82,14 +82,16 @@ export interface Booking {
    * Money Collected for this booking beyond what its Live invoices ask for,
    * e.g. a payment on an invoice that was later Storniert with no replacement.
    * The studio holds it until a new invoice uses it or it is paid back.
-   * Derived server-side like `paymentState`.
+   * Derived server-side like `paymentState`. Staff responses only; a
+   * Customer's booking omits it.
    */
   creditCents?: number;
   /**
-   * What is still to come in on the quote, derived server-side: zero unless the
-   * booking is Billable. Staff responses only; a Customer's booking omits it.
+   * Uncollected: what the quote has still to bring in, derived server-side:
+   * zero unless the booking is Billable. Staff responses only; a Customer's
+   * booking omits it.
    */
-  openBalanceCents?: number;
+  uncollectedCents?: number;
   internalNotes?: string;
   /**
    * The photographer shooting it, or absent while nobody has been assigned.

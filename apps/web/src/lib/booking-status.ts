@@ -148,8 +148,9 @@ export const getAllowedTransitions = (status: string): BookingStatusKey[] =>
  *
  * There is deliberately no Billable list here. Which bookings count as money is
  * the server's rule (ADR-004): Booked comes from the year summary and a
- * booking's open balance from `openBalanceCents`. Two copies of that rule, one
- * here and one in the bookings overview, once disagreed about enquiries.
+ * booking's Uncollected amount from `uncollectedCents`. Two copies of that
+ * rule, one here and one in the bookings overview, once disagreed about
+ * enquiries.
  */
 const NOT_HAPPENING_STATUSES: readonly BookingStatusKey[] = ['CANCELLED', 'DECLINED'];
 

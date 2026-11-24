@@ -46,6 +46,15 @@ export interface YearSummary {
   collectedCents: number;
 }
 
+/**
+ * The year a summary covers, or this calendar year until it has answered:
+ * the tiles name their year before the summary has said which it is, and a
+ * failed read still needs a label.
+ */
+export function summaryYear(summary: YearSummary | undefined, today: Date = new Date()): number {
+  return summary?.year ?? today.getFullYear();
+}
+
 /** `null` is "the server's choice" — the current year, or the latest with data. */
 export function analyticsKey(year: number | null) {
   return ['analytics', year] as const;

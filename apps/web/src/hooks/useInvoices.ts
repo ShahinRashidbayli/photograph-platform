@@ -147,11 +147,12 @@ export function useIssueInvoice(bookingId: string) {
       const res = await api.post<Invoice>(`/api/bookings/${bookingId}/invoices`, input);
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) }),
+        queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+        queryClient.invalidateQueries({ queryKey: yearSummaryKey() }),
+      ]),
   });
 }
 
@@ -163,12 +164,13 @@ export function useStornoInvoice(bookingId: string) {
       const res = await api.post<Invoice>(`/api/invoices/${invoiceId}/storno`, {});
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
-    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) }),
+        queryClient.invalidateQueries({ queryKey: ['payments'] }),
+        queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+        queryClient.invalidateQueries({ queryKey: yearSummaryKey() }),
+      ]),
   });
 }
 
@@ -188,12 +190,13 @@ export function useRecordManualPayment(bookingId: string) {
       });
       return res.data;
     },
-    onSuccess: (_payment, variables) => {
-      queryClient.invalidateQueries({ queryKey: paymentSummaryKey(variables.invoiceId) });
-      queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) });
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: yearSummaryKey() });
-    },
+    onSuccess: (_payment, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: paymentSummaryKey(variables.invoiceId) }),
+        queryClient.invalidateQueries({ queryKey: bookingInvoicesKey(bookingId) }),
+        queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+        queryClient.invalidateQueries({ queryKey: yearSummaryKey() }),
+      ]),
   });
 }
 

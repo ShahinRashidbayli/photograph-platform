@@ -176,6 +176,27 @@ class SettlementIT extends IntegrationTestBase {
     }
 
     /**
+     * Money in is settled per booking, not only money paid on a withdrawn
+     * invoice: what was paid on a Live invoice beyond its own total fills the
+     * booking's other Live invoices too, and only what none of them needs is
+     * Credit (ADR-004 §2). The payment paths refuse more than is Outstanding,
+     * so the overpayment is seeded straight into the table.
+     */
+    @Test
+    void moneyPaidBeyondALiveInvoicesTotalFillsTheBookingsOtherLiveInvoices() {
+        UUID booking = booking();
+        pay(invoice(booking, 30_000, NOV_1), 50_000);
+        Invoice other = invoice(booking, 15_000, NOV_5);
+
+        InvoiceSettlement settled = inTenant(() -> settlementOn(NOV_10).ofInvoice(other.getId()));
+
+        assertThat(settled.outstandingCents()).isZero();
+        assertThat(settled.collectable()).isFalse();
+        assertThat(inTenant(() -> settlementOn(NOV_10).ofBooking(booking)))
+            .isEqualTo(new BookingSettlement(PAID, 45_000, 50_000, 5_000));
+    }
+
+    /**
      * Two bookingless invoices are not one booking: a payment on a withdrawn
      * invoice with no booking has no Live invoice to carry over to, so it stays
      * Credit and an unrelated bookingless invoice still owes its whole total.

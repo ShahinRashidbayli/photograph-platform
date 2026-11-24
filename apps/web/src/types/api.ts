@@ -82,7 +82,8 @@ export interface Booking {
    * Money Collected for this booking beyond what its Live invoices ask for,
    * e.g. a payment on an invoice that was later Storniert with no replacement.
    * The studio holds it until a new invoice uses it or it is paid back.
-   * Derived server-side like `paymentState`.
+   * Derived server-side like `paymentState`. Staff responses only; a
+   * Customer's booking omits it.
    */
   creditCents?: number;
   /**

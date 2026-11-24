@@ -107,7 +107,6 @@ public class BookingMapper {
             booking.getStatus().name(),
             p.state().name(),
             p.paidCents(),
-            p.creditCents(),
             booking.getCreatedAt()
         );
     }

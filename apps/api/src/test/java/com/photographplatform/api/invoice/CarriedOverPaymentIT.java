@@ -17,6 +17,8 @@ import com.photographplatform.api.invoice.dto.CreateInvoiceRequest;
 import com.photographplatform.api.invoice.dto.InvoiceResponse;
 import com.photographplatform.api.invoice.service.InvoiceService;
 import com.photographplatform.api.invoice.service.SettlementPeriods;
+import com.photographplatform.api.payment.domain.PaymentMethod;
+import com.photographplatform.api.payment.dto.CreatePaymentIntentRequest;
 import com.photographplatform.api.payment.dto.RecordManualPaymentRequest;
 import com.photographplatform.api.payment.service.PaymentService;
 import com.photographplatform.api.portfolio.service.R2StorageService;
@@ -89,6 +91,27 @@ class CarriedOverPaymentIT extends IntegrationTestBase {
         assertThat(collectedThisMonth(studio)).isEqualTo(100_000);
     }
 
+    /**
+     * The card path decides from the same Outstanding amount, so it refuses
+     * before Stripe is ever asked: this deployment has no Stripe client, and
+     * reaching for one would fail with a different message.
+     */
+    @Test
+    void aReplacementAlreadyPaidByACarriedOverPaymentTakesNoCardPayment() {
+        Studio studio = studio();
+        connectStripe(studio);
+        InvoiceResponse a = issue(studio, 100_000);
+        payInFull(studio, a);
+        storno(studio, a);
+        InvoiceResponse b = issue(studio, 100_000);
+
+        assertThatThrownBy(() -> asStaff(studio, () -> paymentService.createStripePaymentIntent(
+            b.id(), new CreatePaymentIntentRequest(PaymentMethod.CARD), IP)))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("already fully paid");
+        assertThat(collectedThisMonth(studio)).isEqualTo(100_000);
+    }
+
     @Test
     void aLargerReplacementOwesOnlyTheDifference() {
         Studio studio = studio();
@@ -106,10 +129,11 @@ class CarriedOverPaymentIT extends IntegrationTestBase {
     /**
      * Nothing asks for the money any more, but it was Collected and the studio
      * still holds it. The payment state keeps its usual value; the Credit is
-     * what tells the photographer, on both sides of the booking.
+     * what tells the photographer. The Customer's own booking carries no
+     * Credit field at all: the studio decides what happens to it.
      */
     @Test
-    void withoutAReplacementThePaymentIsCreditOnTheBooking() {
+    void withoutAReplacementThePaymentIsCreditOnTheStaffBooking() {
         Studio studio = studio();
         InvoiceResponse a = issue(studio, 100_000);
         payInFull(studio, a);
@@ -120,7 +144,6 @@ class CarriedOverPaymentIT extends IntegrationTestBase {
         assertThat(staff.paymentState()).isEqualTo("NOT_INVOICED");
 
         CustomerBookingResponse own = customerBooking(studio);
-        assertThat(own.creditCents()).isEqualTo(100_000);
         assertThat(own.paymentState()).isEqualTo("NOT_INVOICED");
         assertThat(collectedThisMonth(studio)).isEqualTo(100_000);
     }
@@ -185,6 +208,16 @@ class CarriedOverPaymentIT extends IntegrationTestBase {
             return bookingRepository.save(booking).getId();
         });
         return new Studio(tenantId, photographerId, customerId, bookingId);
+    }
+
+    /** Past the Connect gate, so the card path gets as far as the Outstanding amount. */
+    private void connectStripe(Studio studio) {
+        inTenant(studio.tenantId(), () -> {
+            Tenant tenant = tenantRepository.findById(studio.tenantId()).orElseThrow();
+            tenant.setStripeAccountId("acct_test_" + UUID.randomUUID().toString().substring(0, 8));
+            tenant.applyStripeCapabilities(true, true, true);
+            return tenantRepository.save(tenant);
+        });
     }
 
     private InvoiceResponse issue(Studio studio, int cents) {

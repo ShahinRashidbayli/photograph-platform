@@ -1,3 +1,4 @@
+import { isNotHappening } from '@/lib/booking-status';
 import type { Booking, Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
 import { inquiryDisplayName } from './inquiryTypes';
@@ -184,8 +185,6 @@ export type Availability =
   | { kind: 'free' }
   | { kind: 'busy'; bookings: Booking[] };
 
-const NOT_HAPPENING = new Set(['CANCELLED', 'DECLINED']);
-
 /**
  * Whether the studio already has a shoot on the requested day — the first
  * thing a photographer checks before answering, which used to mean leaving
@@ -194,7 +193,7 @@ const NOT_HAPPENING = new Set(['CANCELLED', 'DECLINED']);
 export function availabilityOn(date: string | null, bookings: Booking[]): Availability {
   if (!date) return { kind: 'none' };
   const same = bookings.filter(
-    (b) => b.eventDate.slice(0, 10) === date && !NOT_HAPPENING.has(b.status)
+    (b) => b.eventDate.slice(0, 10) === date && !isNotHappening(b.status)
   );
   return same.length ? { kind: 'busy', bookings: same } : { kind: 'free' };
 }

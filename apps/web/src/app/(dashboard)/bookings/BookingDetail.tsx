@@ -7,6 +7,7 @@ import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
   getAllowedTransitions,
   getPaymentStateMeta,
+  isNotHappening,
   toneToVisual,
   STATUS_ACTION_LABEL_KEY,
   type BookingStatusKey,
@@ -124,7 +125,7 @@ export function BookingDetail({
   const status = getStatusVisual(booking.status, c, 'detail');
   const steps = progressSteps(booking, ctx);
   const { primary, secondary } = nextActions(booking, ctx, collectable !== null);
-  const closed = booking.status === 'CANCELLED' || booking.status === 'DECLINED';
+  const notHappening = isNotHappening(booking.status);
 
   const total = booking.totalAmountCents;
   // Paid comes straight from the backend (derived server-side from real
@@ -222,7 +223,7 @@ export function BookingDetail({
               </>
             )}
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{dateTime}</span>
-            {!closed && booking.status !== 'COMPLETED' && (
+            {!notHappening && booking.status !== 'COMPLETED' && (
               <span style={days >= 0 && days <= 14 ? s.relChip : s.relChipMuted}>
                 {relativeDay(days, t, tPlural)}
               </span>
@@ -317,7 +318,7 @@ export function BookingDetail({
               {t(getPaymentStateMeta(booking.paymentState).labelKey)}
             </span>
           </div>
-          {!closed && (
+          {!notHappening && (
             <Button variant="secondary" size="sm" onClick={() => setShowCreateInvoice(true)}>
               {t('invoices.manage.new')}
             </Button>
@@ -334,7 +335,7 @@ export function BookingDetail({
           <Figure label={t('bookings.detail.total')} value={format.eur(total)} s={s} />
           {/* A cancelled booking owes nothing — "€X open" would read as a
               balance being chased, so only the total stays. */}
-          {!closed && (
+          {!notHappening && (
             <>
               <Figure
                 label={t('bookings.detail.paid')}
@@ -353,7 +354,7 @@ export function BookingDetail({
             </>
           )}
         </div>
-        {!closed && (
+        {!notHappening && (
           <div
             style={s.barTrack}
             role="progressbar"

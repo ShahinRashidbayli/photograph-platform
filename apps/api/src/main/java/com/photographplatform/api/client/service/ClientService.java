@@ -1,6 +1,7 @@
 package com.photographplatform.api.client.service;
 
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.client.domain.Client;
 import com.photographplatform.api.client.dto.ClientResponse;
 import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
@@ -33,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ClientService {
 
+    private static final List<String> NOT_HAPPENING = BookingStatus.namesOf(BookingStatus.NOT_HAPPENING);
+
     private final ClientRepository clientRepository;
     private final AuditService auditService;
 
@@ -43,7 +46,7 @@ public class ClientService {
 
     @Transactional(readOnly = true)
     public List<ClientResponse> list() {
-        return clientRepository.findAllWithStats(QueryLimits.LIST).stream()
+        return clientRepository.findAllWithStats(QueryLimits.LIST, NOT_HAPPENING).stream()
             .map(ClientService::toResponse)
             .toList();
     }
@@ -69,7 +72,7 @@ public class ClientService {
 
         // Re-read through the projection so the response carries the derived
         // booking stats, not just the columns on the entity.
-        return clientRepository.findStatsById(id)
+        return clientRepository.findStatsById(id, NOT_HAPPENING)
             .map(ClientService::toResponse)
             .orElseThrow(() -> new NotFoundException("Client not found: " + id));
     }

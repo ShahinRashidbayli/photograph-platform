@@ -8,7 +8,12 @@ import { parseApiDate, startOfToday } from '@/lib/date';
 import { useBookings } from '@/hooks/useBookings';
 import { useLeads } from '@/hooks/useLeads';
 import { Lead } from '@/types/api';
-import { getBookingStatusMeta, isBillableStatus, toneToVisual } from '@/lib/booking-status';
+import {
+  getBookingStatusMeta,
+  isBillable,
+  isNotHappening,
+  toneToVisual,
+} from '@/lib/booking-status';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import { useTranslation } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
@@ -82,16 +87,22 @@ export default function DashboardPage() {
     const now = startOfToday();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonthBookings = bookings.filter((b) => parseApiDate(b.eventDate) >= monthStart);
-    const billable = bookings.filter((b) => isBillableStatus(b.status));
-    const revenue = billable.reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    // Revenue is quoted money, so only Billable bookings count; an enquiry's
+    // quote is not money yet. Everything else here asks a different question
+    // ("is it still on?"), so it excludes Not happening rather than taking the
+    // money rule, which would drop enquiries from the counts and the list.
+    const revenue = bookings
+      .filter((b) => isBillable(b.status))
+      .reduce((sum, b) => sum + (b.totalAmountCents || 0), 0);
+    const happening = bookings.filter((b) => !isNotHappening(b.status));
     // Collected must reflect what's actually been paid (derived server-side from
     // real invoice/payment rows), not the quoted deposit — otherwise an accepted
     // but unpaid booking shows its deposit as already banked.
-    const collected = billable.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
+    const collected = happening.reduce((sum, b) => sum + (b.amountPaidCents ?? 0), 0);
     const activeClients = new Set(
-      billable.filter((b) => b.status !== 'COMPLETED').map((b) => b.clientEmail)
+      happening.filter((b) => b.status !== 'COMPLETED').map((b) => b.clientEmail)
     ).size;
-    const upcoming = billable.filter(
+    const upcoming = happening.filter(
       (b) => b.status !== 'COMPLETED' && parseApiDate(b.eventDate) >= now
     ).length;
     const newLeads = leads.filter((l) => l.status === 'NEW').length;
@@ -110,7 +121,7 @@ export default function DashboardPage() {
     const now = startOfToday();
     return bookings
       .filter((b) => {
-        if (!isBillableStatus(b.status) || b.status === 'COMPLETED') return false;
+        if (isNotHappening(b.status) || b.status === 'COMPLETED') return false;
         return parseApiDate(b.eventDate) >= now;
       })
       .sort((a, b) => parseApiDate(a.eventDate).getTime() - parseApiDate(b.eventDate).getTime())

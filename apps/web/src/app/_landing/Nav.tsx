@@ -59,7 +59,9 @@ export function Nav() {
           ))}
         </nav>
         <div className="lp-nav-right">
-          {/* The bar is dark in both themes, so its controls are drawn light. */}
+          {/* The bar is dark in both themes, so its controls are drawn light.
+              The theme toggle changes nothing up here but recolours the page
+              below the hero (`html[data-theme='dark'] .lp-root`). */}
           <LanguageToggle variant="bare" style={NAV_CONTROL} />
           <ThemeToggle variant="bare" style={NAV_CONTROL} />
           <Link href="/login" className="lp-navlink lp-nav-signin">

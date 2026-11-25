@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { AuthUser, useIsPhotographer } from '@/store/authStore';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { FotolioLogo } from '@/components/FotolioLogo';
@@ -64,6 +64,7 @@ export function DashboardHeader({
   const isPhotographer = useIsPhotographer();
   const preference = useThemeStore((s) => s.preference);
   const setPreference = useThemeStore((s) => s.setPreference);
+  const appearanceLabelId = useId();
   const { t, tPlural } = useTranslation();
   const hasAlerts = (attentionCount ?? 0) > 0;
   const count = attentionCount ?? 0;
@@ -351,7 +352,7 @@ export function DashboardHeader({
                   open so the change can be seen. */}
               <div
                 role="group"
-                aria-labelledby="appearance-label"
+                aria-labelledby={appearanceLabelId}
                 style={{
                   padding: '6px 10px 10px',
                   borderBottom: `1px solid ${colors.border}`,
@@ -359,7 +360,7 @@ export function DashboardHeader({
                 }}
               >
                 <div
-                  id="appearance-label"
+                  id={appearanceLabelId}
                   style={{ fontSize: '0.75rem', color: colors.subText, marginBottom: '6px' }}
                 >
                   {t('chrome.appearance.label')}

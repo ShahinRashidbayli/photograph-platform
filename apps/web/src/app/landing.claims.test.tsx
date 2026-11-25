@@ -294,8 +294,8 @@ describe('the hero', () => {
 });
 
 describe('the nav', () => {
-  // The nav and hero are dark in both themes, so a toggle there changed only
-  // its own icon. The theme follows the system, or the choice made in the app.
+  // The landing offers no theme toggle of its own: the theme follows the
+  // system, or the choice made in the app.
   const TOGGLE = /dark theme|light theme|dunklen Design|hellen Design/i;
 
   it.each(['en', 'de'] as const)(

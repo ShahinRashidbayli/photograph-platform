@@ -425,8 +425,8 @@ html[data-theme='dark'] .lp-root {
 .lp-band {
   background: var(--lp-band);
 }
-/* Dark in both themes. Kept at one attribute's specificity so the nav and the
-   hero, which draw their own charcoal ground, still win by order. */
+/* Dark in both themes. Kept at one attribute's specificity so the nav, which
+   draws its own charcoal ground, still wins by order. */
 [data-tone='dark'] {
   background: var(--lp-dark);
   color: var(--lp-dark-text);
@@ -577,8 +577,8 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   top: 0;
   z-index: 40;
   color: var(--lp-sand);
-  /* Dark in both themes: it opens on the hero's dark room and stays the same
-     bar over the light sections below. */
+  /* Dark in both themes: the same charcoal bar over every band below it,
+     whatever their tone. */
   background: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);

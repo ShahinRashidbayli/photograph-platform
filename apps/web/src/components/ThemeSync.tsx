@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useThemeStore } from '@/store/themeStore';
+import { SYSTEM_DARK_QUERY, useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 
 /**
@@ -14,13 +14,27 @@ import { getColors } from '@/lib/design-tokens';
  * nothing did before — a native date picker stayed light in dark mode until
  * the next reload.
  *
+ * <p>It also feeds the store the system setting, live: while no explicit
+ * choice applies, macOS switching to dark at sunset switches the app without a
+ * reload.
+ *
  * <p>On a change after the first render, every transition is suspended for one
  * frame. Each surface animates its background independently, so without this
  * a theme switch smears across the screen in a dozen different timings.
  */
 export function ThemeSync() {
   const theme = useThemeStore((s) => s.theme);
+  const setSystemTheme = useThemeStore((s) => s.setSystemTheme);
   const first = useRef(true);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const list = window.matchMedia(SYSTEM_DARK_QUERY);
+    const sync = () => setSystemTheme(list.matches ? 'dark' : 'light');
+    sync();
+    list.addEventListener('change', sync);
+    return () => list.removeEventListener('change', sync);
+  }, [setSystemTheme]);
 
   useEffect(() => {
     const el = document.documentElement;

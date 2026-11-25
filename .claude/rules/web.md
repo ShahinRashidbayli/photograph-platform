@@ -30,6 +30,17 @@ paths:
 - **UI**: use `components/ui` primitives for new/edited UI. Most old screens still
   hand-roll inline styles — migrate the part you touch, don't add new hand-rolled buttons/modals.
   No new styling library. Theme via `useColors()` / `useThemeStore`.
+- **Theme** (`store/themeStore.ts`): an explicit choice wins, otherwise the system
+  (`prefers-color-scheme`), followed live by `ThemeSync`. Readers get the resolved
+  `theme` (`'light' | 'dark'`, never `'system'`); `preference` is the choice. Stored
+  per device as `theme-storage` → `{ state: { theme } }` holding the explicit choice
+  only — the pre-paint `CLIENT_INIT` (`app/layout.tsx`) and the dashboard loading
+  screen read that shape directly, so keep the three in step. Never `set` a theme
+  resolved from the system (it would be saved as a choice) and never bump the persist
+  `version`. `ThemeToggle` (auth pages, dashboard header) sets the explicit opposite
+  of what is on screen; the avatar menu's Appearance (Light · Dark · System) is the
+  only way back to the system. Landing and legal pages offer no toggle. The public
+  portfolio keeps its own `p-theme`.
 - **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
   purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
   `primary`/`primarySolid` fill is `c.onPrimary`, never `#fff` (dark mode inverts the
@@ -45,7 +56,8 @@ paths:
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero stays dark in both),
+  the theme (the hero stays dark in both — which is why the landing nav has no theme
+  toggle),
   its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
   claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
   lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:

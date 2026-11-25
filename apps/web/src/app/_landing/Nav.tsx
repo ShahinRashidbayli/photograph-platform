@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { Icon } from '@/components/Icon';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 
 /** One list for the bar, the phone menu and the footer, so they cannot drift. */
@@ -59,9 +58,11 @@ export function Nav() {
           ))}
         </nav>
         <div className="lp-nav-right">
-          {/* The bar is dark in both themes, so its controls are drawn light. */}
+          {/* The bar is dark in both themes, so its controls are drawn light.
+              No theme toggle: the nav and hero look the same in both, so it
+              changed nothing on the first screen. The theme here follows the
+              system, or the choice made in the app. */}
           <LanguageToggle variant="bare" style={NAV_CONTROL} />
-          <ThemeToggle variant="bare" style={NAV_CONTROL} />
           <Link href="/login" className="lp-navlink lp-nav-signin">
             {t('landing.nav.signIn')}
           </Link>

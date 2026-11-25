@@ -9,17 +9,17 @@ describe('LegalPageShell', () => {
     act(() => useThemeStore.setState({ preference: theme, theme }));
   afterEach(() => asTheme('light'));
 
-  // Like the landing nav, the legal pages' header offers the theme toggle,
+  // Like the landing nav, the legal pages' top nav offers the theme toggle,
   // named after what a click switches to.
   it.each([
     ['en', 'light', 'Switch to dark theme'],
     ['en', 'dark', 'Switch to light theme'],
     ['de', 'light', 'Zum dunklen Design wechseln'],
     ['de', 'dark', 'Zum hellen Design wechseln'],
-  ] as const)('offers the theme toggle in the header (%s, %s)', (lang, theme, name) => {
+  ] as const)('offers the theme toggle in the top nav (%s, %s)', (lang, theme, name) => {
     asTheme(theme);
     renderWithProviders(<LegalPageShell doc={AGB} />, { lang });
-    const header = screen.getByRole('navigation');
-    expect(header).toContainElement(screen.getByRole('button', { name }));
+    const nav = screen.getByRole('navigation');
+    expect(nav).toContainElement(screen.getByRole('button', { name }));
   });
 });

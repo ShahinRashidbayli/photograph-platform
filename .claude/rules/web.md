@@ -37,10 +37,10 @@ paths:
   only — the pre-paint `CLIENT_INIT` (`app/layout.tsx`) and the dashboard loading
   screen read that shape directly, so keep the three in step. Never `set` a theme
   resolved from the system (it would be saved as a choice) and never bump the persist
-  `version`. `ThemeToggle` (landing nav, legal and auth pages, dashboard header) sets the explicit opposite
-  of what is on screen; the avatar menu's Appearance (Light · Dark · System) is the
-  only way back to the system. The public
-  portfolio keeps its own `p-theme`.
+  `version`. `ThemeToggle` (landing nav, legal and auth pages, dashboard header)
+  sets the explicit opposite of what is on screen; the avatar menu's Appearance
+  (Light · Dark · System) is the only way back to the system. The public portfolio
+  keeps its own `p-theme`.
 - **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
   purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
   `primary`/`primarySolid` fill is `c.onPrimary`, never `#fff` (dark mode inverts the
@@ -56,10 +56,10 @@ paths:
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero stays dark in both),
-  its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
-  claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
-  lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
+  the theme (the hero stays dark in both), its own faces (`_landing/fonts.ts`,
+  route-scoped). Plan rows come from `PLAN_TIERS`; claims are pinned in
+  `landing.claims.test.tsx` — never picture a feature the product lacks (no
+  favourites, sharing or comments in galleries). Stand-in photos + credits:
   `_landing/stock.ts`.
 - **i18n**: no hardcoded user-visible strings. Add keys to both `locales/en/<surface>.ts`
   and `locales/de/<surface>.ts` (new surface → register in both `index.ts`). Keys are flat,

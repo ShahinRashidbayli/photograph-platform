@@ -351,12 +351,18 @@ describe('band tone', () => {
       }
     });
 
-    it('keeps only the nav, the hero and the closing band dark in both themes', () => {
+    it('lets the nav follow the theme', () => {
+      // A charcoal bar in both themes left the top of a light page dark.
+      render(<LandingPage />);
+      expect(toneOf(screen.getByRole('banner'))).toBe('theme');
+    });
+
+    it('keeps only the hero and the closing band dark in both themes', () => {
       const { container } = render(<LandingPage />);
       const hero = screen.getByRole('region', { name: /Handwerk/ });
-      // The nav and the hero still draw charcoal in both themes, so they say
-      // so; below the hero, only the closing band (the footer) stays dark.
-      const darkInBoth = [screen.getByRole('banner'), hero, screen.getByRole('contentinfo')];
+      // The hero still draws charcoal in both themes, so it says so; below
+      // it, only the closing band (the footer) stays dark.
+      const darkInBoth = [hero, screen.getByRole('contentinfo')];
       expect([...container.querySelectorAll('[data-tone="dark"]')]).toEqual(darkInBoth);
     });
 

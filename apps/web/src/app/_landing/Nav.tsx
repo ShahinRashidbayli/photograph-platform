@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useThemeStore } from '@/store/themeStore';
 
 /** One list for the bar, the phone menu and the footer, so they cannot drift. */
 export const SECTIONS: { href: string; labelKey: TranslationKey }[] = [
@@ -18,13 +19,16 @@ export const SECTIONS: { href: string; labelKey: TranslationKey }[] = [
   { href: '#faq', labelKey: 'landing.nav.faq' },
 ];
 
+/** The bar follows the theme, so its controls take their ink from `.lp-nav`
+ *  in `globals.css`: ink on paper, light on charcoal. */
 const NAV_CONTROL = {
-  color: '#e6dfd2',
-  ['--ui-btn-hover' as string]: 'rgba(230, 223, 210, 0.1)',
+  color: 'var(--lp-nav-control)',
+  ['--ui-btn-hover' as string]: 'var(--lp-nav-control-hover)',
 } as React.CSSProperties;
 
 export function Nav() {
   const { t } = useTranslation();
+  const { theme } = useThemeStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -46,10 +50,10 @@ export function Nav() {
   }, [menuOpen]);
 
   return (
-    <header className="lp-nav" data-tone="dark" data-scrolled={scrolled}>
+    <header className="lp-nav" data-tone="theme" data-scrolled={scrolled}>
       <div className="lp-wrap lp-nav-inner">
         <Link href="/" aria-label={t('landing.aria.home')} style={{ display: 'inline-flex' }}>
-          <FotolioLogo theme="dark" variant="brand" showText />
+          <FotolioLogo theme={theme} variant="brand" showText />
         </Link>
         <nav className="lp-nav-links" aria-label={t('landing.aria.sections')}>
           {SECTIONS.map((s) => (
@@ -59,7 +63,6 @@ export function Nav() {
           ))}
         </nav>
         <div className="lp-nav-right">
-          {/* The bar is dark in both themes, so its controls are drawn light. */}
           <LanguageToggle variant="bare" style={NAV_CONTROL} />
           <ThemeToggle variant="bare" style={NAV_CONTROL} />
           <Link href="/login" className="lp-navlink lp-nav-signin">

@@ -58,9 +58,10 @@ paths:
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
   the theme. Every band (nav, each section, footer) declares its **band tone** —
   `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark in both) — and the
-  dark-in-both rules (ground, focus ring) key off that, never a class. The photo grid
-  and every section up to pricing and the FAQ follow the theme (in light mode a theme
-  band's `--lp-dark*` resolve to the paper set); the nav, the hero and the closing band
+  dark-in-both rules (ground, focus ring) key off that, never a class. The nav (paper
+  with ink controls and the light logo in light mode, today's charcoal bar in dark), the
+  photo grid and every section up to pricing and the FAQ follow the theme (in light mode
+  a theme band's `--lp-dark*` resolve to the paper set); the hero and the closing band
   (the footer) are dark in both.
   Tones are pinned in `landing.claims.test.tsx`. Its own faces (`_landing/fonts.ts`,
   route-scoped). Plan rows come from `PLAN_TIERS`; claims are

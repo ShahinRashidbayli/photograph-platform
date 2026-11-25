@@ -299,7 +299,7 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — nav, hero, footer, and the photo grid in dark mode.
+  /* The dark room — hero, footer, and the nav and photo grid in dark mode.
      Fixed in both themes: it is a photograph's dark room, not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
@@ -425,8 +425,8 @@ html[data-theme='dark'] .lp-root {
 .lp-band {
   background: var(--lp-band);
 }
-/* Dark in both themes. Kept at one attribute's specificity so the nav and the
-   hero, which draw their own charcoal ground, still win by order. */
+/* Dark in both themes. Kept at one attribute's specificity so the hero, which
+   draws its own charcoal ground, still wins by order. */
 [data-tone='dark'] {
   background: var(--lp-dark);
   color: var(--lp-dark-text);
@@ -513,7 +513,7 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   background: var(--lp-ink);
   color: var(--lp-on-ink);
 }
-/* The primary on charcoal (nav, hero, closing): the ink button, inverted. */
+/* The primary on charcoal (hero, closing, the dark nav): the ink button, inverted. */
 .lp-root .lp-btn-inverse {
   background: var(--lp-cream);
   color: var(--lp-charcoal);
@@ -540,8 +540,10 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   outline: 2px solid var(--lp-ink);
   outline-offset: 3px;
 }
-/* Ink is dark in the light theme: on charcoal the ring has to be light. */
-.lp-root [data-tone='dark'] :focus-visible {
+/* Ink is dark in the light theme: on charcoal the ring has to be light. The
+   nav is charcoal in dark mode; in light mode its paper rule below wins. */
+.lp-root [data-tone='dark'] :focus-visible,
+.lp-root .lp-nav :focus-visible {
   outline-color: var(--lp-sand);
 }
 @media (hover: hover) {
@@ -570,14 +572,16 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   }
 }
 
-/* Nav */
+/* Nav: it follows the theme. These are the dark-mode bar's rules — the
+   charcoal bar of a dark page; light mode puts it on paper below. */
 .lp-nav {
+  /* The language switch and theme toggle draw with these (Nav.tsx). */
+  --lp-nav-control: #e6dfd2;
+  --lp-nav-control-hover: rgba(230, 223, 210, 0.1);
   position: sticky;
   top: 0;
   z-index: 40;
   color: var(--lp-sand);
-  /* Dark in both themes: it opens on the hero's dark room and stays the same
-     bar over the light sections below. */
   background: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
@@ -600,6 +604,44 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
 }
 .lp-nav .lp-menu a {
   color: var(--lp-sand);
+}
+/* Light mode: paper at 90% over the blur, an ink bar on a hairline. */
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] {
+  --lp-nav-control: var(--lp-text);
+  --lp-nav-control-hover: rgba(28, 25, 23, 0.06);
+  color: var(--lp-text);
+  background: var(--lp-nav-ground);
+  border-bottom-color: var(--lp-line);
+}
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink {
+  color: var(--lp-muted);
+}
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu-btn {
+  border-color: var(--lp-line);
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu,
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu a {
+  border-color: var(--lp-line);
+}
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu a {
+  color: var(--lp-text);
+}
+/* The primary on paper is the ink pill, not the cream one charcoal needs. */
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-btn-inverse {
+  background: var(--lp-ink);
+  color: var(--lp-on-ink);
+}
+html:not([data-theme='dark']) .lp-nav[data-tone='theme'] :focus-visible {
+  outline-color: var(--lp-ink);
+}
+@media (hover: hover) {
+  html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink:hover {
+    color: var(--lp-text);
+  }
+  html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-btn-inverse:hover {
+    background: var(--lp-ink-hover);
+  }
 }
 .lp-nav-inner {
   height: 72px;

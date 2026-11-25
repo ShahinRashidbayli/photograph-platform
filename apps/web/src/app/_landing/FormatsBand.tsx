@@ -29,10 +29,11 @@ export const FACTS: { valueKey: TranslationKey; labelKey: TranslationKey }[] = [
 ];
 
 /**
- * The band under the hero — light in light mode, dark in dark: the kinds of shoot the studio runs, each as a
- * photograph. It was a sideways-scrolling list of words, which needed a pause
- * button and still said nothing a photographer could see. The pictures are
- * decorative (`alt=""`) because the caption under each one is the content.
+ * The band under the hero — light in light mode, dark in dark: the kinds of
+ * shoot the studio runs, each as a photograph. It was a sideways-scrolling list
+ * of words, which needed a pause button and still said nothing a photographer
+ * could see. The pictures are decorative (`alt=""`) because the caption under
+ * each one is the content.
  */
 export function FormatsBand() {
   const { t } = useTranslation();

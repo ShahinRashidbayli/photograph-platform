@@ -295,8 +295,8 @@ describe('the nav and the theme', () => {
 
   it.each(THEMES)(
     'keeps the toggle in the bar beside the language switch, never in the menu (%s)',
-    async (_theme, name) => {
-      renderAs(_theme);
+    async (theme, name) => {
+      renderAs(theme);
       const bar = screen.getByRole('banner');
       const toggle = within(bar).getByRole('button', { name });
       // Beside the language switch, which is in the bar at every width; the

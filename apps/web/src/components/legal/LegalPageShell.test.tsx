@@ -19,7 +19,7 @@ describe('LegalPageShell', () => {
   ] as const)('offers the theme toggle in the header (%s, %s)', (lang, theme, name) => {
     asTheme(theme);
     renderWithProviders(<LegalPageShell doc={AGB} />, { lang });
-    const header = screen.getByRole('navigation');
-    expect(header).toContainElement(screen.getByRole('button', { name }));
+    const headerNav = screen.getByRole('navigation');
+    expect(headerNav).toContainElement(screen.getByRole('button', { name }));
   });
 });

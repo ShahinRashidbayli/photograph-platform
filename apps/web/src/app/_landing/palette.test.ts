@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * Every text pair on the landing page meets WCAG 2.2 AA, in each theme on its
- * own, measured from the values `globals.css` actually ships.
+ * Every token-coloured text pair on the landing page meets WCAG 2.2 AA, in
+ * each theme on its own, measured from the values `globals.css` actually ships.
+ * Literal colours (the nav links' `#d2cabd`, the hero figures' cream) are out
+ * of its reach until they become tokens.
  *
  * The palette used to be audited with a script fed a hand-copied JSON of the
  * tokens, which drifts the first time someone nudges a hex in the stylesheet.
@@ -11,8 +13,8 @@ import path from 'node:path';
  * `globals.css`, so lowering a value below its floor fails CI.
  *
  * Floors: text 4.5:1, the focus ring 3:1 against its ground. The large-text
- * floor (3:1 from 24 px) is not used: the accent word and the hero figures
- * pass 4.5:1 today, and the accent ink is meant for smaller sizes too.
+ * floor (3:1 from 24 px) is not used: the accent word passes 4.5:1 today, and
+ * the accent ink is meant for smaller sizes too.
  */
 const CSS = readFileSync(path.join(__dirname, '..', 'globals.css'), 'utf8');
 
@@ -121,14 +123,17 @@ const PAIRS: Pair[] = [
   text('accent word in the charcoal hero', 'lp-gold', 'lp-charcoal'),
   text('dark band text', 'lp-dark-text', 'lp-dark'),
   text('dark band muted text', 'lp-dark-muted', 'lp-dark'),
+  text('hero lede', 'lp-sand-muted', 'lp-charcoal'),
   text('hero fact labels', 'lp-sand-dim', 'lp-charcoal'),
   ...['pv-bg', 'pv-panel', 'pv-bar'].flatMap((bg) =>
     ['pv-text', 'pv-muted'].map((fg) => text(`preview ${fg} on ${bg}`, fg, bg))
   ),
   ...CHIPS.map((chip) => text(`${chip} status chip`, `pv-${chip}`, `pv-${chip}-bg`, 'pv-panel')),
   text('solid chip', 'pv-on-text', 'pv-text'),
-  /* The nav ground is translucent: measure it over the light grounds that
-     scroll beneath it. */
+  text('booking card step values', 'pv-green', 'pv-panel'),
+  /* The nav ground is translucent: measure it over the page grounds that
+     scroll beneath it. Today's nav is charcoal with a sand ring (covered by
+     "focus ring on charcoal"); these pairs are for the light nav to come. */
   ...['lp-bg', 'lp-band'].flatMap((under) => [
     ...['lp-text', 'lp-muted'].map((fg) =>
       text(`nav ${fg} on the nav ground over ${under}`, fg, 'lp-nav-ground', under)
@@ -157,10 +162,22 @@ describe('the palette test itself', () => {
     expect(light['lp-nav-ground']).toBe('rgba(250, 248, 245, 0.9)');
   });
 
-  // The nav ground is a literal so it can be measured; pin it to `--lp-bg` at
-  // 90% so nudging the paper cannot leave the nav on the old one.
+  // The nav ground is a literal so it can be measured; pin it to the ground it
+  // stands for so nudging the paper or the charcoal cannot leave the nav on
+  // the old one.
   it('keeps the light nav ground at --lp-bg 90%', () => {
     expect(parseColor(light['lp-nav-ground'])).toEqual({ ...parseColor(light['lp-bg']), a: 0.9 });
+  });
+
+  it("keeps the dark nav ground at --lp-charcoal 94%, as .lp-nav's color-mix()", () => {
+    expect(parseColor(dark['lp-nav-ground'])).toEqual({
+      ...parseColor(dark['lp-charcoal']),
+      a: 0.94,
+    });
+  });
+
+  it('keeps the dark accent ink on --lp-gold', () => {
+    expect(dark['lp-accent-ink']).toBe(dark['lp-gold']);
   });
 
   it('computes the WCAG 2.x contrast ratio', () => {
@@ -176,25 +193,18 @@ describe('the palette test itself', () => {
   /* Lowering any pair below its floor has to fail the suite: feed the checker
      today's palette with one value pulled down. */
   it.each([
-    ['muted text lightened', { 'lp-muted': '#8a837c' }, 'lp-muted on lp-band'],
-    ['accent word lightened', { 'lp-accent-ink': '#a6854f' }, 'accent word on paper'],
-    ['chip ink faded', { 'pv-amber': '#b88a40' }, 'amber status chip'],
-    ['focus ring washed out', { 'lp-ink': '#d6d0c8' }, 'focus ring on lp-bg'],
-  ])('fails when the %s', (_change, override, what) => {
+    ['light', 'muted text lightened', { 'lp-muted': '#8a837c' }, 'lp-muted on lp-band'],
+    ['light', 'accent word lightened', { 'lp-accent-ink': '#a6854f' }, 'accent word on paper'],
+    ['light', 'chip ink faded', { 'pv-amber': '#b88a40' }, 'amber status chip'],
+    ['light', 'focus ring washed out', { 'lp-ink': '#d6d0c8' }, 'focus ring on lp-bg'],
+    ['dark', 'muted text darkened', { 'lp-muted': '#6e6660' }, 'lp-muted on lp-surface'],
+    ['dark', 'gold dulled', { 'lp-gold': '#6b5a40' }, 'accent word in the charcoal hero'],
+  ] as const)('fails in the %s theme when the %s', (theme, _change, override, what) => {
     const pair = PAIRS.find((p) => p.what === what);
     if (!pair) throw new Error(`no pair named ${what}`);
-    expect(ratio(pair, light)).toBeGreaterThanOrEqual(pair.floor);
-    expect(ratio(pair, { ...light, ...override })).toBeLessThan(pair.floor);
-  });
-
-  it.each([
-    ['dark muted text darkened', { 'lp-muted': '#6e6660' }, 'lp-muted on lp-surface'],
-    ['gold dulled on charcoal', { 'lp-gold': '#6b5a40' }, 'accent word in the charcoal hero'],
-  ])('fails in the dark theme when the %s', (_change, override, what) => {
-    const pair = PAIRS.find((p) => p.what === what);
-    if (!pair) throw new Error(`no pair named ${what}`);
-    expect(ratio(pair, dark)).toBeGreaterThanOrEqual(pair.floor);
-    expect(ratio(pair, { ...dark, ...override })).toBeLessThan(pair.floor);
+    const tokens = THEMES[theme];
+    expect(ratio(pair, tokens)).toBeGreaterThanOrEqual(pair.floor);
+    expect(ratio(pair, { ...tokens, ...override })).toBeLessThan(pair.floor);
   });
 
   it('refuses a translucent ground with nothing under it', () => {

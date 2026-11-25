@@ -305,6 +305,14 @@ textarea::placeholder {
   /* The one warm note, for the one word set in the display face: the gold of
      the hero photograph's sparklers. 9:1 on charcoal. */
   --lp-gold: #e2c08d;
+  /* The accent word's colour on its theme's hero ground. The light hero is
+     paper, where the sparkler gold fades to 1.9:1; this darker gold keeps
+     5.06:1 on --lp-bg (#82). Held to 4.5:1 although it is large text: the
+     display face's strokes are thin. */
+  --lp-accent-word: #86652f;
+  /* The light nav: paper at 90% over a blur, so the page shows through it
+     faintly without lowering its controls' contrast (#82). */
+  --lp-nav-ground: color-mix(in oklab, var(--lp-bg) 90%, transparent);
   --lp-dark: #1c1a17;
   --lp-dark-text: #f6f1e9;
   --lp-dark-muted: #b3ab9f;
@@ -357,6 +365,9 @@ html[data-theme='dark'] .lp-root {
   --lp-ink: #f3efe9;
   --lp-on-ink: #1c1917;
   --lp-ink-hover: #ffffff;
+  /* Dark keeps today's hero and nav: gold on charcoal, the charcoal bar. */
+  --lp-accent-word: var(--lp-gold);
+  --lp-nav-ground: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   /* The dark blocks stay charcoal, a step above the page, so they still read
      as rooms rather than as the page itself. */
   --lp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -12px rgba(0, 0, 0, 0.6);

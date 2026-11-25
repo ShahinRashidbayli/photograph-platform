@@ -299,8 +299,9 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — nav, footer, and the hero and photo grid in dark mode.
-     Fixed in both themes: it is a photograph's dark room, not a surface. */
+  /* Charcoal — the bands dark in both themes (nav, footer), and the hero and
+     photo grid in dark mode. Fixed in both themes: it is a photograph's dark
+     room, not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
   --lp-sand-muted: #bdb5a8;
@@ -431,7 +432,7 @@ html[data-theme='dark'] .lp-root {
   background: var(--lp-dark);
   color: var(--lp-dark-text);
 }
-/* A band that follows the theme has no dark room in light mode: whatever it
+/* A band that follows the theme has no charcoal in light mode: whatever it
    draws with the dark set lands on the paper set instead. Dark mode keeps the
    charcoal values from `.lp-root`. */
 html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
@@ -704,7 +705,7 @@ html[data-theme='dark'] .lp-root .lp-hero-band :focus-visible {
   color: #f6f1e9;
   font-size: clamp(2.5rem, 4.1vw, 3.6rem);
 }
-/* In dark mode the photo grid continues the hero's dark room; a hairline
+/* In dark mode the photo grid continues the hero's charcoal; a hairline
    marks it. In light mode it is a light band and needs none. */
 html[data-theme='dark'] .lp-hero-band + .lp-formats {
   border-top: 1px solid rgba(235, 228, 216, 0.1);

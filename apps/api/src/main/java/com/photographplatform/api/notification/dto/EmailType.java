@@ -9,8 +9,9 @@ package com.photographplatform.api.notification.dto;
  * the sign-in code used to travel in one, and every transport logged the
  * subject, so the code went to the application log on each send (BUG-014).
  *
- * <p>The values are graded by what losing one costs, which is the ordering the
- * outbox follow-up in docs/BUGS.md will need:
+ * <p>The values are graded by what losing one costs, and the grade is the
+ * outbox priority ({@link #priority()}): the person who is waiting for a code
+ * goes before the alert that can wait a minute.
  *
  * <ul>
  *   <li>{@link #LOGIN_CODE}, {@link #PASSWORD_RESET}, {@link #EMAIL_VERIFICATION},
@@ -28,25 +29,36 @@ package com.photographplatform.api.notification.dto;
 public enum EmailType {
 
     /** Six-digit customer sign-in code. */
-    LOGIN_CODE,
+    LOGIN_CODE(1),
     /** Address confirmation for a new studio account. */
-    EMAIL_VERIFICATION,
+    EMAIL_VERIFICATION(1),
     /** Password reset link. */
-    PASSWORD_RESET,
+    PASSWORD_RESET(1),
     /** Invitation for a colleague to join a studio. */
-    STAFF_INVITATION,
+    STAFF_INVITATION(1),
 
     /** Tells the photographer a contract came back signed. */
-    CONTRACT_SIGNED,
+    CONTRACT_SIGNED(3),
     /** Warns a client their gallery is about to be deleted. */
-    GALLERY_EXPIRY,
+    GALLERY_EXPIRY(3),
 
     /** Tells the photographer a new lead arrived. */
-    LEAD_NOTIFICATION,
+    LEAD_NOTIFICATION(5),
     /** Tells the photographer a new booking inquiry arrived. */
-    INQUIRY_NOTIFICATION,
+    INQUIRY_NOTIFICATION(5),
     /** Acknowledges a lead to the person who sent it. */
-    LEAD_AUTO_REPLY,
+    LEAD_AUTO_REPLY(5),
     /** The photographer's answer to a customer's inquiry. */
-    INQUIRY_REPLY
+    INQUIRY_REPLY(5);
+
+    private final int priority;
+
+    EmailType(int priority) {
+        this.priority = priority;
+    }
+
+    /** Outbox priority; lower is sent first. Someone is waiting on the auth emails. */
+    public int priority() {
+        return priority;
+    }
 }

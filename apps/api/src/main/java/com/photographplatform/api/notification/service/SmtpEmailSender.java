@@ -81,8 +81,8 @@ public class SmtpEmailSender implements EmailSender {
             helper.setSubject(message.subject());
             helper.setText(message.htmlBody(), true);
         } catch (jakarta.mail.MessagingException | UnsupportedEncodingException e) {
-            // Wrapped in Spring's own mail exception so EmailService's
-            // best-effort catch treats this like any other transport failure.
+            // Wrapped in Spring's own mail exception so the outbox retries
+            // this like any other transport failure.
             throw new MailPreparationException("Could not build the SMTP message", e);
         }
 

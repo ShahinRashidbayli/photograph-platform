@@ -15,6 +15,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
+import com.photographplatform.api.common.outbox.OutboxWorker;
+import com.photographplatform.api.notification.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -137,6 +139,7 @@ public abstract class IntegrationTestBase {
         DELETE FROM users;
         DELETE FROM tenants;
         DELETE FROM scheduled_job_locks;
+        DELETE FROM outbox_jobs;
         """;
 
     @BeforeEach
@@ -274,6 +277,19 @@ public abstract class IntegrationTestBase {
 
     @MockitoBean
     protected StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private OutboxWorker outboxWorker;
+
+    /**
+     * Sends whatever email is queued, now, through this context's
+     * {@code EmailSender}. The poller is off under test (see
+     * {@code app.outbox.enabled} in the test application.yml), so a test that
+     * expects mail calls this after the request that queued it.
+     */
+    protected void deliverQueuedEmail() {
+        outboxWorker.drain(EmailService.QUEUE);
+    }
 
     @SuppressWarnings("unchecked")
     protected void mockRedisNoLock() {

@@ -14,13 +14,10 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.common.security.JwtService;
-import com.photographplatform.api.notification.dto.EmailMessage;
-import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
-import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.security.SecureRandom;
@@ -574,73 +571,32 @@ public class CustomerAuthService {
         return tenant.getSubdomain();
     }
 
-    /**
-     * One email for every studio. With one studio it reads like the subdomain
-     * flow's (code in the subject, for the phone's notification); with several,
-     * each code stands under the studio it opens.
-     */
+    /** One email for every studio that knows the address; see {@link StudioSignInCodesEmail}. */
     private void sendStudioCodesEmail(String email, Map<Tenant, String> codes) {
-        long minutes = CODE_TTL.toMinutes();
-        StringBuilder blocks = new StringBuilder();
-        for (Map.Entry<Tenant, String> entry : codes.entrySet()) {
-            if (codes.size() > 1) {
-                blocks.append(EmailTemplate.paragraph(
-                    "<strong>" + HtmlEscape.escape(studioName(entry.getKey())) + "</strong>"));
-            }
-            blocks.append(codeBlock(entry.getValue()));
-        }
-        String intro = codes.size() == 1
-            ? "Enter this code in the tab you already have open to sign in to "
-                + HtmlEscape.escape(studioName(codes.keySet().iterator().next())) + ". No password needed."
-            : "You are a client of more than one photographer. Each code below signs you in to that "
-                + "photographer only — enter the one you want in the tab you already have open.";
-        String html = EmailTemplate.document(
-            "Your Fotolio sign-in code — expires in " + minutes + " minutes.",
-            EmailTemplate.heading(codes.size() == 1 ? "Your sign-in code" : "Your sign-in codes")
-                + EmailTemplate.paragraph(intro)
-                + blocks
-                + EmailTemplate.note("Codes expire in " + minutes
-                    + " minutes and can only be used once. If you didn't request this, "
-                    + "you can safely ignore this email."));
-        String subject = codes.size() == 1
-            ? "Your sign-in code: " + codes.values().iterator().next()
-            : "Your sign-in codes";
-        UUID tenantId = codes.keySet().iterator().next().getId();
-        try {
-            emailService.send(new EmailMessage(email, subject, html, EmailType.LOGIN_CODE, tenantId));
-        } catch (RuntimeException ex) {
-            LOG.warn("Failed to send login-code email to {}", email, ex);
-        }
+        List<StudioSignInCodesEmail.StudioCode> entries = codes.entrySet().stream()
+            .map(e -> new StudioSignInCodesEmail.StudioCode(studioName(e.getKey()), e.getValue()))
+            .toList();
+        queueStudioCodesEmail(email, entries, codes.keySet().iterator().next().getId());
     }
 
     /**
      * Sent when no studio knows the address. Saying so in the mailbox — rather
      * than on the page — tells the owner of the address what happened and
-     * tells nobody else whether it is anyone's client.
+     * tells nobody else whether it is anyone's client. No tenant: there is
+     * none to name.
      */
     private void sendNoStudioEmail(String email) {
-        String html = EmailTemplate.document(
-            "We couldn't find your photographer.",
-            EmailTemplate.heading("We couldn't find your photographer")
-                + EmailTemplate.paragraph("Someone asked to sign in to Fotolio with this address, "
-                    + "but no photographer has it on file yet.")
-                + EmailTemplate.paragraph("Use the address you gave your photographer, or ask them "
-                    + "for their sign-in link.")
-                + EmailTemplate.note("If this wasn't you, you can safely ignore this email."));
-        try {
-            emailService.send(new EmailMessage(email, "Signing in to Fotolio", html,
-                EmailType.LOGIN_CODE, null));
-        } catch (RuntimeException ex) {
-            LOG.warn("Failed to send no-studio email to {}", email, ex);
-        }
+        queueStudioCodesEmail(email, List.of(), null);
     }
 
-    private static String codeBlock(String code) {
-        // Letter-spaced and oversized because the whole point is that it can be
-        // read off a phone at a glance and typed into the tab already open.
-        return "<p style=\"font-size:32px;font-weight:700;letter-spacing:8px;"
-            + "text-align:center;margin:24px 0;font-family:monospace;\">"
-            + HtmlEscape.escape(code) + "</p>";
+    private void queueStudioCodesEmail(
+        String email, List<StudioSignInCodesEmail.StudioCode> codes, UUID tenantId) {
+        // Expires with the codes: one that arrives after it stopped working
+        // only teaches the user that codes do not work.
+        emailService.queue(new OutgoingEmail(
+            StudioSignInCodesEmail.TEMPLATE, email, tenantId,
+            new StudioSignInCodesEmail.Params(codes, CODE_TTL.toMinutes()),
+            null, OffsetDateTime.now(clock).plus(CODE_TTL)));
     }
 
     /** Zero-padded so every code is exactly six digits — "004182", never "4182". */
@@ -662,24 +618,10 @@ public class CustomerAuthService {
     private void sendCodeEmail(User user, String code) {
         String greetingName = user.getFullName() != null && !user.getFullName().isBlank()
             ? user.getFullName() : "there";
-        long minutes = CODE_TTL.toMinutes();
-        String html = EmailTemplate.document(
-            "Your Fotolio sign-in code — expires in " + minutes + " minutes.",
-            EmailTemplate.heading("Your sign-in code")
-                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(greetingName)
-                    + ", enter this code in the tab you already have open. "
-                    + "No password needed.")
-                + codeBlock(code)
-                + EmailTemplate.note("This code expires in " + minutes
-                    + " minutes and can only be used once. If you didn't request it, "
-                    + "you can safely ignore this email."));
-        try {
-            emailService.send(new EmailMessage(
-                user.getEmail(), "Your sign-in code: " + code, html,
-                EmailType.LOGIN_CODE, user.getTenantId()));
-        } catch (RuntimeException ex) {
-            LOG.warn("Failed to send login-code email to {}", user.getEmail(), ex);
-        }
+        emailService.queue(new OutgoingEmail(
+            SignInCodeEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
+            new SignInCodeEmail.Params(greetingName, code, CODE_TTL.toMinutes()),
+            null, OffsetDateTime.now(clock).plus(CODE_TTL)));
     }
 
     private void enforceRateLimit(String key, int max) {

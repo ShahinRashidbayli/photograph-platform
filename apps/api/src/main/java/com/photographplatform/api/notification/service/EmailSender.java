@@ -8,9 +8,9 @@ import com.photographplatform.api.notification.dto.EmailMessage;
  * {@code @ConditionalOnProperty} (see {@code SendGridEmailSender},
  * {@code ResendEmailSender}, {@code NoOpEmailSender}).
  *
- * <p>Implementations perform the raw send and may throw on failure — the
- * best-effort "never break the caller" contract is owned by the
- * {@link EmailService} façade, which wraps every call in try/catch.
+ * <p>Implementations perform the raw send and throw on failure. Callers never
+ * see that: they queue through {@link EmailService}, and the outbox worker
+ * turns a throw into a retry with backoff (ADR-005).
  */
 public interface EmailSender {
     void send(EmailMessage message);

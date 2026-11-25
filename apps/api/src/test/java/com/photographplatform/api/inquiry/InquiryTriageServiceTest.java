@@ -10,7 +10,7 @@ import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
 import com.photographplatform.api.inquiry.service.InquiryRequestService;
-import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.LocalDate;
@@ -102,7 +102,7 @@ class InquiryTriageServiceTest {
 
         assertThat(response.status()).isEqualTo("BOOKING_CREATED");
         verify(bookingConversionService).createFromInquiry(eq(inquiry), eq(customer), eq(IP));
-        verify(emailService).send(any(EmailMessage.class));
+        verify(emailService).queue(any(OutgoingEmail.class));
         verify(auditService).log(
             eq("INQUIRY_ACCEPTED"), eq("INQUIRY_REQUEST"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
     }
@@ -116,7 +116,7 @@ class InquiryTriageServiceTest {
 
         assertThat(response.status()).isEqualTo("REJECTED");
         verify(bookingConversionService, never()).createFromInquiry(any(), any(), any());
-        verify(emailService).send(any(EmailMessage.class));
+        verify(emailService).queue(any(OutgoingEmail.class));
     }
 
     @Test

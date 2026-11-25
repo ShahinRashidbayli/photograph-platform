@@ -656,6 +656,12 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   inset: 0;
   z-index: -2;
 }
+/* The server renders the light photograph; until hydration picks the right
+   one, a photograph from the other theme shows nothing but the band's ground. */
+html[data-theme='dark'] .lp-hero-photo-frame[data-photo-theme='light'],
+html:not([data-theme='dark']) .lp-hero-photo-frame[data-photo-theme='dark'] {
+  visibility: hidden;
+}
 .lp-hero-photo {
   object-fit: cover;
   object-position: 62% 40%;

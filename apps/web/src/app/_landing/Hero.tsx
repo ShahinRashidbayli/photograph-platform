@@ -66,7 +66,11 @@ export function Hero() {
           the photograph show to the right. */}
       {/* The frame is the whole band behind the words, except on a phone in
           light mode, where it becomes an unwashed band above them. */}
-      <div className="lp-hero-photo-frame">
+      {/* `data-photo-theme` names the photograph's theme so the stylesheet can hide
+          it until hydration when it is the other one: the server always
+          renders the light store, and a dark visitor saw the daylight field
+          under the charcoal scrim until React swapped in the sparks. */}
+      <div className="lp-hero-photo-frame" data-photo-theme={theme}>
         <Image src={photo.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
       </div>
       <div className="lp-hero-scrim" aria-hidden="true" />

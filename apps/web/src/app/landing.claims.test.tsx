@@ -282,6 +282,11 @@ describe('the hero', () => {
       });
     expect(files[0]).toBe(shown);
     expect(files).not.toContain(notShown);
+    // The stylesheet hides a photograph whose theme is not the page's until
+    // hydration catches up, so the frame has to name the photograph's theme.
+    expect(hero.querySelector('.lp-hero-photo-frame')?.getAttribute('data-photo-theme')).toBe(
+      theme
+    );
   });
 
   it('pictures the client’s booking page in the page language', () => {

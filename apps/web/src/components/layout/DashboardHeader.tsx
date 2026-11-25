@@ -3,13 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { AuthUser, useIsPhotographer } from '@/store/authStore';
-import { useTranslation } from '@/lib/i18n';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UserAvatar } from '@/components/UserAvatar';
 import { NotificationPanel } from './NotificationPanel';
 import type { AttentionItem } from '@/hooks/useAttention';
+import { useThemeStore, type ThemePreference } from '@/store/themeStore';
+
+const APPEARANCE: { value: ThemePreference; labelKey: TranslationKey }[] = [
+  { value: 'light', labelKey: 'chrome.appearance.light' },
+  { value: 'dark', labelKey: 'chrome.appearance.dark' },
+  { value: 'system', labelKey: 'chrome.appearance.system' },
+];
 
 export function DashboardHeader({
   user,
@@ -55,6 +62,8 @@ export function DashboardHeader({
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
   const isPhotographer = useIsPhotographer();
+  const preference = useThemeStore((s) => s.preference);
+  const setPreference = useThemeStore((s) => s.setPreference);
   const { t, tPlural } = useTranslation();
   const hasAlerts = (attentionCount ?? 0) > 0;
   const count = attentionCount ?? 0;
@@ -336,6 +345,64 @@ export function DashboardHeader({
                     {t('nav.plan', { plan: user.tenant.plan })}
                   </div>
                 )}
+              </div>
+              {/* Appearance — the only way back to following the system once
+                  a toggle has made an explicit choice. Choosing keeps the menu
+                  open so the change can be seen. */}
+              <div
+                role="group"
+                aria-labelledby="appearance-label"
+                style={{
+                  padding: '6px 10px 10px',
+                  borderBottom: `1px solid ${colors.border}`,
+                  marginBottom: '4px',
+                }}
+              >
+                <div
+                  id="appearance-label"
+                  style={{ fontSize: '0.75rem', color: colors.subText, marginBottom: '6px' }}
+                >
+                  {t('chrome.appearance.label')}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 2,
+                    padding: 2,
+                    borderRadius: '8px',
+                    border: `1px solid ${colors.border}`,
+                  }}
+                >
+                  {APPEARANCE.map((o) => {
+                    const checked = preference === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={checked}
+                        onClick={() => setPreference(o.value)}
+                        className="ui-row-hover"
+                        style={{
+                          flex: 1,
+                          padding: '5px 6px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '0.8rem',
+                          fontWeight: checked ? 600 : 500,
+                          color: checked ? colors.text : colors.subText,
+                          background: checked ? colors.surfaceActive : 'transparent',
+                          cursor: 'pointer',
+                          ['--ui-row-hover' as string]: checked
+                            ? colors.surfaceActive
+                            : colors.surfaceHover,
+                        }}
+                      >
+                        {t(o.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <Link
                 href="/settings"

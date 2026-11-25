@@ -262,3 +262,20 @@ describe('the hero', () => {
     expect(within(hero).getByText('Anfrage senden')).toBeInTheDocument();
   });
 });
+
+describe('the nav', () => {
+  // The nav and hero are dark in both themes, so a toggle there changed only
+  // its own icon. The theme follows the system, or the choice made in the app.
+  const TOGGLE = /dark theme|light theme|dunklen Design|hellen Design/i;
+
+  it.each(['en', 'de'] as const)(
+    'offers no theme toggle, in the bar or the phone menu (%s)',
+    async (lang) => {
+      asLocale(lang);
+      render(<LandingPage />);
+      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: /menu|menü/i }));
+      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
+    }
+  );
+});

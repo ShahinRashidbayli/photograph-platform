@@ -1,0 +1,6 @@
+{ "name": "TODAY",
+  "shared": { "charcoal": "#1c1a17", "dark": "#1c1a17", "dark-text": "#f6f1e9", "dark-muted": "#b3ab9f", "sand-dim": "#a69e91", "gold": "#e2c08d", "gold-light": "#86652f" },
+  "light": { "bg": "#faf8f5", "band": "#f3efe9", "surface": "#ffffff", "text": "#1c1917", "muted": "#57514b", "subtle": "#6e6660", "ink": "#1c1917", "on-ink": "#faf8f5",
+    "pv-bg": "#faf8f5", "pv-panel": "#ffffff", "pv-text": "#1c1917", "pv-muted": "#6e6660", "pv-green": "#2f6b3a", "pv-green-bg": "#e3f1e4", "pv-amber": "#835510", "pv-amber-bg": "#f8ecd2", "pv-blue": "#3a5578", "pv-blue-bg": "#e7ecf3" },
+  "dark": { "bg": "#0f0e0d", "band": "#161412", "surface": "#1c1a17", "text": "#f3efe9", "muted": "#bab2a7", "subtle": "#958d83", "ink": "#f3efe9", "on-ink": "#1c1917",
+    "pv-bg": "#161412", "pv-panel": "#1c1a17", "pv-text": "#f3efe9", "pv-muted": "#9d958b", "pv-green": "#9bd3a5", "pv-green-bg": "rgba(110,190,125,0.14)", "pv-amber": "#e8c27f", "pv-amber-bg": "rgba(226,170,80,0.14)", "pv-blue": "#aec2df", "pv-blue-bg": "rgba(130,160,205,0.16)" } }

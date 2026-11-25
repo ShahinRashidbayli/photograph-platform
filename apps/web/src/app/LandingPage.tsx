@@ -7,6 +7,7 @@ import {
   PrototypeClosing,
   PrototypeHero,
   PrototypeNav,
+  PrototypePalette,
 } from './_landing/prototype-light-hero/LightHeroPrototype';
 import { Closing } from './_landing/Closing';
 import { Faq } from './_landing/Faq';
@@ -63,6 +64,10 @@ export default function LandingPage() {
       {/* PROTOTYPE (#81): `?bands=1|2|3` picks which dark bands turn light. */}
       <Suspense fallback={null}>
         <PrototypeBands />
+      </Suspense>
+      {/* PROTOTYPE (#82): `?palette=1|2|3` swaps the token values. */}
+      <Suspense fallback={null}>
+        <PrototypePalette />
       </Suspense>
     </div>
   );

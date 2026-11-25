@@ -45,9 +45,9 @@
   color: var(--lp-text);
   font-size: clamp(2.5rem, 4.1vw, 3.6rem);
 }
-/* 5.06:1 on --lp-bg, 4.68:1 on --lp-band. */
+/* 5.06:1 on --lp-bg, 4.68:1 on --lp-band; palettes (#82) override it. */
 .lp-root .proto-light .lp-accent-word {
-  color: #86652f;
+  color: var(--proto-gold-light, #86652f);
 }
 .lp-root .proto-light .lp-lede {
   color: var(--lp-muted);
@@ -111,9 +111,9 @@
       90deg,
       var(--lp-bg) 0%,
       var(--lp-bg) 32%,
-      rgba(250, 248, 245, 0.86) 48%,
-      rgba(250, 248, 245, 0.4) 74%,
-      rgba(250, 248, 245, 0.5) 100%
+      rgba(250, 248, 245, var(--proto-wash-48, 0.86)) 48%,
+      rgba(250, 248, 245, var(--proto-wash-74, 0.4)) 74%,
+      rgba(250, 248, 245, var(--proto-wash-100, 0.5)) 100%
     ),
     linear-gradient(0deg, var(--lp-bg) 0%, rgba(250, 248, 245, 0) 24%);
 }
@@ -208,4 +208,53 @@ html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-footer .lp-btn-inver
 html[data-theme='light'] .lp-root[data-proto-bands='3'] .lp-footer .lp-btn-inverse {
   background: var(--lp-ink);
   color: var(--lp-on-ink);
+}
+
+/* ── #82 — three palettes on the decided layout (hero B, bands 2) ──────────
+   Every text pair passes WCAG 2.2 AA in all three (contrast audit on #82).
+   They differ in how far the section grounds step apart, how much of the hero
+   photograph shows through the wash, and the accent word's light gold. The
+   wash stays at least 0.8 up to 48%, where the words end, so ink text keeps
+   4.5:1 over any photograph. */
+/* 1 — today's steps: band #f3efe9 / dark 0f0e0d·161412·1c1a17; strong wash. */
+.lp-root[data-proto-palette='1'] {
+  --proto-gold-light: #86652f;
+  --proto-wash-48: 0.86;
+  --proto-wash-74: 0.4;
+  --proto-wash-100: 0.5;
+}
+/* 2 — clear steps. */
+.lp-root[data-proto-palette='2'] {
+  --proto-gold-light: #7d5f2e;
+  --proto-wash-48: 0.84;
+  --proto-wash-74: 0.2;
+  --proto-wash-100: 0.3;
+  --lp-charcoal: #23201c;
+  --lp-dark: #23201c;
+}
+html[data-theme='light'] .lp-root[data-proto-palette='2'] {
+  --lp-band: #efe8de;
+}
+html[data-theme='dark'] .lp-root[data-proto-palette='2'] {
+  --lp-bg: #0f0e0d;
+  --lp-band: #1a1815;
+  --pv-bg: #1a1815;
+}
+/* 3 — strong steps. */
+.lp-root[data-proto-palette='3'] {
+  --proto-gold-light: #7a5a2a;
+  --proto-wash-48: 0.8;
+  --proto-wash-74: 0.06;
+  --proto-wash-100: 0.16;
+  --lp-charcoal: #2a2622;
+  --lp-dark: #2a2622;
+}
+html[data-theme='light'] .lp-root[data-proto-palette='3'] {
+  --lp-band: #eae2d5;
+  --lp-subtle: #655e58;
+}
+html[data-theme='dark'] .lp-root[data-proto-palette='3'] {
+  --lp-bg: #0d0c0b;
+  --lp-band: #1e1b18;
+  --pv-bg: #1e1b18;
 }

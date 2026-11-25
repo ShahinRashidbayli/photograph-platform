@@ -377,13 +377,49 @@ export function PrototypeBands() {
       delete root.dataset.protoBands;
     };
   }, [bands]);
-  if (!bands) return null;
+  // With `?palette=` the colour question owns the bar (ticket #82).
+  const hasPalette = useSearchParams().get('palette') !== null;
+  if (!bands || hasPalette) return null;
   return (
     <PrototypeSwitcher
       param="bands"
       variants={BANDS}
       current={bands}
       status={theme === 'dark' ? 'dark = today' : 'light · hero B'}
+    />
+  );
+}
+
+/* ── #82 — palettes on the decided layout (`?variant=B&bands=2&palette=1|2|3`).
+ * Both themes change here: flip the toggle to judge dark. The bar shows the
+ * section-ground steps for the theme on screen. */
+
+const PALETTES = [
+  { key: '1', name: "Today's steps", light: 'bg→band 1.08', dark: 'bg→band 1.05 · band→dark 1.06' },
+  { key: '2', name: 'Clear steps', light: 'bg→band 1.15', dark: 'bg→band 1.09 · band→dark 1.09' },
+  { key: '3', name: 'Strong steps', light: 'bg→band 1.21', dark: 'bg→band 1.14 · band→dark 1.14' },
+];
+
+export function PrototypePalette() {
+  const p = useSearchParams().get('palette');
+  const palette = process.env.NODE_ENV !== 'production' && PALETTES.find((x) => x.key === p);
+  const theme = useThemeStore((s) => s.theme);
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.lp-root');
+    if (!root) return;
+    if (palette) root.dataset.protoPalette = palette.key;
+    else delete root.dataset.protoPalette;
+    return () => {
+      delete root.dataset.protoPalette;
+    };
+  }, [palette]);
+  if (!palette) return null;
+  return (
+    <PrototypeSwitcher
+      param="palette"
+      variants={PALETTES}
+      current={palette.key}
+      status={`${theme} · ${theme === 'dark' ? palette.dark : palette.light}`}
     />
   );
 }

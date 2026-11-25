@@ -40,6 +40,7 @@ export const privacy = {
   'privacy.category.contracts': 'Contracts',
   'privacy.category.invoices': 'Invoices',
   'privacy.category.auditEntries': 'Activity log',
+  'privacy.category.queuedEmails': 'Unsent emails',
 
   'privacy.hint.bookings': 'Date, package, amounts and status stay for your books.',
   'privacy.hint.auditEntries': 'The address written into the log is removed; the entry stays.',

@@ -57,6 +57,12 @@ server:
 app:
   cors:
     allowed-origins: http://localhost:3000
+  # No email poller under test. Spring keeps several test contexts alive at
+  # once, all on one database, and each one's poller would deliver the others'
+  # queued email to its own EmailSender. Tests drain the queue themselves
+  # (IntegrationTestBase#deliverQueuedEmail), in their own context.
+  outbox:
+    enabled: false
   jwt:
     secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0cy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=  # pragma: allowlist secret
     access-token-expiry-ms: 86400000

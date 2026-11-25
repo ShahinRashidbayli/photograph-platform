@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import com.photographplatform.api.IntegrationTestBase;
@@ -189,19 +188,16 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
     }
 
     /**
-     * The last sign-in mail sent to {@code address}, waited for.
-     *
-     * <p>{@code EmailService#send} is {@code @Async}, so the spy records the
-     * call on an executor thread, which can be after the response is back.
-     * Verified straight away, a slow CI runner saw "zero interactions" about
-     * one run in ten. Picked by recipient and type because the studios'
-     * verification mails from registration are queued too, and one landing
-     * late was captured as the "last" mail, with no code in it.
+     * The last sign-in mail sent to {@code address}, after delivering the
+     * queue. Picked by recipient and type because the studios' verification
+     * mails from registration are queued too, and one of those was once
+     * captured as the "last" mail, with no code in it.
      */
     private EmailMessage lastMailTo(String address) {
-        verify(emailService, timeout(5_000).atLeastOnce()).send(argThat(m -> isSignInMailTo(m, address)));
+        deliverQueuedEmail();
+        verify(emailService, atLeastOnce()).deliver(argThat(m -> isSignInMailTo(m, address)));
         ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
-        verify(emailService, atLeastOnce()).send(captor.capture());
+        verify(emailService, atLeastOnce()).deliver(captor.capture());
         List<EmailMessage> signInMails = captor.getAllValues().stream()
             .filter(m -> isSignInMailTo(m, address))
             .toList();

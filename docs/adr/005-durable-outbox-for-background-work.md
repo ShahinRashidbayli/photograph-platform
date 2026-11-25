@@ -56,7 +56,10 @@ Volume is tens of emails per studio per day: under one message per second at
    (`EmailOutboxPoller`). A claim is one
    `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING`, so two
    replicas never take the same row. A claim holds a 5-minute lease, and a
-   worker that dies mid-job leaves a row the next poll reclaims.
+   worker that dies mid-job leaves a row the next poll reclaims. A batch
+   whose lease runs low releases its unstarted jobs rather than run them
+   under a claim another replica may take, and a row that keeps killing its
+   worker is parked `DEAD` by the claim once its attempts are used up.
    - Retries come after 1 min, 5 min, 30 min, 2 h and 12 h. The next failure
      is `DEAD`, with the exception class and provider status in `last_error`,
      never the message (BUG-014).

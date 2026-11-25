@@ -4,6 +4,7 @@ import com.photographplatform.api.common.config.TenantContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,17 @@ public class OutboxWorker {
         Duration.ofHours(2),
         Duration.ofHours(12));
 
+    /** Every run a job gets: the first, plus one per backoff step. */
+    static final int MAX_ATTEMPTS = BACKOFF.size() + 1;
+
+    /**
+     * The longest one job may take — connect plus read timeout of the
+     * transport, with room to spare. A job is only started while this much of
+     * the batch's lease is left; past that a second replica could claim it
+     * mid-send and deliver it twice.
+     */
+    static final Duration ONE_JOB_BUDGET = Duration.ofMinutes(1);
+
     /** Claims per {@link #drain} call, so one tick cannot run forever behind a flood. */
     private static final int MAX_BATCHES_PER_DRAIN = 10;
 
@@ -62,12 +74,21 @@ public class OutboxWorker {
     public int drain(String queue) {
         int claimed = 0;
         for (int batch = 0; batch < MAX_BATCHES_PER_DRAIN; batch++) {
-            List<OutboxJob> jobs = outbox.claim(queue);
+            Instant leaseEnds = clock.instant().plus(Outbox.LEASE);
+            List<OutboxJob> jobs = outbox.claim(queue, MAX_ATTEMPTS);
             if (jobs.isEmpty()) {
                 break;
             }
             claimed += jobs.size();
-            jobs.forEach(job -> runOne(queue, job));
+            for (int i = 0; i < jobs.size(); i++) {
+                if (!clock.instant().plus(ONE_JOB_BUDGET).isBefore(leaseEnds)) {
+                    // Slow sends ate the lease. What is left goes back rather
+                    // than run under a claim another replica may now take.
+                    outbox.release(jobs.subList(i, jobs.size()).stream().map(OutboxJob::id).toList());
+                    return claimed - (jobs.size() - i);
+                }
+                runOne(queue, jobs.get(i));
+            }
         }
         return claimed;
     }
@@ -109,7 +130,7 @@ public class OutboxWorker {
     }
 
     private void settleFailure(String queue, OutboxJob job, String error) {
-        if (job.attempts() > BACKOFF.size()) {
+        if (job.attempts() >= MAX_ATTEMPTS) {
             outbox.markDead(job.id(), error);
             count(queue, job.kind(), "dead");
             LOG.error("Outbox job {} kind={} tenant={} failed {} times ({}); marked DEAD",

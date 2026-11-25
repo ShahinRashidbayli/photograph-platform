@@ -186,6 +186,29 @@ class OutboxIT extends IntegrationTestBase {
         assertThat(worker.drain(QUEUE)).as("a dead job is never claimed").isZero();
     }
 
+    @Test
+    void aJobThatKillsItsWorkerEveryTimeStillEndsDead() {
+        // No handler ever throws here: the worker dies mid-run, so only the
+        // claim sees the attempts run out.
+        outbox.enqueue(entry(null, "a@example.test", null));
+        asSuperuser("UPDATE outbox_jobs SET status = 'RUNNING', attempts = " + OutboxWorker.MAX_ATTEMPTS
+            + ", locked_until = now() - interval '1 second'");
+
+        assertThat(workerWith(handler(job -> { })).drain(QUEUE)).isZero();
+
+        assertThat(count("status = 'DEAD' AND last_error = 'LeaseExpired'")).isEqualTo(1);
+    }
+
+    @Test
+    void aReleasedJobIsClaimableAgainWithoutCountingTheAttempt() {
+        outbox.enqueue(entry(null, "a@example.test", null));
+        List<OutboxJob> jobs = outbox.claim(QUEUE, OutboxWorker.MAX_ATTEMPTS);
+
+        outbox.release(jobs.stream().map(OutboxJob::id).toList());
+
+        assertThat(count("status = 'PENDING' AND attempts = 0 AND locked_until IS NULL")).isEqualTo(1);
+    }
+
     // ── several replicas ────────────────────────────────────────────────
 
     @Test

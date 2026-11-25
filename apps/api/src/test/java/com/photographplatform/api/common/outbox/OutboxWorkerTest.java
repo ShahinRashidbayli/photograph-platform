@@ -50,7 +50,7 @@ class OutboxWorkerTest {
     }
 
     private void claims(OutboxJob... jobs) {
-        when(outbox.claim("q")).thenReturn(List.of(jobs)).thenReturn(List.of());
+        when(outbox.claim("q", OutboxWorker.MAX_ATTEMPTS)).thenReturn(List.of(jobs)).thenReturn(List.of());
     }
 
     private static OutboxJob job(String kind, int attempts, OffsetDateTime expiresAt) {
@@ -152,6 +152,64 @@ class OutboxWorkerTest {
         worker.drain("q");
 
         verify(outbox).retryAt(eq(job.id()), any(), eq("IllegalStateException"));
+    }
+
+    @Test
+    void jobsLeftWhenTheLeaseRunsLowAreReleasedUnrun() {
+        // Each send takes two minutes, so after the first two the third would
+        // start with under a job's budget of the five-minute lease left.
+        MutableClock clock = new MutableClock(NOW);
+        List<UUID> ran = new ArrayList<>();
+        OutboxHandler slow = new OutboxHandler() {
+            @Override
+            public String kind() {
+                return "probe";
+            }
+
+            @Override
+            public void handle(OutboxJob job) {
+                ran.add(job.id());
+                clock.advance(Duration.ofMinutes(2));
+            }
+        };
+        worker = new OutboxWorker(outbox, List.of(slow), clock, meters);
+        OutboxJob first = job("probe", 1, null);
+        OutboxJob second = job("probe", 1, null);
+        OutboxJob third = job("probe", 1, null);
+        OutboxJob fourth = job("probe", 1, null);
+        claims(first, second, third, fourth);
+
+        assertThat(worker.drain("q")).isEqualTo(2);
+
+        assertThat(ran).containsExactly(first.id(), second.id());
+        verify(outbox).release(List.of(third.id(), fourth.id()));
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration by) {
+            now = now.plus(by);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
     }
 
     private static final class RecordingHandler implements OutboxHandler {

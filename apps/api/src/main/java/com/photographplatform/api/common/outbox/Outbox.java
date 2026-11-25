@@ -97,32 +97,61 @@ public class Outbox {
      * <p>A {@code RUNNING} row whose lease ran out is due again: that is a
      * worker that died mid-job, and the claim is how its work comes back.
      * The attempt is counted at claim time for the same reason — a job that
-     * kills its worker every time must still reach {@code DEAD}.
+     * kills its worker every time must still reach {@code DEAD}. Only a
+     * throwing handler reaches the worker's own give-up path, so a row that
+     * has used {@code maxAttempts} and lost its lease again is parked here.
      */
-    public List<OutboxJob> claim(String queue) {
+    public List<OutboxJob> claim(String queue, int maxAttempts) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<OutboxJob> claimed = own.execute(status -> jdbc.query("""
-            UPDATE outbox_jobs
-               SET status = 'RUNNING', attempts = attempts + 1, locked_until = ?, updated_at = ?
-             WHERE id IN (
-                   SELECT id FROM outbox_jobs
-                    WHERE queue = ?
-                      AND next_run_at <= ?
-                      AND (status = 'PENDING' OR (status = 'RUNNING' AND locked_until <= ?))
-                    ORDER BY priority, next_run_at
-                    LIMIT ?
-                      FOR UPDATE SKIP LOCKED)
-            RETURNING id, kind, tenant_id, payload::text AS payload, recipient_email, priority,
-                      attempts, expires_at
-            """,
-            (rs, i) -> toJob(rs),
-            Timestamp.from(now.plus(LEASE).toInstant()), Timestamp.from(now.toInstant()),
-            queue, Timestamp.from(now.toInstant()), Timestamp.from(now.toInstant()), CLAIM_BATCH));
+        Timestamp at = Timestamp.from(now.toInstant());
+        List<OutboxJob> claimed = own.execute(status -> {
+            jdbc.update("""
+                UPDATE outbox_jobs
+                   SET status = 'DEAD', locked_until = NULL, last_error = 'LeaseExpired', updated_at = ?
+                 WHERE queue = ? AND status = 'RUNNING' AND locked_until <= ? AND attempts >= ?
+                """,
+                at, queue, at, maxAttempts);
+            return jdbc.query("""
+                UPDATE outbox_jobs
+                   SET status = 'RUNNING', attempts = attempts + 1, locked_until = ?, updated_at = ?
+                 WHERE id IN (
+                       SELECT id FROM outbox_jobs
+                        WHERE queue = ?
+                          AND next_run_at <= ?
+                          AND (status = 'PENDING' OR (status = 'RUNNING' AND locked_until <= ?))
+                        ORDER BY priority, next_run_at
+                        LIMIT ?
+                          FOR UPDATE SKIP LOCKED)
+                RETURNING id, kind, tenant_id, payload::text AS payload, recipient_email, priority,
+                          attempts, expires_at
+                """,
+                (rs, i) -> toJob(rs),
+                Timestamp.from(now.plus(LEASE).toInstant()), at, queue, at, at, CLAIM_BATCH);
+        });
         if (claimed == null) {
             return List.of();
         }
         // RETURNING keeps no order; the batch runs in the order it was chosen.
         return claimed.stream().sorted(Comparator.comparingInt(OutboxJob::priority)).toList();
+    }
+
+    /**
+     * Hands claimed jobs back unrun, as if never claimed: the attempt is not
+     * counted, and the next poll on any replica may take them.
+     */
+    public void release(List<UUID> jobIds) {
+        if (jobIds.isEmpty()) {
+            return;
+        }
+        own.executeWithoutResult(status -> jdbc.update("""
+            UPDATE outbox_jobs
+               SET status = 'PENDING', locked_until = NULL, attempts = attempts - 1, updated_at = ?
+             WHERE id = ANY(?) AND status = 'RUNNING'
+            """,
+            ps -> {
+                ps.setTimestamp(1, Timestamp.from(clock.instant()));
+                ps.setArray(2, ps.getConnection().createArrayOf("uuid", jobIds.toArray()));
+            }));
     }
 
     /** Done, or dropped: the row goes, and the personal data in it with it (ADR-005 §3). */

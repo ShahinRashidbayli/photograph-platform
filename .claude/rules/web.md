@@ -56,9 +56,10 @@ paths:
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero stays dark in both), its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
-  claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
-  lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
+  the theme (the hero stays dark in both), its own faces (`_landing/fonts.ts`,
+  route-scoped). Plan rows come from `PLAN_TIERS`; claims are pinned in
+  `landing.claims.test.tsx` — never picture a feature the product lacks (no
+  favourites, sharing or comments in galleries). Stand-in photos + credits:
   `_landing/stock.ts`.
 - **i18n**: no hardcoded user-visible strings. Add keys to both `locales/en/<surface>.ts`
   and `locales/de/<surface>.ts` (new surface → register in both `index.ts`). Keys are flat,

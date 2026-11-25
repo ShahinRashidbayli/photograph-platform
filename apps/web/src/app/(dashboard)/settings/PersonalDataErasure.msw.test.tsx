@@ -96,6 +96,20 @@ describe('PersonalDataErasure', () => {
     expect(screen.queryByRole('button', { name: 'Erase permanently' })).not.toBeInTheDocument();
   });
 
+  /** Queued emails to the person are erased too, and named in both languages. */
+  it('names unsent emails among what would be erased', async () => {
+    fakeApi([
+      { category: 'queuedEmails', deleted: 1, anonymized: 0, retained: 0, retentionBasis: null },
+    ]);
+    const user = setupUser();
+    renderWithProviders(<PersonalDataErasure />, { lang: 'de' });
+
+    await user.type(screen.getByLabelText('E-Mail-Adresse der Person'), 'maria@example.test');
+    await user.click(screen.getByRole('button', { name: 'Anzeigen, was gelöscht würde' }));
+
+    expect(await screen.findByText('Noch nicht versendete E-Mails')).toBeInTheDocument();
+  });
+
   /**
    * The server refuses colleagues with 401. By then the interceptor has
    * refreshed and retried, so this is the owner check — not a lapsed session —

@@ -1,32 +1,32 @@
 package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.contract.event.ContractSignedEvent;
-import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
+import com.photographplatform.api.notification.email.EmailRenderer;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Tone;
+import com.photographplatform.api.notification.email.RenderedEmail;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Tells the photographer their contract came back signed.
  *
  * <p>Same shape as {@link LeadNotificationService}: listens to the domain
- * event, emails best-effort, and never lets a mail failure disturb the thing
- * that actually happened. A signature is already stored and visible in the
- * dashboard by the time this runs — losing the email is an inconvenience, and
- * throwing here would turn it into a failed signing request for a customer who
- * did nothing wrong.
+ * event and queues the email in the signature's transaction. Only the queueing
+ * is in that transaction — a provider outage is retried by the outbox and can
+ * never turn into a failed signing request for a customer who did nothing
+ * wrong.
  */
 @Service
-public class ContractNotificationService {
+public class ContractNotificationService implements EmailRenderer<ContractNotificationService.Params> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ContractNotificationService.class);
+    public record Params(UUID contractId, UUID bookingId, String title, String signerName) {}
 
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
@@ -37,36 +37,51 @@ public class ContractNotificationService {
         this.emailService = emailService;
     }
 
-    @Async
-    @EventListener
+    /** Queued before commit, in the signature's own transaction (ADR-005). */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onContractSigned(ContractSignedEvent event) {
-        try {
-            emailService.send(new EmailMessage(
-                event.getPhotographerEmail(),
-                "✍️ Contract signed — " + event.getTitle(),
-                buildBody(event),
-                EmailType.CONTRACT_SIGNED,
-                event.getTenantId()
-            ));
-        } catch (Exception e) {
-            LOG.error("Failed to send contract-signed notification for contract {}: {}",
-                event.getContractId(), e.getMessage(), e);
-        }
+        emailService.queue(new OutgoingEmail(
+            template(),
+            event.getPhotographerEmail(),
+            event.getTenantId(),
+            new Params(event.getContractId(), event.getBookingId(), event.getTitle(), event.getSignerName()),
+            EmailType.CONTRACT_SIGNED + ":" + event.getContractId(),
+            null));
     }
 
-    private String buildBody(ContractSignedEvent event) {
+    @Override
+    public String template() {
+        return "contract.signed";
+    }
+
+    @Override
+    public EmailType type() {
+        return EmailType.CONTRACT_SIGNED;
+    }
+
+    @Override
+    public Class<Params> paramsType() {
+        return Params.class;
+    }
+
+    @Override
+    public RenderedEmail render(Params params) {
+        return new RenderedEmail("✍️ Contract signed — " + params.title(), buildBody(params));
+    }
+
+    private String buildBody(Params event) {
         // The signer's typed name is customer input; EmailTemplate escapes
         // everything it renders, so it is passed through raw rather than
         // double-escaped — same as the lead notifier.
         return EmailTemplate.document(
-            "Contract signed — " + event.getTitle(),
+            "Contract signed — " + event.title(),
             EmailTemplate.badge("SIGNED", Tone.SUCCESS)
                 + EmailTemplate.heading("Your contract was signed")
                 + EmailTemplate.infoTable(List.of(
-                    new EmailTemplate.Row("Contract", event.getTitle()),
-                    new EmailTemplate.Row("Signed by", event.getSignerName())))
+                    new EmailTemplate.Row("Contract", event.title()),
+                    new EmailTemplate.Row("Signed by", event.signerName())))
                 + EmailTemplate.button("Open the booking",
-                    webBaseUrl + "/bookings/" + event.getBookingId())
-                + EmailTemplate.note("Contract ID: " + event.getContractId()));
+                    webBaseUrl + "/bookings/" + event.bookingId())
+                + EmailTemplate.note("Contract ID: " + event.contractId()));
     }
 }

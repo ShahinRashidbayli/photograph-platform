@@ -245,7 +245,14 @@ function VariantA() {
         <Copy />
         <figure className="proto-a-art">
           <div className="proto-a-photo">
-            <Image src={STOCK.sparks.src} alt="" fill priority sizes="520px" style={{ objectFit: 'cover' }} />
+            <Image
+              src={STOCK.sparks.src}
+              alt=""
+              fill
+              priority
+              sizes="520px"
+              style={{ objectFit: 'cover' }}
+            />
           </div>
           <BookingPage className="proto-a-site" />
         </figure>
@@ -259,8 +266,19 @@ function VariantA() {
 function VariantB() {
   return (
     <section className="proto-light proto-b" aria-labelledby="lp-hero-title">
-      <Image src={STOCK.field.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
+      <Image
+        src={STOCK.field.src}
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="lp-hero-photo proto-b-room"
+      />
       <div className="proto-b-scrim" aria-hidden="true" />
+      {/* Decided on #80: on a phone the daylight photo is an unwashed band above the headline. */}
+      <div className="proto-b-band" aria-hidden="true">
+        <Image src={STOCK.field.src} alt="" fill sizes="100vw" style={{ objectFit: 'cover' }} />
+      </div>
       <div className="lp-wrap proto-hero">
         <Copy />
         <figure className="lp-art">
@@ -278,7 +296,14 @@ function VariantC() {
   return (
     <section className="proto-light proto-c" aria-labelledby="lp-hero-title">
       <div className="proto-c-photo">
-        <Image src={STOCK.sparks.src} alt="" fill priority sizes="50vw" style={{ objectFit: 'cover', objectPosition: '60% 40%' }} />
+        <Image
+          src={STOCK.sparks.src}
+          alt=""
+          fill
+          priority
+          sizes="50vw"
+          style={{ objectFit: 'cover', objectPosition: '60% 40%' }}
+        />
       </div>
       <div className="lp-wrap proto-hero">
         <Copy />

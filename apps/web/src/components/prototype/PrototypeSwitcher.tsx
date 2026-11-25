@@ -42,7 +42,7 @@ export function PrototypeSwitcher({ variants, current, status }: Readonly<Props>
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.closest('input, textarea, [contenteditable]') !== null)) return;
+      if (el && el.closest('input, textarea, [contenteditable]') !== null) return;
       if (e.key === 'ArrowLeft') go(-1);
       if (e.key === 'ArrowRight') go(1);
     };

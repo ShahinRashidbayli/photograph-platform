@@ -118,6 +118,10 @@
     linear-gradient(0deg, var(--lp-bg) 0%, rgba(250, 248, 245, 0) 24%);
 }
 
+.proto-b-band {
+  display: none;
+}
+
 /* C — Split: paper | photograph, the booking page across the seam. */
 .proto-c {
   overflow: hidden;
@@ -159,8 +163,15 @@
     width: calc(100% - 24px);
     margin: -64px auto 0;
   }
+  /* Decided on #80: no wash on a phone; the photo is a band above the words. */
+  .proto-b .proto-b-room,
   .proto-b-scrim {
-    background: rgba(250, 248, 245, 0.88);
+    display: none;
+  }
+  .proto-b-band {
+    display: block;
+    position: relative;
+    height: 280px;
   }
   /* On a phone the photograph comes first. */
   .proto-c-photo {

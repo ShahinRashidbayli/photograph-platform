@@ -1,21 +1,31 @@
 package com.photographplatform.api.notification.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.photographplatform.api.common.outbox.Outbox;
+import com.photographplatform.api.common.outbox.OutboxEntry;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
+import com.photographplatform.api.notification.email.EmailRenderer;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Façade every caller uses to send transactional email. Delegates the actual
- * transport to the active {@link EmailSender} (chosen by
- * {@code app.email.provider}) and owns the best-effort contract: a delivery
- * failure is logged, never thrown, so a mail outage can't roll back or break
- * the auth / booking flow that triggered it.
+ * Façade every caller uses for transactional email.
  *
- * <p>Callers depend only on this class and {@link EmailMessage} — never on a
- * concrete provider — so switching SendGrid ⇄ Resend is a config change alone.
+ * <p>{@link #queue} writes the email to the outbox inside the caller's
+ * transaction (ADR-005): nothing is sent for a write that rolls back, and
+ * nothing queued is lost to a deploy or a crash. {@link EmailDeliveryHandler}
+ * later renders it and hands it to {@link #deliver}, which calls the active
+ * {@link EmailSender}; a failure there is retried with backoff by the outbox
+ * worker rather than logged and dropped.
+ *
+ * <p>Callers depend only on this class — never on a concrete provider — so
+ * switching SendGrid ⇄ Resend is a config change alone.
  */
 @Service
 public class EmailService {
@@ -30,53 +40,81 @@ public class EmailService {
 
     private static final Logger LOG = LoggerFactory.getLogger(EmailService.class);
 
-    private final EmailSender sender;
+    /** The outbox queue email is drained from, by {@link EmailOutboxPoller}. */
+    public static final String QUEUE = "email";
+    /** The outbox job kind {@link EmailDeliveryHandler} runs. */
+    public static final String KIND = "email";
 
-    public EmailService(EmailSender sender) {
+    private final EmailSender sender;
+    private final Outbox outbox;
+    private final EmailRenderers renderers;
+    private final ObjectMapper objectMapper;
+
+    public EmailService(EmailSender sender, Outbox outbox, EmailRenderers renderers, ObjectMapper objectMapper) {
         this.sender = sender;
+        this.outbox = outbox;
+        this.renderers = renderers;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * Hands the message to the transport off the caller's thread.
+     * Queues the email in the caller's transaction, or in its own when there
+     * is none. A cheap local insert: no provider latency reaches the request,
+     * and no pooled connection waits on a mail server.
      *
-     * <p>{@code @Async} is what makes the "best-effort" contract above
-     * actually cheap. The transport is a blocking HTTPS call to SendGrid /
-     * Resend — typically 100-500ms, unbounded if the provider is degraded —
-     * and every caller that reaches here directly does so from inside an open
-     * {@code @Transactional} method: {@code AuthService#register},
-     * {@code PasswordResetService#requestReset},
-     * {@code CustomerAuthService#requestMagicLink} and
-     * {@code InquiryRequestService#updateStatus}. Sending inline therefore
-     * added the provider's full latency to those responses <em>and</em> held a
-     * pooled database connection open for the whole round-trip, so a slow mail
-     * provider drained the connection pool and stalled requests that had
-     * nothing to do with email.
+     * <p>A failure here is a database failure in the caller's transaction,
+     * which is doomed either way — so it is not caught, by this method or by
+     * its callers.
      *
-     * <p>(The event listeners in this package — {@code AutoReplyService} and
-     * friends — were already {@code @Async} and merely re-queue here; the
-     * hand-off is cheap and keeps a single place responsible for the rule.)
-     *
-     * <p>Unchanged: failures are logged, never thrown. Note this means a send
-     * can still be queued for a transaction that later rolls back — true
-     * before this change too, since the inline send also happened pre-commit.
-     * Making delivery strictly post-commit needs
-     * {@code @TransactionalEventListener(AFTER_COMMIT)} at the call sites.
+     * @return false if an email with the same idempotency key is already queued
      */
-    @Async
-    public void send(EmailMessage message) {
+    public boolean queue(OutgoingEmail email) {
+        EmailRenderer<?> renderer = renderers.get(email.template());
+        if (!renderer.paramsType().isInstance(email.params())) {
+            throw new IllegalArgumentException("Template " + email.template() + " takes "
+                + renderer.paramsType().getSimpleName() + ", got " + email.params().getClass().getSimpleName());
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("template", email.template());
+        payload.put("params", email.params());
+        return outbox.enqueue(new OutboxEntry(
+            QUEUE,
+            KIND,
+            email.tenantId(),
+            toJson(payload),
+            email.to(),
+            renderer.type().priority(),
+            email.expiresAt(),
+            email.idempotencyKey()));
+    }
+
+    /**
+     * Hands a rendered message to the transport, now, on this thread. Throws
+     * on failure so the outbox retries it. Only {@link EmailDeliveryHandler}
+     * calls this; everything else queues.
+     */
+    public void deliver(EmailMessage message) {
         try {
             sender.send(message);
         } catch (RestClientResponseException e) {
             // The provider answered and refused. Its status is the one thing
             // that says whether this is ours to fix (401: bad key, 429: over
             // rate) or theirs to wait out (5xx).
-            LOG.error("Email send failed provider={} type={} tenant={} status={}",
-                sender.providerName(), message.type(), message.tenantId(),
-                e.getStatusCode().value(), e);
-        } catch (Exception e) {
-            LOG.error("Email send failed provider={} type={} tenant={} status=none: {}",
-                sender.providerName(), message.type(), message.tenantId(),
-                e.getMessage(), e);
+            LOG.warn("Email send failed provider={} type={} tenant={} status={}",
+                sender.providerName(), message.type(), message.tenantId(), e.getStatusCode().value());
+            throw e;
+        } catch (RuntimeException e) {
+            LOG.warn("Email send failed provider={} type={} tenant={} status=none: {}",
+                sender.providerName(), message.type(), message.tenantId(), e.getClass().getSimpleName());
+            throw e;
+        }
+    }
+
+    private String toJson(Map<String, Object> payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Email params are not serialisable", e);
         }
     }
 }

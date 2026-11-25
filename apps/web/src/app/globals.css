@@ -662,6 +662,10 @@ html[data-theme='dark'] .lp-hero-photo-frame[data-photo-theme='light'],
 html:not([data-theme='dark']) .lp-hero-photo-frame[data-photo-theme='dark'] {
   visibility: hidden;
 }
+/* Today's dark hero kept its sand ring; ink in dark mode is a lighter cream. */
+html[data-theme='dark'] .lp-root .lp-hero-band :focus-visible {
+  outline-color: var(--lp-sand);
+}
 .lp-hero-photo {
   object-fit: cover;
   object-position: 62% 40%;

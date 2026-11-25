@@ -26,6 +26,10 @@ import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.security.RateLimiter;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.EmailType;
+import com.photographplatform.api.auth.service.StudioSignInCodesEmail;
+import com.photographplatform.api.notification.email.RenderedEmail;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -258,10 +262,16 @@ class CustomerEmailLoginServiceTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    /** The one queued email, rendered the way the outbox will render it when it sends. */
     private EmailMessage sentMail() {
-        ArgumentCaptor<EmailMessage> mail = ArgumentCaptor.forClass(EmailMessage.class);
-        verify(emailService, times(1)).send(mail.capture());
-        return mail.getValue();
+        ArgumentCaptor<OutgoingEmail> queued = ArgumentCaptor.forClass(OutgoingEmail.class);
+        verify(emailService, times(1)).queue(queued.capture());
+        OutgoingEmail email = queued.getValue();
+        assertThat(email.template()).isEqualTo(StudioSignInCodesEmail.TEMPLATE);
+        RenderedEmail rendered = new StudioSignInCodesEmail()
+            .render((StudioSignInCodesEmail.Params) email.params());
+        return new EmailMessage(email.to(), rendered.subject(), rendered.htmlBody(),
+            EmailType.LOGIN_CODE, email.tenantId());
     }
 
     private static List<String> codesIn(EmailMessage mail) {

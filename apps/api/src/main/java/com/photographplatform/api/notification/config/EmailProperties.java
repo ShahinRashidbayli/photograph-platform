@@ -18,13 +18,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <h2>Why this validates at startup</h2>
  * Email is the load-bearing channel for magic-link sign-in, address
- * verification and lead alerts, and every send is deliberately best-effort:
- * {@code EmailService} swallows delivery failures so a mail outage cannot roll
- * back the booking or login that triggered it. That safety property has a sharp
- * edge — a <em>misconfigured</em> provider is indistinguishable from a healthy
- * one. Naming SendGrid without an API key would drop every message while the
- * magic-link endpoint still answers 204, so customers would simply never receive
- * a login link and nothing anywhere would say why.
+ * verification and lead alerts, and every send is queued in the outbox
+ * (ADR-005) so a mail outage cannot roll back the booking or login that
+ * triggered it. That safety property has a sharp edge — a <em>misconfigured</em>
+ * provider looks healthy to the request that queued the email. Naming SendGrid
+ * without an API key would fail every message while the magic-link endpoint
+ * still answers 204, so customers would simply never receive a login link.
  *
  * <p>So "can we actually send?" is answered once, at boot, and loudly. A
  * provider named without credentials refuses to start the application rather

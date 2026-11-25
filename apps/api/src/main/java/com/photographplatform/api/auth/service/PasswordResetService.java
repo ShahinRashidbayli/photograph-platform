@@ -7,12 +7,9 @@ import com.photographplatform.api.auth.repository.PasswordResetTokenRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.UnauthorizedException;
-import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
-import com.photographplatform.api.notification.dto.EmailMessage;
-import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import java.time.Clock;
 import java.time.Duration;
@@ -20,7 +17,6 @@ import java.time.OffsetDateTime;
 import com.photographplatform.api.common.security.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,7 +71,6 @@ public class PasswordResetService {
     private final Clock clock;
     private final AuditService auditService;
     private final SessionRevocation sessionRevocation;
-    private final String webBaseUrl;
 
     public PasswordResetService(
         UserRepository userRepository,
@@ -86,8 +81,7 @@ public class PasswordResetService {
         RateLimiter rateLimiter,
         Clock clock,
         AuditService auditService,
-        SessionRevocation sessionRevocation,
-        @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
+        SessionRevocation sessionRevocation
     ) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
@@ -98,7 +92,6 @@ public class PasswordResetService {
         this.clock = clock;
         this.auditService = auditService;
         this.sessionRevocation = sessionRevocation;
-        this.webBaseUrl = webBaseUrl;
     }
 
     /**
@@ -216,28 +209,14 @@ public class PasswordResetService {
     }
 
     private void sendResetEmail(User user, String rawToken) {
-        String link = webBaseUrl.replaceAll("/+$", "") + "/reset-password?token=" + rawToken;
         String greeting = user.getFullName() == null || user.getFullName().isBlank()
             ? "there" : user.getFullName();
-        String html = EmailTemplate.document(
-            "Reset your Fotolio password — link expires in 1 hour.",
-            EmailTemplate.heading("Reset your password")
-                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(greeting)
-                    + ", tap the button below to choose a new password.")
-                + EmailTemplate.button("Choose a new password", link)
-                + EmailTemplate.note("Or paste this link into your browser:<br>"
-                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
-                + EmailTemplate.note("This link expires in 1 hour and can only be used once. If you didn't "
-                    + "request a password reset, you can safely ignore this email — your password "
-                    + "stays unchanged."));
-        try {
-            emailService.send(new EmailMessage(user.getEmail(), "Reset your Fotolio password", html,
-                EmailType.PASSWORD_RESET, user.getTenantId()));
-        } catch (RuntimeException ex) {
-            // Best-effort, like every other send: the token is already committed,
-            // and surfacing the failure here would leak that the account exists.
-            LOG.warn("Failed to send password-reset email to {}", user.getEmail(), ex);
-        }
+        // Expires with the token: a link that arrives dead is worse than a
+        // late one. No idempotency key — every request is a new token.
+        emailService.queue(new OutgoingEmail(
+            PasswordResetEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
+            new PasswordResetEmail.Params(greeting, rawToken),
+            null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
 
     /** Kept as a local shape only because every call here is about a user. */

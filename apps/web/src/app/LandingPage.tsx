@@ -2,7 +2,12 @@
 
 import { Suspense } from 'react';
 import { useTranslation } from '@/lib/i18n';
-import { PrototypeHero, PrototypeNav } from './_landing/prototype-light-hero/LightHeroPrototype';
+import {
+  PrototypeBands,
+  PrototypeClosing,
+  PrototypeHero,
+  PrototypeNav,
+} from './_landing/prototype-light-hero/LightHeroPrototype';
 import { Closing } from './_landing/Closing';
 import { Faq } from './_landing/Faq';
 import { FormatsBand } from './_landing/FormatsBand';
@@ -52,7 +57,13 @@ export default function LandingPage() {
         <Pricing />
         <Faq />
       </main>
-      <Closing />
+      <Suspense fallback={<Closing />}>
+        <PrototypeClosing />
+      </Suspense>
+      {/* PROTOTYPE (#81): `?bands=1|2|3` picks which dark bands turn light. */}
+      <Suspense fallback={null}>
+        <PrototypeBands />
+      </Suspense>
     </div>
   );
 }

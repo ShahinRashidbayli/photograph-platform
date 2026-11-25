@@ -7,7 +7,8 @@ import { useTranslation } from '@/lib/i18n';
 import { SECTIONS } from './Nav';
 
 /** The close and the footer as one dark block: the last ask, then the links. */
-export function Closing() {
+// PROTOTYPE (#81): `logoTheme` lets a light closing band carry the light logo.
+export function Closing({ logoTheme = 'dark' }: { logoTheme?: 'light' | 'dark' } = {}) {
   const { t } = useTranslation();
   const year = new Date().getFullYear();
 
@@ -34,7 +35,7 @@ export function Closing() {
 
         <div className="lp-footer-grid">
           <div className="lp-footer-brand">
-            <FotolioLogo theme="dark" variant="brand" showText />
+            <FotolioLogo theme={logoTheme} variant="brand" showText />
             <p>{t('landing.footer.brandText')}</p>
           </div>
           <nav className="lp-footer-col" aria-label={t('landing.footer.product')}>

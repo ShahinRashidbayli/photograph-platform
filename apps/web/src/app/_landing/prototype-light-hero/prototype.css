@@ -184,3 +184,28 @@
     max-width: none;
   }
 }
+
+/* ── #81 — which dark bands turn light (light mode only; dark is today's) ──
+   A light band re-points the four --lp-dark* tokens at the paper set, on
+   --lp-band so it alternates with the paper sections around it. */
+html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-formats,
+html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-footer,
+html[data-theme='light'] .lp-root[data-proto-bands='2'] .lp-formats,
+html[data-theme='light'] .lp-root[data-proto-bands='3'] .lp-footer {
+  --lp-dark: var(--lp-band);
+  --lp-dark-text: var(--lp-text);
+  --lp-dark-muted: var(--lp-muted);
+  --lp-dark-line: var(--lp-line);
+}
+html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-formats :focus-visible,
+html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-footer :focus-visible,
+html[data-theme='light'] .lp-root[data-proto-bands='2'] .lp-formats :focus-visible,
+html[data-theme='light'] .lp-root[data-proto-bands='3'] .lp-footer :focus-visible {
+  outline-color: var(--lp-ink);
+}
+/* The closing's CTA is the cream pill on charcoal; on a light band it is the ink pill. */
+html[data-theme='light'] .lp-root[data-proto-bands='1'] .lp-footer .lp-btn-inverse,
+html[data-theme='light'] .lp-root[data-proto-bands='3'] .lp-footer .lp-btn-inverse {
+  background: var(--lp-ink);
+  color: var(--lp-on-ink);
+}

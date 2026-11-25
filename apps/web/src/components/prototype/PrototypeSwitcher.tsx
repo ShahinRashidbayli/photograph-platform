@@ -18,9 +18,16 @@ interface Props {
   current: string;
   /** Extra state to show next to the variant, e.g. the resolved theme. */
   status?: string;
+  /** The search param this bar drives; `variant` unless a second question runs on the page. */
+  param?: string;
 }
 
-export function PrototypeSwitcher({ variants, current, status }: Readonly<Props>) {
+export function PrototypeSwitcher({
+  variants,
+  current,
+  status,
+  param = 'variant',
+}: Readonly<Props>) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -33,10 +40,10 @@ export function PrototypeSwitcher({ variants, current, status }: Readonly<Props>
     (step: number) => {
       const next = variants[(index + step + variants.length) % variants.length];
       const sp = new URLSearchParams(params.toString());
-      sp.set('variant', next.key);
+      sp.set(param, next.key);
       router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
     },
-    [index, params, pathname, router, variants]
+    [index, param, params, pathname, router, variants]
   );
 
   useEffect(() => {

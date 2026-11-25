@@ -31,6 +31,7 @@ import { PrototypeSwitcher } from '@/components/prototype/PrototypeSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
+import { Closing } from '../Closing';
 import { FACTS } from '../FormatsBand';
 import { Hero } from '../Hero';
 import { SAMPLE } from '../mock';
@@ -319,6 +320,7 @@ function VariantC() {
 export function PrototypeHero() {
   const variant = useVariant();
   const theme = useThemeStore((s) => s.theme);
+  const hasBands = useSearchParams().get('bands') !== null;
   if (!variant) return <Hero />;
   return (
     <>
@@ -331,11 +333,65 @@ export function PrototypeHero() {
       ) : (
         <VariantC />
       )}
-      <PrototypeSwitcher
-        variants={VARIANTS}
-        current={variant}
-        status={theme === 'dark' ? 'dark = today' : 'light'}
-      />
+      {/* With `?bands=` the bands question owns the bar (ticket #81). */}
+      {!hasBands && (
+        <PrototypeSwitcher
+          variants={VARIANTS}
+          current={variant}
+          status={theme === 'dark' ? 'dark = today' : 'light'}
+        />
+      )}
     </>
   );
+}
+
+/* ── #81 — which bands below the hero turn light (first screen fixed to B) ─
+ *   1 — both light: the photo grid and the closing + footer on --lp-band.
+ *   2 — the closing + footer stay dark in both themes; the photo grid turns light.
+ *   3 — the photo grid stays dark in both themes; the closing + footer turn light.
+ * A light band re-points the four --lp-dark* tokens at the paper set (see
+ * prototype.css), so the components stay as they are. Dark mode is today's. */
+
+const BANDS = [
+  { key: '1', name: 'Both light' },
+  { key: '2', name: 'Closing stays dark' },
+  { key: '3', name: 'Photo grid stays dark' },
+];
+
+function useBands(): string | null {
+  const b = useSearchParams().get('bands');
+  if (process.env.NODE_ENV === 'production') return null;
+  return b && BANDS.some((x) => x.key === b) ? b : null;
+}
+
+/** Marks `.lp-root` so the CSS can flip the chosen bands, and owns the bar. */
+export function PrototypeBands() {
+  const bands = useBands();
+  const theme = useThemeStore((s) => s.theme);
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.lp-root');
+    if (!root) return;
+    if (bands) root.dataset.protoBands = bands;
+    else delete root.dataset.protoBands;
+    return () => {
+      delete root.dataset.protoBands;
+    };
+  }, [bands]);
+  if (!bands) return null;
+  return (
+    <PrototypeSwitcher
+      param="bands"
+      variants={BANDS}
+      current={bands}
+      status={theme === 'dark' ? 'dark = today' : 'light · hero B'}
+    />
+  );
+}
+
+/** The closing's logo has to follow its band: light logo on a light band. */
+export function PrototypeClosing() {
+  const bands = useBands();
+  const theme = useThemeStore((s) => s.theme);
+  const light = theme === 'light' && (bands === '1' || bands === '3');
+  return <Closing logoTheme={light ? 'light' : 'dark'} />;
 }

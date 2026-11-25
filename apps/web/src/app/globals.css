@@ -614,7 +614,7 @@ html:not([data-theme='dark']) .lp-nav[data-tone='theme'] {
   border-bottom-color: var(--lp-line);
 }
 html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink {
-  color: var(--lp-muted);
+  color: var(--lp-text);
 }
 html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu-btn {
   border-color: var(--lp-line);
@@ -636,9 +636,6 @@ html:not([data-theme='dark']) .lp-nav[data-tone='theme'] :focus-visible {
   outline-color: var(--lp-ink);
 }
 @media (hover: hover) {
-  html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink:hover {
-    color: var(--lp-text);
-  }
   html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-btn-inverse:hover {
     background: var(--lp-ink-hover);
   }

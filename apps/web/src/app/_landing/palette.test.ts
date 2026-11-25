@@ -167,7 +167,7 @@ function pairs(theme: Theme, css: string = CSS): Pair[] {
       theme === 'light'
         ? [
             { what: `nav text over ${under}`, fg: 'text', bg: 'nav-ground', under, floor: TEXT },
-            { what: `nav links over ${under}`, fg: 'muted', bg: 'nav-ground', under, floor: TEXT },
+            { what: `nav links over ${under}`, fg: 'text', bg: 'nav-ground', under, floor: TEXT },
           ]
         : [
             { what: `nav text over ${under}`, fg: 'sand', bg: 'nav-ground', under, floor: TEXT },

@@ -56,17 +56,16 @@ paths:
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme. Every band (nav, each section, footer) declares its **band tone** —
-  `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark in both) — and the
-  dark-in-both rules (ground, focus ring) key off that, never a class. The photo grid
-  and every section after it, through pricing and the FAQ, follow the theme (in light mode a theme
-  band's `--lp-dark*` resolve to the paper set); the nav, the hero and the closing band
-  (the footer) are dark in both — which is why the landing nav has no theme toggle.
-  Tones are pinned in `landing.claims.test.tsx`. Its own faces (`_landing/fonts.ts`,
-  route-scoped). Plan rows come from `PLAN_TIERS`; claims are
-  pinned there too — never picture a feature the product lacks (no favourites, sharing
-  or comments in galleries). Stand-in photos + credits:
-  `_landing/stock.ts`.
+  the theme; its own faces (`_landing/fonts.ts`, route-scoped). Every band (nav, each
+  section, footer) declares its **band tone** — `data-tone="theme"` (follows the theme)
+  or `data-tone="dark"` (dark in both) — and the dark-in-both rules (ground, focus ring)
+  key off that, never a class. The photo grid and every section after it, through
+  pricing and the FAQ, follow the theme (in light mode a theme band's `--lp-dark*`
+  resolve to the paper set); the nav, the hero and the closing band (the footer) are
+  dark in both — which is why the landing nav has no theme toggle. Plan rows come from
+  `PLAN_TIERS`; tones and claims are pinned in `landing.claims.test.tsx` — never picture
+  a feature the product lacks (no favourites, sharing or comments in galleries). Stand-in
+  photos + credits: `_landing/stock.ts`.
 - **i18n**: no hardcoded user-visible strings. Add keys to both `locales/en/<surface>.ts`
   and `locales/de/<surface>.ts` (new surface → register in both `index.ts`). Keys are flat,
   dot-namespaced (`clients.filter.All`). `npm run i18n:check` catches placeholder/plural/orphan issues.

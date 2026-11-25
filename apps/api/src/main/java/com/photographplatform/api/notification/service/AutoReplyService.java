@@ -2,27 +2,31 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
-import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
+import com.photographplatform.api.notification.email.EmailRenderer;
 import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.email.RenderedEmail;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Sends the customer a warm, on-brand acknowledgement the moment a lead lands
  * (roadmap §4.5.4). Built from {@link EmailTemplate} so it matches every other
  * Fotolio email; the copy is German and varies by lead score — a wedding-tuned
  * variant for HIGH, a budget-fit variant otherwise.
+ *
+ * <p>Queued before commit in the lead's transaction, like
+ * {@link LeadNotificationService}.
  */
 @Service
-public class AutoReplyService {
+public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AutoReplyService.class);
+    /** @param photographerSubdomain null for a lead the photographer typed in themselves */
+    public record Params(String score, String clientName, String photographerSubdomain) {}
 
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
@@ -33,30 +37,46 @@ public class AutoReplyService {
         this.emailService = emailService;
     }
 
-    @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onLeadCreated(LeadCreatedEvent event) {
-        try {
-            String photographer = capitalizeName(event.getPhotographerSubdomain());
-            emailService.send(new EmailMessage(
-                event.getClientEmail(),
-                "Vielen Dank für Ihre Anfrage – " + photographer,
-                buildBody(event, photographer),
-                EmailType.LEAD_AUTO_REPLY,
-                // LeadCreatedEvent does not carry the tenant — see docs/BUGS.md.
-                null));
-        } catch (Exception e) {
-            LOG.error("Failed to send auto-reply for lead {}: {}", event.getLeadId(), e.getMessage(), e);
-        }
+        emailService.queue(new OutgoingEmail(
+            template(),
+            event.getClientEmail(),
+            event.getTenantId(),
+            new Params(event.getScore(), event.getClientName(), event.getPhotographerSubdomain()),
+            EmailType.LEAD_AUTO_REPLY + ":" + event.getLeadId(),
+            null));
     }
 
-    private String buildBody(LeadCreatedEvent event, String photographer) {
+    @Override
+    public String template() {
+        return "lead.auto-reply";
+    }
+
+    @Override
+    public EmailType type() {
+        return EmailType.LEAD_AUTO_REPLY;
+    }
+
+    @Override
+    public Class<Params> paramsType() {
+        return Params.class;
+    }
+
+    @Override
+    public RenderedEmail render(Params params) {
+        String photographer = capitalizeName(params.photographerSubdomain());
+        return new RenderedEmail(
+            "Vielen Dank für Ihre Anfrage – " + photographer, buildBody(params, photographer));
+    }
+
+    private String buildBody(Params event, String photographer) {
         // LOW-score leads reuse the mid-tier copy for now; a lighter-touch LOW
         // variant is a follow-up.
-        boolean wedding = "HIGH".equals(event.getScore());
+        boolean wedding = "HIGH".equals(event.score());
         String photographerHtml = HtmlEscape.escape(photographer);
 
-        String name = event.getClientName() == null ? "" : event.getClientName().trim();
+        String name = event.clientName() == null ? "" : event.clientName().trim();
         String greeting = name.isBlank() ? "Hallo," : "Hallo " + HtmlEscape.escape(name) + ",";
 
         String intro = wedding
@@ -78,7 +98,7 @@ public class AutoReplyService {
             ? "Mit über 100 Hochzeiten Erfahrung wissen wir, wie wertvoll jeder Moment ist."
             : "Gerne besprechen wir Ihre Ideen und finden gemeinsam das perfekte Paket für Sie.";
 
-        String portfolioUrl = webBaseUrl.replaceAll("/+$", "") + "/p/" + event.getPhotographerSubdomain();
+        String portfolioUrl = webBaseUrl.replaceAll("/+$", "") + "/p/" + event.photographerSubdomain();
 
         return EmailTemplate.document(
             "Vielen Dank für Ihre Anfrage bei " + photographer + ".",

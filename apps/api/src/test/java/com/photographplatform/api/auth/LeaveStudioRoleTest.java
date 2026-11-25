@@ -60,8 +60,7 @@ class LeaveStudioRoleTest {
         mock(EmailService.class),
         mock(PasswordEncoder.class),
         auditService,
-        Clock.systemUTC(),
-        "http://localhost:3000");
+        Clock.systemUTC());
 
     @AfterEach
     void clearContext() {

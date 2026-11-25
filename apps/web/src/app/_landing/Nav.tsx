@@ -8,7 +8,6 @@ import { Icon } from '@/components/Icon';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
-import { useThemeStore } from '@/store/themeStore';
 
 /** One list for the bar, the phone menu and the footer, so they cannot drift. */
 export const SECTIONS: { href: string; labelKey: TranslationKey }[] = [
@@ -27,7 +26,6 @@ const NAV_CONTROL = {
 
 export function Nav() {
   const { t } = useTranslation();
-  const theme = useThemeStore((s) => s.theme);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -52,7 +50,15 @@ export function Nav() {
     <header className="lp-nav" data-tone="theme" data-scrolled={scrolled}>
       <div className="lp-wrap lp-nav-inner">
         <Link href="/" aria-label={t('landing.aria.home')} style={{ display: 'inline-flex' }}>
-          <FotolioLogo theme={theme} variant="brand" showText />
+          {/* Both marks, the stylesheet showing the one for the theme on
+              screen: from the store, a dark visitor got the paper mark on
+              the charcoal bar until hydration. */}
+          <span data-theme-only="light">
+            <FotolioLogo theme="light" variant="brand" showText />
+          </span>
+          <span data-theme-only="dark">
+            <FotolioLogo theme="dark" variant="brand" showText />
+          </span>
         </Link>
         <nav className="lp-nav-links" aria-label={t('landing.aria.sections')}>
           {SECTIONS.map((s) => (

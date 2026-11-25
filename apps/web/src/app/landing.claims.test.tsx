@@ -286,17 +286,23 @@ describe('the nav and the theme', () => {
     return render(<LandingPage />);
   };
   const heroOf = () => screen.getByRole('region', { name: /run the business/i });
-  /** The files the band's images show (next/image routes them through its loader in Jest). */
-  const photosIn = (el: HTMLElement) =>
-    [...el.querySelectorAll('img')].map((img) => {
-      const src = img.getAttribute('src') ?? '';
-      return new URL(src, 'http://x').searchParams.get('url') ?? src;
-    });
+  /**
+   * The files the hero shows in `theme`: the stylesheet hides whatever is
+   * marked for the other one (next/image routes files through its loader in
+   * Jest).
+   */
+  const photosFor = (theme: Theme) =>
+    [...heroOf().querySelectorAll('img')]
+      .filter((img) => img.closest('[data-theme-only]')?.getAttribute('data-theme-only') === theme)
+      .map((img) => {
+        const src = img.getAttribute('src') ?? '';
+        return new URL(src, 'http://x').searchParams.get('url') ?? src;
+      });
 
   it.each(THEMES)(
     'keeps the toggle in the bar beside the language switch, never in the menu (%s)',
-    async (_theme, name) => {
-      renderAs(_theme);
+    async (theme, name) => {
+      renderAs(theme);
       const bar = screen.getByRole('banner');
       const toggle = within(bar).getByRole('button', { name });
       // Beside the language switch, which is in the bar at every width; the
@@ -314,15 +320,18 @@ describe('the nav and the theme', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
     expect(useThemeStore.getState()).toMatchObject({ theme: 'dark', preference: 'dark' });
     expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
-    expect(photosIn(heroOf())).toContain(STOCK.sparks.src);
   });
 
+  // The photograph is picked by the stylesheet from what the pre-paint script
+  // set, not from the store, so both are in the markup whatever the store says:
+  // the server renders the store's light default, and a dark visitor saw the
+  // daylight photograph under charcoal until hydration.
   it.each(THEMES)(
     'opens the hero on the photograph for its theme (%s)',
     (theme, _n, own, other) => {
-      renderAs(theme);
-      expect(photosIn(heroOf())).toContain(own.src);
-      expect(photosIn(heroOf())).not.toContain(other.src);
+      renderAs(theme === 'light' ? 'dark' : 'light');
+      expect(photosFor(theme)).toContain(own.src);
+      expect(photosFor(theme)).not.toContain(other.src);
     }
   );
 

@@ -844,6 +844,14 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] :focus-visible {
   }
 }
 
+/* What is drawn for one theme only — the hero's photographs, the nav's mark.
+   Keyed on the attribute the pre-paint script sets, so the first paint is
+   already right; a page without it (no JavaScript) is light. */
+html[data-theme='dark'] .lp-root [data-theme-only='light'],
+html:not([data-theme='dark']) .lp-root [data-theme-only='dark'] {
+  display: none;
+}
+
 /* On a phone the words would sit over the photograph's brightest part, so
    there is no wash: the photograph is an unwashed band above the headline,
    and the first screen opens on it. */

@@ -55,13 +55,17 @@ paths:
   `var(--ui-paper)`.
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
-  `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero's booking page keeps the light set in both). Each band declares
-  `data-tone`: the nav, hero, photo grid and every other section follow the theme
-  (`theme`); the closing band/footer is dark in both (`dark`), as is the auth brand
-  panel. The light look keys off that attribute; `landing.claims.test.tsx` pins the
-  declarations and `landing.palette.test.ts` holds every text pair to WCAG AA per theme,
-  its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
+  `--lp-*` vars and `.lp-*` classes in `globals.css`, and its own faces
+  (`_landing/fonts.ts`, route-scoped); previews take `--pv-*`, which follow the theme
+  (the hero's booking page keeps the light set in both). Each band declares `data-tone`:
+  the nav, hero, photo grid and every other section follow the theme (`theme`); the
+  closing band/footer is dark in both (`dark`), as is the auth brand panel. The light
+  look keys off that attribute and `html[data-theme]`, never the theme store (the server
+  renders the store's light default, so a dark first paint would be wrong until
+  hydration); what differs by theme beyond colour — the hero's photograph, the nav's
+  mark — is in the markup twice, marked `data-theme-only`. `landing.claims.test.tsx`
+  pins the declarations and `landing.palette.test.ts` holds the listed text pairs to
+  WCAG AA per theme. Plan rows come from `PLAN_TIERS`;
   claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
   lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
   `_landing/stock.ts`.

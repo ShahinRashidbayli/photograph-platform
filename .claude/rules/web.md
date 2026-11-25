@@ -63,9 +63,9 @@ paths:
   `landing.claims.test.tsx` pins the declarations and `landing.palette.test.ts` holds
   every text pair to WCAG AA per theme. The auth brand panel is dark in both themes too
   (it is outside the landing, so it declares no `data-tone`). Plan rows come from
-  `PLAN_TIERS`; claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
-  lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
-  `_landing/stock.ts`.
+  `PLAN_TIERS`; claims are pinned in `landing.claims.test.tsx` — never picture a feature
+  the product lacks (no favourites, sharing or comments in galleries). Stand-in photos +
+  credits: `_landing/stock.ts`.
 - **i18n**: no hardcoded user-visible strings. Add keys to both `locales/en/<surface>.ts`
   and `locales/de/<surface>.ts` (new surface → register in both `index.ts`). Keys are flat,
   dot-namespaced (`clients.filter.All`). `npm run i18n:check` catches placeholder/plural/orphan issues.

@@ -582,7 +582,9 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   top: 0;
   z-index: 40;
   color: var(--lp-sand);
-  background: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
+  /* Charcoal in dark mode, paper in light: the token holds both, and the
+     palette test checks the bar's text against it. */
+  background: var(--lp-nav-ground);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid transparent;
@@ -610,7 +612,6 @@ html:not([data-theme='dark']) .lp-nav[data-tone='theme'] {
   --lp-nav-control: var(--lp-text);
   --lp-nav-control-hover: rgba(28, 25, 23, 0.06);
   color: var(--lp-text);
-  background: var(--lp-nav-ground);
   border-bottom-color: var(--lp-line);
 }
 html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink {

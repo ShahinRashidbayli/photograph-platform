@@ -37,9 +37,9 @@ paths:
   only — the pre-paint `CLIENT_INIT` (`app/layout.tsx`) and the dashboard loading
   screen read that shape directly, so keep the three in step. Never `set` a theme
   resolved from the system (it would be saved as a choice) and never bump the persist
-  `version`. `ThemeToggle` (auth pages, dashboard header) sets the explicit opposite
+  `version`. `ThemeToggle` (landing nav, legal and auth pages, dashboard header) sets the explicit opposite
   of what is on screen; the avatar menu's Appearance (Light · Dark · System) is the
-  only way back to the system. Landing and legal pages offer no toggle. The public
+  only way back to the system. The public
   portfolio keeps its own `p-theme`.
 - **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
   purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
@@ -61,7 +61,7 @@ paths:
   dark-in-both rules (ground, focus ring) key off that, never a class. The photo grid
   and every section up to pricing and the FAQ follow the theme (in light mode a theme
   band's `--lp-dark*` resolve to the paper set); the nav, the hero and the closing band
-  (the footer) are dark in both — which is why the landing nav has no theme toggle.
+  (the footer) are dark in both.
   Tones are pinned in `landing.claims.test.tsx`. Its own faces (`_landing/fonts.ts`,
   route-scoped). Plan rows come from `PLAN_TIERS`; claims are
   pinned there too — never picture a feature the product lacks (no favourites, sharing

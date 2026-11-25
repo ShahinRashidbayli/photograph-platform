@@ -272,20 +272,55 @@ describe('the hero', () => {
 });
 
 describe('the nav', () => {
-  // The nav and hero are dark in both themes, so a toggle there changed only
-  // its own icon. The theme follows the system, or the choice made in the app.
-  const TOGGLE = /dark theme|light theme|dunklen Design|hellen Design/i;
+  // The toggle sits in the bar beside the language switch at every width; the
+  // phone menu holds only the section links and the sign-in/register links.
+  const NAMES = {
+    en: { light: 'Switch to dark theme', dark: 'Switch to light theme' },
+    de: { light: 'Zum dunklen Design wechseln', dark: 'Zum hellen Design wechseln' },
+  } as const;
+  const WIDTHS = { desktop: 1440, phone: 390 } as const;
 
-  it.each(['en', 'de'] as const)(
-    'offers no theme toggle, in the bar or the phone menu (%s)',
-    async (lang) => {
+  const atWidth = (width: number) => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: width,
+    });
+    window.dispatchEvent(new Event('resize'));
+  };
+
+  afterEach(() => atWidth(1024));
+
+  describe.each(['en', 'de'] as const)('in %s', (lang) => {
+    it.each([
+      ['desktop', 'light'],
+      ['desktop', 'dark'],
+      ['phone', 'light'],
+      ['phone', 'dark'],
+    ] as const)('offers the theme toggle in the bar at %s width, in %s', async (width, theme) => {
       asLocale(lang);
-      render(<LandingPage />);
-      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
-      await userEvent.click(screen.getByRole('button', { name: /menu|menü/i }));
-      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
-    }
-  );
+      asTheme(theme);
+      atWidth(WIDTHS[width]);
+      const { container } = render(<LandingPage />);
+      const bar = container.querySelector('.lp-nav-inner') as HTMLElement;
+      expect(within(bar).getByRole('button', { name: NAMES[lang][theme] })).toBeInTheDocument();
+
+      // Opening the phone menu neither moves the toggle into it nor duplicates it.
+      await userEvent.click(within(bar).getByRole('button', { name: /menu|menü/i }));
+      const menu = container.querySelector('#lp-menu') as HTMLElement;
+      expect(within(menu).queryByRole('button', { name: NAMES[lang][theme] })).toBeNull();
+      expect(screen.getAllByRole('button', { name: NAMES[lang][theme] })).toHaveLength(1);
+    });
+  });
+
+  it('switches to the explicit opposite of what is on screen', async () => {
+    asLocale('en');
+    asTheme('light');
+    render(<LandingPage />);
+    await userEvent.click(screen.getByRole('button', { name: NAMES.en.light }));
+    expect(useThemeStore.getState()).toMatchObject({ preference: 'dark', theme: 'dark' });
+    expect(screen.getByRole('button', { name: NAMES.en.dark })).toBeInTheDocument();
+  });
 });
 
 describe('band tone', () => {

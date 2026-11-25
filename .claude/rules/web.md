@@ -59,7 +59,7 @@ paths:
   the theme. Every band (nav, each section, footer) declares its **band tone** —
   `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark in both) — and the
   dark-in-both rules (ground, focus ring) key off that, never a class. The photo grid
-  and every section up to pricing and the FAQ follow the theme (in light mode a theme
+  and every section after it, through pricing and the FAQ, follow the theme (in light mode a theme
   band's `--lp-dark*` resolve to the paper set); the nav, the hero and the closing band
   (the footer) are dark in both — which is why the landing nav has no theme toggle.
   Tones are pinned in `landing.claims.test.tsx`. Its own faces (`_landing/fonts.ts`,

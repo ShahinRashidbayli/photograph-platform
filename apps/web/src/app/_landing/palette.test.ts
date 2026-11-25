@@ -36,8 +36,8 @@ function declarations(selector: string): Tokens {
 
 /* The cascade the page sees: the dark theme only overrides what changes, so
    the charcoal room and the dark band are declared once, on `.lp-root`. The
-   hero re-declares the light `--pv-*` set in both themes, so the light
-   previews are also what the hero shows in dark. */
+   hero re-declares the light `--pv-*` set in both themes; the `dark` object
+   carries the dark set, so the hero's previews are covered by the light run. */
 const light: Tokens = { ...declarations('.lp-root'), ...declarations('.lp-root, .lp-hero-band') };
 const dark: Tokens = { ...light, ...declarations("html[data-theme='dark'] .lp-root") };
 const THEMES = { light, dark } as const;
@@ -102,20 +102,11 @@ function ratio(pair: Pair, tokens: Tokens): number {
   return contrast(fg.a < 1 ? over(fg, ground) : fg, ground);
 }
 
-const text = (what: string, fg: string, bg: string, under?: string): Pair => ({
-  what,
-  fg,
-  bg,
-  under,
-  floor: TEXT,
-});
-const ring = (what: string, fg: string, bg: string, under?: string): Pair => ({
-  what,
-  fg,
-  bg,
-  under,
-  floor: FOCUS_RING,
-});
+const pairAt =
+  (floor: number) =>
+  (what: string, fg: string, bg: string, under?: string): Pair => ({ what, fg, bg, under, floor });
+const text = pairAt(TEXT);
+const ring = pairAt(FOCUS_RING);
 
 const GROUNDS = ['lp-bg', 'lp-band', 'lp-surface'];
 const CHIPS = ['green', 'amber', 'blue', 'grey'];
@@ -166,7 +157,13 @@ describe('the palette test itself', () => {
     expect(light['lp-nav-ground']).toBe('rgba(250, 248, 245, 0.9)');
   });
 
-  it('matches the published WCAG ratios', () => {
+  // The nav ground is a literal so it can be measured; pin it to `--lp-bg` at
+  // 90% so nudging the paper cannot leave the nav on the old one.
+  it('keeps the light nav ground at --lp-bg 90%', () => {
+    expect(parseColor(light['lp-nav-ground'])).toEqual({ ...parseColor(light['lp-bg']), a: 0.9 });
+  });
+
+  it('computes the WCAG 2.x contrast ratio', () => {
     expect(contrast(parseColor('#000000'), parseColor('#ffffff'))).toBeCloseTo(21, 5);
     expect(contrast(parseColor('#86652f'), parseColor('#faf8f5'))).toBeCloseTo(5.06, 2);
   });
@@ -188,6 +185,16 @@ describe('the palette test itself', () => {
     if (!pair) throw new Error(`no pair named ${what}`);
     expect(ratio(pair, light)).toBeGreaterThanOrEqual(pair.floor);
     expect(ratio(pair, { ...light, ...override })).toBeLessThan(pair.floor);
+  });
+
+  it.each([
+    ['dark muted text darkened', { 'lp-muted': '#6e6660' }, 'lp-muted on lp-surface'],
+    ['gold dulled on charcoal', { 'lp-gold': '#6b5a40' }, 'accent word in the charcoal hero'],
+  ])('fails in the dark theme when the %s', (_change, override, what) => {
+    const pair = PAIRS.find((p) => p.what === what);
+    if (!pair) throw new Error(`no pair named ${what}`);
+    expect(ratio(pair, dark)).toBeGreaterThanOrEqual(pair.floor);
+    expect(ratio(pair, { ...dark, ...override })).toBeLessThan(pair.floor);
   });
 
   it('refuses a translucent ground with nothing under it', () => {

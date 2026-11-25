@@ -6,8 +6,11 @@ import { AGB } from '@/lib/legal-content';
 describe('LegalPageShell', () => {
   // Like the landing page, the legal pages follow the system or the choice
   // made in the app; the toggle lives on the auth pages and in the dashboard.
-  it('offers no theme toggle', () => {
-    renderWithProviders(<LegalPageShell doc={AGB} />, { lang: 'en' });
-    expect(screen.queryByRole('button', { name: /dark theme|light theme/i })).toBeNull();
+  it.each([
+    ['en', /dark theme|light theme/i],
+    ['de', /dunklen Design|hellen Design/i],
+  ] as const)('offers no theme toggle (%s)', (lang, name) => {
+    renderWithProviders(<LegalPageShell doc={AGB} />, { lang });
+    expect(screen.queryByRole('button', { name })).toBeNull();
   });
 });

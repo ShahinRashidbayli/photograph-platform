@@ -1,6 +1,7 @@
 'use client';
 
 import { FotolioLogo } from '@/components/FotolioLogo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { getColors } from '@/lib/design-tokens';
 import { LEGAL_UPDATED, type LegalBlock, type LegalDoc } from '@/lib/legal-content';
@@ -10,10 +11,10 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react';
 
 /**
  * LegalPageShell — one layout for every legal page (Impressum, Datenschutz,
- * AGB). Renders the marketing chrome (logo + language toggle; the theme follows
- * the system or the choice made in the app, like the landing page), a prominent
- * "draft, not yet binding" notice, the structured document, and a slim footer
- * whose links satisfy the "≤ 2 clicks to Impressum" requirement from issue #7.
+ * AGB). Renders the marketing chrome (logo, language and theme toggles, like the
+ * landing nav), a prominent "draft, not yet binding" notice, the structured
+ * document, and a slim footer whose links satisfy the "≤ 2 clicks to
+ * Impressum" requirement from issue #7.
  *
  * Placeholders written as [text] in the content are highlighted so unfinished
  * fields are impossible to miss on the rendered page.
@@ -64,6 +65,7 @@ export function LegalPageShell({ doc }: { doc: LegalDoc }) {
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <LanguageToggle variant="pill" />
+            <ThemeToggle variant="pill" />
             <Link
               href="/"
               style={{

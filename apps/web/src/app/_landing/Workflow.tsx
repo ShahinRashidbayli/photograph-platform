@@ -46,7 +46,7 @@ export function Workflow() {
   ];
 
   return (
-    <section id="workflow" className="lp-section" aria-labelledby="lp-flow-title">
+    <section id="workflow" className="lp-section" data-tone="theme" aria-labelledby="lp-flow-title">
       <div className="lp-wrap">
         <h2 id="lp-flow-title" className="lp-h2" style={{ maxWidth: 720 }}>
           {t('landing.flow.title')}

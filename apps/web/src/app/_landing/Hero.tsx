@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useThemeStore } from '@/store/themeStore';
 import { SAMPLE } from './mock';
 import { STOCK, STOCK_THUMB } from './stock';
 import { FACTS } from './FormatsBand';
@@ -29,9 +30,18 @@ const STEP_GAP_MS = 450;
  * over in under two seconds (below WCAG 2.2.2's five), and it is pure CSS: the
  * steps are in the server HTML, and under reduced motion the animation is
  * simply not applied.
+ *
+ * The room follows the theme: a daylight photograph under a paper wash in
+ * light mode (on a phone, an unwashed band above the headline), the night
+ * photograph under charcoal in dark. Each photograph suits its own ground —
+ * the sparks washed with paper went grey, the field under charcoal went muddy.
+ * The ground, type and buttons switch in the stylesheet (`data-tone`); only
+ * the photograph is picked here.
  */
 export function Hero() {
   const { t, format } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
+  const room = theme === 'light' ? STOCK.field : STOCK.sparks;
 
   const cardSteps = [
     { label: t('landing.hero.stepEnquiry'), value: t('landing.flow.enquiryData') },
@@ -55,11 +65,16 @@ export function Hero() {
   ];
 
   return (
-    <section className="lp-hero-band" aria-labelledby="lp-hero-title">
+    <section className="lp-hero-band" data-tone="theme" aria-labelledby="lp-hero-title">
       {/* The photograph is the room's light; the scrim keeps the words on
-          solid charcoal and lets the sparks show to the right. */}
-      <Image src={STOCK.sparks.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
+          solid ground and lets the photograph show to the right. */}
+      <Image src={room.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
       <div className="lp-hero-scrim" aria-hidden="true" />
+      {theme === 'light' && (
+        <div className="lp-hero-strip" aria-hidden="true">
+          <Image src={room.src} alt="" fill sizes="100vw" />
+        </div>
+      )}
       <div className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
           <h1 id="lp-hero-title" className="lp-h1">

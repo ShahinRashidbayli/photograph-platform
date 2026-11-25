@@ -276,9 +276,20 @@ textarea::placeholder {
  *
  * The product previews (`.lp-ui`, `.lp-gallery`) take their colours from
  * `--pv-*`, which follow the theme. They used to be fixed light, which in dark
- * mode put glaring white slabs on a near-black page. The hero is the
- * exception: it is a dark room in both themes, so what sits in it keeps the
- * light set (re-declared on `.lp-hero-band`).
+ * mode put glaring white slabs on a near-black page. The hero's booking page
+ * is the exception: it keeps the light set in both themes (re-declared on
+ * `.lp-hero-band`), so the product picture is the same in both.
+ *
+ * Every band declares its tone with `data-tone`, and the light look keys off
+ * it: `theme` follows the theme (the nav, the hero, the photo grid and every
+ * section that was always light), `dark` is charcoal in both (the closing band
+ * and footer — the long light page ends on a dark anchor). The nav, hero and
+ * photo grid used to be dark in both themes: 35% of the page, the whole first
+ * screen, did not change with the theme, and a visitor who switched to light
+ * saw nothing happen. Their dark look is the base below; the light one is
+ * "Light mode: the bands that follow the theme". `landing.claims.test.tsx`
+ * pins the declarations and `landing.palette.test.ts` the contrast of every
+ * text pair, in each theme.
  *
  * Deliberately absent, and worth keeping absent: scroll-triggered reveals
  * (they hid the page from no-JS visitors twice), gradient text, glow shadows,
@@ -295,8 +306,9 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — hero, formats band, footer. Fixed in both themes: it is
-     a photograph's dark room, not a surface. */
+  /* The dark room — the closing band in both themes; the nav, hero and
+     formats band in dark mode. Fixed: it is a photograph's dark room, not a
+     surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
   --lp-sand-muted: #bdb5a8;
@@ -305,6 +317,8 @@ textarea::placeholder {
   /* The one warm note, for the one word set in the display face: the gold of
      the hero photograph's sparklers. 9:1 on charcoal. */
   --lp-gold: #e2c08d;
+  /* The same word on paper, in the light hero: 5.06:1 on --lp-bg. */
+  --lp-gold-paper: #86652f;
   --lp-dark: #1c1a17;
   --lp-dark-text: #f6f1e9;
   --lp-dark-muted: #b3ab9f;
@@ -553,8 +567,12 @@ html[data-theme='dark'] .lp-root {
   top: 0;
   z-index: 40;
   color: var(--lp-sand);
-  /* Dark in both themes: it opens on the hero's dark room and stays the same
-     bar over the light sections below. */
+  /* The language switch and theme toggle take their colour inline (they are
+     shared components); these carry the bar's tone to them. */
+  --lp-nav-control: #e6dfd2;
+  --lp-nav-control-hover: rgba(230, 223, 210, 0.1);
+  /* Dark mode: charcoal, opening on the hero's dark room and staying the same
+     bar over the sections below. The light bar is further down. */
   background: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
@@ -712,6 +730,139 @@ html[data-theme='dark'] .lp-root {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 40px;
+}
+
+/* ── Light mode: the bands that follow the theme ─────────────────────────
+ * The nav, hero and photo grid above are drawn dark; a band that declares
+ * `data-tone='theme'` turns light here unless the page is dark. Keyed on "not
+ * dark" rather than "light" so a page without the pre-paint script (no
+ * JavaScript) is light throughout instead of light below a dark first screen.
+ * The booking page and result card in the hero keep their look in both. */
+
+/* Nav: a paper bar with ink controls and the ink pill. */
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] {
+  color: var(--lp-text);
+  --lp-nav-control: var(--lp-text);
+  --lp-nav-control-hover: rgba(28, 25, 23, 0.06);
+  background: color-mix(in oklab, var(--lp-bg) 90%, transparent);
+  border-bottom-color: var(--lp-line);
+}
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-navlink,
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-menu a {
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-menu-btn {
+  border-color: var(--lp-line);
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-menu,
+html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-menu a {
+  border-color: var(--lp-line);
+}
+
+/* Hero: the daylight photograph under a paper wash. Solid paper where the
+   words are — at least 0.8 up to 48%, so ink keeps 4.5:1 over any photograph
+   — clearing toward the photograph on the right and closing on paper at the
+   foot. */
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] {
+  background: var(--lp-bg);
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-photo {
+  object-position: 60% 50%;
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-scrim {
+  background:
+    linear-gradient(
+      90deg,
+      var(--lp-bg) 0%,
+      var(--lp-bg) 32%,
+      rgba(250, 248, 245, 0.86) 48%,
+      rgba(250, 248, 245, 0.4) 74%,
+      rgba(250, 248, 245, 0.5) 100%
+    ),
+    linear-gradient(0deg, var(--lp-bg) 0%, rgba(250, 248, 245, 0) 24%);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-h1,
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-facts dd {
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-accent-word {
+  color: var(--lp-gold-paper);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-lede {
+  color: var(--lp-muted);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-facts {
+  border-top-color: var(--lp-line);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-facts dt {
+  color: var(--lp-subtle);
+}
+/* The page sets no colour of its own between the hero and the grid. */
+html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] + .lp-dark {
+  border-top-color: var(--lp-line);
+}
+
+/* The primary is the ink pill on paper; the second ask is the line pill. The
+   markup names the dark-room fills, which dark mode keeps. */
+html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-btn-inverse {
+  background: var(--lp-ink);
+  color: var(--lp-on-ink);
+}
+html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-btn-ghost-dark {
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-text);
+}
+
+/* Photo grid: the dark band's four tokens re-pointed at the paper set, on
+   --lp-band, so the page does not jump from paper to black after the hero. */
+html:not([data-theme='dark']) .lp-root .lp-dark[data-tone='theme'] {
+  --lp-dark: var(--lp-band);
+  --lp-dark-text: var(--lp-text);
+  --lp-dark-muted: var(--lp-muted);
+  --lp-dark-line: var(--lp-line);
+}
+
+/* Ink rings on paper; the dark-room rule above draws them light. */
+html:not([data-theme='dark']) .lp-root [data-tone='theme'] :focus-visible {
+  outline-color: var(--lp-ink);
+}
+
+@media (hover: hover) {
+  html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-btn-inverse:hover {
+    background: var(--lp-ink-hover);
+  }
+  html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-btn-ghost-dark:hover {
+    background: var(--lp-surface);
+    border-color: var(--lp-subtle);
+    color: var(--lp-text);
+  }
+  html:not([data-theme='dark']) .lp-root .lp-nav[data-tone='theme'] .lp-navlink:hover {
+    color: var(--lp-ink-hover);
+  }
+}
+
+/* On a phone the words would sit over the photograph's brightest part, so
+   there is no wash: the photograph is an unwashed band above the headline,
+   and the first screen opens on it. */
+.lp-hero-strip {
+  display: none;
+}
+@media (max-width: 860px) {
+  html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-photo,
+  html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-scrim {
+    display: none;
+  }
+  html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] .lp-hero-strip {
+    display: block;
+    position: relative;
+    height: 280px;
+  }
+  .lp-hero-strip img {
+    object-fit: cover;
+  }
 }
 
 /* The studio's booking page, and the card with what came of one request. */

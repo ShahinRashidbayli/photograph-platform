@@ -37,10 +37,10 @@ paths:
   only — the pre-paint `CLIENT_INIT` (`app/layout.tsx`) and the dashboard loading
   screen read that shape directly, so keep the three in step. Never `set` a theme
   resolved from the system (it would be saved as a choice) and never bump the persist
-  `version`. `ThemeToggle` (auth pages, dashboard header) sets the explicit opposite
-  of what is on screen; the avatar menu's Appearance (Light · Dark · System) is the
-  only way back to the system. Landing and legal pages offer no toggle. The public
-  portfolio keeps its own `p-theme`.
+  `version`. `ThemeToggle` (auth pages, dashboard header, landing nav, legal pages)
+  sets the explicit opposite of what is on screen; the avatar menu's Appearance
+  (Light · Dark · System) is the only way back to the system. The public portfolio
+  keeps its own `p-theme`.
 - **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
   purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
   `primary`/`primarySolid` fill is `c.onPrimary`, never `#fff` (dark mode inverts the
@@ -56,8 +56,11 @@ paths:
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero stays dark in both — which is why the landing nav has no theme
-  toggle),
+  the theme (the hero's booking page keeps the light set in both). Each band declares
+  `data-tone`: the nav, hero, photo grid and every other section follow the theme
+  (`theme`); the closing band/footer is dark in both (`dark`), as is the auth brand
+  panel. The light look keys off that attribute; `landing.claims.test.tsx` pins the
+  declarations and `landing.palette.test.ts` holds every text pair to WCAG AA per theme,
   its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
   claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
   lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:

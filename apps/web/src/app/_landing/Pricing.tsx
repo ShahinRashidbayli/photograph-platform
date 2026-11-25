@@ -42,7 +42,12 @@ export function Pricing() {
   };
 
   return (
-    <section id="pricing" className="lp-section lp-band" aria-labelledby="lp-pricing-title">
+    <section
+      id="pricing"
+      className="lp-section lp-band"
+      data-tone="theme"
+      aria-labelledby="lp-pricing-title"
+    >
       <div className="lp-wrap">
         <div className="lp-head-row">
           <div>

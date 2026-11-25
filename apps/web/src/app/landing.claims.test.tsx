@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import LandingPage from './LandingPage';
 import { PLAN_TIERS } from '@/lib/plans';
 import { useLangStore } from '@/store/langStore';
+import { useThemeStore, type Theme } from '@/store/themeStore';
+import { STOCK } from './_landing/stock';
 
 /**
  * What the landing page claims and how its controls behave, pinned.
@@ -39,8 +41,11 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 const asLocale = (lang: 'en' | 'de') => act(() => useLangStore.setState({ lang }));
+const asTheme = (theme: Theme) =>
+  act(() => useThemeStore.setState({ theme, preference: 'system' }));
 afterEach(() => {
   asLocale('de');
+  asTheme('light');
 });
 
 const SOON = /^(soon|coming soon|bald|demnächst)$/i;
@@ -263,19 +268,83 @@ describe('the hero', () => {
   });
 });
 
-describe('the nav', () => {
-  // The nav and hero are dark in both themes, so a toggle there changed only
-  // its own icon. The theme follows the system, or the choice made in the app.
-  const TOGGLE = /dark theme|light theme|dunklen Design|hellen Design/i;
+describe('the nav and the theme', () => {
+  // The nav, hero and photo grid used to be dark in both themes, so a toggle
+  // there changed only its own icon — and then the toggle was removed, leaving
+  // a visitor no way to choose. Now each band declares its tone (the
+  // stylesheet's light look keys off it) and the toggle is back. jsdom applies
+  // no stylesheet, so colours are proven in `landing.palette.test.ts`; this
+  // pins which bands follow the theme and what the visitor can do.
+  const THEMES = [
+    ['light', 'Switch to dark theme', STOCK.field, STOCK.sparks],
+    ['dark', 'Switch to light theme', STOCK.sparks, STOCK.field],
+  ] as const;
 
-  it.each(['en', 'de'] as const)(
-    'offers no theme toggle, in the bar or the phone menu (%s)',
-    async (lang) => {
-      asLocale(lang);
-      render(<LandingPage />);
-      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
-      await userEvent.click(screen.getByRole('button', { name: /menu|menü/i }));
-      expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
+  const renderAs = (theme: Theme) => {
+    asLocale('en');
+    asTheme(theme);
+    return render(<LandingPage />);
+  };
+  const heroOf = () => screen.getByRole('region', { name: /run the business/i });
+  /** The files the band's images show (next/image routes them through its loader in Jest). */
+  const photosIn = (el: HTMLElement) =>
+    [...el.querySelectorAll('img')].map((img) => {
+      const src = img.getAttribute('src') ?? '';
+      return new URL(src, 'http://x').searchParams.get('url') ?? src;
+    });
+
+  it.each(THEMES)(
+    'keeps the toggle in the bar beside the language switch, never in the menu (%s)',
+    async (_theme, name) => {
+      renderAs(_theme);
+      const bar = screen.getByRole('banner');
+      const toggle = within(bar).getByRole('button', { name });
+      // Beside the language switch, which is in the bar at every width; the
+      // section links and "Sign in" are the ones that fold into the menu.
+      const language = within(bar).getByRole('button', { name: 'Auf Deutsch umschalten' });
+      expect(toggle.parentElement).toBe(language.parentElement);
+
+      await userEvent.click(screen.getByRole('button', { name: /open menu/i }));
+      expect(within(bar).getAllByRole('button', { name })).toEqual([toggle]);
     }
   );
+
+  it('switches the page to the other theme and saves the choice', async () => {
+    renderAs('light');
+    await userEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    expect(useThemeStore.getState()).toMatchObject({ theme: 'dark', preference: 'dark' });
+    expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
+    expect(photosIn(heroOf())).toContain(STOCK.sparks.src);
+  });
+
+  it.each(THEMES)(
+    'opens the hero on the photograph for its theme (%s)',
+    (theme, _n, own, other) => {
+      renderAs(theme);
+      expect(photosIn(heroOf())).toContain(own.src);
+      expect(photosIn(heroOf())).not.toContain(other.src);
+    }
+  );
+
+  it.each(THEMES)('lets the nav, hero and photo grid follow the theme (%s)', (theme) => {
+    renderAs(theme);
+    for (const band of [
+      screen.getByRole('banner'),
+      heroOf(),
+      screen.getByRole('region', { name: /one studio for every kind of shoot/i }),
+    ]) {
+      expect(band).toHaveAttribute('data-tone', 'theme');
+    }
+  });
+
+  it.each(THEMES)('keeps only the closing band and footer dark (%s)', (theme) => {
+    const { container } = renderAs(theme);
+    const footer = screen.getByRole('contentinfo');
+    expect([...container.querySelectorAll('[data-tone="dark"]')]).toEqual([footer]);
+    // Every band of the page declares one or the other: a new section has to
+    // decide, rather than inherit whichever look the stylesheet falls back to.
+    for (const band of container.querySelectorAll('main > section')) {
+      expect(band).toHaveAttribute('data-tone', 'theme');
+    }
+  });
 });

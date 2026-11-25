@@ -136,7 +136,7 @@ jobs:
       - name: Setup Java
         # The JDK pinned in .java-version, the same one ci.yml and the Maven
         # enforcer use. The agent runs `mvn verify` itself.
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version-file: .java-version
           distribution: temurin

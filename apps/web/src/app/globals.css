@@ -303,7 +303,7 @@ textarea::placeholder {
   --lp-sand-dim: #a69e91;
   --lp-cream: #f6f1e9;
   /* The one warm note, for the one word set in the display face: the gold of
-     the hero photograph's sparklers. 9:1 on charcoal. */
+     the hero photograph's sparklers. 10:1 on charcoal. */
   --lp-gold: #e2c08d;
   /* The accent word's ink on paper, for when the hero turns light: gold is
      1.6:1 on paper, this is 5.06:1. Not on `.lp-accent-word` yet — the hero

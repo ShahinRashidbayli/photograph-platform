@@ -369,7 +369,7 @@ html[data-theme='dark'] .lp-root {
   --lp-ink: #f3efe9;
   --lp-on-ink: #1c1917;
   --lp-ink-hover: #ffffff;
-  /* Dark keeps today's hero and nav: gold on charcoal, the charcoal bar. */
+  /* Dark keeps the hero and nav it had: gold on charcoal, the charcoal bar. */
   --lp-accent-word: var(--lp-gold);
   --lp-nav-ground: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   /* The dark blocks stay charcoal, a step above the page, so they still read
@@ -540,10 +540,8 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   outline: 2px solid var(--lp-ink);
   outline-offset: 3px;
 }
-/* Ink is dark in the light theme: on charcoal the ring has to be light. The
-   nav is charcoal in dark mode; in light mode its paper rule below wins. */
-.lp-root [data-tone='dark'] :focus-visible,
-.lp-root .lp-nav :focus-visible {
+/* Ink is dark in the light theme: on charcoal the ring has to be light. */
+.lp-root [data-tone='dark'] :focus-visible {
   outline-color: var(--lp-sand);
 }
 @media (hover: hover) {
@@ -589,6 +587,11 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid transparent;
   transition: border-color 150ms ease-out;
+}
+/* The nav follows the theme, so its ring is not the band-tone rule's: light
+   on the dark bar here, ink on paper in the light rules below. */
+.lp-root .lp-nav :focus-visible {
+  outline-color: var(--lp-sand);
 }
 .lp-nav[data-scrolled='true'] {
   border-bottom-color: rgba(235, 228, 216, 0.12);

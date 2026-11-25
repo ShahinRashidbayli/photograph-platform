@@ -12,9 +12,9 @@ import type { CSSProperties } from 'react';
  * does the same for the *button* — its icon, behaviour, sizing and hover. Every
  * surface that offers one (auth, dashboard, landing, legal pages) renders
  * `<ThemeToggle />` instead of its own markup, so changing the glyph or
- * interaction here changes it everywhere. A click sets the explicit opposite of what is on screen, also
- * while the theme follows the system; only the dashboard's Appearance menu goes
- * back to following it.
+ * interaction here changes it everywhere. A click sets the explicit opposite of
+ * what is on screen, also while the theme follows the system; only the
+ * dashboard's Appearance menu goes back to following it.
  *
  * The only thing that legitimately differs by context is the shell shape, so
  * that is the one prop:

@@ -1,16 +1,25 @@
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { renderWithProviders } from '@/test-utils/render';
 import { LegalPageShell } from './LegalPageShell';
 import { AGB } from '@/lib/legal-content';
+import { useThemeStore } from '@/store/themeStore';
 
 describe('LegalPageShell', () => {
-  // Like the landing page, the legal pages follow the system or the choice
-  // made in the app; the toggle lives on the auth pages and in the dashboard.
+  const asTheme = (theme: 'light' | 'dark') =>
+    act(() => useThemeStore.setState({ preference: theme, theme }));
+  afterEach(() => asTheme('light'));
+
+  // Like the landing nav, the legal pages' header offers the theme toggle,
+  // named after what a click switches to.
   it.each([
-    ['en', /dark theme|light theme/i],
-    ['de', /dunklen Design|hellen Design/i],
-  ] as const)('offers no theme toggle (%s)', (lang, name) => {
+    ['en', 'light', 'Switch to dark theme'],
+    ['en', 'dark', 'Switch to light theme'],
+    ['de', 'light', 'Zum dunklen Design wechseln'],
+    ['de', 'dark', 'Zum hellen Design wechseln'],
+  ] as const)('offers the theme toggle in the header (%s, %s)', (lang, theme, name) => {
+    asTheme(theme);
     renderWithProviders(<LegalPageShell doc={AGB} />, { lang });
-    expect(screen.queryByRole('button', { name })).toBeNull();
+    const header = screen.getByRole('navigation');
+    expect(header).toContainElement(screen.getByRole('button', { name }));
   });
 });

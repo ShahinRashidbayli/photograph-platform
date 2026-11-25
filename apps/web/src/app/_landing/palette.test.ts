@@ -162,7 +162,10 @@ function pairs(theme: Theme, css: string = CSS): Pair[] {
       floor: LARGE_TEXT,
     },
     // The nav ground is translucent: check it over the darkest and lightest
-    // thing that can scroll under it.
+    // thing that can scroll under it. `.lp-nav` and `.lp-accent-word` do not
+    // read `--lp-nav-ground` / `--lp-accent-word` yet (a later #85 ticket
+    // wires them), so the light rows on those tokens pin the values the
+    // light hero will ship, not what renders today.
     ...[BLACK, WHITE].flatMap((under) =>
       theme === 'light'
         ? [

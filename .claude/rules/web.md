@@ -58,12 +58,13 @@ paths:
   `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
   the theme. Every band (nav, each section, footer) declares its **band tone** —
   `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark in both) — and the
-  dark-in-both rules (ground, focus ring) key off that, never a class. The nav, the hero
-  (the daylight `field` photograph under a paper wash and ink type in light mode — a
-  280 px unwashed photograph band on phones — the night `sparks` under charcoal in
-  dark), the photo grid and every section up to pricing and the FAQ follow the theme
-  (in light mode a theme band's `--lp-dark*` resolve to the paper set); the closing
-  band (the footer) and the auth brand panel are dark in both themes.
+  dark-in-both rules (ground, focus ring) key off that, never a class. The hero (the
+  daylight `field` photograph under a paper wash and ink type in light mode — a 280 px
+  unwashed photograph band on phones — the night `sparks` under charcoal in dark), the
+  photo grid and every section up to pricing and the FAQ follow the theme (in light mode
+  a theme band's `--lp-dark*` resolve to the paper set); the nav, the closing band (the
+  footer) and the auth brand panel are dark in both themes. The landing nav has no theme
+  toggle: the theme follows the system, or the choice made in the app.
   Tones are pinned in `landing.claims.test.tsx`. Its own faces (`_landing/fonts.ts`,
   route-scoped). Plan rows come from `PLAN_TIERS`; claims are
   pinned there too — never picture a feature the product lacks (no favourites, sharing

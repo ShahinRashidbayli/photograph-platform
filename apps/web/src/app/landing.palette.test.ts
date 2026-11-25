@@ -145,6 +145,17 @@ describe.each([
   // The light nav is paper at 90% over whatever scrolls under it; the darkest
   // thing that can is the closing band.
   if (theme === 'light') {
+    // The hero's paper wash is at least 0.8 wherever the words sit, so they
+    // hold over the darkest a photograph can be, not just over the field.
+    it.each([
+      ['text', TEXT],
+      ['muted', TEXT],
+      ['gold-paper', LARGE],
+    ] as const)('keeps %s readable over the hero wash at its thinnest', (fg, floor) => {
+      const wash = over({ ...parse(value(tokens, 'bg')), a: 0.8 }, parse('#000000'));
+      expect(contrast(parse(value(tokens, fg)), wash)).toBeGreaterThanOrEqual(floor);
+    });
+
     it('keeps the nav’s ink readable over the closing band', () => {
       const bar = over({ ...parse(value(tokens, 'bg')), a: 0.9 }, parse(value(tokens, 'charcoal')));
       expect(contrast(parse(value(tokens, 'text')), bar)).toBeGreaterThanOrEqual(TEXT);

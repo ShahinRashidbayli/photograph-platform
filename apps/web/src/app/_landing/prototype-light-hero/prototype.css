@@ -1,0 +1,175 @@
+/* PROTOTYPE ONLY — light first-screen variants for wayfinder ticket #80.
+   Throwaway branch `prototype/landing-light-hero`; never merged. */
+
+/* Light nav: paper bar, ink controls. */
+.lp-root .lp-nav.proto-nav-light {
+  color: var(--lp-text);
+  background: color-mix(in oklab, var(--lp-bg) 90%, transparent);
+  border-bottom-color: var(--lp-line);
+}
+.lp-root .lp-nav.proto-nav-light .lp-navlink {
+  color: var(--lp-muted);
+}
+.lp-root .lp-nav.proto-nav-light .lp-menu-btn {
+  border-color: var(--lp-line);
+  color: var(--lp-text);
+}
+.lp-root .lp-nav.proto-nav-light .lp-menu,
+.lp-root .lp-nav.proto-nav-light .lp-menu a {
+  border-color: var(--lp-line);
+  color: var(--lp-text);
+}
+.lp-root .lp-nav.proto-nav-light :focus-visible {
+  outline-color: var(--lp-ink);
+}
+
+/* Shared light hero type. */
+.proto-light {
+  position: relative;
+  color: var(--lp-text);
+}
+.proto-hero {
+  position: relative;
+  display: flex;
+  gap: 56px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-block: 72px 104px;
+}
+.proto-copy {
+  flex: 1 1 520px;
+  min-width: 0;
+  max-width: 640px;
+}
+.lp-root .proto-light .lp-h1 {
+  color: var(--lp-text);
+  font-size: clamp(2.5rem, 4.1vw, 3.6rem);
+}
+/* 5.06:1 on --lp-bg, 4.68:1 on --lp-band. */
+.lp-root .proto-light .lp-accent-word {
+  color: #86652f;
+}
+.lp-root .proto-light .lp-lede {
+  color: var(--lp-muted);
+}
+.lp-root .proto-light .lp-hero-facts {
+  border-top-color: var(--lp-line);
+}
+.lp-root .proto-light .lp-hero-facts dd {
+  color: var(--lp-text);
+}
+.lp-root .proto-light .lp-hero-facts dt {
+  color: var(--lp-subtle);
+}
+.lp-root .proto-light .lp-site,
+.lp-root .proto-light .lp-art-card {
+  box-shadow: var(--lp-shadow-lg);
+}
+
+/* A — Paper: the photograph framed, the booking page in front of it. */
+.proto-a {
+  background: var(--lp-bg);
+}
+.proto-a-art {
+  position: relative;
+  flex: 1 1 480px;
+  min-width: 0;
+  max-width: 600px;
+  margin: 0 0 0 auto;
+  padding: 0 0 56px 104px;
+}
+.proto-a-photo {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--lp-shadow-lg);
+}
+.lp-root .proto-a .proto-a-site {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 66%;
+}
+
+/* B — Light wash: the photograph is the room, washed with paper where the
+   words are. */
+.proto-b {
+  overflow: hidden;
+  background: var(--lp-bg);
+  isolation: isolate;
+}
+.proto-b .lp-hero-photo {
+  object-position: 60% 50%;
+}
+.proto-b-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(
+      90deg,
+      var(--lp-bg) 0%,
+      var(--lp-bg) 32%,
+      rgba(250, 248, 245, 0.86) 48%,
+      rgba(250, 248, 245, 0.4) 74%,
+      rgba(250, 248, 245, 0.5) 100%
+    ),
+    linear-gradient(0deg, var(--lp-bg) 0%, rgba(250, 248, 245, 0) 24%);
+}
+
+/* C — Split: paper | photograph, the booking page across the seam. */
+.proto-c {
+  overflow: hidden;
+  background: var(--lp-bg);
+}
+.proto-c-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44%;
+}
+.lp-root .proto-c .proto-c-art {
+  flex: 0 1 460px;
+  max-width: 460px;
+}
+.lp-root .proto-c .lp-art-card {
+  right: auto;
+  left: -72px;
+  top: 96px;
+}
+
+@media (max-width: 860px) {
+  .proto-hero {
+    padding-block: 40px 64px;
+    gap: 40px;
+  }
+  .proto-a-art {
+    padding: 0;
+    max-width: none;
+  }
+  .proto-a-photo {
+    aspect-ratio: 4 / 3;
+  }
+  .lp-root .proto-a .proto-a-site {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: calc(100% - 24px);
+    margin: -64px auto 0;
+  }
+  .proto-b-scrim {
+    background: rgba(250, 248, 245, 0.88);
+  }
+  /* On a phone the photograph comes first. */
+  .proto-c-photo {
+    position: relative;
+    width: 100%;
+    height: 280px;
+  }
+  .lp-root .proto-c .proto-c-art {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}

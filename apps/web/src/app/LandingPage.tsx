@@ -1,6 +1,8 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useTranslation } from '@/lib/i18n';
+import { PrototypeHero, PrototypeNav } from './_landing/prototype-light-hero/LightHeroPrototype';
 import { Closing } from './_landing/Closing';
 import { Faq } from './_landing/Faq';
 import { FormatsBand } from './_landing/FormatsBand';
@@ -35,9 +37,14 @@ export default function LandingPage() {
       <a href="#main" className="lp-skip">
         {t('landing.aria.skip')}
       </a>
-      <Nav />
+      {/* PROTOTYPE (#80): `?variant=A|B|C` swaps the light first screen. */}
+      <Suspense fallback={<Nav />}>
+        <PrototypeNav />
+      </Suspense>
       <main id="main">
-        <Hero />
+        <Suspense fallback={<Hero />}>
+          <PrototypeHero />
+        </Suspense>
         <FormatsBand />
         <ProductTabs />
         <GalleryShowcase />

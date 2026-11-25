@@ -540,10 +540,9 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   outline: 2px solid var(--lp-ink);
   outline-offset: 3px;
 }
-/* Ink is dark in the light theme: on charcoal the ring has to be light. The
-   hero follows the theme but is charcoal in dark mode, so it is named here. */
-.lp-root [data-tone='dark'] :focus-visible,
-html[data-theme='dark'] .lp-root .lp-hero-band :focus-visible {
+/* Ink is dark in the light theme: on charcoal the ring has to be light. A
+   theme band needs no rule here — in dark mode its ink is already light. */
+.lp-root [data-tone='dark'] :focus-visible {
   outline-color: var(--lp-sand);
 }
 @media (hover: hover) {

@@ -73,7 +73,12 @@ export function ProductTabs() {
       : t('landing.product.budgetUpTo', { amount: format.eur(b.toCents) });
 
   return (
-    <section id="product" className="lp-section" aria-labelledby="lp-product-title">
+    <section
+      id="product"
+      className="lp-section"
+      data-tone="theme"
+      aria-labelledby="lp-product-title"
+    >
       <div className="lp-wrap">
         <div style={{ maxWidth: 720 }}>
           <h2 id="lp-product-title" className="lp-h2">

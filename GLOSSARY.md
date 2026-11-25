@@ -85,3 +85,16 @@ _Avoid_: Billing status
 **Billing**:
 A studio paying the platform for its plan. Never a Customer paying a studio.
 _Avoid_: Using it for invoices or payments between a studio and its Customers
+
+## Marketing pages
+
+**Band**:
+One full-width stripe of the landing page: the nav, a section, or the footer.
+_Avoid_: Block, strip, panel
+
+**Band tone**:
+Whether a Band changes with the visitor's theme. Each Band declares one of two
+values (`data-tone` in the markup):
+- **Follows the theme**: light in light mode, dark in dark mode (`theme`).
+- **Dark in both themes**: charcoal whatever the theme (`dark`).
+_Avoid_: Dark section, dark room (as a type of Band), inverted

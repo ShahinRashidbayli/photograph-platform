@@ -28,7 +28,12 @@ export function GalleryShowcase() {
   const { t, format } = useTranslation();
 
   return (
-    <section id="galleries" className="lp-section lp-band" aria-labelledby="lp-gallery-title">
+    <section
+      id="galleries"
+      className="lp-section lp-band"
+      data-tone="theme"
+      aria-labelledby="lp-gallery-title"
+    >
       <div className="lp-wrap">
         <div className="lp-head-row">
           <h2 id="lp-gallery-title" className="lp-h2" style={{ maxWidth: 640 }}>

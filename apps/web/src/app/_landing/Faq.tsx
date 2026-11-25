@@ -20,7 +20,7 @@ const QUESTIONS: { q: TranslationKey; a: TranslationKey }[] = [
 export function Faq() {
   const { t } = useTranslation();
   return (
-    <section id="faq" className="lp-section" aria-labelledby="lp-faq-title">
+    <section id="faq" className="lp-section" data-tone="theme" aria-labelledby="lp-faq-title">
       <div className="lp-wrap lp-faq">
         <h2 id="lp-faq-title" className="lp-h2">
           {t('landing.faq.title')}

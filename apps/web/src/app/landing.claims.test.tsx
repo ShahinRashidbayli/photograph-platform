@@ -275,7 +275,7 @@ describe('the nav', () => {
   } as const;
 
   const asTheme = (theme: 'light' | 'dark') =>
-    act(() => useThemeStore.setState({ preference: theme, theme }));
+    act(() => useThemeStore.setState({ preference: theme, systemTheme: 'light', theme }));
 
   afterEach(() => asTheme('light'));
 
@@ -309,7 +309,7 @@ describe('the nav', () => {
 
   it('saves the opposite as a choice while the theme follows the system', async () => {
     asLocale('en');
-    act(() => useThemeStore.setState({ preference: 'system', theme: 'dark' }));
+    act(() => useThemeStore.setState({ preference: 'system', systemTheme: 'dark', theme: 'dark' }));
     render(<LandingPage />);
     await userEvent.click(screen.getByRole('button', { name: NAMES.en.dark }));
     expect(useThemeStore.getState()).toMatchObject({ preference: 'light', theme: 'light' });

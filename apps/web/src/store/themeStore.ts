@@ -48,8 +48,6 @@ interface ThemeStore {
   setSystemTheme: (_system: Theme) => void;
 }
 
-const initialSystem = readSystemTheme();
-
 /**
  * Persisted as `{ state: { theme } }` with `theme` holding the explicit choice
  * only — the shape every stored value already has, so a value written before
@@ -58,13 +56,19 @@ const initialSystem = readSystemTheme();
  * `theme` at all. Never bump `version`: a `migrate` makes rehydrate rewrite
  * storage. The pre-paint script in `app/layout.tsx` and the dashboard loading
  * screen read this shape directly.
+ *
+ * <p>The initial state is what the server renders (light, no system). The
+ * system setting is read in `merge`, which runs on the client at creation and
+ * sets state without writing storage: components hydrate from the initial
+ * state, so resolving the system there made the client's first render differ
+ * from the server's and React threw a hydration error.
  */
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
-      theme: initialSystem,
+      theme: 'light',
       preference: 'system',
-      systemTheme: initialSystem,
+      systemTheme: 'light',
       setTheme: (theme) => set({ preference: theme, theme }),
       setPreference: (preference) =>
         set({ preference, theme: resolveTheme(preference, get().systemTheme) }),
@@ -86,7 +90,14 @@ export const useThemeStore = create<ThemeStore>()(
       // resolved one and leave `preference` at 'system', dropping the choice.
       merge: (persisted, current) => {
         const t = (persisted as { theme?: unknown } | undefined)?.theme;
-        return t === 'light' || t === 'dark' ? { ...current, preference: t, theme: t } : current;
+        const preference: ThemePreference = t === 'light' || t === 'dark' ? t : 'system';
+        const systemTheme = readSystemTheme();
+        return {
+          ...current,
+          preference,
+          systemTheme,
+          theme: resolveTheme(preference, systemTheme),
+        };
       },
     }
   )

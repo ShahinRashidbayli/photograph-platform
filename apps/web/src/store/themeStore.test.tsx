@@ -71,6 +71,16 @@ describe('without an explicit choice', () => {
     expect(useThemeStore.getState().preference).toBe('system');
   });
 
+  // Components hydrate from the initial state, so it must be what the server
+  // rendered; resolving the system there threw React's hydration error #418.
+  it('keeps the initial state the server render, and resolves the system after', () => {
+    mockSystem(true);
+    const { useThemeStore } = load();
+    expect(useThemeStore.getInitialState().theme).toBe('light');
+    expect(useThemeStore.getState().theme).toBe('dark');
+    expect(localStorage.getItem('theme-storage')).toBeNull();
+  });
+
   it('follows a light system', () => {
     mockSystem(false);
     const { useThemeStore } = load();

@@ -11,7 +11,7 @@ import com.photographplatform.api.auth.service.SessionRevocation;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.RateLimiter;
-import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import java.time.Clock;
 import java.time.Instant;
@@ -77,8 +77,7 @@ class PasswordResetServiceTest {
 
         service = new PasswordResetService(
             userRepository, tokenRepository, refreshTokenRepository, passwordEncoder,
-            emailService, rateLimiter, FIXED_CLOCK, auditService, sessionRevocation,
-            "https://app.fotolio.de");
+            emailService, rateLimiter, FIXED_CLOCK, auditService, sessionRevocation);
     }
 
     private static User photographer() {
@@ -109,7 +108,7 @@ class PasswordResetServiceTest {
         service.requestReset(EMAIL, "1.2.3.4");
 
         verify(tokenRepository).save(any(PasswordResetToken.class));
-        verify(emailService).send(any(EmailMessage.class));
+        verify(emailService).queue(any(OutgoingEmail.class));
         // Any earlier link must die the moment a fresh one is asked for.
         verify(tokenRepository).invalidateAllForUser(eq(USER_ID), any(OffsetDateTime.class));
     }
@@ -131,7 +130,7 @@ class PasswordResetServiceTest {
         service.requestReset(EMAIL, "1.2.3.4");
 
         verify(tokenRepository, never()).save(any());
-        verify(emailService, never()).send(any());
+        verify(emailService, never()).queue(any());
     }
 
     /** Silence is the contract: the caller answers 204 either way. */
@@ -144,7 +143,7 @@ class PasswordResetServiceTest {
             .doesNotThrowAnyException();
 
         verify(tokenRepository, never()).save(any());
-        verify(emailService, never()).send(any());
+        verify(emailService, never()).queue(any());
     }
 
     @Test

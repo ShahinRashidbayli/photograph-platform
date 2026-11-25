@@ -15,7 +15,8 @@ import com.photographplatform.api.common.security.RateLimiter;
 import java.time.Clock;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.util.TokenUtils;
-import com.photographplatform.api.notification.dto.EmailMessage;
+import com.photographplatform.api.auth.service.SignInCodeEmail;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -153,7 +154,7 @@ class CustomerLoginCodeServiceTest {
         service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
 
         // Passwordless login must never become a way around password auth.
-        verify(emailService, never()).send(any(EmailMessage.class));
+        verify(emailService, never()).queue(any());
         verify(tokenRepository, never()).save(any(LoginCode.class));
     }
 
@@ -307,9 +308,11 @@ class CustomerLoginCodeServiceTest {
 
     /** Reads the code out of the email that was actually sent. */
     private String sentCode() {
-        ArgumentCaptor<EmailMessage> mail = ArgumentCaptor.forClass(EmailMessage.class);
-        verify(emailService).send(mail.capture());
-        var matcher = Pattern.compile("(\\d{6})").matcher(mail.getValue().subject());
+        ArgumentCaptor<OutgoingEmail> queued = ArgumentCaptor.forClass(OutgoingEmail.class);
+        verify(emailService).queue(queued.capture());
+        String subject = new SignInCodeEmail()
+            .render((SignInCodeEmail.Params) queued.getValue().params()).subject();
+        var matcher = Pattern.compile("(\\d{6})").matcher(subject);
         assertThat(matcher.find()).as("the email subject should carry the code").isTrue();
         return matcher.group(1);
     }
@@ -366,7 +369,7 @@ class CustomerLoginCodeServiceTest {
             .isInstanceOf(TooManyRequestsException.class);
 
         verify(tokenRepository, never()).save(any(LoginCode.class));
-        verify(emailService, never()).send(any());
+        verify(emailService, never()).queue(any());
     }
 
     /** Below the ceiling nothing changes — a guard that refuses everyone is not one. */

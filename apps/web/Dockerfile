@@ -12,8 +12,10 @@ FROM node:20-alpine AS deps
 WORKDIR /repo
 
 # Manifests only, so the (slow) install layer is cached until a dependency
-# actually changes.
+# actually changes. patches/ belongs with them: `npm ci` applies it
+# (postinstall), and without it next's Google Fonts loader is unpatched.
 COPY package.json package-lock.json ./
+COPY patches ./patches
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 RUN npm ci

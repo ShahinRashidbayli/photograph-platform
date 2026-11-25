@@ -39,8 +39,6 @@ interface ThemeStore {
   theme: Theme;
   preference: ThemePreference;
   systemTheme: Theme;
-  /** An explicit choice. */
-  setTheme: (_theme: Theme) => void;
   setPreference: (_preference: ThemePreference) => void;
   /** Sets the explicit opposite of what is on screen, even while following the system. */
   toggleTheme: () => void;
@@ -69,7 +67,6 @@ export const useThemeStore = create<ThemeStore>()(
       theme: 'light',
       preference: 'system',
       systemTheme: 'light',
-      setTheme: (theme) => set({ preference: theme, theme }),
       setPreference: (preference) =>
         set({ preference, theme: resolveTheme(preference, get().systemTheme) }),
       toggleTheme: () => {
@@ -78,7 +75,8 @@ export const useThemeStore = create<ThemeStore>()(
       },
       setSystemTheme: (systemTheme) => {
         // Every `set` writes storage; skip the no-op so a visitor who never
-        // chose keeps an empty key.
+        // chose and whose system never changes keeps no key at all. A real
+        // change writes `{ state: {} }`, which still reads as "no choice".
         if (get().systemTheme === systemTheme) return;
         set({ systemTheme, theme: resolveTheme(get().preference, systemTheme) });
       },

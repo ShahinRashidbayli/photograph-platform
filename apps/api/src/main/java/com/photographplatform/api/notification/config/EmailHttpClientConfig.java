@@ -35,10 +35,9 @@ import org.springframework.web.client.RestClient;
  * the settings bean rather than by hand, so the connect and read timeouts from
  * {@code spring.http.client.*} still apply — only the retry strategy changes.
  *
- * <p>Delivery is best-effort by design ({@code EmailService} is {@code @Async}
- * and logs rather than throws). If that ever has to become a guarantee, the
- * answer is an outbox with its own retry schedule, not a sleeping thread — see
- * the follow-ups in docs/BUGS.md.
+ * <p>Retrying is the outbox's job (ADR-005): a failed send goes back to
+ * {@code outbox_jobs} with its own backoff schedule, rather than holding a
+ * worker thread asleep on a Retry-After.
  */
 @Configuration
 public class EmailHttpClientConfig {

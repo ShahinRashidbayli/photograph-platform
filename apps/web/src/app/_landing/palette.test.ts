@@ -109,7 +109,13 @@ const text = (what: string, fg: string, bg: string, under?: string): Pair => ({
   under,
   floor: TEXT,
 });
-const ring = (what: string, bg: string, fg: string): Pair => ({ what, fg, bg, floor: FOCUS_RING });
+const ring = (what: string, fg: string, bg: string, under?: string): Pair => ({
+  what,
+  fg,
+  bg,
+  under,
+  floor: FOCUS_RING,
+});
 
 const GROUNDS = ['lp-bg', 'lp-band', 'lp-surface'];
 const CHIPS = ['green', 'amber', 'blue', 'grey'];
@@ -130,9 +136,17 @@ const PAIRS: Pair[] = [
   ),
   ...CHIPS.map((chip) => text(`${chip} status chip`, `pv-${chip}`, `pv-${chip}-bg`, 'pv-panel')),
   text('solid chip', 'pv-on-text', 'pv-text'),
-  ...GROUNDS.map((bg) => ring(`focus ring on ${bg}`, bg, 'lp-ink')),
-  ring('focus ring on charcoal (nav, hero, dark band)', 'lp-charcoal', 'lp-sand'),
-  ring('focus ring on the dark band', 'lp-dark', 'lp-sand'),
+  /* The nav ground is translucent: measure it over the light grounds that
+     scroll beneath it. */
+  ...['lp-bg', 'lp-band'].flatMap((under) => [
+    ...['lp-text', 'lp-muted'].map((fg) =>
+      text(`nav ${fg} on the nav ground over ${under}`, fg, 'lp-nav-ground', under)
+    ),
+    ring(`focus ring on the nav ground over ${under}`, 'lp-ink', 'lp-nav-ground', under),
+  ]),
+  ...GROUNDS.map((bg) => ring(`focus ring on ${bg}`, 'lp-ink', bg)),
+  ring('focus ring on charcoal (nav, hero)', 'lp-sand', 'lp-charcoal'),
+  ring('focus ring on the dark band', 'lp-sand', 'lp-dark'),
 ];
 
 describe.each(Object.entries(THEMES))('landing palette, %s theme', (_theme, tokens) => {

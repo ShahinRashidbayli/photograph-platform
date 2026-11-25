@@ -308,6 +308,12 @@ app:
     max-per-run: ${RETENTION_MAX_PER_RUN:200}
     cron: ${RETENTION_CRON:0 0 3 * * *}
     reminder-days-before: 15,5,1
+  # The durable outbox for email (ADR-005). Every replica polls; FOR UPDATE
+  # SKIP LOCKED keeps them off each other's rows.
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    email-poll-ms: ${OUTBOX_EMAIL_POLL_MS:1000}
+    purge-cron: ${OUTBOX_PURGE_CRON:0 30 3 * * *}
   stripe:
     # Blank (not a placeholder like r2.endpoint above) is deliberate here:
     # StripeConfig's @ConditionalOnProperty requires a non-empty value, so the

@@ -216,7 +216,9 @@ security holes.
   image — `API_BASE_URL` as a **build arg** (it is baked into
   `routes-manifest.json`; setting it at runtime does nothing). A first deploy
   with any of these missing fails in a way that only shows up in production.
-- **FU-10 (before go-live): an outbox for email.** Delivery is best-effort by
+- **FU-10 (before go-live): an outbox for email — FIXED, #58 (ADR-005).**
+  Email is queued in `outbox_jobs` in the caller's transaction and retried with
+  backoff; what follows is the original note. Delivery is best-effort by
   construction — `EmailService` is `@Async` and logs rather than throws — so a
   provider outage loses messages silently. `EmailType` now grades them by what
   losing one costs: sign-in codes, verification and invitations are recoverable
@@ -228,15 +230,16 @@ security holes.
   retry schedule is the durable answer. No invoice or payment email exists yet —
   invoices are downloaded as PDFs, not mailed — so nothing here is currently a
   GoBD retention concern, but that changes the day one is added.
-- **FU-11: `@Async` back-pressure — decide on `CallerRunsPolicy`.** The pool
+- **FU-11: `@Async` back-pressure — decide on `CallerRunsPolicy` — DECIDED,
+  ADR-005: it stays, for audit only; email left the pool.** The pool
   (core 8 / max 24 / queue 500) runs rejected work on the calling thread, so a
   saturated queue pushes background work onto request threads. BUG-006 removed
   the sleep that made that reachable, but the policy is still the reason a slow
   downstream anything becomes user-facing latency. It applies to audit writes
   and notifications too, not just email, so this is a deliberate decision to
   take rather than a line to change.
-- **FU-12: two domain events do not carry the tenant — and it stays a
-  follow-up, not a bug.** (The earlier note said three; the audit found two.
+- **FU-12: two domain events do not carry the tenant — FIXED, #58.** Both
+  now carry `tenantId`, because the queued email job needs it. Original note: (The earlier note said three; the audit found two.
   `ContractSignedEvent` does carry `tenantId`.) `LeadCreatedEvent` and
   `InquiryCreatedEvent` hold the photographer's email and subdomain but no
   `tenantId`. Classified against the rule "is anything filtered or displayed by
@@ -261,6 +264,15 @@ security holes.
   pass.
 
 ---
+- **FU-14: audit rows belong in the business transaction.** `AuditLogWriter`
+  is `@Async` with `AFTER_COMMIT`, so a crash right after commit loses the
+  row. Audit is a record, not a side effect: write it synchronously in the
+  same transaction (`BEFORE_COMMIT`). Deliberately not put in the outbox
+  (ADR-005).
+- **FU-15: image derivatives through the outbox.** `DeliveryPhotoProcessor`
+  and `ThumbnailService` still run on the in-memory `imageTaskExecutor`. They
+  move to `outbox_jobs` under their own queue with a low-parallelism worker
+  (ADR-005, Consequences).
 
 ## Fixed before Phase 1 (committed)
 

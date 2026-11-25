@@ -2,10 +2,12 @@ package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.HtmlEscape;
-import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
+import com.photographplatform.api.notification.email.EmailRenderer;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Row;
+import com.photographplatform.api.notification.email.RenderedEmail;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.time.format.DateTimeFormatter;
@@ -28,7 +30,17 @@ import org.springframework.stereotype.Service;
  * wedding photos being deleted.
  */
 @Service
-public class GalleryExpiryNotificationService {
+public class GalleryExpiryNotificationService
+    implements EmailRenderer<GalleryExpiryNotificationService.Params> {
+
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public record Params(
+        String clientName,
+        String photographerName,
+        String subdomain,
+        String accessToken,
+        OffsetDateTime expiresAt,
+        int daysLeft) {}
 
     private static final DateTimeFormatter GERMAN_DATE =
         DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.GERMANY);
@@ -59,9 +71,41 @@ public class GalleryExpiryNotificationService {
         String accessToken,
         OffsetDateTime expiresAt,
         int daysLeft) {
+        // No idempotency key: the reminder row GalleryRetentionService writes
+        // in the same transaction is what stops a second warning. Expires with
+        // the gallery — a warning that arrives after the photos are gone is
+        // only distressing.
+        emailService.queue(new OutgoingEmail(
+            template(),
+            clientEmail,
+            tenantId,
+            new Params(clientName, photographerName, subdomain, accessToken, expiresAt, daysLeft),
+            null,
+            expiresAt));
+    }
 
-        String galleryUrl = webBaseUrl + "/g/" + subdomain + "/" + accessToken;
-        String expiryDate = expiresAt.atZoneSameInstant(BusinessZone.ID).format(GERMAN_DATE);
+    @Override
+    public String template() {
+        return "gallery.expiry-warning";
+    }
+
+    @Override
+    public EmailType type() {
+        return EmailType.GALLERY_EXPIRY;
+    }
+
+    @Override
+    public Class<Params> paramsType() {
+        return Params.class;
+    }
+
+    @Override
+    public RenderedEmail render(Params params) {
+        String clientName = params.clientName();
+        String photographerName = params.photographerName();
+        int daysLeft = params.daysLeft();
+        String galleryUrl = webBaseUrl + "/g/" + params.subdomain() + "/" + params.accessToken();
+        String expiryDate = params.expiresAt().atZoneSameInstant(BusinessZone.ID).format(GERMAN_DATE);
 
         String body = EmailTemplate.heading(headline(daysLeft))
             + EmailTemplate.paragraph("Hallo " + esc(clientName) + ",")
@@ -81,12 +125,8 @@ public class GalleryExpiryNotificationService {
                 "Du brauchst mehr Zeit? Wende dich an " + esc(photographerName)
                     + " — die Galerie kann verlängert werden.");
 
-        emailService.send(new EmailMessage(
-            clientEmail,
-            subject(daysLeft, expiryDate),
-            EmailTemplate.document(preheader(daysLeft), body),
-            EmailType.GALLERY_EXPIRY,
-            tenantId));
+        return new RenderedEmail(
+            subject(daysLeft, expiryDate), EmailTemplate.document(preheader(daysLeft), body));
     }
 
     private String headline(int daysLeft) {

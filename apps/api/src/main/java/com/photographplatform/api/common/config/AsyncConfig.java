@@ -34,8 +34,8 @@ public class AsyncConfig implements AsyncConfigurer {
 
     /**
      * Sized for I/O-bound work, because that is what actually runs here:
-     * outbound provider HTTP (email), R2 round-trips (thumbnails) and audit
-     * inserts. Threads spend their time waiting on sockets, not on CPU.
+     * R2 round-trips (thumbnails) and audit inserts. Email left this pool for
+     * the durable outbox (ADR-005). Threads spend their time waiting on sockets, not on CPU.
      *
      * <p>The previous {@code core=2 / queue=100 / max=8} never used more than
      * two threads. {@link java.util.concurrent.ThreadPoolExecutor} only grows
@@ -69,8 +69,8 @@ public class AsyncConfig implements AsyncConfigurer {
         // under extreme load instead of losing the work, and the resulting
         // back-pressure is self-limiting.
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        // Let queued audit rows and emails finish on shutdown rather than
-        // vanishing mid-deploy.
+        // Let queued audit rows finish on shutdown rather than vanishing
+        // mid-deploy.
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(20);
         executor.initialize();

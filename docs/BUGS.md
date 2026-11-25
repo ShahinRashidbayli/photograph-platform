@@ -262,8 +262,6 @@ security holes.
   eventTime` with no zone; timestamps are `OffsetDateTime`. No concrete DST bug
   found yet; a booking near a DST boundary is the scenario to probe in a later
   pass.
-
----
 - **FU-14: audit rows belong in the business transaction.** `AuditLogWriter`
   is `@Async` with `AFTER_COMMIT`, so a crash right after commit loses the
   row. Audit is a record, not a side effect: write it synchronously in the
@@ -273,6 +271,8 @@ security holes.
   and `ThumbnailService` still run on the in-memory `imageTaskExecutor`. They
   move to `outbox_jobs` under their own queue with a low-parallelism worker
   (ADR-005, Consequences).
+
+---
 
 ## Fixed before Phase 1 (committed)
 

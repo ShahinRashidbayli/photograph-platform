@@ -276,9 +276,9 @@ textarea::placeholder {
  *
  * The product previews (`.lp-ui`, `.lp-gallery`) take their colours from
  * `--pv-*`, which follow the theme. They used to be fixed light, which in dark
- * mode put glaring white slabs on a near-black page. The hero is the
- * exception: it is a dark room in both themes, so what sits in it keeps the
- * light set (re-declared on `.lp-hero-band`).
+ * mode put glaring white slabs on a near-black page. The hero's booking page
+ * is the exception: it is the product picture, the same in both themes, so it
+ * keeps the light set (re-declared on `.lp-hero-band`).
  *
  * Band tone (GLOSSARY.md): every band — the nav, each section and the footer —
  * declares `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark
@@ -299,7 +299,7 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — nav, hero, footer, and the photo grid in dark mode.
+  /* The dark room — nav, footer, and the hero and photo grid in dark mode.
      Fixed in both themes: it is a photograph's dark room, not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
@@ -540,8 +540,10 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   outline: 2px solid var(--lp-ink);
   outline-offset: 3px;
 }
-/* Ink is dark in the light theme: on charcoal the ring has to be light. */
-.lp-root [data-tone='dark'] :focus-visible {
+/* Ink is dark in the light theme: on charcoal the ring has to be light. The
+   hero follows the theme but is charcoal in dark mode, so it is named here. */
+.lp-root [data-tone='dark'] :focus-visible,
+html[data-theme='dark'] .lp-root .lp-hero-band :focus-visible {
   outline-color: var(--lp-sand);
 }
 @media (hover: hover) {
@@ -640,13 +642,20 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   display: none;
 }
 
-/* Hero: a dark room with one photograph in it. */
+/* Hero: a room with one photograph in it. These are the dark mode's rules —
+   charcoal, the night photograph, light type; light mode overrides them
+   below, under "The light hero". */
 .lp-hero-band {
   position: relative;
   overflow: hidden;
   background: var(--lp-charcoal);
   color: var(--lp-sand);
   isolation: isolate;
+}
+.lp-hero-photo-frame {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
 }
 .lp-hero-photo {
   object-fit: cover;
@@ -698,7 +707,7 @@ html[data-theme='dark'] .lp-hero-band + .lp-formats {
   font-weight: 500;
   font-size: 1.14em;
   letter-spacing: -0.01em;
-  color: var(--lp-gold);
+  color: var(--lp-accent-word);
 }
 .lp-hero .lp-lede {
   color: var(--lp-sand-muted);
@@ -736,6 +745,64 @@ html[data-theme='dark'] .lp-hero-band + .lp-formats {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 40px;
+}
+
+/* The light hero (#80): the daylight photograph under a paper wash, ink type.
+   The wash is at least 0.8 paper everywhere the words sit (up to 48%), so ink
+   keeps 4.5:1 over any photograph; the photograph shows mostly at the far
+   right. The booking-page preview keeps its light set, as in dark mode. */
+html:not([data-theme='dark']) .lp-hero-band {
+  background: var(--lp-bg);
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-hero-photo {
+  object-position: 60% 50%;
+}
+html:not([data-theme='dark']) .lp-hero-scrim {
+  background:
+    linear-gradient(
+      90deg,
+      var(--lp-bg) 0%,
+      var(--lp-bg) 32%,
+      rgba(250, 248, 245, 0.86) 48%,
+      rgba(250, 248, 245, 0.4) 74%,
+      rgba(250, 248, 245, 0.5) 100%
+    ),
+    linear-gradient(0deg, var(--lp-bg) 0%, rgba(250, 248, 245, 0) 24%);
+}
+html:not([data-theme='dark']) .lp-hero .lp-h1,
+html:not([data-theme='dark']) .lp-hero-facts dd {
+  color: var(--lp-text);
+}
+html:not([data-theme='dark']) .lp-hero .lp-lede {
+  color: var(--lp-muted);
+}
+html:not([data-theme='dark']) .lp-hero-facts {
+  border-top-color: var(--lp-line);
+}
+html:not([data-theme='dark']) .lp-hero-facts dt {
+  color: var(--lp-subtle);
+}
+/* On paper the primary is the ink pill and the second ask a line button,
+   as everywhere else on the page. */
+html:not([data-theme='dark']) .lp-root .lp-hero .lp-btn-inverse {
+  background: var(--lp-ink);
+  color: var(--lp-on-ink);
+}
+html:not([data-theme='dark']) .lp-root .lp-hero .lp-btn-ghost-dark {
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-text);
+}
+@media (hover: hover) {
+  html:not([data-theme='dark']) .lp-root .lp-hero .lp-btn-inverse:hover {
+    background: var(--lp-ink-hover);
+  }
+  html:not([data-theme='dark']) .lp-root .lp-hero .lp-btn-ghost-dark:hover {
+    background: var(--lp-surface);
+    border-color: var(--lp-subtle);
+    color: var(--lp-text);
+  }
 }
 
 /* The studio's booking page, and the card with what came of one request. */
@@ -1692,6 +1759,15 @@ html[data-theme='dark'] .lp-hero-band + .lp-formats {
      it: an even scrim keeps them on charcoal. */
   .lp-hero-scrim {
     background: rgba(28, 26, 23, 0.86);
+  }
+  /* In light mode a phone gets no wash: the daylight photograph is a band of
+     its own above the headline, and the words sit on plain paper (#80). */
+  html:not([data-theme='dark']) .lp-hero-photo-frame {
+    position: relative;
+    height: 280px;
+  }
+  html:not([data-theme='dark']) .lp-hero-scrim {
+    display: none;
   }
   /* On a phone the booking page alone carries the picture. */
   .lp-art-card {

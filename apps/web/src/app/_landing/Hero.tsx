@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import { useThemeStore } from '@/store/themeStore';
 import { SAMPLE } from './mock';
 import { STOCK, STOCK_THUMB } from './stock';
 import { FACTS } from './FormatsBand';
@@ -32,6 +33,10 @@ const STEP_GAP_MS = 450;
  */
 export function Hero() {
   const { t, format } = useTranslation();
+  const { theme } = useThemeStore();
+  // Each theme gets a photograph in its own light (#80): the night sparks
+  // under charcoal, a daylight field under the paper wash.
+  const photo = theme === 'dark' ? STOCK.sparks : STOCK.field;
 
   const cardSteps = [
     { label: t('landing.hero.stepEnquiry'), value: t('landing.flow.enquiryData') },
@@ -55,10 +60,15 @@ export function Hero() {
   ];
 
   return (
-    <section className="lp-hero-band" data-tone="dark" aria-labelledby="lp-hero-title">
+    <section className="lp-hero-band" data-tone="theme" aria-labelledby="lp-hero-title">
       {/* The photograph is the room's light; the scrim keeps the words on
-          solid charcoal and lets the sparks show to the right. */}
-      <Image src={STOCK.sparks.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
+          solid ground — charcoal in dark, a paper wash in light — and lets
+          the photograph show to the right. */}
+      {/* The frame is the whole band behind the words, except on a phone in
+          light mode, where it becomes an unwashed band above them. */}
+      <div className="lp-hero-photo-frame">
+        <Image src={photo.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
+      </div>
       <div className="lp-hero-scrim" aria-hidden="true" />
       <div className="lp-wrap lp-hero">
         <div className="lp-hero-copy">

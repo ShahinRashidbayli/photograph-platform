@@ -1,6 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LandingPage from './LandingPage';
+import { STOCK } from './_landing/stock';
 import { PLAN_TIERS } from '@/lib/plans';
 import { useLangStore } from '@/store/langStore';
 import { useThemeStore, type Theme } from '@/store/themeStore';
@@ -262,6 +263,27 @@ describe('the hero', () => {
     expect(hero.textContent).not.toMatch(/€/);
   });
 
+  // Each theme gets a photograph in its own light (#80): a daylight field
+  // under the paper wash, the night sparks under charcoal.
+  it.each([
+    ['light', STOCK.field.src, STOCK.sparks.src],
+    ['dark', STOCK.sparks.src, STOCK.field.src],
+  ] as const)('opens on the %s theme’s own photograph', (theme, shown, notShown) => {
+    asLocale('de');
+    asTheme(theme);
+    render(<LandingPage />);
+    const hero = screen.getByRole('region', { name: /Handwerk/ });
+    // next/image routes the file through its loader: `/_next/image?url=…`.
+    const files = within(hero)
+      .getAllByRole('presentation')
+      .map((img) => {
+        const src = img.getAttribute('src') ?? '';
+        return new URL(src, 'http://localhost').searchParams.get('url') ?? src;
+      });
+    expect(files[0]).toBe(shown);
+    expect(files).not.toContain(notShown);
+  });
+
   it('pictures the client’s booking page in the page language', () => {
     asLocale('de');
     const { container } = render(<LandingPage />);
@@ -316,12 +338,18 @@ describe('band tone', () => {
       }
     });
 
-    it('keeps only the nav, the hero and the closing band dark in both themes', () => {
+    it('lets the hero follow the theme', () => {
+      // A charcoal hero in both themes made the whole first screen look the
+      // same in light and dark.
+      render(<LandingPage />);
+      expect(toneOf(screen.getByRole('region', { name: /Handwerk/ }))).toBe('theme');
+    });
+
+    it('keeps only the nav and the closing band dark in both themes', () => {
       const { container } = render(<LandingPage />);
-      const hero = screen.getByRole('region', { name: /Handwerk/ });
-      // The nav and the hero still draw charcoal in both themes, so they say
-      // so; below the hero, only the closing band (the footer) stays dark.
-      const darkInBoth = [screen.getByRole('banner'), hero, screen.getByRole('contentinfo')];
+      // The nav still draws charcoal in both themes, so it says so; below the
+      // hero, only the closing band (the footer) stays dark.
+      const darkInBoth = [screen.getByRole('banner'), screen.getByRole('contentinfo')];
       expect([...container.querySelectorAll('[data-tone="dark"]')]).toEqual(darkInBoth);
     });
 

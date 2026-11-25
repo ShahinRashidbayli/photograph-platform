@@ -299,13 +299,16 @@ class OutboxIT extends IntegrationTestBase {
         outbox.enqueue(new OutboxEntry(QUEUE, "probe", tenantA,
             "{\"clientEmail\":\"maria@example.test\"}", "owner@studio.test", 5, null, null));
         outbox.enqueue(entry(tenantA, "someone-else@example.test", null));
+        outbox.enqueue(new OutboxEntry(QUEUE, "probe", tenantA,
+            "{\"clientEmail\":\"anna.maria@example.test\"}", "owner@studio.test", 5, null, null));
         outbox.enqueue(entry(tenantB, "maria@example.test", null));
 
         Integer deleted = new TransactionTemplate(txManager).execute(status ->
             eraser.erase(new ErasureSubject(tenantA, "maria@example.test")).get(0).deleted());
 
         assertThat(deleted).isEqualTo(2);
-        assertThat(count("tenant_id = '" + tenantA + "'")).isEqualTo(1);
+        assertThat(count("tenant_id = '" + tenantA + "'"))
+            .as("an address that merely contains hers is someone else's").isEqualTo(2);
         assertThat(count("tenant_id = '" + tenantB + "'")).as("another studio's job is not this erasure's")
             .isEqualTo(1);
     }

@@ -188,7 +188,10 @@ public class Outbox {
     /**
      * Removes the studio's queued and dead jobs that are addressed to, or
      * mention, the address. "Mention" covers the alert to the photographer
-     * that carries a new lead's name and address in its payload.
+     * that carries a new lead's name and address in its payload. The payload
+     * match is on the whole JSON string value, quotes included: a bare
+     * substring match would also erase, and so never send, the jobs about
+     * {@code joann@…} when {@code ann@…} asks.
      *
      * @param normalizedEmail trimmed and lower-cased
      */
@@ -196,7 +199,7 @@ public class Outbox {
         Integer rows = callersOnly.execute(status -> jdbc.update("""
             DELETE FROM outbox_jobs
              WHERE tenant_id = ?
-               AND (lower(recipient_email) = ? OR strpos(lower(payload::text), ?) > 0)
+               AND (lower(recipient_email) = ? OR strpos(lower(payload::text), '"' || ? || '"') > 0)
             """,
             tenantId, normalizedEmail, normalizedEmail));
         return rows == null ? 0 : rows;

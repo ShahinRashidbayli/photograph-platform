@@ -45,7 +45,7 @@ export function Nav() {
   }, [menuOpen]);
 
   return (
-    <header className="lp-nav" data-scrolled={scrolled}>
+    <header className="lp-nav" data-tone="dark" data-scrolled={scrolled}>
       <div className="lp-wrap lp-nav-inner">
         <Link href="/" aria-label={t('landing.aria.home')} style={{ display: 'inline-flex' }}>
           <FotolioLogo theme="dark" variant="brand" showText />

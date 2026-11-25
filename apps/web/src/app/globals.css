@@ -280,6 +280,10 @@ textarea::placeholder {
  * exception: it is a dark room in both themes, so what sits in it keeps the
  * light set (re-declared on `.lp-hero-band`).
  *
+ * Band tone (GLOSSARY.md): every band — the nav, each section and the footer —
+ * declares `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark
+ * in both themes), and the dark-in-both rules key off that, not off a class.
+ *
  * Deliberately absent, and worth keeping absent: scroll-triggered reveals
  * (they hid the page from no-JS visitors twice), gradient text, glow shadows,
  * labels over headings, and cards inside cards. */
@@ -295,8 +299,8 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — hero, formats band, footer. Fixed in both themes: it is
-     a photograph's dark room, not a surface. */
+  /* The dark room — nav, hero, footer, and the photo grid in dark mode.
+     Fixed in both themes: it is a photograph's dark room, not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
   --lp-sand-muted: #bdb5a8;
@@ -410,9 +414,20 @@ html[data-theme='dark'] .lp-root {
 .lp-band {
   background: var(--lp-band);
 }
-.lp-dark {
+/* Dark in both themes. Kept at one attribute's specificity so the nav and the
+   hero, which draw their own charcoal ground, still win by order. */
+[data-tone='dark'] {
   background: var(--lp-dark);
   color: var(--lp-dark-text);
+}
+/* A band that follows the theme has no dark room in light mode: whatever it
+   draws with the dark set lands on the paper set instead. Dark mode keeps the
+   charcoal values from `.lp-root`. */
+html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
+  --lp-dark: var(--lp-band);
+  --lp-dark-text: var(--lp-text);
+  --lp-dark-muted: var(--lp-muted);
+  --lp-dark-line: var(--lp-line);
 }
 .lp-mono {
   font-family: var(--font-lp-mono), ui-monospace, monospace;
@@ -447,7 +462,7 @@ html[data-theme='dark'] .lp-root {
   max-width: 34rem;
   text-wrap: pretty;
 }
-.lp-dark .lp-lede {
+[data-tone='dark'] .lp-lede {
   color: var(--lp-dark-muted);
 }
 .lp-head-row {
@@ -515,9 +530,7 @@ html[data-theme='dark'] .lp-root {
   outline-offset: 3px;
 }
 /* Ink is dark in the light theme: on charcoal the ring has to be light. */
-.lp-root .lp-nav :focus-visible,
-.lp-root .lp-hero-band :focus-visible,
-.lp-root .lp-dark :focus-visible {
+.lp-root [data-tone='dark'] :focus-visible {
   outline-color: var(--lp-sand);
 }
 @media (hover: hover) {
@@ -541,8 +554,7 @@ html[data-theme='dark'] .lp-root {
   .lp-footer a:hover {
     color: var(--lp-text);
   }
-  .lp-dark .lp-footer a:hover,
-  .lp-footer.lp-dark a:hover {
+  .lp-footer[data-tone='dark'] a:hover {
     color: var(--lp-dark-text);
   }
 }
@@ -663,8 +675,9 @@ html[data-theme='dark'] .lp-root {
   color: #f6f1e9;
   font-size: clamp(2.5rem, 4.1vw, 3.6rem);
 }
-/* The band under the hero continues the same dark room; a hairline marks it. */
-.lp-hero-band + .lp-dark {
+/* In dark mode the photo grid continues the hero's dark room; a hairline
+   marks it. In light mode it is a light band and needs none. */
+html[data-theme='dark'] .lp-hero-band + .lp-formats {
   border-top: 1px solid rgba(235, 228, 216, 0.1);
 }
 /* One word set apart, in the display face: the craft. */
@@ -955,7 +968,12 @@ html[data-theme='dark'] .lp-root {
   white-space: nowrap;
 }
 
-/* Formats: one photograph per kind of shoot */
+/* Formats: one photograph per kind of shoot. Drawn with the dark set, which
+   a band that follows the theme maps onto the paper set in light mode. */
+.lp-formats {
+  background: var(--lp-dark);
+  color: var(--lp-dark-text);
+}
 .lp-formats-grid {
   list-style: none;
   margin: 56px 0 0;

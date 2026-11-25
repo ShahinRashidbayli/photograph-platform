@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import LandingPage from './LandingPage';
 import { PLAN_TIERS } from '@/lib/plans';
 import { useLangStore } from '@/store/langStore';
+import { useThemeStore, type Theme } from '@/store/themeStore';
 
 /**
  * What the landing page claims and how its controls behave, pinned.
@@ -39,8 +40,15 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 const asLocale = (lang: 'en' | 'de') => act(() => useLangStore.setState({ lang }));
+/** What `ThemeSync` does on a real page: the resolved theme in the store and on `<html>`. */
+const asTheme = (theme: Theme) =>
+  act(() => {
+    useThemeStore.setState({ preference: theme, theme });
+    document.documentElement.dataset.theme = theme;
+  });
 afterEach(() => {
   asLocale('de');
+  asTheme('light');
 });
 
 const SOON = /^(soon|coming soon|bald|demnächst)$/i;
@@ -278,4 +286,56 @@ describe('the nav', () => {
       expect(screen.queryByRole('button', { name: TOGGLE })).toBeNull();
     }
   );
+});
+
+describe('band tone', () => {
+  // Each band declares whether it follows the theme or is dark in both, and
+  // the stylesheet keys off that. jsdom applies no stylesheet, so the
+  // declaration is what can be pinned here; the colours it leads to are not.
+  // A section that should change with the theme but was left dark made light
+  // mode look like dark mode — 35% of the page never changed.
+  const toneOf = (band: HTMLElement) => band.getAttribute('data-tone');
+
+  describe.each(['light', 'dark'] as const)('in the %s theme', (theme) => {
+    beforeEach(() => {
+      asLocale('de');
+      asTheme(theme);
+    });
+
+    it('lets the photo grid and the light sections follow the theme', () => {
+      render(<LandingPage />);
+      for (const name of [
+        'Ein Studio für jede Art von Shooting.',
+        'Alles zu einem Shooting, auf einer Seite.',
+        'Private Galerien statt WeTransfer-Links.',
+        'Von der Anfrage bis zur Galerie, in fünf Schritten.',
+        'Einfache Preise.',
+        'Fragen, bevor Sie loslegen.',
+      ]) {
+        expect(toneOf(screen.getByRole('region', { name }))).toBe('theme');
+      }
+    });
+
+    it('keeps only the closing band and footer dark below the hero', () => {
+      const { container } = render(<LandingPage />);
+      const hero = screen.getByRole('region', { name: /Handwerk/ });
+      // The nav and the hero still look dark in both themes; they move to
+      // the theme in later tickets of the light-landing spec.
+      const darkInBoth = [screen.getByRole('banner'), hero, screen.getByRole('contentinfo')];
+      expect([...container.querySelectorAll('[data-tone="dark"]')]).toEqual(darkInBoth);
+    });
+
+    it('gives every band a tone', () => {
+      render(<LandingPage />);
+      const bands = [
+        screen.getByRole('banner'),
+        ...screen.getAllByRole('region'),
+        screen.getByRole('contentinfo'),
+      ];
+      expect(bands.length).toBeGreaterThanOrEqual(9);
+      for (const band of bands) {
+        expect(['theme', 'dark']).toContain(toneOf(band));
+      }
+    });
+  });
 });

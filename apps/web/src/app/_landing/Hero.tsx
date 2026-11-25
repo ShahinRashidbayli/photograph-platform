@@ -55,7 +55,7 @@ export function Hero() {
   ];
 
   return (
-    <section className="lp-hero-band" aria-labelledby="lp-hero-title">
+    <section className="lp-hero-band" data-tone="dark" aria-labelledby="lp-hero-title">
       {/* The photograph is the room's light; the scrim keeps the words on
           solid charcoal and lets the sparks show to the right. */}
       <Image src={STOCK.sparks.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />

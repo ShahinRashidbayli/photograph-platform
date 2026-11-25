@@ -12,7 +12,7 @@ export function Closing() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="lp-dark lp-footer">
+    <footer className="lp-footer" data-tone="dark">
       <div className="lp-wrap">
         <div className="lp-head-row">
           <div style={{ maxWidth: 720 }}>

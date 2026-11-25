@@ -29,8 +29,9 @@ export const FACTS: { valueKey: TranslationKey; labelKey: TranslationKey }[] = [
 ];
 
 /**
- * The dark band under the hero: the kinds of shoot the studio runs, each as a
- * photograph. It was a sideways-scrolling list of words, which needed a pause
+ * The photo grid under the hero: the kinds of shoot the studio runs, each as a
+ * photograph. It follows the theme: a light band in light mode, charcoal in
+ * dark. It was a sideways-scrolling list of words, which needed a pause
  * button and still said nothing a photographer could see. The pictures are
  * decorative (`alt=""`) because the caption under each one is the content.
  */
@@ -38,7 +39,7 @@ export function FormatsBand() {
   const { t } = useTranslation();
 
   return (
-    <section className="lp-dark lp-section lp-formats" aria-labelledby="lp-formats-title">
+    <section className="lp-section lp-formats" data-tone="theme" aria-labelledby="lp-formats-title">
       <div className="lp-wrap">
         <h2 id="lp-formats-title" className="lp-h2" style={{ maxWidth: 640 }}>
           {t('landing.formats.title')}

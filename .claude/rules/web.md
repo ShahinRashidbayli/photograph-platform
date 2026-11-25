@@ -59,8 +59,9 @@ paths:
   (`_landing/fonts.ts`, route-scoped); previews take `--pv-*`, which follow the theme
   (the hero's booking page keeps the light set in both). Each band declares `data-tone`:
   the nav, hero, photo grid and every other section follow the theme (`theme`); the
-  closing band/footer is dark in both (`dark`), as is the auth brand panel. The light
-  look keys off that attribute and `html[data-theme]`, never the theme store (the server
+  closing band/footer is dark in both (`dark`). The auth brand panel (no `data-tone`) is
+  dark in both too. The light look keys off that attribute and `html[data-theme]`, never
+  the theme store (the server
   renders the store's light default, so a dark first paint would be wrong until
   hydration); what differs by theme beyond colour — the hero's photograph, the nav's
   mark — is in the markup twice, marked `data-theme-only`. `landing.claims.test.tsx`

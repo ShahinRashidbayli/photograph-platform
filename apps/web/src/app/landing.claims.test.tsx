@@ -1,5 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import LandingPage from './LandingPage';
 import { PLAN_TIERS } from '@/lib/plans';
 import { useLangStore } from '@/store/langStore';
@@ -271,52 +273,82 @@ describe('the nav', () => {
     en: { light: 'Switch to dark theme', dark: 'Switch to light theme' },
     de: { light: 'Zum dunklen Design wechseln', dark: 'Zum hellen Design wechseln' },
   } as const;
-  const WIDTHS = { desktop: 1440, phone: 390 } as const;
 
-  const atWidth = (width: number) => {
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: width,
-    });
-    window.dispatchEvent(new Event('resize'));
-  };
-  const asTheme = (theme: 'light' | 'dark') =>
-    act(() => useThemeStore.setState({ preference: theme, theme }));
+  // jsdom applies no stylesheet, so a narrow window renders the same DOM as a
+  // wide one; what hides a control on a phone is a `display: none` inside a
+  // `max-width` media query. Read those selectors out of the stylesheet, so a
+  // rule added later that would hide the toggle fails here.
+  const hiddenOnNarrowScreens = (() => {
+    const css = readFileSync(join(__dirname, 'globals.css'), 'utf8');
+    const selectors: string[] = [];
+    for (const open of css.matchAll(/@media[^{]*max-width[^{]*\{/g)) {
+      const start = open.index + open[0].length;
+      let end = start;
+      for (let depth = 1; depth > 0; end++) {
+        if (css[end] === '{') depth++;
+        if (css[end] === '}') depth--;
+      }
+      for (const [, selector, body] of css
+        .slice(start, end - 1)
+        .matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (/display:\s*none/.test(body)) {
+          selectors.push(
+            ...selector
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              .split(',')
+              .map((s) => s.trim())
+          );
+        }
+      }
+    }
+    return selectors;
+  })();
 
-  afterEach(() => {
-    atWidth(1024);
-    asTheme('light');
+  const asTheme = (preference: 'light' | 'dark' | 'system', theme: 'light' | 'dark') =>
+    act(() => useThemeStore.setState({ preference, theme }));
+
+  afterEach(() => asTheme('light', 'light'));
+
+  it('reads the narrow-screen rules it checks against', () => {
+    expect(hiddenOnNarrowScreens).toEqual(expect.arrayContaining(['.lp-nav-signin']));
   });
 
   describe.each(['en', 'de'] as const)('in %s', (lang) => {
-    it.each([
-      ['desktop', 'light'],
-      ['desktop', 'dark'],
-      ['phone', 'light'],
-      ['phone', 'dark'],
-    ] as const)('offers the theme toggle in the bar at %s width, in %s', async (width, theme) => {
-      asLocale(lang);
-      asTheme(theme);
-      atWidth(WIDTHS[width]);
-      const { container } = render(<LandingPage />);
-      const bar = container.querySelector('.lp-nav-inner') as HTMLElement;
-      expect(within(bar).getByRole('button', { name: NAMES[lang][theme] })).toBeInTheDocument();
+    it.each(['light', 'dark'] as const)(
+      'offers the theme toggle in the bar at every width, in %s',
+      async (theme) => {
+        asLocale(lang);
+        asTheme(theme, theme);
+        const { container } = render(<LandingPage />);
+        const bar = container.querySelector('.lp-nav-inner') as HTMLElement;
+        const toggle = within(bar).getByRole('button', { name: NAMES[lang][theme] });
 
-      // Opening the phone menu neither moves the toggle into it nor duplicates it.
-      await userEvent.click(within(bar).getByRole('button', { name: /menu|menü/i }));
-      const menu = container.querySelector('#lp-menu') as HTMLElement;
-      expect(within(menu).queryByRole('button', { name: NAMES[lang][theme] })).toBeNull();
-      expect(screen.getAllByRole('button', { name: NAMES[lang][theme] })).toHaveLength(1);
-    });
+        // Desktop: it is there. Phone: no narrow-screen rule hides it or a parent.
+        for (const selector of hiddenOnNarrowScreens) {
+          expect([selector, toggle.closest(selector)]).toEqual([selector, null]);
+        }
+
+        // Opening the phone menu neither moves the toggle into it nor duplicates it.
+        await userEvent.click(within(bar).getByRole('button', { name: /menu|menü/i }));
+        const menu = container.querySelector('#lp-menu') as HTMLElement;
+        expect(within(menu).queryByRole('button', { name: NAMES[lang][theme] })).toBeNull();
+        expect(screen.getAllByRole('button', { name: NAMES[lang][theme] })).toHaveLength(1);
+      }
+    );
   });
 
-  it('switches to the explicit opposite of what is on screen', async () => {
-    asLocale('en');
-    asTheme('light');
-    render(<LandingPage />);
-    await userEvent.click(screen.getByRole('button', { name: NAMES.en.light }));
-    expect(useThemeStore.getState()).toMatchObject({ preference: 'dark', theme: 'dark' });
-    expect(screen.getByRole('button', { name: NAMES.en.dark })).toBeInTheDocument();
-  });
+  it.each([
+    ['an explicit light', 'light', 'light', 'dark'],
+    ['a dark system theme', 'system', 'dark', 'light'],
+  ] as const)(
+    'saves the explicit opposite of what is on screen, from %s',
+    async (_, preference, theme, next) => {
+      asLocale('en');
+      asTheme(preference, theme);
+      render(<LandingPage />);
+      await userEvent.click(screen.getByRole('button', { name: NAMES.en[theme] }));
+      expect(useThemeStore.getState()).toMatchObject({ preference: next, theme: next });
+      expect(screen.getByRole('button', { name: NAMES.en[next] })).toBeInTheDocument();
+    }
+  );
 });

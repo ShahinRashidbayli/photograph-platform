@@ -9,14 +9,14 @@ import org.springframework.context.ApplicationEvent;
  * {@code LeadCreatedEvent} so notification listeners stay symmetric across the
  * two intake paths (anonymous lead form vs. signed-in customer request).
  *
- * <p>Carries the photographer's email rather than a tenant id because the
- * listener is {@code @Async}: by the time it runs, the request thread's
- * {@code TenantContext} is already cleared, so a tenant-scoped lookup would
- * fail. Everything the email needs is on the event.
+ * <p>Everything the email needs is on the event, so the listener queues it
+ * without a lookup. The tenant travels too: the queued job carries it
+ * (ADR-005), and a failed send names the studio it concerns.
  */
 public class InquiryCreatedEvent extends ApplicationEvent {
 
     private final UUID inquiryId;
+    private final UUID tenantId;
     private final String customerName;
     private final String customerEmail;
     private final String eventType;
@@ -27,12 +27,13 @@ public class InquiryCreatedEvent extends ApplicationEvent {
     private final String photographerEmail;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
-    public InquiryCreatedEvent(Object source, UUID inquiryId, String customerName,
+    public InquiryCreatedEvent(Object source, UUID inquiryId, UUID tenantId, String customerName,
                                String customerEmail, String eventType, String budgetRange,
                                LocalDate proposedDate, String location, String score,
                                String photographerEmail) {
         super(source);
         this.inquiryId = inquiryId;
+        this.tenantId = tenantId;
         this.customerName = customerName;
         this.customerEmail = customerEmail;
         this.eventType = eventType;
@@ -45,6 +46,10 @@ public class InquiryCreatedEvent extends ApplicationEvent {
 
     public UUID getInquiryId() {
         return inquiryId;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public String getCustomerName() {

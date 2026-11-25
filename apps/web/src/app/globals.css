@@ -990,6 +990,11 @@ html[data-theme='dark'] .lp-hero-band + .lp-formats {
   border-radius: 6px;
   background: #2a2723;
 }
+/* The ground shows until the photo loads; on the light band a charcoal square
+   would flash where the paper set is meant to be. */
+html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-formats-frame {
+  background: var(--lp-line);
+}
 .lp-formats-frame img {
   object-fit: cover;
   transition: scale 400ms cubic-bezier(0.2, 0, 0, 1);

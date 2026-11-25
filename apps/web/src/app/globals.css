@@ -305,6 +305,13 @@ textarea::placeholder {
   /* The one warm note, for the one word set in the display face: the gold of
      the hero photograph's sparklers. 9:1 on charcoal. */
   --lp-gold: #e2c08d;
+  /* The accent word's ink on paper, for when the hero turns light: gold is
+     1.6:1 on paper, this is 5.06:1. Not on `.lp-accent-word` yet — the hero
+     is still charcoal, where it is only 3.24:1. */
+  --lp-accent-ink: #86652f;
+  /* The nav bar over paper, for the same light hero. A literal rather than
+     color-mix() so palette.test.ts can measure what sits on it. */
+  --lp-nav-ground: rgba(250, 248, 245, 0.9);
   --lp-dark: #1c1a17;
   --lp-dark-text: #f6f1e9;
   --lp-dark-muted: #b3ab9f;
@@ -357,6 +364,10 @@ html[data-theme='dark'] .lp-root {
   --lp-ink: #f3efe9;
   --lp-on-ink: #1c1917;
   --lp-ink-hover: #ffffff;
+  /* On a dark page the accent word keeps the sparklers' gold, and the nav
+     keeps the charcoal bar it has today. */
+  --lp-accent-ink: #e2c08d;
+  --lp-nav-ground: rgba(28, 26, 23, 0.94);
   /* The dark blocks stay charcoal, a step above the page, so they still read
      as rooms rather than as the page itself. */
   --lp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -12px rgba(0, 0, 0, 0.6);

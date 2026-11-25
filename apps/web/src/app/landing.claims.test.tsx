@@ -316,11 +316,11 @@ describe('band tone', () => {
       }
     });
 
-    it('keeps only the closing band and footer dark below the hero', () => {
+    it('keeps only the nav, the hero and the closing band dark in both themes', () => {
       const { container } = render(<LandingPage />);
       const hero = screen.getByRole('region', { name: /Handwerk/ });
-      // The nav and the hero still look dark in both themes; they move to
-      // the theme in later tickets of the light-landing spec.
+      // The nav and the hero still draw charcoal in both themes, so they say
+      // so; below the hero, only the closing band (the footer) stays dark.
       const darkInBoth = [screen.getByRole('banner'), hero, screen.getByRole('contentinfo')];
       expect([...container.querySelectorAll('[data-tone="dark"]')]).toEqual(darkInBoth);
     });
@@ -332,6 +332,8 @@ describe('band tone', () => {
         ...screen.getAllByRole('region'),
         screen.getByRole('contentinfo'),
       ];
+      // Nav, hero, six sections, footer: fewer means a band lost its landmark
+      // and would slip past this check untoned.
       expect(bands.length).toBeGreaterThanOrEqual(9);
       for (const band of bands) {
         expect(['theme', 'dark']).toContain(toneOf(band));

@@ -1,19 +1,21 @@
 package com.photographplatform.api.notification.service;
 
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
-import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
+import com.photographplatform.api.notification.email.EmailRenderer;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Tone;
+import com.photographplatform.api.notification.email.RenderedEmail;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Alerts the photographer when a signed-in customer submits an inquiry — the
@@ -27,9 +29,19 @@ import org.springframework.stereotype.Service;
  * path (authenticated customer rather than anonymous form).
  */
 @Service
-public class InquiryNotificationService {
+public class InquiryNotificationService implements EmailRenderer<InquiryNotificationService.Params> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(InquiryNotificationService.class);
+    /** The inquiry as the alert shows it; everything is on the event already. */
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public record Params(
+        UUID inquiryId,
+        String score,
+        String customerName,
+        String customerEmail,
+        String eventType,
+        String budgetRange,
+        LocalDate proposedDate,
+        String location) {}
 
     private static final DateTimeFormatter DATE_FORMAT =
         DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
@@ -43,56 +55,68 @@ public class InquiryNotificationService {
         this.emailService = emailService;
     }
 
-    @Async
-    @EventListener
+    /** Queued before commit, in the inquiry's own transaction (ADR-005). */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onInquiryCreated(InquiryCreatedEvent event) {
-        try {
-            emailService.send(new EmailMessage(
-                event.getPhotographerEmail(),
-                buildSubject(event),
-                buildBody(event),
-                EmailType.INQUIRY_NOTIFICATION,
-                // InquiryCreatedEvent does not carry the tenant — see the
-                // follow-up in docs/BUGS.md; a failed send logs tenant=unknown.
-                null
-            ));
-        } catch (Exception e) {
-            // Best-effort, exactly like the lead alert: the inquiry is already
-            // committed and visible at /api/inquiries, so a mail failure must
-            // not surface to the customer as a failed submission.
-            LOG.error("Failed to send inquiry notification for inquiry {}: {}",
-                event.getInquiryId(), e.getMessage(), e);
-        }
+        emailService.queue(new OutgoingEmail(
+            template(),
+            event.getPhotographerEmail(),
+            event.getTenantId(),
+            new Params(event.getInquiryId(), event.getScore(), event.getCustomerName(),
+                event.getCustomerEmail(), event.getEventType(), event.getBudgetRange(),
+                event.getProposedDate(), event.getLocation()),
+            EmailType.INQUIRY_NOTIFICATION + ":" + event.getInquiryId(),
+            null));
     }
 
-    private String buildSubject(InquiryCreatedEvent event) {
-        String prefix = switch (event.getScore()) {
+    @Override
+    public String template() {
+        return "inquiry.notification";
+    }
+
+    @Override
+    public EmailType type() {
+        return EmailType.INQUIRY_NOTIFICATION;
+    }
+
+    @Override
+    public Class<Params> paramsType() {
+        return Params.class;
+    }
+
+    @Override
+    public RenderedEmail render(Params params) {
+        return new RenderedEmail(buildSubject(params), buildBody(params));
+    }
+
+    private String buildSubject(Params event) {
+        String prefix = switch (event.score()) {
             case "HIGH" -> "🟢 New high-value request";
             case "MED" -> "🟡 New request";
             default -> "New request";
         };
-        return prefix + " — " + event.getCustomerName();
+        return prefix + " — " + event.customerName();
     }
 
-    private String buildBody(InquiryCreatedEvent event) {
+    private String buildBody(Params event) {
         // EmailTemplate escapes every value it renders, so the customer-supplied
         // fields are passed through raw here rather than double-escaped.
-        String email = event.getCustomerEmail();
+        String email = event.customerEmail();
         return EmailTemplate.document(
-            "New " + event.getScore() + " request — " + event.getCustomerName(),
-            EmailTemplate.badge(event.getScore(), toneFor(event.getScore()))
+            "New " + event.score() + " request — " + event.customerName(),
+            EmailTemplate.badge(event.score(), toneFor(event.score()))
                 + EmailTemplate.heading("New session request")
                 + EmailTemplate.infoTable(List.of(
-                    new EmailTemplate.Row("From", event.getCustomerName()),
+                    new EmailTemplate.Row("From", event.customerName()),
                     new EmailTemplate.Row("Email", email, "mailto:" + email),
-                    new EmailTemplate.Row("Session", prettyEventType(event.getEventType())),
-                    new EmailTemplate.Row("Budget", prettyBudget(event.getBudgetRange())),
+                    new EmailTemplate.Row("Session", prettyEventType(event.eventType())),
+                    new EmailTemplate.Row("Budget", prettyBudget(event.budgetRange())),
                     new EmailTemplate.Row("Preferred date",
-                        event.getProposedDate() == null ? "—" : DATE_FORMAT.format(event.getProposedDate())),
+                        event.proposedDate() == null ? "—" : DATE_FORMAT.format(event.proposedDate())),
                     new EmailTemplate.Row("Location",
-                        event.getLocation() == null ? "—" : event.getLocation())))
+                        event.location() == null ? "—" : event.location())))
                 + EmailTemplate.button("Open in dashboard", webBaseUrl + "/leads")
-                + EmailTemplate.note("Request ID: " + event.getInquiryId()));
+                + EmailTemplate.note("Request ID: " + event.inquiryId()));
     }
 
     private static Tone toneFor(String score) {

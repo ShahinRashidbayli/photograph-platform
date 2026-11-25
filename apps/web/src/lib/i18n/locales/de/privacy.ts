@@ -42,6 +42,7 @@ export const privacy: Record<keyof EnPrivacy, string> = {
   'privacy.category.contracts': 'Verträge',
   'privacy.category.invoices': 'Rechnungen',
   'privacy.category.auditEntries': 'Aktivitätsprotokoll',
+  'privacy.category.queuedEmails': 'Noch nicht versendete E-Mails',
 
   'privacy.hint.bookings':
     'Datum, Paket, Beträge und Status bleiben für Ihre Buchhaltung erhalten.',

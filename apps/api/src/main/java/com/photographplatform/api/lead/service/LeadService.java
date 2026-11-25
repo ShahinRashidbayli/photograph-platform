@@ -300,7 +300,7 @@ public class LeadService {
         // The subdomain/ownerEmail args aren't strictly needed for a manual
         // add but keep the event payload shape consistent with the public path.
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), req.name(), req.email(), score,
+            new LeadCreatedEvent(this, saved.getId(), tenantId, req.name(), req.email(), score,
                 null, actor.getEmail())
         );
 
@@ -330,7 +330,7 @@ public class LeadService {
             ANONYMOUS_ACTOR_ID, ipAddress);
 
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), req.name(), req.email(), score,
+            new LeadCreatedEvent(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
                 tenant.getSubdomain(), tenant.getOwnerEmail())
         );
 

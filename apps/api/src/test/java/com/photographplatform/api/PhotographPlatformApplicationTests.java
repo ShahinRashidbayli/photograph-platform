@@ -20,7 +20,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     // jwt + cors values come from test/resources/application.yml
     "app.jwt.access-token-expiry-ms=86400000",
     "app.jwt.refresh-token-expiry-ms=2592000000",
-    "app.cors.allowed-origins=http://localhost:3000"
+    "app.cors.allowed-origins=http://localhost:3000",
+    // H2 here has no schema; a running email poller would fail every poll
+    // for as long as this cached context lives.
+    "app.outbox.enabled=false"
 })
 class PhotographPlatformApplicationTests {
 

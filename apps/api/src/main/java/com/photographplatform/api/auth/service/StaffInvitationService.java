@@ -11,13 +11,10 @@ import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.PlanUpgradeRequiredException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
-import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.TokenUtils;
 import com.photographplatform.api.entitlement.service.EntitlementService;
-import com.photographplatform.api.notification.dto.EmailMessage;
-import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -27,9 +24,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -47,8 +41,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StaffInvitationService {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StaffInvitationService.class);
-
     /**
      * Long enough to survive a holiday, short enough that a forwarded mailbox
      * is not a standing key to someone's studio.
@@ -64,7 +56,6 @@ public class StaffInvitationService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final Clock clock;
-    private final String webBaseUrl;
 
     public StaffInvitationService(
         StaffInvitationRepository invitationRepository,
@@ -75,8 +66,7 @@ public class StaffInvitationService {
         EmailService emailService,
         PasswordEncoder passwordEncoder,
         AuditService auditService,
-        Clock clock,
-        @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
+        Clock clock
     ) {
         this.invitationRepository = invitationRepository;
         this.userRepository = userRepository;
@@ -87,7 +77,6 @@ public class StaffInvitationService {
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.clock = clock;
-        this.webBaseUrl = webBaseUrl;
     }
 
     // ── Reading ───────────────────────────────────────────────────────────────
@@ -437,30 +426,14 @@ public class StaffInvitationService {
     }
 
     private void sendInvitationEmail(Tenant tenant, User inviter, String email, String rawToken) {
-        String link = webBaseUrl.replaceAll("/+$", "") + "/invite?token=" + rawToken;
         String studio = tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()
             ? tenant.getBusinessName() : tenant.getSubdomain();
         String from = inviter.getFullName() != null && !inviter.getFullName().isBlank()
             ? inviter.getFullName() : inviter.getEmail();
-
-        String html = EmailTemplate.document(
-            "You have been invited to " + studio + " on Fotolio",
-            EmailTemplate.heading("Join " + HtmlEscape.escape(studio))
-                + EmailTemplate.paragraph(HtmlEscape.escape(from)
-                    + " has invited you to work in their studio on Fotolio. Accepting gives you "
-                    + "access to the studio's bookings, clients and galleries.")
-                + EmailTemplate.button("Accept invitation", link)
-                + EmailTemplate.note("Or paste this link into your browser:<br>"
-                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
-                + EmailTemplate.note("This invitation expires in 7 days. If you were not "
-                    + "expecting it, you can safely ignore this email."));
-        try {
-            emailService.send(new EmailMessage(email, "You have been invited to " + studio, html,
-                EmailType.STAFF_INVITATION, tenant.getId()));
-        } catch (RuntimeException ex) {
-            // Best-effort, like every other outbound mail here: the invitation
-            // exists and the owner can resend it.
-            LOG.warn("Failed to send staff invitation to {}", email, ex);
-        }
+        emailService.queue(new OutgoingEmail(
+            StaffInvitationEmail.TEMPLATE, email, tenant.getId(),
+            new StaffInvitationEmail.Params(studio, from, rawToken),
+            null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
+
 }

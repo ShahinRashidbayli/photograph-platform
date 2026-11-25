@@ -306,9 +306,9 @@ textarea::placeholder {
   --lp-ink: #1c1917;
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
-  /* The dark room — the closing band in both themes; the nav, hero and
-     formats band in dark mode. Fixed: it is a photograph's dark room, not a
-     surface. */
+  /* Charcoal — the ground of the closing band in both themes, and of the nav,
+     hero and formats band in dark mode. Fixed: it is a photograph's dark room,
+     not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
   --lp-sand-muted: #bdb5a8;
@@ -805,7 +805,7 @@ html:not([data-theme='dark']) .lp-root .lp-hero-band[data-tone='theme'] + .lp-da
 }
 
 /* The primary is the ink pill on paper; the second ask is the line pill. The
-   markup names the dark-room fills, which dark mode keeps. */
+   markup names the charcoal fills, which dark mode keeps. */
 html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-btn-inverse {
   background: var(--lp-ink);
   color: var(--lp-on-ink);
@@ -825,7 +825,7 @@ html:not([data-theme='dark']) .lp-root .lp-dark[data-tone='theme'] {
   --lp-dark-line: var(--lp-line);
 }
 
-/* Ink rings on paper; the dark-room rule above draws them light. */
+/* Ink rings on paper; the charcoal rule above draws them light. */
 html:not([data-theme='dark']) .lp-root [data-tone='theme'] :focus-visible {
   outline-color: var(--lp-ink);
 }

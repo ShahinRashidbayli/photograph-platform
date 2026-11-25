@@ -277,8 +277,8 @@ textarea::placeholder {
  * The product previews (`.lp-ui`, `.lp-gallery`) take their colours from
  * `--pv-*`, which follow the theme. They used to be fixed light, which in dark
  * mode put glaring white slabs on a near-black page. The hero is the
- * exception: it is a dark room in both themes, so what sits in it keeps the
- * light set (re-declared on `.lp-hero-band`).
+ * exception: it is dark in both themes, so what sits in it keeps the light
+ * set (re-declared on `.lp-hero-band`).
  *
  * Band tone (GLOSSARY.md): every band — the nav, each section and the footer —
  * declares `data-tone="theme"` (follows the theme) or `data-tone="dark"` (dark
@@ -300,8 +300,8 @@ textarea::placeholder {
   --lp-on-ink: #faf8f5;
   --lp-ink-hover: #3a342f;
   /* Charcoal — the bands dark in both themes (nav, hero, footer), and the
-     photo grid in dark mode. Fixed in both themes: a photograph's dark room,
-     not a surface. */
+     photo grid in dark mode. Fixed in both themes: it is the ground the
+     photographs sit on, not a surface. */
   --lp-charcoal: #1c1a17;
   --lp-sand: #ebe4d8;
   --lp-sand-muted: #bdb5a8;
@@ -362,8 +362,8 @@ html[data-theme='dark'] .lp-root {
   --lp-ink: #f3efe9;
   --lp-on-ink: #1c1917;
   --lp-ink-hover: #ffffff;
-  /* The dark blocks stay charcoal, a step above the page, so they still read
-     as rooms rather than as the page itself. */
+  /* The bands dark in both themes stay charcoal, a step above the page, so
+     they still read as bands rather than as the page itself. */
   --lp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
   --lp-shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.5), 0 24px 64px -16px rgba(0, 0, 0, 0.7);
   --pv-bg: #161412;
@@ -566,8 +566,8 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   top: 0;
   z-index: 40;
   color: var(--lp-sand);
-  /* Dark in both themes: it opens on the hero's dark room and stays the same
-     bar over the light sections below. */
+  /* Dark in both themes: it opens on the hero and stays the same bar over
+     the bands below that follow the theme. */
   background: color-mix(in oklab, var(--lp-charcoal) 94%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
@@ -630,7 +630,7 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   display: none;
 }
 
-/* Hero: a dark room with one photograph in it. */
+/* Hero: dark in both themes, with one photograph in it. */
 .lp-hero-band {
   position: relative;
   overflow: hidden;
@@ -676,8 +676,8 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] {
   color: #f6f1e9;
   font-size: clamp(2.5rem, 4.1vw, 3.6rem);
 }
-/* In dark mode the photo grid continues the hero's dark room; a hairline
-   marks it. In light mode it is a light band and needs none. */
+/* In dark mode the photo grid continues the hero's charcoal; a hairline
+   marks the seam. In light mode it is a light band and needs none. */
 html[data-theme='dark'] .lp-hero-band + .lp-formats {
   border-top: 1px solid rgba(235, 228, 216, 0.1);
 }
@@ -1548,7 +1548,7 @@ html:not([data-theme='dark']) .lp-root [data-tone='theme'] .lp-formats-frame {
   color: var(--lp-muted);
 }
 
-/* Closing + footer: one dark block */
+/* Closing + footer: one band, dark in both themes */
 .lp-footer {
   font-size: 0.95rem;
   padding-block: clamp(80px, 10vw, 128px) 40px;

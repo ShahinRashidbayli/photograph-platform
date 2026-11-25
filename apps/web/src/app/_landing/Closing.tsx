@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 import { useTranslation } from '@/lib/i18n';
 import { SECTIONS } from './Nav';
 
-/** The close and the footer as one dark block: the last ask, then the links. */
+/** The close and the footer as one band, dark in both themes: the last ask, then the links. */
 export function Closing() {
   const { t } = useTranslation();
   const year = new Date().getFullYear();

@@ -166,8 +166,15 @@ function pairs(theme: Theme, css: string = CSS): Pair[] {
     ...[BLACK, WHITE].flatMap((under) =>
       theme === 'light'
         ? [
+            // Links are ink like the text; only their hover softens.
             { what: `nav text over ${under}`, fg: 'text', bg: 'nav-ground', under, floor: TEXT },
-            { what: `nav links over ${under}`, fg: 'text', bg: 'nav-ground', under, floor: TEXT },
+            {
+              what: `nav link hover over ${under}`,
+              fg: 'muted',
+              bg: 'nav-ground',
+              under,
+              floor: TEXT,
+            },
           ]
         : [
             { what: `nav text over ${under}`, fg: 'sand', bg: 'nav-ground', under, floor: TEXT },

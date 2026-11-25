@@ -643,6 +643,12 @@ html:not([data-theme='dark']) .lp-nav[data-tone='theme'] :focus-visible {
   html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-btn-inverse:hover {
     background: var(--lp-ink-hover);
   }
+  /* Ink links cannot brighten like the dark bar's, so they soften instead;
+     without this the ink rule above outranks every link hover. */
+  html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-navlink:hover,
+  html:not([data-theme='dark']) .lp-nav[data-tone='theme'] .lp-menu a:hover {
+    color: var(--lp-muted);
+  }
 }
 .lp-nav-inner {
   height: 72px;

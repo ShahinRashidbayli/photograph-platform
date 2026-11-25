@@ -45,7 +45,8 @@ export const metadata: Metadata = {
 // Runs before first paint so the page background matches the theme instead of
 // flashing the light default while the client store rehydrates from
 // localStorage. The theme is the persisted explicit choice, or without one the
-// system setting — the rule `store/themeStore.ts` applies after hydration. Kept tiny and dependency-free because it's inlined into <head>.
+// system setting — the rule `store/themeStore.ts` applies after hydration.
+// Kept tiny and dependency-free because it's inlined into <head>.
 //
 // It also corrects <html lang> for the persisted language: the markup ships the
 // source locale (this is a server component and localStorage is client-only),

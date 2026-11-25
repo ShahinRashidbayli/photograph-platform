@@ -10,9 +10,9 @@ import type { CSSProperties } from 'react';
  *
  * The theme *state* already lives in one place (`useThemeStore`); this component
  * does the same for the *button* — its icon, behaviour, sizing and hover. Every
- * surface that offers one (auth, dashboard, landing, legal pages) renders `<ThemeToggle />` instead of
- * its own markup, so changing the glyph or interaction here changes it
- * everywhere. A click sets the explicit opposite of what is on screen, also
+ * surface that offers one (auth, dashboard, landing, legal pages) renders
+ * `<ThemeToggle />` instead of its own markup, so changing the glyph or
+ * interaction here changes it everywhere. A click sets the explicit opposite of what is on screen, also
  * while the theme follows the system; only the dashboard's Appearance menu goes
  * back to following it.
  *

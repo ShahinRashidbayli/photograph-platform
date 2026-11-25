@@ -28,25 +28,40 @@ const FOCUS_RING = 3;
 
 const CSS = readFileSync(join(__dirname, '..', 'globals.css'), 'utf8');
 
+/** The bodies of every rule whose selector list includes `selector`. */
+function rulesFor(css: string, selector: string): string[] {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const bodies = [...withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((m) => m[1].split(',').some((s) => s.trim().replace(/\s+/g, ' ') === selector))
+    .map((m) => m[2]);
+  if (bodies.length === 0) throw new Error(`globals.css has no rule for ${selector}`);
+  return bodies;
+}
+
 /**
  * The custom properties declared in every rule whose selector list includes
  * `selector`, by short name: `--lp-bg` as `bg`, `--pv-text` as `pv-text`.
  */
 function declarations(css: string, selector: string): Tokens {
   const tokens: Tokens = {};
-  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = /([^{}]+)\{([^{}]*)\}/g;
-  let found = false;
-  for (let m = rule.exec(withoutComments); m; m = rule.exec(withoutComments)) {
-    const selectors = m[1].split(',').map((s) => s.trim().replace(/\s+/g, ' '));
-    if (!selectors.includes(selector)) continue;
-    found = true;
-    for (const d of m[2].matchAll(/(--(?:lp|pv)-[\w-]+)\s*:\s*([^;]+);/g)) {
+  for (const body of rulesFor(css, selector)) {
+    for (const d of body.matchAll(/(--(?:lp|pv)-[\w-]+)\s*:\s*([^;]+);/g)) {
       tokens[d[1].replace(/^--(lp-)?/, '')] = d[2].trim().replace(/\s+/g, ' ');
     }
   }
-  if (!found) throw new Error(`globals.css has no rule for ${selector}`);
   return tokens;
+}
+
+/**
+ * The `color` a rule writes inline rather than through a token, read from the
+ * stylesheet so a pair on it cannot drift either.
+ */
+function inlineColour(css: string, selector: string): string {
+  const values = rulesFor(css, selector).flatMap((body) =>
+    [...body.matchAll(/(?:^|[;\s])color\s*:\s*([^;]+);/g)].map((d) => d[1].trim())
+  );
+  if (values.length === 0) throw new Error(`${selector} sets no color`);
+  return values[values.length - 1];
 }
 
 /** Both themes' tokens as the cascade resolves them on `.lp-root`. */
@@ -117,7 +132,7 @@ type Pair = { what: string; fg: string; bg: string; under?: string; floor: numbe
 const BLACK = '#000000';
 const WHITE = '#ffffff';
 
-function pairs(theme: Theme): Pair[] {
+function pairs(theme: Theme, css: string = CSS): Pair[] {
   const list: Pair[] = [];
   for (const fg of ['text', 'muted', 'subtle']) {
     for (const bg of ['bg', 'band', 'surface']) {
@@ -135,8 +150,14 @@ function pairs(theme: Theme): Pair[] {
     { what: 'dark hero fact labels', fg: 'sand-dim', bg: 'charcoal', floor: TEXT },
     { what: 'dark hero lede', fg: 'sand-muted', bg: 'charcoal', floor: TEXT },
     {
-      what: 'dark hero headline and fact values',
-      fg: '#f6f1e9',
+      what: 'dark hero headline',
+      fg: inlineColour(css, '.lp-hero .lp-h1'),
+      bg: 'charcoal',
+      floor: LARGE_TEXT,
+    },
+    {
+      what: 'dark hero fact values',
+      fg: inlineColour(css, '.lp-hero-facts dd'),
       bg: 'charcoal',
       floor: LARGE_TEXT,
     },
@@ -152,7 +173,7 @@ function pairs(theme: Theme): Pair[] {
             { what: `nav text over ${under}`, fg: 'sand', bg: 'nav-ground', under, floor: TEXT },
             {
               what: `nav links over ${under}`,
-              fg: '#d2cabd',
+              fg: inlineColour(css, '.lp-nav .lp-navlink'),
               bg: 'nav-ground',
               under,
               floor: TEXT,
@@ -237,10 +258,11 @@ function hex(rgb: Rgb): string {
 }
 
 /** The pairs below their floor, by name. */
-function failures(tokens: Tokens, theme: Theme): string[] {
-  return pairs(theme)
-    .filter((p) => ratio(tokens, p) < p.floor)
-    .map((p) => `${p.what} ${ratio(tokens, p).toFixed(2)}:1 < ${p.floor}:1`);
+function failures(tokens: Tokens, theme: Theme, css: string = CSS): string[] {
+  return pairs(theme, css)
+    .map((p) => ({ p, r: ratio(tokens, p) }))
+    .filter(({ p, r }) => r < p.floor)
+    .map(({ p, r }) => `${p.what} ${r.toFixed(2)}:1 < ${p.floor}:1`);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -347,6 +369,26 @@ describe('the checker', () => {
     expect(lowered).not.toBe(CSS);
     expect(failures(themesFrom(lowered).light, 'light')).toEqual(
       expect.arrayContaining([expect.stringContaining('subtle on bg')])
+    );
+  });
+
+  // The pairs on a colour a rule writes inline are skipped above (there is no
+  // token to lower); lower the rule itself instead.
+  it.each([
+    ['.lp-nav .lp-navlink', 'nav links over'],
+    ['.lp-hero .lp-h1', 'dark hero headline'],
+    ['.lp-hero-facts dd', 'dark hero fact values'],
+  ])('fails when the inline colour of %s drops to 1:1', (selector, what) => {
+    const at = CSS.indexOf(`${selector} {`);
+    expect(at).toBeGreaterThan(-1);
+    const end = CSS.indexOf('}', at);
+    const lowered =
+      CSS.slice(0, at) +
+      CSS.slice(at, end).replace(/(\n\s*color:\s*)#[0-9a-f]{6}/i, '$1#1c1a17') +
+      CSS.slice(end);
+    expect(lowered).not.toBe(CSS);
+    expect(failures(THEMES.dark, 'dark', lowered)).toEqual(
+      expect.arrayContaining([expect.stringContaining(what)])
     );
   });
 

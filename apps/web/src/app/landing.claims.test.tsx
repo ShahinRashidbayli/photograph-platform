@@ -304,10 +304,13 @@ describe('the nav', () => {
     return selectors;
   })();
 
+  // `systemTheme` moves with `theme`, so a 'system' preference is never shown
+  // against an OS theme that contradicts it — a state the store cannot reach.
   const asTheme = (preference: 'light' | 'dark' | 'system', theme: 'light' | 'dark') =>
-    act(() => useThemeStore.setState({ preference, theme }));
+    act(() => useThemeStore.setState({ preference, systemTheme: theme, theme }));
 
-  afterEach(() => asTheme('light', 'light'));
+  // Back to the store's initial state: following a light system.
+  afterEach(() => asTheme('system', 'light'));
 
   it('reads the narrow-screen rules it checks against', () => {
     expect(hiddenOnNarrowScreens).toEqual(expect.arrayContaining(['.lp-nav-signin']));
@@ -325,6 +328,7 @@ describe('the nav', () => {
 
         // Desktop: it is there. Phone: no narrow-screen rule hides it or a parent.
         for (const selector of hiddenOnNarrowScreens) {
+          // The selector rides along so a failure names the rule that hides it.
           expect([selector, toggle.closest(selector)]).toEqual([selector, null]);
         }
 

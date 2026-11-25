@@ -6,8 +6,13 @@ import { useThemeStore } from '@/store/themeStore';
 
 describe('LegalPageShell', () => {
   const asTheme = (theme: 'light' | 'dark') =>
-    act(() => useThemeStore.setState({ preference: theme, theme }));
-  afterEach(() => asTheme('light'));
+    act(() => useThemeStore.setState({ preference: theme, systemTheme: theme, theme }));
+  // Back to the store's initial state: following a light system.
+  afterEach(() =>
+    act(() =>
+      useThemeStore.setState({ preference: 'system', systemTheme: 'light', theme: 'light' })
+    )
+  );
 
   // Like the landing nav, the legal pages' header offers the theme toggle,
   // named after what a click switches to.

@@ -534,8 +534,9 @@ function BookingsView() {
 
       {/* The overview is four tiles, three of which filter the list. */}
       {/* On a phone with a booking open, the tiles would push the booking a
-          screen down; they come back with the list. */}
-      {!(isNarrow && mobilePane === 'detail') && (
+          screen down; they come back with the list. The calendar has no detail
+          pane, so it keeps them even when the URL names a booking. */}
+      {!(isNarrow && viewMode === 'table' && mobilePane === 'detail') && (
         <BookingsOverview
           bookings={bookings}
           ctxFor={ctxFor}

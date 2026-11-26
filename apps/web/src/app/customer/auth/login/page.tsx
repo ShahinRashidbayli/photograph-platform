@@ -8,7 +8,7 @@ import { getColors } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
-import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import { PHOTOGRAPHER_LOGIN, SUBDOMAIN_PATTERN, withPreservedNext } from '@/lib/login-redirect';
 import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
@@ -17,7 +17,6 @@ import { Suspense, useEffect, useReducer, useState } from 'react';
 import { getAuthStyles } from '../../../(auth)/auth.styles';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
 // Apex domains under which each photographer gets a subdomain. When the client
 // arrives on anna-foto.fotolio.de the subdomain is authoritative and there is no
@@ -69,7 +68,7 @@ const LAST_STUDIO_KEY = 'fotolio.customer.lastStudio';
 function readLastStudio(): string | null {
   try {
     const v = window.localStorage.getItem(LAST_STUDIO_KEY);
-    return v && SUBDOMAIN_REGEX.test(v) ? v : null;
+    return v && SUBDOMAIN_PATTERN.test(v) ? v : null;
   } catch {
     return null;
   }
@@ -188,7 +187,7 @@ function CustomerLoginInner() {
 
   const cooldown = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
 
-  const linkedStudio = SUBDOMAIN_REGEX.test(subdomain.trim().toLowerCase())
+  const linkedStudio = SUBDOMAIN_PATTERN.test(subdomain.trim().toLowerCase())
     ? subdomain.trim().toLowerCase()
     : null;
   const showStudio =

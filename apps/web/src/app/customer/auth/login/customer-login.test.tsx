@@ -257,6 +257,7 @@ describe('CustomerLoginPage', () => {
     expect(await screen.findByText('Studio Lichtblick')).toBeInTheDocument();
     expect(screen.getByText('SL')).toBeInTheDocument();
   });
+
   /**
    * A Customer message links to the sign-in with the page it is about in
    * `next`. Signing in used to drop it and land on the bookings list, so the

@@ -19,8 +19,12 @@ export const CLIENT_LOGIN = '/customer/auth/login';
 /** Paths that only a client can be on, and so identify them without a session. */
 const CLIENT_PREFIXES = ['/customer/'];
 
-/** Same shape the Customer sign-in accepts for `?subdomain=`. */
-const SUBDOMAIN_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+/**
+ * A studio subdomain as a Customer link or the Customer sign-in carries it.
+ * One pattern for both, so a link this module routes to the Customer sign-in
+ * is never one that page then refuses to show the studio for.
+ */
+export const SUBDOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
 /**
  * The studio a Customer link names, if it names one.
@@ -33,7 +37,7 @@ const SUBDOMAIN_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
  */
 function customerSubdomainIn(search: string): string | null {
   const raw = new URLSearchParams(search).get('subdomain')?.trim().toLowerCase();
-  return raw && SUBDOMAIN_RE.test(raw) ? raw : null;
+  return raw && SUBDOMAIN_PATTERN.test(raw) ? raw : null;
 }
 
 /** Sign-in paths, so a redirect can never point back at another sign-in. */

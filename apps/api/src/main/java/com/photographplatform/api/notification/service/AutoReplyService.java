@@ -35,6 +35,7 @@ public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> 
     }
 
     @Override
+    @SuppressWarnings("removal") // both go in the same release
     public EmailType type() {
         return EmailType.LEAD_AUTO_REPLY;
     }

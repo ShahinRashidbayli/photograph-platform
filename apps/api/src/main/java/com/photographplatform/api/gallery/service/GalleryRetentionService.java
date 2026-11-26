@@ -1,8 +1,8 @@
 package com.photographplatform.api.gallery.service;
 
 import com.photographplatform.api.audit.service.AuditService;
-import com.photographplatform.api.booking.domain.Booking;
-import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.dto.BookingCustomer;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.gallery.config.RetentionProperties;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
@@ -50,7 +50,7 @@ public class GalleryRetentionService {
     private final GalleryRepository galleryRepository;
     private final GalleryExpiryReminderRepository reminderRepository;
     private final DeliveryPhotoRepository deliveryPhotoRepository;
-    private final BookingRepository bookingRepository;
+    private final BookingQueryService bookings;
     private final ApplicationEventPublisher eventPublisher;
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
@@ -61,7 +61,7 @@ public class GalleryRetentionService {
         GalleryRepository galleryRepository,
         GalleryExpiryReminderRepository reminderRepository,
         DeliveryPhotoRepository deliveryPhotoRepository,
-        BookingRepository bookingRepository,
+        BookingQueryService bookings,
         ApplicationEventPublisher eventPublisher,
         Optional<R2StorageService> storage,
         AuditService auditService,
@@ -70,7 +70,7 @@ public class GalleryRetentionService {
         this.galleryRepository = galleryRepository;
         this.reminderRepository = reminderRepository;
         this.deliveryPhotoRepository = deliveryPhotoRepository;
-        this.bookingRepository = bookingRepository;
+        this.bookings = bookings;
         this.eventPublisher = eventPublisher;
         this.storage = storage;
         this.auditService = auditService;
@@ -121,8 +121,8 @@ public class GalleryRetentionService {
             return false;
         }
 
-        Booking booking = bookingRepository.findById(gallery.getBookingId()).orElse(null);
-        if (booking == null || booking.getClientEmail() == null || booking.getClientEmail().isBlank()) {
+        BookingCustomer customer = bookings.findCustomer(gallery.getBookingId()).orElse(null);
+        if (customer == null || customer.email() == null || customer.email().isBlank()) {
             // Nothing to warn. Logged at WARN rather than skipped silently:
             // ADR-001 makes the client warning a precondition for deletion, so
             // a gallery that can never be warned about is a gallery that
@@ -146,9 +146,9 @@ public class GalleryRetentionService {
             this,
             gallery.getId(),
             tenant.getId(),
-            booking.getClientEmail(),
-            booking.getClientName(),
-            booking.getLanguage(),
+            customer.email(),
+            customer.name(),
+            customer.language(),
             tenant.getSubdomain(),
             gallery.getAccessToken(),
             gallery.getExpiresAt(),

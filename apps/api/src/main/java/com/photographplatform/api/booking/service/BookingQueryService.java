@@ -23,6 +23,7 @@ import java.time.Month;
 import java.time.Year;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -109,9 +110,18 @@ public class BookingQueryService {
      * nothing.
      */
     public BookingCustomer customer(UUID bookingId) {
-        return bookingRepository.findById(bookingId)
-            .map(b -> new BookingCustomer(b.getClientEmail(), b.getClientName(), b.getLanguage()))
+        return findCustomer(bookingId)
             .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+    }
+
+    /**
+     * {@link #customer} for a caller that must carry on without one: throwing
+     * out of this transactional bean would mark the caller's transaction
+     * rollback-only (the retention sweep records reminders in it).
+     */
+    public Optional<BookingCustomer> findCustomer(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(b -> new BookingCustomer(b.getClientEmail(), b.getClientName(), b.getLanguage()));
     }
 
     /**

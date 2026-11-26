@@ -5,6 +5,7 @@ import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.gallery.config.RetentionProperties;
@@ -64,6 +65,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
     @Autowired private GalleryExpiryReminderRepository reminderRepository;
     @Autowired private DeliveryPhotoRepository deliveryPhotoRepository;
     @Autowired private BookingRepository bookingRepository;
+    @Autowired private BookingQueryService bookingQueryService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private AuditService auditService;
     @Autowired private PlatformTransactionManager txManager;
@@ -382,7 +384,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
     private GalleryRetentionService buildService(Instant at, RetentionProperties props) {
         props.validate();
         return new GalleryRetentionService(
-            galleryRepository, reminderRepository, deliveryPhotoRepository, bookingRepository,
+            galleryRepository, reminderRepository, deliveryPhotoRepository, bookingQueryService,
             events, Optional.of(storage), auditService, props,
             Clock.fixed(at, ZoneOffset.UTC));
     }

@@ -30,6 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
  * studio that sets a logo and then downgrades keeps its logo and gets the
  * "Powered by" line back, which is the honest outcome: they stop paying for the
  * part they stopped paying for, not for the part they uploaded.
+ *
+ * <p>The one gated read is {@link #logoUrlForSubdomain}, the stable logo URL
+ * behind Customer messages; its javadoc says why.
  */
 @Service
 public class BrandingService {
@@ -73,19 +76,33 @@ public class BrandingService {
      * subdomain. A missing logo and a missing capability answer the same
      * 404, so the route says nothing about a studio's plan.
      *
+     * <p>Only a key the logo presign endpoint could have minted for this
+     * studio is signed. {@code logoKey} is stored as the owner sent it, and
+     * the resolver passes absolute URLs through: without this check the
+     * route was an open redirect on the platform's own domain, and would
+     * sign any object in the bucket, another studio's gallery originals
+     * included, for anyone who asked.
+     *
      * @throws NotFoundException when there is no logo this route may serve
      */
     @Transactional(readOnly = true)
     public String logoUrlForSubdomain(String subdomain) {
         Tenant tenant = publicTenantResolver.requireBySubdomain(subdomain);
-        if (!entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING)) {
-            throw new NotFoundException("Logo not found");
-        }
-        String url = urlResolver.resolve(tenant.getLogoKey());
+        String key = tenant.getLogoKey();
+        String url = entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING)
+            && isOwnLogoObject(tenant, key)
+            ? urlResolver.resolve(key)
+            : null;
         if (url == null) {
             throw new NotFoundException("Logo not found");
         }
         return url;
+    }
+
+    /** The shape {@code AvatarService.presign(…, "logos")} gives a key. */
+    private static boolean isOwnLogoObject(Tenant tenant, String key) {
+        return key != null
+            && key.matches("logos/" + tenant.getId() + "/[0-9a-f-]{36}\\.[a-z0-9]+");
     }
 
     /**

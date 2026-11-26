@@ -79,11 +79,11 @@ class EmailRenderingTest {
             new Object[] {new AutoReplyService(), new AutoReplyService.Params("Maria", null)},
             new Object[] {new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de"),
                 new EnquiryReceivedMessage.Params(
-                    StudioIdentity.resolve("Studio Lichtblick", null, "hallo@lichtblick.test", null, true,
+                    StudioIdentity.resolve("Studio Lichtblick", "hallo@lichtblick.test", null, true,
                         "https://app.fotolio.de/api/public/studios/lichtblick/logo", "#AA3366"),
                     CustomerLanguage.EN, "Maria", "https://app.fotolio.de/p/lichtblick")},
             new Object[] {new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de"),
-                new EnquiryReceivedMessage.Params(StudioIdentity.resolve(null, null, null, null, false, null, null),
+                new EnquiryReceivedMessage.Params(StudioIdentity.resolve(null, null, null, false, null, null),
                     CustomerLanguage.DE, null, null)},
             new Object[] {withBaseUrl(new InquiryNotificationService(null)),
                 new InquiryNotificationService.Params(UUID.randomUUID(), "LOW", "Maria", "maria@example.test",

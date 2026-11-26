@@ -36,8 +36,7 @@ public class StudioIdentityResolver {
         Tenant tenant = tenants.requireById(tenantId);
         boolean whiteLabel = entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING);
         return StudioIdentity.resolve(
-            tenant.getBusinessName(),
-            tenant.getLegalName(),
+            tenant.customerFacingName(),
             tenant.getLegalEmail(),
             tenant.getOwnerEmail(),
             whiteLabel,

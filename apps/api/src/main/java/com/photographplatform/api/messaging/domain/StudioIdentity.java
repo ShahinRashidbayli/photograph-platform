@@ -1,5 +1,6 @@
 package com.photographplatform.api.messaging.domain;
 
+import com.photographplatform.api.common.util.Normalize;
 import java.util.regex.Pattern;
 
 /**
@@ -40,29 +41,26 @@ public record StudioIdentity(
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
     public StudioIdentity {
-        displayName = blankToNull(displayName);
-        replyTo = blankToNull(replyTo);
-        logoUrl = whiteLabel ? blankToNull(logoUrl) : null;
+        displayName = Normalize.trimToNull(displayName);
+        replyTo = Normalize.trimToNull(replyTo);
+        logoUrl = whiteLabel ? Normalize.trimToNull(logoUrl) : null;
         brandColor = whiteLabel && brandColor != null && HEX_COLOR.matcher(brandColor).matches()
             ? brandColor
             : null;
     }
 
     /**
-     * Applies the fallbacks.
+     * Applies the Reply-To fallback: legalEmail, already public on the
+     * Impressum, else the owner's login address.
      *
-     * <ul>
-     *   <li>Name: businessName, else legalName. Never the subdomain: it is a
-     *       URL slug, and a Customer does not know the studio by it (#103).</li>
-     *   <li>Reply-To: legalEmail, already public on the Impressum, else the
-     *       owner's login address.</li>
-     * </ul>
+     * @param name the tenant's {@code customerFacingName()}: one rule for the
+     *             studio's name in every email to its Customer (#103), not a
+     *             second copy of it here
      */
-    public static StudioIdentity resolve(String businessName, String legalName, String legalEmail,
-                                         String ownerEmail, boolean whiteLabel, String logoUrl,
-                                         String brandColor) {
+    public static StudioIdentity resolve(String name, String legalEmail, String ownerEmail,
+                                         boolean whiteLabel, String logoUrl, String brandColor) {
         return new StudioIdentity(
-            firstPresent(businessName, legalName),
+            name,
             firstPresent(legalEmail, ownerEmail),
             whiteLabel,
             logoUrl,
@@ -70,11 +68,7 @@ public record StudioIdentity(
     }
 
     private static String firstPresent(String first, String second) {
-        String a = blankToNull(first);
-        return a != null ? a : blankToNull(second);
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
+        String a = Normalize.trimToNull(first);
+        return a != null ? a : Normalize.trimToNull(second);
     }
 }

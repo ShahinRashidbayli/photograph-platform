@@ -32,7 +32,7 @@ class EnquiryReceivedMessageTest {
         new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de");
 
     private static StudioIdentity studio() {
-        return StudioIdentity.resolve("Studio Lichtblick", "Anna Müller", "hallo@lichtblick.test",
+        return StudioIdentity.resolve("Studio Lichtblick", "hallo@lichtblick.test",
             "anna@gmail.com", false, null, null);
     }
 
@@ -90,7 +90,7 @@ class EnquiryReceivedMessageTest {
     @Test
     void aStudioWithNoNameYetGetsNoneInvented() {
         RenderedEmail email = message.render(new Params(
-            StudioIdentity.resolve(null, null, null, "anna@gmail.com", false, null, null),
+            StudioIdentity.resolve(null, null, "anna@gmail.com", false, null, null),
             CustomerLanguage.DE, " ", null));
 
         assertThat(email.subject()).isEqualTo("Ihre Anfrage ist eingegangen");
@@ -104,7 +104,7 @@ class EnquiryReceivedMessageTest {
     @Test
     void whatTheCustomerTypedIsEscaped() {
         RenderedEmail email = message.render(new Params(
-            StudioIdentity.resolve("A & B <i>", null, null, null, false, null, null),
+            StudioIdentity.resolve("A & B <i>", null, null, false, null, null),
             CustomerLanguage.EN, "<b>Maria</b>", null));
 
         assertThat(email.htmlBody())
@@ -116,7 +116,7 @@ class EnquiryReceivedMessageTest {
     @Test
     void whiteLabelHidesFotolio() {
         RenderedEmail email = message.render(new Params(
-            StudioIdentity.resolve("Studio Lichtblick", null, null, null, true, null, "#AA3366"),
+            StudioIdentity.resolve("Studio Lichtblick", null, null, true, null, "#AA3366"),
             CustomerLanguage.DE, "Maria", PORTFOLIO));
 
         assertThat(email.htmlBody()).doesNotContain("Fotolio").contains("#AA3366");

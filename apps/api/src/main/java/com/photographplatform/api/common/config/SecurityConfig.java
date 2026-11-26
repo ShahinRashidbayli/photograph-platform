@@ -248,6 +248,8 @@ public class SecurityConfig {
             .requestMatchers(
                 "/api/clients/**",
                 "/api/leads/**",
+                // Includes POST /api/galleries/{id}/send, which emails the
+                // Customer in the studio's name: staff-only for that reason.
                 "/api/galleries/**",
                 "/api/packages/**",
                 "/api/photographerBookings",

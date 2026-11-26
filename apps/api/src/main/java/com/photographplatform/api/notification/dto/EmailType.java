@@ -45,7 +45,12 @@ public enum EmailType {
 
     /** Tells the photographer a contract came back signed. */
     CONTRACT_SIGNED(3),
-    /** Warns a client their gallery is about to be deleted. */
+    /**
+     * Warns a client their gallery is about to be deleted. Only rows queued
+     * before {@link #GALLERY_EXPIRING} replaced it still carry it; goes with
+     * {@code GalleryExpiryNotificationService} in the release after (#127).
+     */
+    @Deprecated(forRemoval = true)
     GALLERY_EXPIRY(3),
     /** Tells a Customer a contract waits for their signature. */
     CONTRACT_TO_SIGN(3),

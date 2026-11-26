@@ -12,6 +12,10 @@ import com.photographplatform.api.common.outbox.OutboxEntry;
 import com.photographplatform.api.common.outbox.OutboxJob;
 import com.photographplatform.api.common.outbox.Outbox;
 import com.photographplatform.api.inquiry.service.InquiryDecisionEmail;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.messaging.application.GalleryExpiringMessage;
+import com.photographplatform.api.messaging.application.GalleryReadyMessage;
+import com.photographplatform.api.messaging.domain.StudioIdentity;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -79,9 +83,20 @@ class EmailRenderingTest {
                     "HOCHZEIT", "OVER_2000", LocalDate.of(2027, 6, 12), "Berlin")},
             new Object[] {withBaseUrl(new ContractNotificationService(null)),
                 new ContractNotificationService.Params(UUID.randomUUID(), UUID.randomUUID(), "Vertrag", "Maria")},
-            new Object[] {withBaseUrl(new GalleryExpiryNotificationService(null)),
-                new GalleryExpiryNotificationService.Params("Maria", "Anna", "anna-foto", "acc",
-                    OffsetDateTime.of(2027, 1, 31, 12, 0, 0, 0, ZoneOffset.UTC), 5)});
+            new Object[] {new GalleryReadyMessage(null, null), new GalleryReadyMessage.Params(
+                new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
+                "Maria", "https://app.fotolio.de/g/anna-foto/acc", "Viel Freude <b>damit</b>")},
+            new Object[] {new GalleryReadyMessage(null, null), new GalleryReadyMessage.Params(
+                new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN, null,
+                "https://app.fotolio.de/g/anna-foto/acc", null)},
+            new Object[] {new GalleryExpiringMessage(null, null), new GalleryExpiringMessage.Params(
+                new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
+                "Maria", "https://app.fotolio.de/g/anna-foto/acc",
+                OffsetDateTime.of(2027, 1, 31, 12, 0, 0, 0, ZoneOffset.UTC), 5)},
+            new Object[] {new GalleryExpiringMessage(null, null), new GalleryExpiringMessage.Params(
+                new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN, null,
+                "https://app.fotolio.de/g/anna-foto/acc",
+                OffsetDateTime.of(2027, 1, 31, 12, 0, 0, 0, ZoneOffset.UTC), 1)});
     }
 
     @ParameterizedTest(name = "{0}")

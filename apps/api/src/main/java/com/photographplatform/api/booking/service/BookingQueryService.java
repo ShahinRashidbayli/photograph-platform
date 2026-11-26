@@ -5,10 +5,12 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingConflictResponse;
+import com.photographplatform.api.booking.dto.BookingCustomer;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
+import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
@@ -99,6 +101,17 @@ public class BookingQueryService {
      */
     public List<UUID> tenantsWithClientEmail(String email) {
         return bookingRepository.findTenantsWithClientEmail(email);
+    }
+
+    /**
+     * The Customer behind a booking, for a Customer message about something
+     * hung off it. Tenant-scoped by RLS, so another studio's id resolves to
+     * nothing.
+     */
+    public BookingCustomer customer(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(b -> new BookingCustomer(b.getClientEmail(), b.getClientName(), b.getLanguage()))
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
     }
 
     /**

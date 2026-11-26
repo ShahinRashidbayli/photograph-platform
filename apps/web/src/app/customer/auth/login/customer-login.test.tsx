@@ -224,6 +224,28 @@ describe('CustomerLoginPage', () => {
       );
     });
 
+    /**
+     * A request decision links here with the Customer's address, so the code is
+     * the only thing left to enter; the email used to be dropped and asked again.
+     */
+    it('takes the address from the studio’s link', async () => {
+      const user = setupUser();
+      mockSearch = new URLSearchParams(
+        'subdomain=studio-lichtblick&email=maria%40example.test&next=%2Fbookings%3Fid%3Dabc'
+      );
+      mockedApi.post.mockResolvedValue({ status: 204 } as never);
+      render();
+
+      expect(await screen.findByLabelText('Email address')).toHaveValue('maria@example.test');
+      await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
+
+      await screen.findByText('Enter your code');
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/api/auth/customer/login-code/request',
+        expect.objectContaining({ email: 'maria@example.test', subdomain: 'studio-lichtblick' })
+      );
+    });
+
     /** "Change" falls back to the email alone: every studio that knows the client. */
     it('lets the client drop the studio and sign in by email instead', async () => {
       const user = setupUser();

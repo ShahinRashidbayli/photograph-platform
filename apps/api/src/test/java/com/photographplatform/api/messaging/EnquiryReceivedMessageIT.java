@@ -87,8 +87,14 @@ class EnquiryReceivedMessageIT extends IntegrationTestBase {
 
         publishLead(studio, LeadCreatedEvent.Origin.PUBLIC_FORM, CustomerLanguage.EN);
 
+        assertThat(valueAcrossTenants("SELECT recipient_email FROM outbox_jobs WHERE tenant_id = ?",
+            studio.getId())).isEqualTo(CUSTOMER);
+        assertThat(valueAcrossTenants("SELECT payload::text FROM outbox_jobs WHERE tenant_id = ?",
+            studio.getId())).contains(EnquiryReceivedMessage.TEMPLATE).contains("\"EN\"").doesNotContain("<");
+
         EmailMessage mail = deliver();
         assertThat(mail.to()).isEqualTo(CUSTOMER);
+        assertThat(mail.type()).isEqualTo(EmailType.CUSTOMER_ENQUIRY_RECEIVED);
         assertThat(mail.fromName()).isEqualTo("Studio Lichtblick");
         assertThat(mail.replyTo()).isEqualTo("hallo@lichtblick.test");
         assertThat(mail.subject()).isEqualTo("Your enquiry to Studio Lichtblick");

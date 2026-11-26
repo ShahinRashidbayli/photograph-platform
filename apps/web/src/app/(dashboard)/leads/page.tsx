@@ -163,21 +163,15 @@ function LeadsView() {
           }}
         >
           <span>{asyncErrorText(actions.actionError, t)}</span>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label={t('common.close')}
             onClick={actions.dismissActionError}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-              fontSize: '1.1rem',
-              lineHeight: 1,
-            }}
+            style={{ color: 'inherit' }}
           >
             ×
-          </button>
+          </Button>
         </Alert>
       )}
 

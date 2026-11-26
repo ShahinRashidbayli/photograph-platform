@@ -45,6 +45,8 @@ public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> 
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onLeadCreated(LeadCreatedEvent event) {
+        // Allow-list: writing to a Customer is opt-in, so an origin added later
+        // sends nothing until someone decides it should.
         if (event.getOrigin() != LeadCreatedEvent.Origin.PUBLIC_FORM) {
             return;
         }

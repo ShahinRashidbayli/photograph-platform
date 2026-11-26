@@ -330,7 +330,7 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             new LeadCreatedEvent(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                LeadCreatedEvent.Origin.PUBLIC_FORM, studioName(tenant), tenant.getOwnerEmail())
+                LeadCreatedEvent.Origin.PUBLIC_FORM, tenant.customerFacingName(), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);
@@ -375,16 +375,6 @@ public class LeadService {
             .stream()
             .map(mapper::toResponse)
             .toList();
-    }
-
-    /**
-     * The name a Customer knows the studio by: its business name, else its legal
-     * name, else none. Never the subdomain: the acknowledgement used to sign
-     * "Qa Pipe 11251358" for a studio at qa-pipe-11251358 (#103).
-     */
-    private static String studioName(Tenant tenant) {
-        String businessName = Normalize.trimToNull(tenant.getBusinessName());
-        return businessName != null ? businessName : Normalize.trimToNull(tenant.getLegalName());
     }
 
     private String calculateScore(CreateLeadRequest req) {

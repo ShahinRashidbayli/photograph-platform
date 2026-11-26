@@ -230,10 +230,10 @@ public class GalleryService {
      * empty gallery, and once it can no longer be opened: a link to a gallery
      * that is gone only sends the Customer to a tombstone.
      *
-     * @param note the photographer's optional personal note; null for none
+     * @param personalNote the photographer's optional Personal note; null for none
      */
     @Transactional
-    public GalleryResponse send(UUID id, String note, String ipAddress) {
+    public GalleryResponse send(UUID id, String personalNote, String ipAddress) {
         Gallery gallery = galleryRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Gallery not found: " + id));
         GalleryStatsView stats = requireStats(id);
@@ -252,10 +252,10 @@ public class GalleryService {
 
         // A note is the photographer's words to one Customer: the trail says
         // that one was sent, never what it said.
-        String personalNote = Normalize.trimToNull(note);
+        String trimmedNote = Normalize.trimToNull(personalNote);
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        if (personalNote == null) {
+        if (trimmedNote == null) {
             auditService.log("GALLERY_SENT", "GALLERY", id, tenantId, actorId, ipAddress);
         } else {
             auditService.logChange("GALLERY_SENT", "GALLERY", id, tenantId, actorId, ipAddress,
@@ -269,7 +269,7 @@ public class GalleryService {
             to,
             customer.name(),
             customer.language(),
-            personalNote,
+            trimmedNote,
             sentAt,
             tenants.requireById(tenantId).getSubdomain(),
             gallery.getAccessToken()));

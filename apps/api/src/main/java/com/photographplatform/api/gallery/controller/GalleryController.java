@@ -99,8 +99,8 @@ public class GalleryController {
         @Valid @RequestBody(required = false) SendGalleryRequest request,
         HttpServletRequest http
     ) {
-        String note = request == null ? null : request.note();
-        return ResponseEntity.ok(galleryService.send(id, note, ClientIp.from(http)));
+        String personalNote = request == null ? null : request.personalNote();
+        return ResponseEntity.ok(galleryService.send(id, personalNote, ClientIp.from(http)));
     }
 
     @DeleteMapping("/galleries/{id}")

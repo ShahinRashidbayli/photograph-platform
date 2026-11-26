@@ -24,14 +24,14 @@ public class GalleryDeliveredEvent extends ApplicationEvent {
     private final String recipientEmail;
     private final String recipientName;
     private final CustomerLanguage language;
-    private final String note;
+    private final String personalNote;
     private final Instant sentAt;
     private final String subdomain;
     private final String accessToken;
 
     /**
      * @param recipientEmail the booking's Customer address
-     * @param note           the photographer's personal note; null when they wrote none
+     * @param personalNote   the photographer's Personal note; null when they wrote none
      * @param sentAt         when the photographer clicked, this time
      * @param subdomain      the studio's, for the public gallery link
      * @param accessToken    the gallery's capability token, for the same link
@@ -39,14 +39,14 @@ public class GalleryDeliveredEvent extends ApplicationEvent {
     @SuppressWarnings("checkstyle:ParameterNumber")
     public GalleryDeliveredEvent(Object source, UUID galleryId, UUID tenantId,
                                  String recipientEmail, String recipientName, CustomerLanguage language,
-                                 String note, Instant sentAt, String subdomain, String accessToken) {
+                                 String personalNote, Instant sentAt, String subdomain, String accessToken) {
         super(source);
         this.galleryId = galleryId;
         this.tenantId = tenantId;
         this.recipientEmail = recipientEmail;
         this.recipientName = recipientName;
         this.language = language;
-        this.note = note;
+        this.personalNote = personalNote;
         this.sentAt = sentAt;
         this.subdomain = subdomain;
         this.accessToken = accessToken;
@@ -72,8 +72,8 @@ public class GalleryDeliveredEvent extends ApplicationEvent {
         return language;
     }
 
-    public String getNote() {
-        return note;
+    public String getPersonalNote() {
+        return personalNote;
     }
 
     public Instant getSentAt() {

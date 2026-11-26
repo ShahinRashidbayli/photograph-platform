@@ -515,7 +515,7 @@ class GalleryServiceTest {
         assertThat(event.getValue().getRecipientEmail()).isEqualTo("maria@example.test");
         assertThat(event.getValue().getRecipientName()).isEqualTo("Maria Kellner");
         assertThat(event.getValue().getLanguage()).isEqualTo(CustomerLanguage.EN);
-        assertThat(event.getValue().getNote()).isEqualTo("Viel Freude!");
+        assertThat(event.getValue().getPersonalNote()).isEqualTo("Viel Freude!");
         assertThat(event.getValue().getSentAt()).isEqualTo(FIXED_CLOCK.instant());
         assertThat(event.getValue().getSubdomain()).isEqualTo("anna-foto");
         assertThat(event.getValue().getAccessToken()).isEqualTo(gallery.getAccessToken());
@@ -541,7 +541,7 @@ class GalleryServiceTest {
         verify(auditService).log("GALLERY_SENT", "GALLERY", gallery.getId(), TENANT_ID, ACTOR_ID, IP);
         ArgumentCaptor<GalleryDeliveredEvent> event = ArgumentCaptor.forClass(GalleryDeliveredEvent.class);
         verify(eventPublisher).publishEvent(event.capture());
-        assertThat(event.getValue().getNote()).isNull();
+        assertThat(event.getValue().getPersonalNote()).isNull();
     }
 
     /** The retention clock is not the send's business: the gallery is not saved at all. */

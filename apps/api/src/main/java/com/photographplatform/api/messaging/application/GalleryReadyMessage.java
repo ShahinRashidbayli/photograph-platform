@@ -38,10 +38,10 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
      * @param language     the Customer's
      * @param customerName how the studio knows them; may be blank
      * @param galleryUrl   the public gallery, {@code /g/{subdomain}/{token}}
-     * @param note         the photographer's personal note, unescaped; null for none
+     * @param personalNote the photographer's Personal note, unescaped; null for none
      */
     public record Params(StudioIdentity studio, CustomerLanguage language, String customerName,
-                         String galleryUrl, String note) {}
+                         String galleryUrl, String personalNote) {}
 
     private final CustomerMessageQueue queue;
     private final String webBaseUrl;
@@ -62,7 +62,7 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
             event.getTenantId(),
             event.getRecipientEmail(),
             studio -> new Params(studio, event.getLanguage(), event.getRecipientName(), galleryUrl,
-                event.getNote()),
+                event.getPersonalNote()),
             null,
             event.getSentAt()));
     }
@@ -98,7 +98,7 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
         String body = CustomerMessageLayout.heading(copy.heading)
             + CustomerMessageLayout.paragraph(greeting)
             + CustomerMessageLayout.paragraph(name == null ? copy.intro : copy.introWith.formatted(escapedName))
-            + CustomerMessageLayout.personalNote(studio, PersonalNote.ofNullable(params.note()))
+            + CustomerMessageLayout.personalNote(studio, PersonalNote.ofNullable(params.personalNote()))
             + CustomerMessageLayout.button(studio, copy.button, params.galleryUrl())
             + CustomerMessageLayout.paragraph(copy.reply)
             + CustomerMessageLayout.paragraph(signOff);

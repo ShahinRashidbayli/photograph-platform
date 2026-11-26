@@ -8,10 +8,13 @@ import com.photographplatform.api.auth.service.PasswordResetEmail;
 import com.photographplatform.api.auth.service.SignInCodeEmail;
 import com.photographplatform.api.auth.service.StaffInvitationEmail;
 import com.photographplatform.api.auth.service.StudioSignInCodesEmail;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.outbox.OutboxEntry;
 import com.photographplatform.api.common.outbox.OutboxJob;
 import com.photographplatform.api.common.outbox.Outbox;
 import com.photographplatform.api.inquiry.service.InquiryDecisionEmail;
+import com.photographplatform.api.messaging.application.EnquiryReceivedMessage;
+import com.photographplatform.api.messaging.domain.StudioIdentity;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -72,8 +75,16 @@ class EmailRenderingTest {
             new Object[] {new InquiryDecisionEmail(), new InquiryDecisionEmail.Params("Maria", true)},
             new Object[] {withBaseUrl(new LeadNotificationService(null)),
                 new LeadNotificationService.Params(UUID.randomUUID(), "HIGH", "Maria", "maria@example.test")},
-            new Object[] {new AutoReplyService(null), new AutoReplyService.Params("Maria", "Studio Lichtblick")},
-            new Object[] {new AutoReplyService(null), new AutoReplyService.Params("Maria", null)},
+            new Object[] {new AutoReplyService(), new AutoReplyService.Params("Maria", "Studio Lichtblick")},
+            new Object[] {new AutoReplyService(), new AutoReplyService.Params("Maria", null)},
+            new Object[] {new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de"),
+                new EnquiryReceivedMessage.Params(
+                    StudioIdentity.resolve("Studio Lichtblick", null, "hallo@lichtblick.test", null, true,
+                        "https://app.fotolio.de/api/public/studios/lichtblick/logo", "#AA3366"),
+                    CustomerLanguage.EN, "Maria", "https://app.fotolio.de/p/lichtblick")},
+            new Object[] {new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de"),
+                new EnquiryReceivedMessage.Params(StudioIdentity.resolve(null, null, null, null, false, null, null),
+                    CustomerLanguage.DE, null, null)},
             new Object[] {withBaseUrl(new InquiryNotificationService(null)),
                 new InquiryNotificationService.Params(UUID.randomUUID(), "LOW", "Maria", "maria@example.test",
                     "HOCHZEIT", "OVER_2000", LocalDate.of(2027, 6, 12), "Berlin")},

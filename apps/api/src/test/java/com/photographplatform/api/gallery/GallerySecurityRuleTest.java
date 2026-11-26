@@ -16,6 +16,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.cache.GateCache;
 import com.photographplatform.api.common.config.ClockConfig;
 import com.photographplatform.api.common.config.SecurityConfig;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.security.JwtAuthFilter;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.security.RestAuthEntryPoints;
@@ -113,6 +114,17 @@ class GallerySecurityRuleTest {
             .andExpect(status().isUnprocessableEntity());
 
         verify(galleryService, never()).send(any(), anyString(), nullable(String.class));
+    }
+
+    @Test
+    void anEmptyGalleryAnswersConflict() throws Exception {
+        when(galleryService.send(eq(GALLERY_ID), isNull(), nullable(String.class)))
+            .thenThrow(new ConflictException("Upload photos before sending this gallery to the customer"));
+
+        mvc.perform(post(SEND)
+                .header("Authorization", bearer("PHOTOGRAPHER"))
+                .with(xsrf()))
+            .andExpect(status().isConflict());
     }
 
     private String bearer(String role) {

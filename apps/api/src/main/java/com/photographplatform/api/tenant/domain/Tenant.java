@@ -142,6 +142,14 @@ public class Tenant {
     @Column(name = "privacy_contact_email", length = 320)
     private String privacyContactEmail;
 
+    /**
+     * Whether a Customer who sends an enquiry through the public request form
+     * gets the automatic acknowledgement. On by default; a studio that answers
+     * every enquiry personally switches it off (V40).
+     */
+    @Column(name = "enquiry_acknowledgement_enabled", nullable = false)
+    private boolean enquiryAcknowledgementEnabled = true;
+
     protected Tenant() {
     }
 
@@ -527,5 +535,13 @@ public class Tenant {
 
     public void setPrivacyContactEmail(String privacyContactEmail) {
         this.privacyContactEmail = privacyContactEmail;
+    }
+
+    public boolean isEnquiryAcknowledgementEnabled() {
+        return enquiryAcknowledgementEnabled;
+    }
+
+    public void setEnquiryAcknowledgementEnabled(boolean enquiryAcknowledgementEnabled) {
+        this.enquiryAcknowledgementEnabled = enquiryAcknowledgementEnabled;
     }
 }

@@ -204,7 +204,8 @@ function BookingsView() {
   );
 
   // Keep the selection valid as data loads or changes: keep the current pick if
-  // it still exists, otherwise fall back to the first booking. (Previously this
+  // it still exists, otherwise fall back to the first booking — and on a narrow
+  // screen show the list rather than the fallback's detail. (Previously this
   // lived inside the fetch; now it reacts to the cached data.)
   useEffect(() => {
     // A link to a booking that is gone opens the list on a narrow screen, not
@@ -220,8 +221,8 @@ function BookingsView() {
     setSelectedId((prev) =>
       prev && bookings.some((b) => b.id === prev) ? prev : (bookings[0]?.id ?? null)
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings, loading]);
+    // `selectedId` too: back/forward to a deleted booking changes only the URL.
+  }, [bookings, loading, selectedId]);
 
   // Recomputed per mount rather than per render — the bucket boundaries only
   // move at midnight, and a fresh `new Date()` on every render would make the

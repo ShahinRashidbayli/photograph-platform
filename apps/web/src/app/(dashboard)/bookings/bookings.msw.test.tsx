@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, screen } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { renderWithProviders } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
@@ -118,6 +119,21 @@ describe('BookingsPage deep link', () => {
 
     expect(await screen.findByRole('searchbox', { name: 'Search bookings' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'All bookings', hidden: true })).not.toBeVisible();
+  });
+
+  it('opens the list when back/forward lands on a booking that is gone', async () => {
+    const { rerender, queryClient } = renderWithProviders(<BookingsPage />, { lang: 'en' });
+    expect(await screen.findByRole('heading', { name: /Jonas Keller/ })).toBeVisible();
+
+    mockQuery = 'id=deleted';
+    // A new URL re-renders the same page; `rerender` alone would drop the provider.
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <BookingsPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByRole('searchbox', { name: 'Search bookings' })).toBeVisible();
   });
 
   it('keeps the overview tiles in the calendar, which has no detail pane', async () => {

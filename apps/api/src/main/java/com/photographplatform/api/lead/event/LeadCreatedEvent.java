@@ -5,23 +5,42 @@ import org.springframework.context.ApplicationEvent;
 
 public class LeadCreatedEvent extends ApplicationEvent {
 
+    /**
+     * Where the lead came from. Listeners that write to the Customer must
+     * ignore {@link #ENTERED_BY_STUDIO}: the studio typed in a conversation
+     * it already had, and an automatic reply to it read like a form letter,
+     * with an empty studio name and a {@code /p/null} link (#103).
+     */
+    public enum Origin {
+        /** Sent by the Customer through the studio's public request form. */
+        PUBLIC_FORM,
+        /** Typed in by the studio's owner or staff. */
+        ENTERED_BY_STUDIO
+    }
+
     private final UUID leadId;
     private final UUID tenantId;
     private final String clientName;
     private final String clientEmail;
     private final String score;
-    private final String photographerSubdomain;
+    private final Origin origin;
+    private final String studioName;
     private final String photographerEmail;
 
+    /**
+     * @param studioName the name the Customer knows the studio by, or null when
+     *                   the studio has not entered one; never the subdomain
+     */
     public LeadCreatedEvent(Object source, UUID leadId, UUID tenantId, String clientName, String clientEmail,
-                            String score, String photographerSubdomain, String photographerEmail) {
+                            String score, Origin origin, String studioName, String photographerEmail) {
         super(source);
         this.leadId = leadId;
         this.tenantId = tenantId;
         this.clientName = clientName;
         this.clientEmail = clientEmail;
         this.score = score;
-        this.photographerSubdomain = photographerSubdomain;
+        this.origin = origin;
+        this.studioName = studioName;
         this.photographerEmail = photographerEmail;
     }
 
@@ -45,8 +64,12 @@ public class LeadCreatedEvent extends ApplicationEvent {
         return score;
     }
 
-    public String getPhotographerSubdomain() {
-        return photographerSubdomain;
+    public Origin getOrigin() {
+        return origin;
+    }
+
+    public String getStudioName() {
+        return studioName;
     }
 
     public String getPhotographerEmail() {

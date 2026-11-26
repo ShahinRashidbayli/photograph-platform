@@ -294,14 +294,13 @@ public class LeadService {
 
         auditService.log("LEAD_CREATED", "LEAD", saved.getId(), tenantId, actorId, ipAddress);
 
-        // No tenant lookup here (we have the actor's tenant id directly); the
-        // event publisher is left in place so notification flows that listen
-        // for new leads (email-the-photographer, etc.) still fire.
-        // The subdomain/ownerEmail args aren't strictly needed for a manual
-        // add but keep the event payload shape consistent with the public path.
+        // Still published, so anything that reacts to new leads sees this one.
+        // ENTERED_BY_STUDIO tells the email listeners to stay quiet: the
+        // Customer already talked to the studio, and the person who typed the
+        // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
             new LeadCreatedEvent(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                null, actor.getEmail())
+                LeadCreatedEvent.Origin.ENTERED_BY_STUDIO, null, actor.getEmail())
         );
 
         return mapper.toResponse(saved);
@@ -331,7 +330,7 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             new LeadCreatedEvent(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                tenant.getSubdomain(), tenant.getOwnerEmail())
+                LeadCreatedEvent.Origin.PUBLIC_FORM, studioName(tenant), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);
@@ -376,6 +375,21 @@ public class LeadService {
             .stream()
             .map(mapper::toResponse)
             .toList();
+    }
+
+    /**
+     * The name a Customer knows the studio by: its business name, else its legal
+     * name, else none. Never the subdomain: the acknowledgement used to sign
+     * "Qa Pipe 11251358" for a studio at qa-pipe-11251358 (#103).
+     */
+    private static String studioName(Tenant tenant) {
+        if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
+            return tenant.getBusinessName().trim();
+        }
+        if (tenant.getLegalName() != null && !tenant.getLegalName().isBlank()) {
+            return tenant.getLegalName().trim();
+        }
+        return null;
     }
 
     private String calculateScore(CreateLeadRequest req) {

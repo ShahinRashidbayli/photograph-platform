@@ -1,0 +1,104 @@
+package com.photographplatform.api.lead;
+
+import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.auth.domain.User;
+import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.lead.domain.Lead;
+import com.photographplatform.api.lead.dto.CreateLeadRequest;
+import com.photographplatform.api.lead.event.LeadCreatedEvent;
+import com.photographplatform.api.lead.repository.LeadRepository;
+import com.photographplatform.api.lead.service.LeadResponseMapper;
+import com.photographplatform.api.lead.service.LeadScoringService;
+import com.photographplatform.api.lead.service.LeadService;
+import com.photographplatform.api.tenant.domain.Tenant;
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * What a new lead tells its listeners: where it came from, and the name the
+ * Customer knows the studio by (#103).
+ */
+class LeadServiceCreateLeadTest {
+
+    private static final CreateLeadRequest REQUEST = new CreateLeadRequest("Maria", "maria@example.test", null,
+        LocalDate.of(2027, 6, 12), "FAMILIE", "OVER_2000", null, null);
+
+    private final LeadRepository leadRepository = mock(LeadRepository.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final LeadService service = new LeadService(leadRepository, events, mock(AuditService.class),
+        userRepository, mock(LeadScoringService.class), mock(LeadResponseMapper.class));
+
+    LeadServiceCreateLeadTest() {
+        when(leadRepository.save(any(Lead.class))).thenAnswer(i -> i.getArgument(0));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private LeadCreatedEvent published() {
+        ArgumentCaptor<LeadCreatedEvent> event = ArgumentCaptor.forClass(LeadCreatedEvent.class);
+        verify(events).publishEvent(event.capture());
+        return event.getValue();
+    }
+
+    @Test
+    void aPublicLeadCarriesTheStudiosLegalNameNotItsSubdomain() {
+        Tenant tenant = new Tenant("qa-pipe-11251358", "anna@example.test");
+        tenant.setLegalName("Anna Müller Fotografie");
+
+        service.createLead(REQUEST, tenant, "203.0.113.7");
+
+        LeadCreatedEvent event = published();
+        assertThat(event.getOrigin()).isEqualTo(LeadCreatedEvent.Origin.PUBLIC_FORM);
+        assertThat(event.getStudioName()).isEqualTo("Anna Müller Fotografie");
+    }
+
+    @Test
+    void theBusinessNameWinsOverTheLegalName() {
+        Tenant tenant = new Tenant("anna-foto", "anna@example.test");
+        tenant.setLegalName("Anna Müller");
+        tenant.setBusinessName("Studio Lichtblick");
+
+        service.createLead(REQUEST, tenant, "203.0.113.7");
+
+        assertThat(published().getStudioName()).isEqualTo("Studio Lichtblick");
+    }
+
+    @Test
+    void aStudioWithNoNameYetGetsNoneInvented() {
+        service.createLead(REQUEST, new Tenant("anna-foto", "anna@example.test"), "203.0.113.7");
+
+        assertThat(published().getStudioName()).isNull();
+    }
+
+    @Test
+    void aLeadTheStudioTypedInSaysSo() {
+        UUID actorId = UUID.randomUUID();
+        User actor = mock(User.class);
+        when(actor.getTenantId()).thenReturn(UUID.randomUUID());
+        when(actor.getEmail()).thenReturn("anna@example.test");
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(actorId.toString(), null));
+
+        service.createLeadByPhotographer(REQUEST, "203.0.113.7");
+
+        assertThat(published().getOrigin()).isEqualTo(LeadCreatedEvent.Origin.ENTERED_BY_STUDIO);
+    }
+}

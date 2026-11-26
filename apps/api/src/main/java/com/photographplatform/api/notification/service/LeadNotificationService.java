@@ -40,6 +40,10 @@ public class LeadNotificationService implements EmailRenderer<LeadNotificationSe
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onLeadCreated(LeadCreatedEvent event) {
+        // A lead the studio typed in went to the very person who typed it (#103).
+        if (event.getOrigin() == LeadCreatedEvent.Origin.ENTERED_BY_STUDIO) {
+            return;
+        }
         emailService.queue(new OutgoingEmail(
             template(),
             event.getPhotographerEmail(),

@@ -207,6 +207,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         publicEndpoint("POST /api/public/leads/{subdomain}");
         publicEndpoint("GET /api/public/legal/{subdomain}");
         publicEndpoint("GET /api/public/portfolio/{subdomain}");
+        publicEndpoint("GET /api/public/studios/{subdomain}/logo");
         publicEndpoint("POST /api/public/webhooks/stripe");
         publicEndpoint("POST /api/public/webhooks/stripe/billing");
         staffOnly("GET /api/resources");

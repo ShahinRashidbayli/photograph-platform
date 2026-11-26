@@ -99,7 +99,6 @@ public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> 
             EmailTemplate.heading("Vielen Dank für Ihre Anfrage")
                 + EmailTemplate.paragraph(greeting)
                 + EmailTemplate.paragraph(received)
-                + EmailTemplate.paragraph("Wir lesen sie und melden uns persönlich bei Ihnen.")
                 + EmailTemplate.paragraph(signOff)
                 + EmailTemplate.note("Diese Bestätigung wurde automatisch versendet."),
             "de");

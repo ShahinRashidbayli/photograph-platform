@@ -7,6 +7,8 @@ import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.email.RenderedEmail;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,8 +30,32 @@ class AutoReplyServiceTest {
     private final AutoReplyService service = new AutoReplyService(emailService);
 
     private static LeadCreatedEvent lead(Origin origin, String studioName) {
-        return new LeadCreatedEvent(new Object(), LEAD, TENANT, "Maria", "maria@example.test", "HIGH",
+        return lead("HIGH", origin, studioName);
+    }
+
+    private static LeadCreatedEvent lead(String score, Origin origin, String studioName) {
+        return new LeadCreatedEvent(new Object(), LEAD, TENANT, "Maria", "maria@example.test", score,
             origin, studioName, "anna@example.test");
+    }
+
+    private RenderedEmail queuedAndRendered(LeadCreatedEvent event) {
+        service.onLeadCreated(event);
+        ArgumentCaptor<OutgoingEmail> queued = ArgumentCaptor.forClass(OutgoingEmail.class);
+        verify(emailService).queue(queued.capture());
+        return service.render((AutoReplyService.Params) queued.getValue().params());
+    }
+
+    // HIGH once meant wedding copy with packages for every event type (#103).
+    // The event type never reaches the email, so the score is the only lever left.
+    @ParameterizedTest
+    @ValueSource(strings = {"HIGH", "MED", "LOW"})
+    void everyScoreGetsTheSameNeutralAcknowledgement(String score) {
+        RenderedEmail email = queuedAndRendered(lead(score, Origin.PUBLIC_FORM, "Studio Lichtblick"));
+
+        assertThat(email.subject()).isEqualTo("Ihre Anfrage bei Studio Lichtblick");
+        assertThat(email.htmlBody())
+            .contains("Studio Lichtblick")
+            .doesNotContain("€", "Paket", "Stunden", "Hochzeit", "Erfahrung", "/p/");
     }
 
     @Test
@@ -57,7 +83,7 @@ class AutoReplyServiceTest {
         assertThat(email.subject()).isEqualTo("Ihre Anfrage bei Studio Lichtblick");
         assertThat(email.htmlBody())
             .contains("Studio Lichtblick", "Hallo Maria,")
-            .doesNotContain("€", "Paket", "Stunden", "Hochzeit", "Erfahrung", "/p/");
+            .doesNotContain("€", "Paket", "Stunden", "Hochzeit", "Erfahrung", "/p/", "melden uns");
     }
 
     @Test

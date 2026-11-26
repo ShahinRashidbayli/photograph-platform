@@ -3,6 +3,7 @@ package com.photographplatform.api.lead.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
 
 /**
@@ -35,7 +36,15 @@ public record CreateLeadRequest(
     String message,
 
     /** Honeypot — must be empty. Non-empty value indicates a bot. */
-    String website
+    String website,
+
+    /**
+     * The language the Customer reads. The public request form sends its UI
+     * language; a lead the photographer types in sends none. Absent means
+     * {@code de}; see {@code CustomerLanguage#fromCodeOrDefault}.
+     */
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {
     public boolean isHoneypotTriggered() {
         return website != null && !website.isBlank();

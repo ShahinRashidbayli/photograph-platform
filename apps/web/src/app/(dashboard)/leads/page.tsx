@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { Toast } from '@/components/Toast';
-import { Button } from '@/components/ui';
+import { Alert, Button } from '@/components/ui';
+import { PersonalNoteDialog } from '@/components/PersonalNoteDialog';
 import { useTranslation } from '@/lib/i18n';
 import { asyncErrorText } from '@/lib/async-error';
 import { useInquiries, useLeads } from '@/hooks/useLeads';
@@ -24,7 +25,7 @@ import { InboxDetail } from './InboxDetail';
 import { useLeadActions } from './useLeadActions';
 import { useDeferredStatus } from './useDeferredStatus';
 import { buildInbox, factsOf, type InboxItem, type PendingStatus } from './leads.inbox';
-import type { Inquiry } from './inquiryTypes';
+import { inquiryDisplayName, type Inquiry } from './inquiryTypes';
 
 /** Stable while a query has no data, so the memos below do not recompute every render. */
 const NO_LEADS: Lead[] = [];
@@ -152,20 +153,13 @@ function LeadsView() {
   return (
     <div style={s.pageWrapper}>
       {actions.actionError && (
-        <div
-          role="alert"
+        <Alert
+          tone="danger"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: c.dangerBg,
-            color: c.dangerText,
-            border: `1px solid ${c.dangerBorder}`,
-            fontSize: '0.9rem',
-            fontWeight: 500,
+            gap: 12,
           }}
         >
           <span>{asyncErrorText(actions.actionError, t)}</span>
@@ -184,7 +178,7 @@ function LeadsView() {
           >
             ×
           </button>
-        </div>
+        </Alert>
       )}
 
       {actions.convertSuccess && (
@@ -375,9 +369,15 @@ function LeadsView() {
                 s={ins}
                 actions={{
                   onReplied: (item, viaDraft) => move(item, 'REPLIED', viaDraft),
-                  onDeclined: (item, viaDraft) => move(item, 'REJECTED', viaDraft),
+                  // A client's request is decided in the note dialog: the
+                  // server emails them, so there is no draft to open or undo.
+                  onDeclined: (item, viaDraft) =>
+                    item.kind === 'inquiry'
+                      ? actions.startDecision(item.inquiry, 'REJECTED')
+                      : move(item, 'REJECTED', viaDraft),
                   onAccept: () =>
-                    current.kind === 'inquiry' && actions.acceptInquiry(current.inquiry),
+                    current.kind === 'inquiry' &&
+                    actions.startDecision(current.inquiry, 'ACCEPTED'),
                   onConvert: () => current.kind === 'lead' && actions.startConvert(current.lead),
                   onViewBookings: () => router.push('/bookings'),
                 }}
@@ -392,6 +392,30 @@ function LeadsView() {
             )}
           </div>
         </div>
+      )}
+
+      {actions.deciding && (
+        <PersonalNoteDialog
+          title={t(
+            actions.deciding.status === 'ACCEPTED'
+              ? 'leads.decision.acceptTitle'
+              : 'leads.decision.declineTitle'
+          )}
+          description={t(
+            actions.deciding.status === 'ACCEPTED'
+              ? 'leads.decision.acceptBody'
+              : 'leads.decision.declineBody',
+            { name: inquiryDisplayName(actions.deciding.inquiry) }
+          )}
+          confirmLabel={t(
+            actions.deciding.status === 'ACCEPTED'
+              ? 'leads.decision.accept'
+              : 'leads.decision.decline'
+          )}
+          busy={actions.decisionPending}
+          onSend={actions.decide}
+          onClose={actions.cancelDecision}
+        />
       )}
 
       {toast && (

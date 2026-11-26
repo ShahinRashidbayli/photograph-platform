@@ -133,12 +133,12 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.priority.weak': 'schwach: {list}',
   'leads.priority.inquiry': 'nach Budget und Datum bewertet',
   'leads.reply.email': 'Per E-Mail antworten',
-  'leads.reply.accept': 'Annehmen & per E-Mail antworten',
+  'leads.reply.accept': 'Anfrage annehmen',
   'leads.reply.call': 'Anrufen',
   'leads.reply.hint':
     'Öffnet einen Entwurf an {name} in Ihrem E-Mail-Programm. Die Anfrage wandert zu „Wartet auf Kunden“ — rückgängig machbar.',
   'leads.reply.acceptHint':
-    'Nimmt die Anfrage an — dabei entsteht die Buchung — und öffnet einen Entwurf an {name}.',
+    'Beim Annehmen entsteht die Buchung, und {name} erhält eine E-Mail im Namen Ihres Studios.',
   'leads.reply.noEmail':
     'Keine E-Mail-Adresse hinterlegt — rufen Sie an oder schreiben Sie eine Nachricht.',
   'leads.waiting.text':
@@ -147,6 +147,14 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.closed.booked': 'Aus dieser Anfrage wurde eine Buchung.',
   'leads.closed.declined': 'Sie haben diese Anfrage abgesagt.',
   'leads.decline': 'Freundlich absagen',
+  'leads.decision.acceptTitle': 'Diese Anfrage annehmen?',
+  'leads.decision.acceptBody':
+    'Dabei entsteht die Buchung, und {name} erhält eine E-Mail im Namen Ihres Studios mit einem Link dorthin.',
+  'leads.decision.accept': 'Annehmen und senden',
+  'leads.decision.declineTitle': 'Diese Anfrage absagen?',
+  'leads.decision.declineBody':
+    '{name} erhält eine kurze, freundliche Absage im Namen Ihres Studios. Das lässt sich nicht rückgängig machen.',
+  'leads.decision.decline': 'Absagen und senden',
   'leads.note.add': 'Notiz hinzufügen',
   'leads.note.show': 'Notiz',
   'leads.note.label': 'Interne Notiz · nur Sie und Ihr Team sehen das',
@@ -162,8 +170,6 @@ export const leads: Record<keyof EnLeads, string> = {
   'leads.draft.subject': 'Ihre Anfrage{date}',
   'leads.draft.reply':
     'Hallo {name},\n\nvielen Dank für Ihre Anfrage{date} — ich freue mich, mehr darüber zu hören.\n\n',
-  'leads.draft.accept':
-    'Hallo {name},\n\nvielen Dank für Ihre Anfrage{date} — ich sage gern zu und melde mich mit den Details.\n\n',
   'leads.draft.decline':
     'Hallo {name},\n\nvielen Dank für Ihre Anfrage{date}. Leider kann ich den Auftrag dieses Mal nicht übernehmen — das tut mir leid, und ich hoffe, Sie finden die passende Fotografin oder den passenden Fotografen.\n\nHerzliche Grüße\n',
   'leads.draft.followUp':

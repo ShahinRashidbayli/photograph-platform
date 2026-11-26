@@ -31,6 +31,13 @@ export const common: Record<keyof EnCommon, string> = {
   'common.confirm': 'Bestätigen',
   'common.working': 'Wird ausgeführt…',
 
+  // ── Persönliche Notiz (Senden-Dialoge für Kundennachrichten) ──────────────
+  'personalNote.label': 'Persönliche Notiz (optional)',
+  'personalNote.hint': 'Erscheint in der E-Mail an Ihren Kunden als reiner Text.',
+  'personalNote.placeholder': 'Ein paar Worte in Ihrem eigenen Ton…',
+  'personalNote.counter': '{count} / {max}',
+  'personalNote.sending': 'Wird gesendet…',
+
   'common.tryOtherFilter': 'Versuchen Sie einen anderen Filter oder Suchbegriff.',
 
   // ── Contact actions (leads + clients) ─────────────────────────────────────

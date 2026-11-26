@@ -27,6 +27,7 @@ export const contracts = {
 
   'contracts.action.edit': 'Edit',
   'contracts.action.send': 'Send to client',
+  'contracts.action.resend': 'Send again',
   'contracts.action.cancel': 'Withdraw',
   'contracts.action.download': 'Download PDF',
   'contracts.action.save': 'Save',
@@ -45,7 +46,11 @@ export const contracts = {
     'This draft is a starting point, not legal advice. Read it before sending — you are the party bound by it.',
   'contracts.sendConfirmTitle': 'Send this contract?',
   'contracts.sendConfirmBody':
-    'Once sent, the text is frozen and your client can sign it. You cannot edit it afterwards — you can only withdraw it and draft a new one.',
+    '{name} gets an email with a link to sign it. Once sent, the text is frozen and your client can sign it. You cannot edit it afterwards — you can only withdraw it and draft a new one.',
+  'contracts.resendTitle': 'Send this contract again?',
+  'contracts.resendBody':
+    '{name} gets the email with the signing link once more. The contract itself does not change.',
+  'contracts.sendError': 'Could not send the contract. Please try again.',
   'contracts.cancelConfirmTitle': 'Withdraw this contract?',
   'contracts.cancelConfirmBody':
     'Your client will no longer be able to sign it. The record is kept rather than deleted.',

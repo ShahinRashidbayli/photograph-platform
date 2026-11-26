@@ -37,7 +37,7 @@ export type DetailActions = {
   onReplied: (_item: InboxItem, _viaDraft: boolean) => void;
   /** Lead or request declined — with a polite draft, or silently. */
   onDeclined: (_item: InboxItem, _viaDraft: boolean) => void;
-  /** Client request accepted: creates the booking on the server. */
+  /** Client request: opens the decision dialog (accepting creates the booking). */
   onAccept: () => void;
   onConvert: () => void;
   onViewBookings: () => void;
@@ -167,8 +167,10 @@ export function InboxDetail({
   const subject = t('leads.draft.subject', { date: dateFrag });
   const body = (key: TranslationKey) => t(key, { name: f.firstName, date: dateFrag });
   const draft = (key: TranslationKey) => (f.email ? mailtoHref(f.email, subject, body(key)) : null);
-  const replyHref = draft(isLead ? 'leads.draft.reply' : 'leads.draft.accept');
-  const declineHref = draft('leads.draft.decline');
+  // A client's request is answered by the studio's own Customer message, sent
+  // by the server with the decision — a draft beside it would be a second email.
+  const replyHref = isLead ? draft('leads.draft.reply') : null;
+  const declineHref = isLead ? draft('leads.draft.decline') : null;
   const followUpHref = draft('leads.draft.followUp');
   const wa = whatsappHref(f.phone);
   const waHref = wa ? withWhatsappText(wa, body('leads.draft.reply').trim()) : null;
@@ -182,7 +184,9 @@ export function InboxDetail({
       onSelect: () => actions.onReplied(item, false),
     });
   }
-  if (item.group !== 'closed') {
+  // "Without email" is a lead's alone: deciding a client's request always
+  // emails them, so the request is declined through the dialog below instead.
+  if (isLead && item.group !== 'closed') {
     menu.push({
       key: 'reject',
       label: t('leads.menu.reject'),
@@ -245,18 +249,12 @@ export function InboxDetail({
           </a>
         )}
       </>
-    ) : replyHref ? (
-      <a
-        href={replyHref}
-        className="ui-press ui-btn-primary"
-        style={{ ...linkButton(c, 'primary'), ...(isPhone ? { flex: 1 } : null) }}
-        onClick={actions.onAccept}
-      >
-        {mailIcon}
-        {t('leads.reply.accept')}
-      </a>
     ) : (
-      <Button variant="primary" onClick={actions.onAccept}>
+      <Button
+        variant="primary"
+        onClick={actions.onAccept}
+        style={isPhone ? { flex: 1 } : undefined}
+      >
         {t('leads.reply.accept')}
       </Button>
     );

@@ -9,7 +9,8 @@ import java.util.Locale;
  * <p>Stored on leads, inquiry requests and bookings rather than on a person,
  * because the code has no single Customer record yet: a Customer exists as
  * whichever of those rows the studio holds (the {@code client} rename, #57,
- * comes later). Converting a lead or a request into a booking carries it over.
+ * comes later). Nothing copies it yet when a lead or a request becomes a
+ * booking; until something does, the booking starts at {@link #DEFAULT}.
  *
  * <p>In {@code common} because lead, inquiry, booking, gallery, contract and
  * messaging all read it; any feature module as its owner would make the others

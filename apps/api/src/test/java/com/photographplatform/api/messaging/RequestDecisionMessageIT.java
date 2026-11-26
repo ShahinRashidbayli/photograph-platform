@@ -123,6 +123,9 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
         publishDecision(studio, CustomerLanguage.EN, false, null, null);
 
         EmailMessage mail = deliver();
+        assertThat(mail.to()).isEqualTo(CUSTOMER);
+        assertThat(mail.fromName()).isEqualTo("Studio Lichtblick");
+        assertThat(mail.replyTo()).isEqualTo("hallo@lichtblick.test");
         assertThat(mail.subject()).isEqualTo("Your request to Studio Lichtblick");
         assertThat(mail.htmlBody())
             .contains("<html lang=\"en\"")
@@ -131,7 +134,7 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
             .doesNotContain("<a ");
     }
 
-    /** White-label: the studio's colour, and no mention of Fotolio anywhere. */
+    /** White-label: the studio's colour and copy, and no mention of Fotolio anywhere. */
     @Test
     void onWhiteLabelTheStudiosColourShowsAndFotolioIsNotMentioned() {
         Tenant studio = studio(t -> {
@@ -142,9 +145,37 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
         publishDecision(studio, CustomerLanguage.DE, true, UUID.randomUUID(), null);
 
         EmailMessage mail = deliver();
+        assertThat(mail.to()).isEqualTo(CUSTOMER);
         assertThat(mail.fromName()).isEqualTo("Studio Lichtblick");
+        assertThat(mail.replyTo()).isEqualTo("hallo@lichtblick.test");
+        assertThat(mail.subject()).isEqualTo("Ihre Anfrage bei Studio Lichtblick wurde angenommen");
         assertThat(mail.htmlBody())
+            .contains("<html lang=\"de\"")
+            .contains("<strong>Studio Lichtblick</strong> hat Ihre Anfrage angenommen")
+            .contains("Buchung ansehen")
             .contains("#AA3355")
+            .doesNotContain("Fotolio");
+    }
+
+    @Test
+    void onWhiteLabelAnEnglishDeclineIsInTheStudiosNameOnly() {
+        Tenant studio = studio(t -> {
+            t.setPlan(Plan.STUDIO);
+            t.setBrandColor("#AA3355");
+        });
+
+        publishDecision(studio, CustomerLanguage.EN, false, null, null);
+
+        EmailMessage mail = deliver();
+        assertThat(mail.to()).isEqualTo(CUSTOMER);
+        assertThat(mail.fromName()).isEqualTo("Studio Lichtblick");
+        assertThat(mail.replyTo()).isEqualTo("hallo@lichtblick.test");
+        assertThat(mail.subject()).isEqualTo("Your request to Studio Lichtblick");
+        assertThat(mail.htmlBody())
+            .contains("<html lang=\"en\"")
+            .contains("Unfortunately <strong>Studio Lichtblick</strong> is unable to accept your request")
+            .contains("We wish you all the best.")
+            .doesNotContain("<a ")
             .doesNotContain("Fotolio");
     }
 

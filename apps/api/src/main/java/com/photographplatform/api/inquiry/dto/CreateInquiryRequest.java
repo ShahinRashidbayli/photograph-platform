@@ -52,7 +52,16 @@ public record CreateInquiryRequest(
     String message,
 
     /** Honeypot — must be empty. A non-empty value indicates a bot. */
-    String website
+    String website,
+
+    /**
+     * The language the Customer reads, as the portal's request form sends its
+     * UI language. In v1 the portal's own language switch does not update it
+     * afterwards. Absent means {@code de}; see
+     * {@code CustomerLanguage#fromCodeOrDefault}.
+     */
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {
     public boolean isHoneypotTriggered() {
         return website != null && !website.isBlank();

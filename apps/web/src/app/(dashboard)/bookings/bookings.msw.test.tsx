@@ -1,5 +1,5 @@
 import React from 'react';
-import { screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { renderWithProviders } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
@@ -79,20 +79,19 @@ describe('BookingsPage deep link', () => {
           writable: true,
         })
       ),
+      http.get('/api/analytics/summary', () =>
+        HttpResponse.json({ year: 2027, bookedCents: 0, invoicedCents: 0, collectedCents: 0 })
+      ),
       // Everything else the page loads alongside, answered empty.
-      ...[
-        '/api/galleries',
-        '/api/packages',
-        '/api/bookings/:id/invoices',
-        '/api/customerBookings',
-        '/api/customer/contracts',
-        '/api/customer/galleries',
-        '/api/customer/inquiry-requests',
-        '/api/customer/invoices',
-      ].map((path) => http.get(path, () => HttpResponse.json([])))
+      ...['/api/galleries', '/api/packages', '/api/bookings/:id/invoices'].map((path) =>
+        http.get(path, () => HttpResponse.json([]))
+      )
     );
   });
   afterEach(() => {
+    // Unmount first: signing out under a mounted page re-renders it as the
+    // Customer portal, which then asks for /api/customer/* mid-teardown.
+    cleanup();
     useAuthStore.setState({ user: null });
     mockQuery = 'id=b2';
   });

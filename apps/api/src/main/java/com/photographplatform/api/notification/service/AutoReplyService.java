@@ -2,6 +2,7 @@ package com.photographplatform.api.notification.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.photographplatform.api.common.util.HtmlEscape;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -73,7 +74,7 @@ public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> 
 
     @Override
     public RenderedEmail render(Params params) {
-        String studio = blankToNull(params.studioName());
+        String studio = Normalize.trimToNull(params.studioName());
         String subject = studio == null ? "Ihre Anfrage ist eingegangen" : "Ihre Anfrage bei " + studio;
         return new RenderedEmail(subject, buildBody(params.clientName(), studio));
     }
@@ -100,9 +101,5 @@ public class AutoReplyService implements EmailRenderer<AutoReplyService.Params> 
                 + EmailTemplate.paragraph(signOff)
                 + EmailTemplate.note("Diese Bestätigung wurde automatisch versendet."),
             "de");
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

@@ -383,13 +383,8 @@ public class LeadService {
      * "Qa Pipe 11251358" for a studio at qa-pipe-11251358 (#103).
      */
     private static String studioName(Tenant tenant) {
-        if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
-            return tenant.getBusinessName().trim();
-        }
-        if (tenant.getLegalName() != null && !tenant.getLegalName().isBlank()) {
-            return tenant.getLegalName().trim();
-        }
-        return null;
+        String businessName = Normalize.trimToNull(tenant.getBusinessName());
+        return businessName != null ? businessName : Normalize.trimToNull(tenant.getLegalName());
     }
 
     private String calculateScore(CreateLeadRequest req) {

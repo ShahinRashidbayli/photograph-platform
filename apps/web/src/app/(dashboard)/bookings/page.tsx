@@ -197,7 +197,11 @@ function BookingsView() {
   // Phone only: the detail's actions move to a bar under the thumb and the
   // progress line turns vertical — a tablet has the width for neither change.
   const isPhone = useMediaQuery('(max-width: 640px)');
-  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
+  // A link to one booking (`?id=`, from an email or the dashboard) opens on its
+  // detail. Starting on the list made that link look broken on a phone (#104).
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(
+    urlSelectedId ? 'detail' : 'list'
+  );
 
   // Keep the selection valid as data loads or changes: keep the current pick if
   // it still exists, otherwise fall back to the first booking. (Previously this

@@ -3,12 +3,14 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
+import type { Booking } from '@/types/api';
 import BookingsPage from './page';
 
+let mockQuery = 'id=b2';
 jest.mock('next/navigation', () => ({
   usePathname: () => '/bookings',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn() }),
-  useSearchParams: () => new URLSearchParams('id=b2'),
+  useSearchParams: () => new URLSearchParams(mockQuery),
   useParams: () => ({}),
 }));
 
@@ -21,7 +23,7 @@ const ANNA: AuthUser = {
   tenant: { subdomain: 'anna-foto', plan: 'STARTER' },
 };
 
-function booking(id: string, clientName: string) {
+function booking(id: string, clientName: string): Booking {
   return {
     id,
     clientName,
@@ -88,12 +90,23 @@ describe('BookingsPage deep link', () => {
       ].map((path) => http.get(path, () => HttpResponse.json([])))
     );
   });
-  afterEach(() => useAuthStore.setState({ user: null }));
+  afterEach(() => {
+    useAuthStore.setState({ user: null });
+    mockQuery = 'id=b2';
+  });
 
   it('opens the linked booking, not the list, on a narrow screen', async () => {
     renderWithProviders(<BookingsPage />, { lang: 'en' });
 
     expect(await screen.findByRole('button', { name: 'All bookings' })).toBeVisible();
     expect(screen.getByRole('heading', { name: /Jonas Keller/ })).toBeVisible();
+  });
+
+  it('opens the list, not another booking, when the linked booking is gone', async () => {
+    mockQuery = 'id=deleted';
+    renderWithProviders(<BookingsPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('searchbox', { name: 'Search bookings' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'All bookings', hidden: true })).not.toBeVisible();
   });
 });

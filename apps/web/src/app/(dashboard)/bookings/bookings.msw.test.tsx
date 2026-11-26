@@ -32,8 +32,10 @@ function booking(id: string, clientName: string): Booking {
     eventType: 'WEDDING',
     status: 'CONFIRMED',
     totalAmountCents: 100_000,
+    depositAmountCents: 0,
     amountPaidCents: 0,
     paymentState: 'NOT_INVOICED',
+    createdAt: '2027-01-10T09:00:00Z',
   };
 }
 

@@ -3,6 +3,10 @@ package com.photographplatform.api.notification.service;
 import com.photographplatform.api.notification.config.EmailHttpClientConfig;
 import com.photographplatform.api.notification.config.EmailProperties;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import jakarta.mail.internet.InternetAddress;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,17 +46,16 @@ public class ResendEmailSender implements EmailSender {
         // Guaranteed configured — see the startup validation in EmailProperties.
         EmailProperties.Provider resend = props.resend();
 
-        // Resend accepts a display name via the RFC 5322 "Name <email>" form.
-        String fromHeader = props.fromName() != null && !props.fromName().isBlank()
-            ? props.fromName() + " <" + props.from() + ">"
-            : props.from();
+        String fromHeader = fromHeader(message);
 
-        Map<String, Object> payload = Map.of(
-            "from", fromHeader,
-            "to", message.to(),
-            "subject", message.subject(),
-            "html", message.htmlBody()
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("from", fromHeader);
+        payload.put("to", message.to());
+        if (message.replyTo() != null) {
+            payload.put("reply_to", message.replyTo());
+        }
+        payload.put("subject", message.subject());
+        payload.put("html", message.htmlBody());
 
         restClient.post()
             .uri(resend.baseUrl() + "/emails")
@@ -63,6 +66,24 @@ public class ResendEmailSender implements EmailSender {
 
         LOG.info("Email sent provider={} type={} tenant={}",
             providerName(), message.type(), message.tenantId());
+    }
+
+    /**
+     * Resend accepts a display name via the RFC 5322 "Name <email>" form. A
+     * studio's name may carry a comma or quotes ("Müller, Fotografie"), which
+     * unquoted would read as two addresses, so the phrase is quoted by
+     * InternetAddress rather than by string concatenation.
+     */
+    private String fromHeader(EmailMessage message) {
+        String name = message.senderName(props.fromName());
+        if (name == null) {
+            return props.from();
+        }
+        try {
+            return new InternetAddress(props.from(), name, StandardCharsets.UTF_8.name()).toUnicodeString();
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 is always supported", e);
+        }
     }
 
     @Override

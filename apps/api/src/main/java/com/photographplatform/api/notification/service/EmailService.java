@@ -44,6 +44,11 @@ public class EmailService {
     public static final String QUEUE = "email";
     /** The outbox job kind {@link EmailDeliveryHandler} runs. */
     public static final String KIND = "email";
+    /** Outbox payload keys, written here and read back by {@link EmailDeliveryHandler}. */
+    static final String TEMPLATE = "template";
+    static final String PARAMS = "params";
+    static final String FROM_NAME = "fromName";
+    static final String REPLY_TO = "replyTo";
 
     private final EmailSender sender;
     private final Outbox outbox;
@@ -75,8 +80,16 @@ public class EmailService {
                 + renderer.paramsType().getSimpleName() + ", got " + email.params().getClass().getSimpleName());
         }
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("template", email.template());
-        payload.put("params", email.params());
+        payload.put(TEMPLATE, email.template());
+        payload.put(PARAMS, email.params());
+        // Frozen here, not looked up at send time: the worker never resolves a
+        // tenant, and the recipient sees the sender as it was when queued.
+        if (email.fromName() != null) {
+            payload.put(FROM_NAME, email.fromName());
+        }
+        if (email.replyTo() != null) {
+            payload.put(REPLY_TO, email.replyTo());
+        }
         return outbox.enqueue(new OutboxEntry(
             QUEUE,
             KIND,

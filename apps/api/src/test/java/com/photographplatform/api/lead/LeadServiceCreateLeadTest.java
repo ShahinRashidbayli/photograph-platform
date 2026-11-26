@@ -10,6 +10,9 @@ import com.photographplatform.api.lead.repository.LeadRepository;
 import com.photographplatform.api.lead.service.LeadResponseMapper;
 import com.photographplatform.api.lead.service.LeadScoringService;
 import com.photographplatform.api.lead.service.LeadService;
+import com.photographplatform.api.notification.service.AutoReplyService;
+import com.photographplatform.api.notification.service.EmailService;
+import com.photographplatform.api.notification.service.LeadNotificationService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -25,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -34,7 +38,7 @@ import static org.mockito.Mockito.when;
 class LeadServiceCreateLeadTest {
 
     private static final CreateLeadRequest REQUEST = new CreateLeadRequest("Maria", "maria@example.test", null,
-        LocalDate.of(2027, 6, 12), "FAMILIE", "OVER_2000", null, null);
+        LocalDate.of(2027, 6, 12), "FAMILY", "OVER_1000", null, null);
 
     private final LeadRepository leadRepository = mock(LeadRepository.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
@@ -89,6 +93,24 @@ class LeadServiceCreateLeadTest {
 
     @Test
     void aLeadTheStudioTypedInSaysSo() {
+        typeInALead();
+
+        assertThat(published().getOrigin()).isEqualTo(LeadCreatedEvent.Origin.ENTERED_BY_STUDIO);
+    }
+
+    @Test
+    void aLeadTheStudioTypedInQueuesNoEmailToAnyone() {
+        typeInALead();
+        EmailService emailService = mock(EmailService.class);
+
+        LeadCreatedEvent event = published();
+        new AutoReplyService(emailService).onLeadCreated(event);
+        new LeadNotificationService(emailService).onLeadCreated(event);
+
+        verifyNoInteractions(emailService);
+    }
+
+    private void typeInALead() {
         UUID actorId = UUID.randomUUID();
         User actor = mock(User.class);
         when(actor.getTenantId()).thenReturn(UUID.randomUUID());
@@ -98,7 +120,5 @@ class LeadServiceCreateLeadTest {
             new UsernamePasswordAuthenticationToken(actorId.toString(), null));
 
         service.createLeadByPhotographer(REQUEST, "203.0.113.7");
-
-        assertThat(published().getOrigin()).isEqualTo(LeadCreatedEvent.Origin.ENTERED_BY_STUDIO);
     }
 }

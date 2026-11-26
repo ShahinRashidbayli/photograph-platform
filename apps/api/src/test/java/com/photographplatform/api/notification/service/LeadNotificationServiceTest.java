@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+/** The studio's alert about a new lead, and its silence for a lead the studio typed in (#103). */
 class LeadNotificationServiceTest {
 
     private final EmailService emailService = mock(EmailService.class);

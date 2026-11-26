@@ -299,8 +299,8 @@ public class LeadService {
         // Customer already talked to the studio, and the person who typed the
         // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                LeadCreatedEvent.Origin.ENTERED_BY_STUDIO, null, actor.getEmail())
+            LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
+                actor.getEmail())
         );
 
         return mapper.toResponse(saved);
@@ -329,8 +329,8 @@ public class LeadService {
             ANONYMOUS_ACTOR_ID, ipAddress);
 
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                LeadCreatedEvent.Origin.PUBLIC_FORM, tenant.customerFacingName(), tenant.getOwnerEmail())
+            LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
+                tenant.customerFacingName(), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);

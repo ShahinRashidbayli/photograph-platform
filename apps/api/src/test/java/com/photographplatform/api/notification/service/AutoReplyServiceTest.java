@@ -34,8 +34,11 @@ class AutoReplyServiceTest {
     }
 
     private static LeadCreatedEvent lead(String score, Origin origin, String studioName) {
-        return new LeadCreatedEvent(new Object(), LEAD, TENANT, "Maria", "maria@example.test", score,
-            origin, studioName, "anna@example.test");
+        return origin == Origin.PUBLIC_FORM
+            ? LeadCreatedEvent.fromPublicForm(new Object(), LEAD, TENANT, "Maria", "maria@example.test", score,
+                studioName, "anna@example.test")
+            : LeadCreatedEvent.enteredByStudio(new Object(), LEAD, TENANT, "Maria", "maria@example.test", score,
+                "anna@example.test");
     }
 
     private RenderedEmail queuedAndRendered(LeadCreatedEvent event) {

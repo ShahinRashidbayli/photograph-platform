@@ -28,11 +28,33 @@ public class LeadCreatedEvent extends ApplicationEvent {
     private final String photographerEmail;
 
     /**
+     * A lead the Customer sent through the studio's public request form.
+     *
      * @param studioName the name the Customer knows the studio by, or null when
      *                   the studio has not entered one; never the subdomain
+     * @param ownerEmail where the "New lead" alert goes
      */
-    public LeadCreatedEvent(Object source, UUID leadId, UUID tenantId, String clientName, String clientEmail,
-                            String score, Origin origin, String studioName, String photographerEmail) {
+    public static LeadCreatedEvent fromPublicForm(Object source, UUID leadId, UUID tenantId, String clientName,
+                                                  String clientEmail, String score, String studioName,
+                                                  String ownerEmail) {
+        return new LeadCreatedEvent(source, leadId, tenantId, clientName, clientEmail, score,
+            Origin.PUBLIC_FORM, studioName, ownerEmail);
+    }
+
+    /**
+     * A lead the studio's owner or staff typed in. It takes no studio name,
+     * because nothing writes to the Customer about it: with nine positional
+     * arguments, a null studio name next to the typist's address was one swap
+     * away from signing an email with an address (review on #141).
+     */
+    public static LeadCreatedEvent enteredByStudio(Object source, UUID leadId, UUID tenantId, String clientName,
+                                                   String clientEmail, String score, String enteredByEmail) {
+        return new LeadCreatedEvent(source, leadId, tenantId, clientName, clientEmail, score,
+            Origin.ENTERED_BY_STUDIO, null, enteredByEmail);
+    }
+
+    private LeadCreatedEvent(Object source, UUID leadId, UUID tenantId, String clientName, String clientEmail,
+                             String score, Origin origin, String studioName, String photographerEmail) {
         super(source);
         this.leadId = leadId;
         this.tenantId = tenantId;

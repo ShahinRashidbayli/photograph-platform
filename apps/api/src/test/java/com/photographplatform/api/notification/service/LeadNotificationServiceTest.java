@@ -19,8 +19,11 @@ class LeadNotificationServiceTest {
     private final LeadNotificationService service = new LeadNotificationService(emailService);
 
     private static LeadCreatedEvent lead(Origin origin) {
-        return new LeadCreatedEvent(new Object(), UUID.randomUUID(), UUID.randomUUID(), "Maria",
-            "maria@example.test", "MED", origin, "Studio Lichtblick", "anna@example.test");
+        return origin == Origin.PUBLIC_FORM
+            ? LeadCreatedEvent.fromPublicForm(new Object(), UUID.randomUUID(), UUID.randomUUID(), "Maria",
+                "maria@example.test", "MED", "Studio Lichtblick", "anna@example.test")
+            : LeadCreatedEvent.enteredByStudio(new Object(), UUID.randomUUID(), UUID.randomUUID(), "Maria",
+                "maria@example.test", "MED", "anna@example.test");
     }
 
     @Test

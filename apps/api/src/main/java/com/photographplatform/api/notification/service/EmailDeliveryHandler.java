@@ -37,8 +37,8 @@ public class EmailDeliveryHandler implements OutboxHandler {
     @Override
     public void handle(OutboxJob job) throws Exception {
         JsonNode payload = objectMapper.readTree(job.payloadJson());
-        EmailRenderer<?> renderer = renderers.get(payload.path("template").asText());
-        RenderedEmail rendered = render(renderer, payload.path("params"));
+        EmailRenderer<?> renderer = renderers.get(payload.path(EmailService.TEMPLATE).asText());
+        RenderedEmail rendered = render(renderer, payload.path(EmailService.PARAMS));
         emailService.deliver(new EmailMessage(
             job.recipientEmail(), rendered.subject(), rendered.htmlBody(), renderer.type(), job.tenantId(),
             textOrNull(payload, EmailService.FROM_NAME), textOrNull(payload, EmailService.REPLY_TO)));

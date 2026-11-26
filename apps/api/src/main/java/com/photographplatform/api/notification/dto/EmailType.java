@@ -25,6 +25,12 @@ package com.photographplatform.api.notification.dto;
  *       {@link #LEAD_AUTO_REPLY}, {@link #INQUIRY_REPLY} — a lost one is a lost
  *       piece of business, silently.</li>
  * </ul>
+ *
+ * <p>The {@code CUSTOMER_…}, {@code CONTRACT_TO_SIGN} and {@code GALLERY_…}
+ * values are Customer messages, composed only in {@code messaging}; they take
+ * the same grades. A contract nobody is told to sign, or a gallery nobody is
+ * told about, stalls work the studio thinks is done, so those go with the
+ * second group; an acknowledgement or a decision is business, the third.
  */
 public enum EmailType {
 
@@ -41,6 +47,12 @@ public enum EmailType {
     CONTRACT_SIGNED(3),
     /** Warns a client their gallery is about to be deleted. */
     GALLERY_EXPIRY(3),
+    /** Tells a Customer a contract waits for their signature. */
+    CONTRACT_TO_SIGN(3),
+    /** Tells a Customer their gallery is ready to view. */
+    GALLERY_READY(3),
+    /** Warns a Customer their gallery is about to be deleted, in their language. */
+    GALLERY_EXPIRING(3),
 
     /** Tells the photographer a new lead arrived. */
     LEAD_NOTIFICATION(5),
@@ -49,7 +61,11 @@ public enum EmailType {
     /** Acknowledges a lead to the person who sent it. */
     LEAD_AUTO_REPLY(5),
     /** The photographer's answer to a customer's inquiry. */
-    INQUIRY_REPLY(5);
+    INQUIRY_REPLY(5),
+    /** Acknowledges a Customer's enquiry in the studio's name. */
+    CUSTOMER_ENQUIRY_RECEIVED(5),
+    /** Tells a Customer the studio accepted or declined their request. */
+    CUSTOMER_REQUEST_DECISION(5);
 
     private final int priority;
 

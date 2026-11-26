@@ -207,18 +207,21 @@ function BookingsView() {
   // it still exists, otherwise fall back to the first booking. (Previously this
   // lived inside the fetch; now it reacts to the cached data.)
   useEffect(() => {
+    // A link to a booking that is gone opens the list on a narrow screen, not
+    // the detail of whichever booking the selection falls back to — nor an
+    // empty detail when it was the studio's last booking.
+    if (!loading && selectedId && !bookings.some((b) => b.id === selectedId)) {
+      setMobilePane('list');
+    }
     // Not while the list is still empty: on a fresh load the first pass sees
     // no bookings yet, and "keep it if it exists" then threw away the `?id=`
     // a deep link (or the "Next shoot" tile) had just put in the URL.
     if (bookings.length === 0) return;
-    // A link to a booking that is gone opens the list on a narrow screen, not
-    // the detail of whichever booking the selection falls back to.
-    if (selectedId && !bookings.some((b) => b.id === selectedId)) setMobilePane('list');
     setSelectedId((prev) =>
       prev && bookings.some((b) => b.id === prev) ? prev : (bookings[0]?.id ?? null)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings]);
+  }, [bookings, loading]);
 
   // Recomputed per mount rather than per render — the bucket boundaries only
   // move at midnight, and a fresh `new Date()` on every render would make the

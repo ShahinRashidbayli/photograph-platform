@@ -111,6 +111,15 @@ describe('BookingsPage deep link', () => {
     expect(screen.getByRole('button', { name: 'All bookings', hidden: true })).not.toBeVisible();
   });
 
+  it("opens the list when the linked booking was the studio's last one", async () => {
+    server.use(http.get('/api/photographerBookings', () => HttpResponse.json([])));
+    mockQuery = 'id=deleted';
+    renderWithProviders(<BookingsPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('searchbox', { name: 'Search bookings' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'All bookings', hidden: true })).not.toBeVisible();
+  });
+
   it('keeps the overview tiles in the calendar, which has no detail pane', async () => {
     mockQuery = 'view=calendar&id=b2';
     renderWithProviders(<BookingsPage />, { lang: 'en' });

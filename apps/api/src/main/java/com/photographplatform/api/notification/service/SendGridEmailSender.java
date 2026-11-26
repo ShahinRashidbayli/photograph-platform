@@ -3,6 +3,7 @@ package com.photographplatform.api.notification.service;
 import com.photographplatform.api.notification.config.EmailHttpClientConfig;
 import com.photographplatform.api.notification.config.EmailProperties;
 import com.photographplatform.api.notification.dto.EmailMessage;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -46,21 +47,24 @@ public class SendGridEmailSender implements EmailSender {
         // exists to prevent — mail vanishing while every endpoint reports success.
         EmailProperties.Provider sg = props.sendgrid();
 
-        Map<String, Object> from = props.fromName() != null && !props.fromName().isBlank()
-            ? Map.of("email", props.from(), "name", props.fromName())
+        String name = message.senderName(props.fromName());
+        Map<String, Object> from = name != null
+            ? Map.of("email", props.from(), "name", name)
             : Map.of("email", props.from());
 
-        Map<String, Object> payload = Map.of(
-            "personalizations", List.of(Map.of(
-                "to", List.of(Map.of("email", message.to()))
-            )),
-            "from", from,
-            "subject", message.subject(),
-            "content", List.of(Map.of(
-                "type", "text/html",
-                "value", message.htmlBody()
-            ))
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("personalizations", List.of(Map.of(
+            "to", List.of(Map.of("email", message.to()))
+        )));
+        payload.put("from", from);
+        if (message.replyTo() != null) {
+            payload.put("reply_to", Map.of("email", message.replyTo()));
+        }
+        payload.put("subject", message.subject());
+        payload.put("content", List.of(Map.of(
+            "type", "text/html",
+            "value", message.htmlBody()
+        )));
 
         restClient.post()
             .uri(sg.baseUrl() + "/v3/mail/send")

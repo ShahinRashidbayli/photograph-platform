@@ -40,7 +40,14 @@ public class EmailDeliveryHandler implements OutboxHandler {
         EmailRenderer<?> renderer = renderers.get(payload.path("template").asText());
         RenderedEmail rendered = render(renderer, payload.path("params"));
         emailService.deliver(new EmailMessage(
-            job.recipientEmail(), rendered.subject(), rendered.htmlBody(), renderer.type(), job.tenantId()));
+            job.recipientEmail(), rendered.subject(), rendered.htmlBody(), renderer.type(), job.tenantId(),
+            textOrNull(payload, EmailService.FROM_NAME), textOrNull(payload, EmailService.REPLY_TO)));
+    }
+
+    /** Rows queued before the per-message sender existed have neither key. */
+    private static String textOrNull(JsonNode payload, String key) {
+        JsonNode value = payload.get(key);
+        return value != null && value.isTextual() ? value.asText() : null;
     }
 
     private <P> RenderedEmail render(EmailRenderer<P> renderer, JsonNode params) throws Exception {

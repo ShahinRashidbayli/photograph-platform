@@ -4,14 +4,18 @@ import com.photographplatform.api.notification.config.EmailProperties;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
 import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,6 +86,51 @@ class SmtpEmailSenderTest {
             .satisfiesAnyOf(
                 r -> assertThat(r).contains("Grüße"),
                 r -> assertThat(r).containsIgnoringCase("utf-8"));
+    }
+
+    @Test
+    void sendsUnderTheMessagesOwnNameWithItsReplyTo() throws Exception {
+        MimeMessage out = sendThroughSmtp(new EmailMessage("kunde@example.test", "Ihre Galerie", "<p>Hallo</p>",
+            EmailType.INQUIRY_REPLY, UUID.randomUUID(), "Müller, Fotografie", "hallo@mueller.test"));
+
+        InternetAddress from = (InternetAddress) out.getFrom()[0];
+        assertThat(from.getAddress()).isEqualTo("noreply@fotolio.de");
+        assertThat(from.getPersonal()).isEqualTo("Müller, Fotografie");
+        assertThat(out.getReplyTo()).extracting(a -> ((InternetAddress) a).getAddress())
+            .containsExactly("hallo@mueller.test");
+    }
+
+    @Test
+    void withoutItsOwnNameSendsAsFotolioWithNoReplyTo() throws Exception {
+        MimeMessage out = sendThroughSmtp(new EmailMessage("kunde@example.test", "Ihr Code", "<p>1</p>",
+            EmailType.LOGIN_CODE, UUID.randomUUID()));
+
+        assertThat(((InternetAddress) out.getFrom()[0]).getPersonal()).isEqualTo("Fotolio");
+        assertThat(out.getHeader("Reply-To")).isNull();
+    }
+
+    /** BUG-014: a log line is not a place for anything a Customer or studio wrote. */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void theLogNamesNeitherRecipientNorSubjectNorReplyTo(CapturedOutput log) throws Exception {
+        sendThroughSmtp(new EmailMessage("kunde@example.test", "Ihre Galerie", "<p>Hallo</p>",
+            EmailType.INQUIRY_REPLY, UUID.randomUUID(), "Atelier Müller", "hallo@mueller.test"));
+
+        assertThat(log.getAll()).contains("Email sent provider=smtp")
+            .doesNotContain("kunde@example.test")
+            .doesNotContain("Ihre Galerie")
+            .doesNotContain("hallo@mueller.test");
+    }
+
+    private static MimeMessage sendThroughSmtp(EmailMessage message) throws Exception {
+        JavaMailSender mail = mock(JavaMailSender.class);
+        when(mail.createMimeMessage()).thenReturn(new MimeMessage(Session.getInstance(new Properties())));
+        new SmtpEmailSender(providerOf(mail), PROPS).send(message);
+        ArgumentCaptor<MimeMessage> sent = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(mail).send(sent.capture());
+        MimeMessage out = sent.getValue();
+        out.saveChanges();
+        return out;
     }
 
     // ── ObjectProvider stubs ─────────────────────────────────────────────────

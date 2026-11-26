@@ -140,6 +140,61 @@ class EmailRenderingTest {
     }
 
     @Test
+    void theMessagesOwnSenderSurvivesTheQueueSoTheWorkerNeverLooksUpATenant() throws Exception {
+        Outbox outbox = mock(Outbox.class);
+        EmailSender sender = mock(EmailSender.class);
+        EmailRenderers renderers = renderersOf(new SignInCodeEmail());
+        EmailService service = new EmailService(sender, outbox, renderers, JSON);
+
+        service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
+            new SignInCodeEmail.Params("Maria", "123456", 10), null, null,
+            "Atelier Müller", "hallo@atelier-mueller.test"));
+
+        EmailMessage sent = deliverQueued(outbox, sender, service, renderers);
+        assertThat(sent.fromName()).isEqualTo("Atelier Müller");
+        assertThat(sent.replyTo()).isEqualTo("hallo@atelier-mueller.test");
+    }
+
+    @Test
+    void anEmailQueuedWithoutASenderIsDeliveredWithout() throws Exception {
+        Outbox outbox = mock(Outbox.class);
+        EmailSender sender = mock(EmailSender.class);
+        EmailRenderers renderers = renderersOf(new SignInCodeEmail());
+        EmailService service = new EmailService(sender, outbox, renderers, JSON);
+
+        service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
+            new SignInCodeEmail.Params("Maria", "123456", 10), null, null));
+
+        EmailMessage sent = deliverQueued(outbox, sender, service, renderers);
+        assertThat(sent.fromName()).isNull();
+        assertThat(sent.replyTo()).isNull();
+    }
+
+    @Test
+    void aMessageWithoutItsOwnNameFallsBackToTheGlobalOne() {
+        EmailMessage own = new EmailMessage("a@example.test", "s", "b", EmailType.INQUIRY_REPLY, TENANT,
+            "Atelier Müller", null);
+        EmailMessage none = new EmailMessage("a@example.test", "s", "b", EmailType.LOGIN_CODE, TENANT);
+        EmailMessage blank = new EmailMessage("a@example.test", "s", "b", EmailType.LOGIN_CODE, TENANT, " ", null);
+
+        assertThat(own.senderName("Fotolio")).isEqualTo("Atelier Müller");
+        assertThat(none.senderName("Fotolio")).isEqualTo("Fotolio");
+        assertThat(blank.senderName("Fotolio")).isEqualTo("Fotolio");
+        assertThat(none.senderName(null)).isNull();
+    }
+
+    private static EmailMessage deliverQueued(Outbox outbox, EmailSender sender, EmailService service,
+                                              EmailRenderers renderers) throws Exception {
+        ArgumentCaptor<OutboxEntry> entry = ArgumentCaptor.forClass(OutboxEntry.class);
+        verify(outbox).enqueue(entry.capture());
+        new EmailDeliveryHandler(service, renderers, JSON).handle(new OutboxJob(UUID.randomUUID(), "email",
+            TENANT, entry.getValue().payloadJson(), "maria@example.test", 1, 1, null));
+        ArgumentCaptor<EmailMessage> sent = ArgumentCaptor.forClass(EmailMessage.class);
+        verify(sender).send(sent.capture());
+        return sent.getValue();
+    }
+
+    @Test
     void authEmailsJumpTheQueue() {
         assertThat(EmailType.LOGIN_CODE.priority()).isLessThan(EmailType.CONTRACT_SIGNED.priority());
         assertThat(EmailType.CONTRACT_SIGNED.priority()).isLessThan(EmailType.LEAD_NOTIFICATION.priority());

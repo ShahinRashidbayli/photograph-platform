@@ -8,6 +8,7 @@ import com.photographplatform.api.entitlement.domain.Capability;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,15 +37,18 @@ public class BrandingService {
     private final TenantRepository tenantRepository;
     private final EntitlementService entitlementService;
     private final AvatarUrlResolver urlResolver;
+    private final PublicTenantResolver publicTenantResolver;
 
     public BrandingService(
         TenantRepository tenantRepository,
         EntitlementService entitlementService,
-        AvatarUrlResolver urlResolver
+        AvatarUrlResolver urlResolver,
+        PublicTenantResolver publicTenantResolver
     ) {
         this.tenantRepository = tenantRepository;
         this.entitlementService = entitlementService;
         this.urlResolver = urlResolver;
+        this.publicTenantResolver = publicTenantResolver;
     }
 
     /** What a tenant's client-facing surfaces should wear. */
@@ -53,6 +57,35 @@ public class BrandingService {
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Studio not found"));
         return toResponse(tenant);
+    }
+
+    /**
+     * A freshly signed URL for the studio's logo, for a link that has to
+     * outlive any one signature.
+     *
+     * <p>Customer messages are opened days after they are sent, and a signed
+     * URL dies after {@code app.r2.presigned-expiry-minutes}. The email points
+     * at the stable public route instead, which lands here on every open.
+     *
+     * <p>Unlike {@link #forTenant}, this read <em>is</em> gated: the only
+     * caller is the white-label email layout, and a logo outside that plan
+     * has no reason to be served from a URL anyone can enumerate by
+     * subdomain. A missing logo and a missing capability answer the same
+     * 404, so the route says nothing about a studio's plan.
+     *
+     * @throws NotFoundException when there is no logo this route may serve
+     */
+    @Transactional(readOnly = true)
+    public String logoUrlForSubdomain(String subdomain) {
+        Tenant tenant = publicTenantResolver.requireBySubdomain(subdomain);
+        if (!entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING)) {
+            throw new NotFoundException("Logo not found");
+        }
+        String url = urlResolver.resolve(tenant.getLogoKey());
+        if (url == null) {
+            throw new NotFoundException("Logo not found");
+        }
+        return url;
     }
 
     /**

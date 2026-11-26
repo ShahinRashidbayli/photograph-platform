@@ -75,7 +75,8 @@ public class RequestDecisionMessage implements EmailRenderer<RequestDecisionMess
             event.getRecipientEmail(),
             studio -> new Params(studio, event.getLanguage(), event.getRecipientName(), event.isAccepted(),
                 bookingUrl, event.getNote()),
-            null));
+            null,
+            event.getSentAt()));
     }
 
     /*

@@ -55,8 +55,12 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
         Tenant studio = studio(t -> { });
         UUID bookingId = UUID.randomUUID();
 
-        publishDecision(studio, CustomerLanguage.DE, true, bookingId, null);
+        InquiryDecidedEvent event = publishDecision(studio, CustomerLanguage.DE, true, bookingId, null);
 
+        // Keyed by the decision itself, so a retried listener cannot send twice.
+        assertThat(valueAcrossTenants("SELECT idempotency_key FROM outbox_jobs WHERE tenant_id = ?",
+            studio.getId()))
+            .isEqualTo("CUSTOMER_REQUEST_DECISION:" + event.getInquiryId() + ":" + event.getSentAt());
         assertThat(valueAcrossTenants("SELECT recipient_email FROM outbox_jobs WHERE tenant_id = ?",
             studio.getId())).isEqualTo(CUSTOMER);
         assertThat(valueAcrossTenants("SELECT payload::text FROM outbox_jobs WHERE tenant_id = ?",
@@ -224,8 +228,8 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
         });
     }
 
-    private void publishDecision(Tenant tenant, CustomerLanguage language, boolean accepted, UUID bookingId,
-                                 String note) {
+    private InquiryDecidedEvent publishDecision(Tenant tenant, CustomerLanguage language, boolean accepted,
+                                                UUID bookingId, String note) {
         InquiryDecidedEvent event = new InquiryDecidedEvent(this, UUID.randomUUID(), tenant.getId(), CUSTOMER,
             "Emma Clarke", language, accepted, bookingId, note, Instant.now());
         TenantContext.setTenant(tenant.getId().toString());
@@ -234,6 +238,7 @@ class RequestDecisionMessageIT extends IntegrationTestBase {
         } finally {
             TenantContext.clear();
         }
+        return event;
     }
 
     /** Drains the queue and returns the one email sent to the Customer. */

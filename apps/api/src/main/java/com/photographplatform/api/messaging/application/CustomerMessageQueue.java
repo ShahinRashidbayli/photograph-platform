@@ -4,7 +4,7 @@ import com.photographplatform.api.messaging.domain.StudioIdentity;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
-import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -24,19 +24,18 @@ import org.springframework.stereotype.Service;
  * not per aggregate: "Erneut senden" is meant to send again, so a key of
  * {@code TYPE:aggregateId} would swallow every resend while the first waits.
  * One click is one action is one key; the button stays disabled while the
- * request runs.
+ * request runs. The time is the caller's, the moment the action happened, so
+ * the key is the event's and not whenever this listener got to it.
  */
 @Service
 public class CustomerMessageQueue {
 
     private final StudioIdentityResolver identities;
     private final EmailService emailService;
-    private final Clock clock;
 
-    public CustomerMessageQueue(StudioIdentityResolver identities, EmailService emailService, Clock clock) {
+    public CustomerMessageQueue(StudioIdentityResolver identities, EmailService emailService) {
         this.identities = identities;
         this.emailService = emailService;
-        this.clock = clock;
     }
 
     /**
@@ -49,6 +48,7 @@ public class CustomerMessageQueue {
      * @param to          the Customer's address; never logged
      * @param params      builds the renderer's params around the resolved identity
      * @param expiresAt   dropped instead of sent past this instant; null for never
+     * @param sentAt      when the send action happened; the last part of the key
      */
     public record Message(
         String template,
@@ -57,7 +57,8 @@ public class CustomerMessageQueue {
         UUID tenantId,
         String to,
         Function<StudioIdentity, Object> params,
-        OffsetDateTime expiresAt
+        OffsetDateTime expiresAt,
+        Instant sentAt
     ) {
         public Message {
             Objects.requireNonNull(template, "template");
@@ -66,19 +67,19 @@ public class CustomerMessageQueue {
             Objects.requireNonNull(tenantId, "tenantId");
             Objects.requireNonNull(to, "to");
             Objects.requireNonNull(params, "params");
+            Objects.requireNonNull(sentAt, "sentAt");
         }
     }
 
     /** @return false if this exact send was already queued */
     public boolean queue(Message message) {
         StudioIdentity studio = identities.resolve(message.tenantId());
-        String sentAt = clock.instant().toString();
         return emailService.queue(new OutgoingEmail(
             message.template(),
             message.to(),
             message.tenantId(),
             message.params().apply(studio),
-            message.type().name() + ":" + message.aggregateId() + ":" + sentAt,
+            message.type().name() + ":" + message.aggregateId() + ":" + message.sentAt(),
             message.expiresAt(),
             studio.displayName(),
             studio.replyTo()));

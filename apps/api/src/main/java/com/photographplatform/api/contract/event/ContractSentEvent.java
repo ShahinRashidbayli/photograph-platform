@@ -25,19 +25,19 @@ public class ContractSentEvent extends ApplicationEvent {
     private final String recipientEmail;
     private final String recipientName;
     private final CustomerLanguage language;
-    private final String note;
+    private final String personalNote;
     private final Instant sentAt;
 
     /**
      * @param recipientEmail the contract's recipient: the only address the
      *                       portal shows this contract to
-     * @param note           the photographer's personal note; null when they wrote none
+     * @param personalNote   the photographer's personal note; null when they wrote none
      * @param sentAt         when the photographer clicked, this time
      */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public ContractSentEvent(Object source, UUID contractId, UUID bookingId, UUID tenantId,
                              String recipientEmail, String recipientName, CustomerLanguage language,
-                             String note, Instant sentAt) {
+                             String personalNote, Instant sentAt) {
         super(source);
         this.contractId = contractId;
         this.bookingId = bookingId;
@@ -45,7 +45,7 @@ public class ContractSentEvent extends ApplicationEvent {
         this.recipientEmail = recipientEmail;
         this.recipientName = recipientName;
         this.language = language;
-        this.note = note;
+        this.personalNote = personalNote;
         this.sentAt = sentAt;
     }
 
@@ -73,8 +73,8 @@ public class ContractSentEvent extends ApplicationEvent {
         return language;
     }
 
-    public String getNote() {
-        return note;
+    public String getPersonalNote() {
+        return personalNote;
     }
 
     public Instant getSentAt() {

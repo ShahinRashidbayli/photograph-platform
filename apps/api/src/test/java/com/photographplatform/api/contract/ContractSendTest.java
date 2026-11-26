@@ -95,7 +95,7 @@ class ContractSendTest {
         assertThat(event.getRecipientEmail()).isEqualTo("emma@example.test");
         assertThat(event.getRecipientName()).isEqualTo("Emma Clarke");
         assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.EN);
-        assertThat(event.getNote()).isEqualTo(NOTE);
+        assertThat(event.getPersonalNote()).isEqualTo(NOTE);
         assertThat(event.getSentAt()).isEqualTo(NOW);
     }
 
@@ -128,7 +128,7 @@ class ContractSendTest {
 
         verify(audit).logQuietly(eq("CONTRACT_SENT"), eq("CONTRACT"), any(), eq(TENANT_ID), eq(USER_ID), isNull());
         verify(audit, never()).logChange(anyString(), anyString(), any(), any(), any(), any(), any(), any());
-        assertThat(published().getNote()).isNull();
+        assertThat(published().getPersonalNote()).isNull();
     }
 
     @Test

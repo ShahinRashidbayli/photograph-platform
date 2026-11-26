@@ -77,7 +77,7 @@ public class ContractController {
         @Valid @RequestBody(required = false) SendContractRequest request,
         HttpServletRequest http
     ) {
-        return ResponseEntity.ok(contractService.send(id, noteOf(request), ClientIp.from(http)));
+        return ResponseEntity.ok(contractService.send(id, personalNoteOf(request), ClientIp.from(http)));
     }
 
     /** "Erneut senden": SENT contracts only; the contract itself does not change. */
@@ -87,7 +87,7 @@ public class ContractController {
         @Valid @RequestBody(required = false) SendContractRequest request,
         HttpServletRequest http
     ) {
-        return ResponseEntity.ok(contractService.resend(id, noteOf(request), ClientIp.from(http)));
+        return ResponseEntity.ok(contractService.resend(id, personalNoteOf(request), ClientIp.from(http)));
     }
 
     @PostMapping("/contracts/{id}/cancel")
@@ -105,7 +105,7 @@ public class ContractController {
             .body(contractService.renderPdf(id));
     }
 
-    private static String noteOf(SendContractRequest request) {
+    private static String personalNoteOf(SendContractRequest request) {
         return request == null ? null : request.note();
     }
 }

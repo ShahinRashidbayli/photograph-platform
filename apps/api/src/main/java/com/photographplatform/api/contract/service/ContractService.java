@@ -167,10 +167,10 @@ public class ContractService {
      * details were collected in Settings precisely so this could be answered
      * without asking again — see the tenant legal work (V33).
      *
-     * @param note the photographer's optional personal note; null for none
+     * @param personalNote the photographer's optional personal note; null for none
      */
     @Transactional
-    public ContractResponse send(UUID id, String note, String ip) {
+    public ContractResponse send(UUID id, String personalNote, String ip) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         entitlementService.requireCapabilityForCurrentTenant(Capability.CONTRACTS);
 
@@ -196,7 +196,7 @@ public class ContractService {
             blankToNull(tenant.getLegalEmail())
         );
 
-        tellTheCustomer(contract, "CONTRACT_SENT", note, sentAt, ip);
+        tellTheCustomer(contract, "CONTRACT_SENT", personalNote, sentAt, ip);
         return ContractResponse.from(contract);
     }
 
@@ -205,17 +205,17 @@ public class ContractService {
      * for their signature. Changes nothing on the contract; its {@code
      * sentAt} stays the day it was first sent.
      *
-     * @param note the photographer's optional personal note; null for none
+     * @param personalNote the photographer's optional personal note; null for none
      */
     @Transactional
-    public ContractResponse resend(UUID id, String note, String ip) {
+    public ContractResponse resend(UUID id, String personalNote, String ip) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         entitlementService.requireCapabilityForCurrentTenant(Capability.CONTRACTS);
 
         Contract contract = requireOwn(id, tenantId);
         requireStatus(contract, ContractStatus.SENT, "Only a contract waiting for its signature can be sent again");
 
-        tellTheCustomer(contract, "CONTRACT_RESENT", note, clock.instant(), ip);
+        tellTheCustomer(contract, "CONTRACT_RESENT", personalNote, clock.instant(), ip);
         return ContractResponse.from(contract);
     }
 
@@ -224,12 +224,12 @@ public class ContractService {
      * language comes from the booking, through booking's service; the address
      * is the contract's recipient, the one address the portal shows it to.
      */
-    private void tellTheCustomer(Contract contract, String action, String note, Instant sentAt, String ip) {
+    private void tellTheCustomer(Contract contract, String action, String personalNote, Instant sentAt, String ip) {
         // A note is the photographer's words to one Customer: the trail says
         // that one was sent, never what it said.
-        String personalNote = Normalize.trimToNull(note);
+        String trimmedNote = Normalize.trimToNull(personalNote);
         UUID actorId = SecurityUtils.requireCurrentUserId();
-        if (personalNote == null) {
+        if (trimmedNote == null) {
             auditService.logQuietly(action, "CONTRACT", contract.getId(), contract.getTenantId(), actorId, ip);
         } else {
             auditService.logChange(action, "CONTRACT", contract.getId(), contract.getTenantId(), actorId, ip,
@@ -244,7 +244,7 @@ public class ContractService {
             contract.getRecipientEmail(),
             contract.getRecipientName(),
             bookingQueryService.customerLanguage(contract.getBookingId()),
-            personalNote,
+            trimmedNote,
             sentAt));
     }
 

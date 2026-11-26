@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLangStore } from '@/store/langStore';
 import { leadsKey } from '@/hooks/useLeads';
 import { BrandingSettings } from './BrandingSettings';
+import { EnquiryAcknowledgementSettings } from './EnquiryAcknowledgementSettings';
 import { LegalDetailsSection } from './LegalDetailsSection';
 import { PersonalDataErasure } from './PersonalDataErasure';
 
@@ -179,5 +180,65 @@ describe('PersonalDataErasure', () => {
 
     expect(await screen.findByText('Erased maria@example.test')).toBeInTheDocument();
     expect(queryClient.getQueryState(leadsKey())?.isInvalidated).toBe(true);
+  });
+});
+
+describe('EnquiryAcknowledgementSettings', () => {
+  it('switches the acknowledgement off and shows it off', async () => {
+    const puts: unknown[] = [];
+    server.use(
+      http.get('/api/settings/enquiry-acknowledgement', () => HttpResponse.json({ enabled: true })),
+      http.put('/api/settings/enquiry-acknowledgement', async ({ request }) => {
+        const body = (await request.json()) as { enabled: boolean };
+        puts.push(body);
+        return HttpResponse.json(body);
+      })
+    );
+    const user = setupUser();
+    renderWithProviders(<EnquiryAcknowledgementSettings />, { lang: 'en' });
+
+    const toggle = await screen.findByRole('switch', {
+      name: 'Acknowledge enquiries automatically',
+    });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(toggle);
+
+    await waitFor(() => expect(puts).toEqual([{ enabled: false }]));
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+    expect(await screen.findByText(/Off — enquirers hear only from you/)).toBeInTheDocument();
+  });
+
+  it('says so when the switch cannot be saved, and stays where it was', async () => {
+    server.use(
+      http.get('/api/settings/enquiry-acknowledgement', () => HttpResponse.json({ enabled: true })),
+      http.put('/api/settings/enquiry-acknowledgement', () =>
+        HttpResponse.json({}, { status: 500 })
+      )
+    );
+    const user = setupUser();
+    renderWithProviders(<EnquiryAcknowledgementSettings />, { lang: 'de' });
+
+    const toggle = await screen.findByRole('switch', { name: 'Anfragen automatisch bestätigen' });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    await user.click(toggle);
+
+    expect(
+      await screen.findByText('Diese Einstellung konnte nicht gespeichert werden.')
+    ).toBeInTheDocument();
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('shows the switch off when the studio has turned it off', async () => {
+    server.use(
+      http.get('/api/settings/enquiry-acknowledgement', () => HttpResponse.json({ enabled: false }))
+    );
+    renderWithProviders(<EnquiryAcknowledgementSettings />, { lang: 'en' });
+
+    const toggle = await screen.findByRole('switch', {
+      name: 'Acknowledge enquiries automatically',
+    });
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
   });
 });

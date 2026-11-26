@@ -5,6 +5,7 @@ import { http, HttpResponse, server } from '@/test-utils/msw';
 import { getColors } from '@/lib/design-tokens';
 import type { Locale } from '@/lib/i18n';
 import type { Booking, Invoice } from '@/types/api';
+import { useBookings } from '@/hooks/useBookings';
 import { BookingDetail } from './BookingDetail';
 import { getBookingsStyles } from './bookings.styles';
 import type { BookingContext } from './bookings.insights';
@@ -217,5 +218,79 @@ describe('BookingDetail', () => {
     });
     expect(sent[0]).not.toHaveProperty('resourceIds');
     expect(await screen.findByText('Saved')).toBeInTheDocument();
+  });
+
+  it("saves the Customer's language from the select, leaving the rest of the booking as it is", async () => {
+    fakeInvoices([]);
+    const sent: Record<string, unknown>[] = [];
+    server.use(
+      http.get('/api/photographerBookings', () => HttpResponse.json([booking({ language: 'de' })])),
+      http.patch('/api/bookings/:id', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        sent.push(body);
+        return HttpResponse.json({ ...booking(), language: body.language });
+      }),
+      http.get('/api/bookings/conflicts', () => HttpResponse.json({ conflicts: [] })),
+      http.get('/api/clients', () => HttpResponse.json([]))
+    );
+    const user = setupUser();
+    // As the page does: the detail shows the booking from the cached list, so
+    // what it shows after the save is what useSaveBooking put there.
+    function FromList() {
+      const b = useBookings(true).data?.[0];
+      return b ? (
+        <BookingDetail
+          booking={b}
+          ctx={ctx}
+          packageName={null}
+          clientBookingCount={1}
+          subdomain="studio-berg"
+          styles={getBookingsStyles('light')}
+          colors={getColors('light')}
+          theme="light"
+          isNarrow={false}
+          actionError={null}
+          onTransition={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      ) : null;
+    }
+    renderWithProviders(<FromList />, { lang: 'en' });
+
+    const select = await screen.findByLabelText('Language of your emails');
+    expect(select).toHaveValue('de');
+    await user.selectOptions(select, 'en');
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({
+      language: 'en',
+      clientName: 'Sophie & Luca Bauer',
+      internalNotes: 'Golden hour.',
+      assignedUserId: 'u-1',
+    });
+    expect(sent[0]).not.toHaveProperty('resourceIds');
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(select).toHaveValue('en');
+  });
+
+  it('says so when the language cannot be saved, and keeps the old one', async () => {
+    fakeInvoices([]);
+    server.use(http.patch('/api/bookings/:id', () => HttpResponse.json({}, { status: 500 })));
+    const user = setupUser();
+    renderDetail(booking({ language: 'en' }), jest.fn(), 'de');
+
+    const select = screen.getByLabelText('Sprache Ihrer E-Mails');
+    await user.selectOptions(select, 'de');
+
+    expect(
+      await screen.findByText('Die Sprache konnte nicht geändert werden.')
+    ).toBeInTheDocument();
+    expect(select).toHaveValue('en');
+  });
+
+  it('shows German for a booking whose language the API did not send', () => {
+    fakeInvoices([]);
+    renderDetail(booking());
+    expect(screen.getByLabelText('Language of your emails')).toHaveValue('de');
   });
 });

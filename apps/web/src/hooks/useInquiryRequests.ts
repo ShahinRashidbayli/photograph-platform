@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { bookingsQueryKey } from '@/hooks/useBookings';
+import type { CustomerLanguage } from '@/types/api';
 
 /** What a client asks for a session with — see `CreateInquiryRequest` on the API. */
 export interface InquiryRequestInput {
@@ -11,6 +12,8 @@ export interface InquiryRequestInput {
   message: string | null;
   /** Honeypot: left empty by people, filled by bots. */
   website: string;
+  /** The language the Customer reads, so the studio's Customer messages use it. */
+  language: CustomerLanguage;
 }
 
 /** Mirrors `InquiryRequestResponse` on the API, as the client reads their own. */

@@ -257,4 +257,72 @@ describe('CustomerLoginPage', () => {
     expect(await screen.findByText('Studio Lichtblick')).toBeInTheDocument();
     expect(screen.getByText('SL')).toBeInTheDocument();
   });
+  /**
+   * A Customer message links to the sign-in with the page it is about in
+   * `next`. Signing in used to drop it and land on the bookings list, so the
+   * contract the email promised was nowhere to be seen.
+   */
+  describe('after signing in from a link', () => {
+    const realLocation = Object.getOwnPropertyDescriptor(globalThis, 'location')!;
+
+    /** jsdom refuses navigation; the stub records where the page sent us. */
+    function stubLocation(search: string) {
+      Object.defineProperty(globalThis, 'location', {
+        value: {
+          href: '',
+          search,
+          origin: 'https://app.fotolio.de',
+          hostname: 'app.fotolio.de',
+        },
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    afterEach(() => {
+      Object.defineProperty(globalThis, 'location', realLocation);
+    });
+
+    async function signInFrom(search: string) {
+      mockSearch = new URLSearchParams(search);
+      stubLocation(search);
+      const user = setupUser();
+      mockedApi.post.mockResolvedValue({ status: 200, data: {} } as never);
+      render();
+
+      await requestCode(user);
+      await user.type(await screen.findByLabelText('6-digit code'), '123456');
+      await user.click(screen.getByRole('button', { name: 'Sign in →' }));
+      await waitFor(() => expect(globalThis.location.href).not.toBe(''));
+      return globalThis.location.href;
+    }
+
+    it('lands on the page the link pointed to', async () => {
+      expect(await signInFrom('?next=%2Fdocuments%3Fid%3Dx')).toBe('/documents?id=x');
+    });
+
+    it('lands on the bookings when the link named no page', async () => {
+      expect(await signInFrom('')).toBe('/bookings');
+    });
+
+    /** `next` is in the query string, so anyone can write a link with their own. */
+    it.each([['//evil.example'], ['https://evil.example'], ['/\\evil.example']])(
+      'refuses to leave the site for %s',
+      async (target) => {
+        expect(await signInFrom(`?next=${encodeURIComponent(target)}`)).toBe('/bookings');
+      }
+    );
+  });
+
+  /** The message was sent to this address, so the Customer should not have to type it. */
+  it('prefills the email and the studio from the link', async () => {
+    mockSearch = new URLSearchParams('subdomain=studio-lichtblick&email=maria%40example.test');
+    mockedApi.get.mockResolvedValue({
+      data: { subdomain: 'studio-lichtblick', legalName: 'Lena Hoffmann' },
+    } as never);
+    render();
+
+    expect(await screen.findByText('Lena Hoffmann')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email address')).toHaveValue('maria@example.test');
+  });
 });

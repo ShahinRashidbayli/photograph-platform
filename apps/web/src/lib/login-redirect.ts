@@ -19,6 +19,23 @@ export const CLIENT_LOGIN = '/customer/auth/login';
 /** Paths that only a client can be on, and so identify them without a session. */
 const CLIENT_PREFIXES = ['/customer/'];
 
+/** Same shape the Customer sign-in accepts for `?subdomain=`. */
+const SUBDOMAIN_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+
+/**
+ * The studio a Customer link names, if it names one.
+ *
+ * The portal shares `/bookings` and `/documents` with the photographer screens,
+ * so the path alone cannot say who was signed out. A `subdomain` param can:
+ * links written for a Customer carry it (their sign-in needs it anyway), and no
+ * photographer screen reads it. Anything not shaped like a subdomain is
+ * ignored rather than echoed into the sign-in URL.
+ */
+function customerSubdomainIn(search: string): string | null {
+  const raw = new URLSearchParams(search).get('subdomain')?.trim().toLowerCase();
+  return raw && SUBDOMAIN_RE.test(raw) ? raw : null;
+}
+
 /** Sign-in paths, so a redirect can never point back at another sign-in. */
 const LOGIN_PREFIXES = [PHOTOGRAPHER_LOGIN, CLIENT_LOGIN];
 
@@ -26,12 +43,17 @@ const LOGIN_PREFIXES = [PHOTOGRAPHER_LOGIN, CLIENT_LOGIN];
  * The sign-in screen for this path.
  *
  * Only decided by the URL, because when there is no session there is no role to
- * read. `/customer/**` is unambiguous; everything else goes to the
- * photographer sign-in, which carries a "Client sign in" cross-link for the
+ * read. `/customer/**` is unambiguous, and so is any path whose query names a
+ * studio (`?subdomain=`, see `customerSubdomainIn`); everything else goes to
+ * the photographer sign-in, which carries a "Client sign in" cross-link for the
  * cases the URL cannot settle.
+ *
+ * @param search the query string including `?`, or empty
  */
-export function loginPathFor(pathname: string): string {
-  return CLIENT_PREFIXES.some((p) => pathname.startsWith(p)) ? CLIENT_LOGIN : PHOTOGRAPHER_LOGIN;
+export function loginPathFor(pathname: string, search = ''): string {
+  return CLIENT_PREFIXES.some((p) => pathname.startsWith(p)) || customerSubdomainIn(search)
+    ? CLIENT_LOGIN
+    : PHOTOGRAPHER_LOGIN;
 }
 
 /** True when this path is itself a sign-in screen. */
@@ -49,15 +71,20 @@ export function isLoginPath(pathname: string): boolean {
  * authenticated straight back to the form. `safeRedirectPath` validates the
  * value again on the way out, since by then it has been through the URL bar.
  *
+ * A Customer link's studio travels as `?subdomain=` too, so the Customer sign-in
+ * shows that studio instead of asking for it.
+ *
  * @param pathname the path that was refused, e.g. `/bookings`
  * @param search   its query string including `?`, or empty
  */
 export function loginUrlFor(pathname: string, search = ''): string {
-  const login = loginPathFor(pathname);
+  const login = loginPathFor(pathname, search);
   if (pathname === '/' || isLoginPath(pathname)) {
     return login;
   }
-  return `${login}?next=${encodeURIComponent(pathname + search)}`;
+  const url = `${login}?next=${encodeURIComponent(pathname + search)}`;
+  const subdomain = login === CLIENT_LOGIN ? customerSubdomainIn(search) : null;
+  return subdomain ? `${url}&subdomain=${subdomain}` : url;
 }
 
 /**

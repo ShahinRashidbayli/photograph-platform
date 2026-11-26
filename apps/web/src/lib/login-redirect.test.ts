@@ -25,6 +25,21 @@ describe('loginPathFor', () => {
     expect(loginPathFor('/')).toBe(PHOTOGRAPHER_LOGIN);
   });
 
+  /**
+   * The portal shares `/bookings` and `/documents` with the photographer, so
+   * the path cannot tell them apart. A link written for a Customer names the
+   * studio, and that is what marks it.
+   */
+  it('sends a link that names a studio to the Customer sign-in', () => {
+    expect(loginPathFor('/documents', '?id=x&subdomain=studio-lichtblick')).toBe(CLIENT_LOGIN);
+    expect(loginPathFor('/documents', '?id=x')).toBe(PHOTOGRAPHER_LOGIN);
+  });
+
+  it('ignores a subdomain param that is not shaped like one', () => {
+    expect(loginPathFor('/bookings', '?subdomain=')).toBe(PHOTOGRAPHER_LOGIN);
+    expect(loginPathFor('/bookings', '?subdomain=a%2Fb')).toBe(PHOTOGRAPHER_LOGIN);
+  });
+
   /** A path that merely contains the word must not be mistaken for the area. */
   it('matches the path segment, not the substring', () => {
     expect(loginPathFor('/leads/customer-notes')).toBe(PHOTOGRAPHER_LOGIN);
@@ -55,6 +70,24 @@ describe('loginUrlFor', () => {
   it('uses the client sign-in for a client destination', () => {
     expect(loginUrlFor('/customer/bookings')).toBe(
       '/customer/auth/login?next=%2Fcustomer%2Fbookings'
+    );
+  });
+
+  it('carries the destination and the studio to the Customer sign-in', () => {
+    expect(loginUrlFor('/documents', '?id=x&subdomain=studio-lichtblick')).toBe(
+      '/customer/auth/login?next=%2Fdocuments%3Fid%3Dx%26subdomain%3Dstudio-lichtblick' +
+        '&subdomain=studio-lichtblick'
+    );
+  });
+
+  /** The sign-in page reads both back; the pairing has to hold end to end. */
+  it('produces a Customer destination the sign-in will follow', () => {
+    const url = loginUrlFor('/documents', '?id=x&subdomain=studio-lichtblick');
+    const search = url.slice(url.indexOf('?'));
+
+    expect(new URLSearchParams(search).get('subdomain')).toBe('studio-lichtblick');
+    expect(safeRedirectPath(search, 'https://app.fotolio.de')).toBe(
+      '/documents?id=x&subdomain=studio-lichtblick'
     );
   });
 

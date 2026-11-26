@@ -9,6 +9,7 @@ import { extractApiError } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
 import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -24,6 +25,9 @@ const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 // (the marketing apex, the app shell) are not photographer tenants.
 const BASE_DOMAINS = ['fotolio.de'];
 const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
+
+/** Where a Customer lands when the link that brought them named no page. */
+const DEFAULT_DESTINATION = '/bookings';
 
 /**
  * Derives the photographer subdomain from the current host, e.g.
@@ -88,6 +92,10 @@ function initialsOf(name: string): string {
 function CustomerLoginInner() {
   const searchParams = useSearchParams();
   const initialSubdomain = (searchParams.get('subdomain') ?? '').trim().toLowerCase();
+  // A Customer message links here with the address it was sent to, so the
+  // Customer only has to ask for the code. Still editable: the link may have
+  // been forwarded to whoever actually signs.
+  const initialEmail = (searchParams.get('email') ?? '').trim();
 
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
@@ -96,7 +104,7 @@ function CustomerLoginInner() {
   const retryWait = useRetryWait();
   const waitText = useWaitText();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [subdomain, setSubdomain] = useState(initialSubdomain);
   const [subdomainLocked, setSubdomainLocked] = useState(false);
   // A link from the studio (`?subdomain=`), the studio's own host, or this
@@ -261,7 +269,10 @@ function CustomerLoginInner() {
           if (opened) rememberStudio(opened);
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
-          window.location.href = '/bookings';
+          // `next` is where the link pointed (a contract to sign, a booking); it
+          // came from the query string, so only a same-origin path is followed.
+          window.location.href =
+            safeRedirectPath(window.location.search, window.location.origin) ?? DEFAULT_DESTINATION;
         },
         onError: (err) => {
           const msg =

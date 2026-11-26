@@ -76,6 +76,25 @@ public final class CustomerMessageLayout {
             + ";\">" + note.html() + "</td></tr></table>";
     }
 
+    /**
+     * "Guten Tag Frau Weber," / "Hello Anna,": the same opening in every
+     * Customer message, so each message does not carry its own copy of it.
+     *
+     * @param customerName how the studio knows them; blank opens without a name
+     */
+    public static String greeting(CustomerLanguage language, String customerName) {
+        String hello = language == CustomerLanguage.EN ? "Hello" : "Guten Tag";
+        String customer = customerName == null ? "" : customerName.strip();
+        return paragraph(customer.isEmpty() ? hello + "," : hello + " " + esc(customer) + ",");
+    }
+
+    /** The closing, signed with the studio's name when it has one. */
+    public static String signOff(StudioIdentity studio, CustomerLanguage language) {
+        String regards = language == CustomerLanguage.EN ? "Kind regards" : "Freundliche Grüße";
+        String name = studio.displayName();
+        return paragraph(name == null ? regards : regards + "<br><strong>" + esc(name) + "</strong>");
+    }
+
     // ── document shell ──────────────────────────────────────────────────────
 
     /**

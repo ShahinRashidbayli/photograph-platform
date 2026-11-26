@@ -88,20 +88,15 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
         StudioIdentity studio = params.studio();
         String name = studio.displayName();
         String escapedName = name == null ? null : "<strong>" + HtmlEscape.escape(name) + "</strong>";
-        String customer = params.customerName() == null ? "" : params.customerName().strip();
-        String greeting = customer.isEmpty()
-            ? copy.greeting + ","
-            : copy.greeting + " " + HtmlEscape.escape(customer) + ",";
-        String signOff = name == null ? copy.signOff : copy.signOff + "<br>" + escapedName;
 
         String subject = name == null ? copy.subject : copy.subjectWith.formatted(name);
         String body = CustomerMessageLayout.heading(copy.heading)
-            + CustomerMessageLayout.paragraph(greeting)
+            + CustomerMessageLayout.greeting(params.language(), params.customerName())
             + CustomerMessageLayout.paragraph(name == null ? copy.intro : copy.introWith.formatted(escapedName))
             + CustomerMessageLayout.personalNote(studio, PersonalNote.ofNullable(params.personalNote()))
             + CustomerMessageLayout.button(studio, copy.button, params.galleryUrl())
             + CustomerMessageLayout.paragraph(copy.reply)
-            + CustomerMessageLayout.paragraph(signOff);
+            + CustomerMessageLayout.signOff(studio, params.language());
 
         return new RenderedEmail(subject,
             CustomerMessageLayout.document(studio, params.language(), copy.heading, body));
@@ -117,15 +112,13 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
             "Ihre Galerie ist fertig. Sie können Ihre Fotos ab sofort online ansehen.",
             "%s hat Ihre Galerie fertiggestellt. Sie können Ihre Fotos ab sofort online ansehen.",
             "Galerie öffnen",
-            "Bei Fragen antworten Sie einfach auf diese E-Mail.",
-            "Guten Tag", "Freundliche Grüße"),
+            "Bei Fragen antworten Sie einfach auf diese E-Mail."),
         EN("Your gallery is ready", "Your gallery from %s is ready",
             "Your photos are here",
             "Your gallery is ready. You can view your photos online now.",
             "%s has finished your gallery. You can view your photos online now.",
             "Open gallery",
-            "If you have any questions, simply reply to this email.",
-            "Hello", "Kind regards");
+            "If you have any questions, simply reply to this email.");
 
         private final String subject;
         private final String subjectWith;
@@ -134,12 +127,9 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
         private final String introWith;
         private final String button;
         private final String reply;
-        private final String greeting;
-        private final String signOff;
 
-        @SuppressWarnings("checkstyle:ParameterNumber")
         Copy(String subject, String subjectWith, String heading, String intro, String introWith,
-             String button, String reply, String greeting, String signOff) {
+             String button, String reply) {
             this.subject = subject;
             this.subjectWith = subjectWith;
             this.heading = heading;
@@ -147,8 +137,6 @@ public class GalleryReadyMessage implements EmailRenderer<GalleryReadyMessage.Pa
             this.introWith = introWith;
             this.button = button;
             this.reply = reply;
-            this.greeting = greeting;
-            this.signOff = signOff;
         }
     }
 }

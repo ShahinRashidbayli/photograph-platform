@@ -91,11 +91,6 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
         StudioIdentity studio = params.studio();
         String name = studio.displayName();
         String escapedName = name == null ? null : "<strong>" + HtmlEscape.escape(name) + "</strong>";
-        String customer = params.customerName() == null ? "" : params.customerName().strip();
-        String greeting = customer.isEmpty()
-            ? copy.greeting + ","
-            : copy.greeting + " " + HtmlEscape.escape(customer) + ",";
-        String signOff = name == null ? copy.signOff : copy.signOff + "<br>" + escapedName;
 
         int daysLeft = params.daysLeft();
         String date = params.expiresAt().atZoneSameInstant(BusinessZone.ID).format(copy.date);
@@ -114,14 +109,14 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
         }
 
         String body = CustomerMessageLayout.heading(heading)
-            + CustomerMessageLayout.paragraph(greeting)
+            + CustomerMessageLayout.greeting(params.language(), params.customerName())
             + CustomerMessageLayout.paragraph(name == null
                 ? copy.intro.formatted(strongDate)
                 : copy.introWith.formatted(escapedName, strongDate))
             + CustomerMessageLayout.paragraph(copy.download)
             + CustomerMessageLayout.button(studio, copy.button, params.galleryUrl())
             + CustomerMessageLayout.paragraph(copy.moreTime)
-            + CustomerMessageLayout.paragraph(signOff);
+            + CustomerMessageLayout.signOff(studio, params.language());
 
         return new RenderedEmail(subject,
             CustomerMessageLayout.document(studio, params.language(), heading, body));
@@ -143,8 +138,7 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
             "Ihre Galerie von %s ist noch bis zum %s online. Danach wird sie automatisch entfernt.",
             "Bitte laden Sie Ihre Fotos bis dahin herunter.",
             "Galerie öffnen und Fotos herunterladen",
-            "Sie brauchen mehr Zeit? Antworten Sie einfach auf diese E-Mail.",
-            "Guten Tag", "Freundliche Grüße"),
+            "Sie brauchen mehr Zeit? Antworten Sie einfach auf diese E-Mail."),
         EN(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH),
             "Your photos are online until %s",
             "Only %d days left: your photos are online until %s",
@@ -156,8 +150,7 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
             "Your gallery from %s is online until %s. After that it will be removed automatically.",
             "Please download your photos before then.",
             "Open gallery and download photos",
-            "Need more time? Simply reply to this email.",
-            "Hello", "Kind regards");
+            "Need more time? Simply reply to this email.");
 
         private final DateTimeFormatter date;
         private final String subject;
@@ -171,13 +164,11 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
         private final String download;
         private final String button;
         private final String moreTime;
-        private final String greeting;
-        private final String signOff;
 
         @SuppressWarnings("checkstyle:ParameterNumber")
         Copy(DateTimeFormatter date, String subject, String soonSubject, String lastSubject, String heading,
              String soonHeading, String lastHeading, String intro, String introWith, String download,
-             String button, String moreTime, String greeting, String signOff) {
+             String button, String moreTime) {
             this.date = date;
             this.subject = subject;
             this.soonSubject = soonSubject;
@@ -190,8 +181,6 @@ public class GalleryExpiringMessage implements EmailRenderer<GalleryExpiringMess
             this.download = download;
             this.button = button;
             this.moreTime = moreTime;
-            this.greeting = greeting;
-            this.signOff = signOff;
         }
     }
 }

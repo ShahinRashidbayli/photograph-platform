@@ -1,8 +1,28 @@
 # Fotolio
 
 A studio sells photography to its Customers and gets paid through invoices. These
-are the words for that money, one term per concept, used the same way in code, UI
-copy, commits and reviews.
+are its words, one term per concept, used the same way in code, UI copy, commits
+and reviews.
+
+## Studios and their Customers
+
+**Studio**:
+The photography business that uses Fotolio to sell to its Customers, run by an
+owner and their staff. One studio is one account on Fotolio.
+_Avoid_: Tenant (outside multi-tenancy code), photographer (when the business is meant)
+
+**Customer**:
+A person a studio photographs or may photograph, from their first enquiry onward.
+_Avoid_: Client, lead (that is the enquiry, not the person)
+
+**Customer message**:
+A message a studio sends to one of its Customers, in the studio's name and voice.
+In German UI copy: *Kundennachricht*.
+_Avoid_: Notification, email (as the concept)
+
+**Notification**:
+A message Fotolio sends to a studio's owner or staff about their studio.
+_Avoid_: Customer message, alert
 
 ## Money a studio earns
 

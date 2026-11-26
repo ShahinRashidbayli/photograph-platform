@@ -35,13 +35,15 @@ public class StudioIdentityResolver {
     public StudioIdentity resolve(UUID tenantId) {
         Tenant tenant = tenants.requireById(tenantId);
         boolean whiteLabel = entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING);
+        // Only a key the public route will serve: any other answers 404 there,
+        // and the email would show a broken image above the studio name.
         return StudioIdentity.resolve(
             tenant.getBusinessName(),
             tenant.getLegalName(),
             tenant.getLegalEmail(),
             tenant.getOwnerEmail(),
             whiteLabel,
-            whiteLabel && tenant.getLogoKey() != null ? logoUrl(tenant) : null,
+            whiteLabel && tenant.hasOwnLogoObject() ? logoUrl(tenant) : null,
             tenant.getBrandColor());
     }
 

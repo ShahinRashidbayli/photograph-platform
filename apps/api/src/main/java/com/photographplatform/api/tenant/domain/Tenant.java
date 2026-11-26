@@ -190,6 +190,17 @@ public class Tenant {
         this.logoKey = logoKey;
     }
 
+    /**
+     * Whether {@link #logoKey} is an object the logo presign endpoint minted
+     * for this studio ({@code AvatarService.presign(…, "logos")}). The key is
+     * stored as the owner sent it, so it may be an absolute URL or point into
+     * another studio's objects; only this shape may be signed and served.
+     */
+    public boolean hasOwnLogoObject() {
+        return logoKey != null && id != null
+            && logoKey.matches("logos/" + id + "/[0-9a-f-]{36}\\.[a-z0-9]+");
+    }
+
     public String getBrandColor() {
         return brandColor;
     }

@@ -11,7 +11,9 @@ import com.photographplatform.api.auth.service.StudioSignInCodesEmail;
 import com.photographplatform.api.common.outbox.OutboxEntry;
 import com.photographplatform.api.common.outbox.OutboxJob;
 import com.photographplatform.api.common.outbox.Outbox;
-import com.photographplatform.api.inquiry.service.InquiryDecisionEmail;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.messaging.application.RequestDecisionMessage;
+import com.photographplatform.api.messaging.domain.StudioIdentity;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -69,7 +71,12 @@ class EmailRenderingTest {
             new Object[] {withBaseUrl(new EmailVerificationEmail()), new EmailVerificationEmail.Params("Anna", "tok")},
             new Object[] {withBaseUrl(new StaffInvitationEmail()),
                 new StaffInvitationEmail.Params("Studio A", "Anna", "tok")},
-            new Object[] {new InquiryDecisionEmail(), new InquiryDecisionEmail.Params("Maria", true)},
+            new Object[] {new RequestDecisionMessage(null, null, null), new RequestDecisionMessage.Params(
+                new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
+                "Maria", true, "https://app.fotolio.de/customer/auth/login", "Bis bald!")},
+            new Object[] {new RequestDecisionMessage(null, null, null), new RequestDecisionMessage.Params(
+                new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN, "Maria", false, null,
+                null)},
             new Object[] {withBaseUrl(new LeadNotificationService(null)),
                 new LeadNotificationService.Params(UUID.randomUUID(), "HIGH", "Maria", "maria@example.test")},
             new Object[] {withBaseUrl(new AutoReplyService(null)),

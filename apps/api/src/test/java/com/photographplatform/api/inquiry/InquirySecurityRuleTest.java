@@ -29,12 +29,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static com.photographplatform.api.common.CsrfTestSupport.xsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -213,6 +215,33 @@ class InquirySecurityRuleTest {
         mvc.perform(get("/api/inquiries")
                 .header("Authorization", "Bearer " + photographerToken()))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void photographerDecidesWithAPersonalNote() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(inquiryService.updateStatus(eq(id), eq("REJECTED"), eq("Leider ausgebucht."),
+            nullable(String.class))).thenReturn(stubResponse());
+
+        mvc.perform(patch("/api/inquiries/" + id + "/status")
+                .header("Authorization", "Bearer " + photographerToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"REJECTED\",\"note\":\"Leider ausgebucht.\"}")
+                .with(xsrf()))
+            .andExpect(status().isOk());
+    }
+
+    /** A personal note is at most 1000 characters; the DTO refuses the 1001st. */
+    @Test
+    void aPersonalNoteOverTheLimitIsRejected() throws Exception {
+        mvc.perform(patch("/api/inquiries/" + UUID.randomUUID() + "/status")
+                .header("Authorization", "Bearer " + photographerToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"REJECTED\",\"note\":\"" + "x".repeat(1001) + "\"}")
+                .with(xsrf()))
+            .andExpect(status().isUnprocessableEntity());
+
+        verify(inquiryService, never()).updateStatus(any(), any(), any(), any());
     }
 
     @Test

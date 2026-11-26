@@ -58,6 +58,6 @@ public class InquiryController {
         HttpServletRequest httpRequest
     ) {
         return ResponseEntity.ok(
-            inquiryService.updateStatus(id, request.status(), ClientIp.from(httpRequest)));
+            inquiryService.updateStatus(id, request.status(), request.note(), ClientIp.from(httpRequest)));
     }
 }

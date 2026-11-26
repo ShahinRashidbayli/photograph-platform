@@ -109,6 +109,14 @@ class SmtpEmailSenderTest {
         assertThat(out.getHeader("Reply-To")).isNull();
     }
 
+    @Test
+    void aBlankReplyToSendsWithoutOneRatherThanFailing() throws Exception {
+        MimeMessage out = sendThroughSmtp(new EmailMessage("kunde@example.test", "Ihre Galerie", "<p>Hallo</p>",
+            EmailType.INQUIRY_REPLY, UUID.randomUUID(), "Atelier Müller", " "));
+
+        assertThat(out.getHeader("Reply-To")).isNull();
+    }
+
     /** BUG-014: a log line is not a place for anything a Customer or studio wrote. */
     @Test
     @ExtendWith(OutputCaptureExtension.class)

@@ -38,6 +38,9 @@ public record OutgoingEmail(
         Objects.requireNonNull(template, "template");
         Objects.requireNonNull(to, "to");
         Objects.requireNonNull(params, "params");
+        // A studio with an empty reply address set must not get "" queued: every
+        // provider rejects it, and the outbox would retry it until DEAD.
+        replyTo = replyTo == null || replyTo.isBlank() ? null : replyTo.strip();
     }
 
     /** Sent as Fotolio: the global sender name, and no Reply-To. */

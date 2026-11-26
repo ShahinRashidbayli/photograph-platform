@@ -32,6 +32,12 @@ public record EmailMessage(
     String replyTo
 ) {
 
+    public EmailMessage {
+        // Blank counts as absent, as for fromName: SMTP throws on "", and the
+        // HTTP providers answer 400, so the message would never go out.
+        replyTo = replyTo == null || replyTo.isBlank() ? null : replyTo.strip();
+    }
+
     /** Sent as Fotolio: the global sender name, and no Reply-To. */
     public EmailMessage(String to, String subject, String htmlBody, EmailType type, UUID tenantId) {
         this(to, subject, htmlBody, type, tenantId, null, null);

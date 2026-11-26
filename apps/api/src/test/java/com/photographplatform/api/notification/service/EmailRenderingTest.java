@@ -171,6 +171,21 @@ class EmailRenderingTest {
     }
 
     @Test
+    void aBlankReplyToIsQueuedAsNoneSoNoProviderRejectsTheMessage() throws Exception {
+        Outbox outbox = mock(Outbox.class);
+        EmailSender sender = mock(EmailSender.class);
+        EmailRenderers renderers = renderersOf(new SignInCodeEmail());
+        EmailService service = new EmailService(sender, outbox, renderers, JSON);
+
+        service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
+            new SignInCodeEmail.Params("Maria", "123456", 10), null, null, "Atelier Müller", "  "));
+
+        assertThat(deliverQueued(outbox, sender, service, renderers).replyTo()).isNull();
+        assertThat(new EmailMessage("a@example.test", "s", "b", EmailType.LOGIN_CODE, TENANT, null, "")
+            .replyTo()).isNull();
+    }
+
+    @Test
     void aMessageWithoutItsOwnNameFallsBackToTheGlobalOne() {
         EmailMessage own = new EmailMessage("a@example.test", "s", "b", EmailType.INQUIRY_REPLY, TENANT,
             "Atelier Müller", null);

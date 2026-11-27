@@ -190,9 +190,12 @@ export const landing = {
   'landing.pricing.title': 'Simple pricing.',
   'landing.pricing.sub': '14 days free. No credit card, cancel any time.',
   'landing.pricing.monthly': 'Monthly',
-  'landing.pricing.yearly': 'Yearly · 2 months free',
+  // No "2 months free": Starter's yearly total (€192) is more than ten monthly
+  // payments (€190). The saving is shown per card instead (UWG).
+  'landing.pricing.yearly': 'Yearly',
   'landing.pricing.perMonth': '/ month',
-  'landing.pricing.billedYearly': 'Billed yearly',
+  'landing.pricing.billedYearlyTotal': 'Billed yearly · {total}',
+  'landing.pricing.insteadOf': 'instead of',
   'landing.pricing.billedMonthly': 'Billed monthly',
   // Not "Most popular": with no customers yet that is a figure nobody can
   // show, which is exactly what the facts band refuses to print.

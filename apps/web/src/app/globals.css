@@ -1120,14 +1120,15 @@ html:not([data-theme='dark']) .lp-root [data-theme-only='dark'] {
   margin: 56px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px 16px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 12px;
 }
+/* Portrait tiles in one row: a third of the height the 4×2 squares took. */
 .lp-formats-frame {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 12px;
   background: #2a2723;
 }
 .lp-formats-frame img {
@@ -1136,10 +1137,37 @@ html:not([data-theme='dark']) .lp-root [data-theme-only='dark'] {
 }
 .lp-formats-grid span {
   display: block;
-  margin-top: 12px;
-  font-size: 1.05rem;
+  margin-top: 10px;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: var(--lp-dark-text);
+  color: var(--lp-dark-muted);
+}
+@media (max-width: 960px) {
+  .lp-formats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    row-gap: 24px;
+  }
+}
+/* Phones: one row that scrolls sideways, bleeding to the screen edge so the
+   cut-off tile says there is more. */
+@media (max-width: 520px) {
+  .lp-formats-grid {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    margin-inline: calc(-1 * var(--lp-gutter));
+    padding-inline: var(--lp-gutter);
+    scroll-padding-inline: var(--lp-gutter);
+  }
+  .lp-formats-grid::-webkit-scrollbar {
+    display: none;
+  }
+  .lp-formats-grid li {
+    flex: 0 0 38vw;
+    scroll-snap-align: start;
+  }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .lp-formats-grid li:hover img {
@@ -1591,6 +1619,10 @@ html:not([data-theme='dark']) .lp-root [data-theme-only='dark'] {
 .lp-price span {
   color: var(--lp-subtle);
 }
+.lp-price .lp-instead {
+  margin-left: 6px;
+  font-size: 0.95rem;
+}
 .lp-billed {
   font-size: 0.85rem;
   color: var(--lp-subtle);
@@ -1835,8 +1867,6 @@ html:not([data-theme='dark']) .lp-root [data-theme-only='dark'] {
     row-gap: 24px;
   }
   .lp-formats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px 10px;
     margin-top: 40px;
   }
   .lp-gallery-grid {

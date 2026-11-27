@@ -61,7 +61,7 @@ function chip(colors: ReturnType<typeof getBookingsColors>, active: boolean): Re
 }
 
 export function RequestSessionModal({ email, onClose }: RequestSessionModalProps) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { theme } = useThemeStore();
   const styles = useMemo(() => getBookingsStyles(theme), [theme]);
   const colors = useMemo(() => getBookingsColors(theme), [theme]);
@@ -120,6 +120,9 @@ export function RequestSessionModal({ email, onClose }: RequestSessionModalProps
         location: form.location.trim() || null,
         message: form.message.trim() || null,
         website: form.website, // honeypot
+        // The studio's Customer messages follow the portal language at the time of
+        // asking; switching it later does not update the request (v1).
+        language: lang,
       },
       {
         onSuccess: () => setSent(true),

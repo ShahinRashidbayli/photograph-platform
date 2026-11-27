@@ -169,6 +169,11 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.gallery.viewAsClient': 'Als Kunde ansehen',
   'bookings.gallery.manage': 'Galerien öffnen',
 
+  'bookings.language.label': 'Sprache Ihrer E-Mails',
+  'bookings.language.hint': 'E-Mails Ihres Studios an diesen Kunden sind in dieser Sprache.',
+  'bookings.language.de': 'Deutsch',
+  'bookings.language.en': 'English',
+  'bookings.language.error': 'Die Sprache konnte nicht geändert werden.',
   'bookings.notes.title': 'Interne Notiz',
   'bookings.notes.hint': 'Nur Sie und Ihr Team sehen das',
   'bookings.notes.placeholder': 'Notiz zu diesem Shooting hinzufügen…',

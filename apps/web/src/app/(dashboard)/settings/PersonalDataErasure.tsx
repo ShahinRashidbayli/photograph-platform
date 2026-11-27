@@ -43,6 +43,7 @@ const CATEGORY_LABEL: Record<string, TranslationKey> = {
   contracts: 'privacy.category.contracts',
   invoices: 'privacy.category.invoices',
   auditEntries: 'privacy.category.auditEntries',
+  queuedEmails: 'privacy.category.queuedEmails',
 };
 
 const BASIS_TEXT: Record<RetentionBasis, TranslationKey> = {

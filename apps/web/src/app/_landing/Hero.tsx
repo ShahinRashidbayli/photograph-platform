@@ -29,6 +29,17 @@ const STEP_GAP_MS = 450;
  * over in under two seconds (below WCAG 2.2.2's five), and it is pure CSS: the
  * steps are in the server HTML, and under reduced motion the animation is
  * simply not applied.
+ *
+ * The room follows the theme: a daylight photograph under a paper wash in
+ * light mode (on a phone, an unwashed band above the headline), the night
+ * photograph under charcoal in dark. Each photograph suits its own ground —
+ * the sparks washed with paper went grey, the field under charcoal went muddy.
+ * Both are in the markup and the stylesheet shows the one for the theme on
+ * screen (`data-theme-only`), like the ground, type and buttons
+ * (`data-tone`). Picking it from the theme store drew the daylight photograph
+ * under charcoal for every dark visitor until hydration: the server renders
+ * the store's light default. They load lazily, because a hidden lazy image is
+ * never fetched — `priority` would preload both.
  */
 export function Hero() {
   const { t, format } = useTranslation();
@@ -55,11 +66,29 @@ export function Hero() {
   ];
 
   return (
-    <section className="lp-hero-band" aria-labelledby="lp-hero-title">
+    <section className="lp-hero-band" data-tone="theme" aria-labelledby="lp-hero-title">
       {/* The photograph is the room's light; the scrim keeps the words on
-          solid charcoal and lets the sparks show to the right. */}
-      <Image src={STOCK.sparks.src} alt="" fill priority sizes="100vw" className="lp-hero-photo" />
+          solid ground and lets the photograph show to the right. */}
+      <Image
+        src={STOCK.field.src}
+        alt=""
+        fill
+        sizes="100vw"
+        className="lp-hero-photo"
+        data-theme-only="light"
+      />
+      <Image
+        src={STOCK.sparks.src}
+        alt=""
+        fill
+        sizes="100vw"
+        className="lp-hero-photo"
+        data-theme-only="dark"
+      />
       <div className="lp-hero-scrim" aria-hidden="true" />
+      <div className="lp-hero-strip" aria-hidden="true" data-theme-only="light">
+        <Image src={STOCK.field.src} alt="" fill sizes="100vw" />
+      </div>
       <div className="lp-wrap lp-hero">
         <div className="lp-hero-copy">
           <h1 id="lp-hero-title" className="lp-h1">

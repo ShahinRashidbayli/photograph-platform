@@ -2,7 +2,7 @@
 
 import { useAuthStore, useIsPhotographer } from '@/store/authStore';
 import { useLogout, useSessionUser } from '@/hooks/useAuth';
-import { useThemeStore } from '@/store/themeStore';
+import { readStoredChoice, readSystemTheme, useThemeStore } from '@/store/themeStore';
 import { getColors } from '@/lib/design-tokens';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
@@ -164,9 +164,10 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
   } = useAttention(isPhotographer);
 
   if (loading) {
-    // Read the persisted theme directly so the loading screen doesn't flash
-    // light before the theme store hydrates. zustand persists under
-    // "theme-storage" as { state: { theme }, version }.
+    // Read the persisted choice (or, without one, the system setting)
+    // directly so the loading screen doesn't flash light before the theme
+    // store hydrates — the same rule the pre-paint script in the root layout
+    // applies.
     //
     // This intentionally diverges between server (no window → default theme)
     // and client (reads localStorage). The mismatch is by design — the
@@ -175,12 +176,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
     // doesn't surface what is *deliberately* server-different content.
     let isDark = theme === 'dark';
     if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('theme-storage');
-        if (raw) isDark = JSON.parse(raw)?.state?.theme === 'dark';
-      } catch {
-        /* fall back to the store value */
-      }
+      isDark = (readStoredChoice() ?? readSystemTheme()) === 'dark';
     }
     const lc = getColors(isDark ? 'dark' : 'light');
     return (

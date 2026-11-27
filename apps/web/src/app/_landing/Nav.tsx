@@ -18,9 +18,10 @@ export const SECTIONS: { href: string; labelKey: TranslationKey }[] = [
   { href: '#faq', labelKey: 'landing.nav.faq' },
 ];
 
+/** The bar's tone, from the stylesheet: ink on paper, light on charcoal. */
 const NAV_CONTROL = {
-  color: '#e6dfd2',
-  ['--ui-btn-hover' as string]: 'rgba(230, 223, 210, 0.1)',
+  color: 'var(--lp-nav-control)',
+  ['--ui-btn-hover' as string]: 'var(--lp-nav-control-hover)',
 } as React.CSSProperties;
 
 export function Nav() {
@@ -46,10 +47,18 @@ export function Nav() {
   }, [menuOpen]);
 
   return (
-    <header className="lp-nav" data-scrolled={scrolled}>
+    <header className="lp-nav" data-tone="theme" data-scrolled={scrolled}>
       <div className="lp-wrap lp-nav-inner">
         <Link href="/" aria-label={t('landing.aria.home')} style={{ display: 'inline-flex' }}>
-          <FotolioLogo theme="dark" variant="brand" showText />
+          {/* Both marks, the stylesheet showing the one for the theme on
+              screen: from the store, a dark visitor got the paper mark on
+              the charcoal bar until hydration. */}
+          <span data-theme-only="light">
+            <FotolioLogo theme="light" variant="brand" showText />
+          </span>
+          <span data-theme-only="dark">
+            <FotolioLogo theme="dark" variant="brand" showText />
+          </span>
         </Link>
         <nav className="lp-nav-links" aria-label={t('landing.aria.sections')}>
           {SECTIONS.map((s) => (
@@ -59,7 +68,8 @@ export function Nav() {
           ))}
         </nav>
         <div className="lp-nav-right">
-          {/* The bar is dark in both themes, so its controls are drawn light. */}
+          {/* Both switches stay in the bar at every width, never in the
+              phone menu, so they are where a visitor last saw them. */}
           <LanguageToggle variant="bare" style={NAV_CONTROL} />
           <ThemeToggle variant="bare" style={NAV_CONTROL} />
           <Link href="/login" className="lp-navlink lp-nav-signin">

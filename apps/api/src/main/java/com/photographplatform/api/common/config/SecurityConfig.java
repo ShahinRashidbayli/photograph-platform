@@ -222,6 +222,11 @@ public class SecurityConfig {
      * one list rather than as a clause in the middle of the chain assembly —
      * and because this is the part of the configuration that has to be read
      * carefully when anything is added.
+     *
+     * <p>{@code /api/public/**} is read by visitors with no session: portfolio,
+     * gallery by token, lead intake, Impressum, Stripe webhooks — and the
+     * studio logo ({@code /api/public/studios/{subdomain}/logo}), which mail
+     * clients load from Customer messages days after they were sent.
      */
     private static void authorizationRules(
         AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
@@ -262,7 +267,8 @@ public class SecurityConfig {
             ).hasAnyRole("PHOTOGRAPHER", "ADMIN")
             // Tenant-level settings: the business identity printed on every
             // invoice (including the tenant's tax numbers) and the Stripe
-            // Connect payout link. Tenant-wide, not per-user — a CUSTOMER
+            // Connect payout link, and the switch for the automatic enquiry
+            // acknowledgement. Tenant-wide, not per-user — a CUSTOMER
             // shares the tenant and must never read or rewrite it. The
             // customer's own account settings live under /api/auth/me.
             .requestMatchers("/api/settings/**").hasAnyRole("PHOTOGRAPHER", "ADMIN")

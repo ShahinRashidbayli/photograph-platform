@@ -30,6 +30,17 @@ paths:
 - **UI**: use `components/ui` primitives for new/edited UI. Most old screens still
   hand-roll inline styles — migrate the part you touch, don't add new hand-rolled buttons/modals.
   No new styling library. Theme via `useColors()` / `useThemeStore`.
+- **Theme** (`store/themeStore.ts`): an explicit choice wins, otherwise the system
+  (`prefers-color-scheme`), followed live by `ThemeSync`. Readers get the resolved
+  `theme` (`'light' | 'dark'`, never `'system'`); `preference` is the choice. Stored
+  per device as `theme-storage` → `{ state: { theme } }` holding the explicit choice
+  only — the pre-paint `CLIENT_INIT` (`app/layout.tsx`) and the dashboard loading
+  screen read that shape directly, so keep the three in step. Never `set` a theme
+  resolved from the system (it would be saved as a choice) and never bump the persist
+  `version`. `ThemeToggle` (auth pages, dashboard header, landing nav, legal pages)
+  sets the explicit opposite of what is on screen; the avatar menu's Appearance
+  (Light · Dark · System) is the only way back to the system. The public portfolio
+  keeps its own `p-theme`.
 - **Visual system** (ink-on-paper, `lib/design-tokens.ts`): the UI is colourless on
   purpose — ink primary, warm graphite neutrals, colour only for status. Text on a
   `primary`/`primarySolid` fill is `c.onPrimary`, never `#fff` (dark mode inverts the
@@ -44,9 +55,18 @@ paths:
   `var(--ui-paper)`.
 - **Landing page** (`app/LandingPage.tsx` + `app/_landing/*`) is the one exception: its own
   palette (warm paper, ink, charcoal — no accent hue; colour comes from the photos) as
-  `--lp-*` vars and `.lp-*` classes in `globals.css`; previews take `--pv-*`, which follow
-  the theme (the hero stays dark in both),
-  its own faces (`_landing/fonts.ts`, route-scoped). Plan rows come from `PLAN_TIERS`;
+  `--lp-*` vars and `.lp-*` classes in `globals.css`, and its own faces
+  (`_landing/fonts.ts`, route-scoped); previews take `--pv-*`, which follow the theme
+  (the hero's booking page keeps the light set in both). Each band declares `data-tone`:
+  the nav, hero, photo grid and every other section follow the theme (`theme`); the
+  closing band/footer is dark in both (`dark`). The auth brand panel (no `data-tone`) is
+  dark in both too. The light look keys off that attribute and `html[data-theme]`, never
+  the theme store (the server
+  renders the store's light default, so a dark first paint would be wrong until
+  hydration); what differs by theme beyond colour — the hero's photograph, the nav's
+  mark — is in the markup twice, marked `data-theme-only`. `landing.claims.test.tsx`
+  pins the declarations and `landing.palette.test.ts` holds the listed text pairs to
+  WCAG AA per theme. Plan rows come from `PLAN_TIERS`;
   claims are pinned in `landing.claims.test.tsx` — never picture a feature the product
   lacks (no favourites, sharing or comments in galleries). Stand-in photos + credits:
   `_landing/stock.ts`.

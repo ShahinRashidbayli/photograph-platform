@@ -7,8 +7,9 @@ import { CustomerGalleries } from './CustomerGalleries';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { StatStrip } from '@/components/StatStrip';
-import { Alert, Badge, Toggle } from '@/components/ui';
+import { Alert, Badge, Button, Toggle } from '@/components/ui';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import {
   useCreateGallery,
@@ -506,6 +507,26 @@ function GalleryPhotos({
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Mirrors `Gallery.extend` on the API: a live gallery that already runs past
+ * a full plan window from today (or never expires) is left as it is. Offering
+ * the button there is the "did nothing visible" bug of #108 — after a
+ * downgrade it would read "Extend to 60 days" on a gallery with two years left.
+ * A gain under a day is treated the same: the expiry is shown as a date, so a
+ * gallery delivered this morning would "extend" without the date changing.
+ * An expired gallery is always worth extending; so is one whose plan window
+ * is not known yet, since the server decides.
+ */
+function extendWouldChangeAnything(gallery: Gallery, planRetentionDays: number | null): boolean {
+  if (gallery.expiryState !== 'ACTIVE') return true;
+  if (gallery.expiresAt === null) return false;
+  if (planRetentionDays === null) return true;
+  const renewed = Date.now() + planRetentionDays * DAY_MS;
+  return renewed - new Date(gallery.expiresAt).getTime() >= DAY_MS;
+}
+
 function GalleryDetail({
   gallery,
   subdomain,
@@ -530,6 +551,7 @@ function GalleryDetail({
   // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
   // can tell the user to copy the link manually instead of appearing inert.
   const { t, tPlural } = useTranslation();
+  const { entitlements } = useEntitlements();
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   // Reset the transient feedback after a moment, cancelled on unmount so it
@@ -628,6 +650,16 @@ function GalleryDetail({
     if (!gallery) return;
     onExtend(gallery.id);
   }
+
+  // Named after what the server does — a full plan window from today, never
+  // shortening — rather than a fixed "+30 days" it never added. The number
+  // comes from the plan; until it is known the label just says "Extend".
+  const planRetentionDays = entitlements?.galleryRetentionDays;
+  const extendLabel = planRetentionDays
+    ? t('galleries.detail.extend', { days: planRetentionDays })
+    : t('galleries.detail.extendFallback');
+  const showExtend =
+    gallery.canExtend && extendWouldChangeAnything(gallery, planRetentionDays ?? null);
 
   return (
     <>
@@ -743,20 +775,16 @@ function GalleryDetail({
                 />
               </div>
             )}
-            {gallery.canExtend && (
-              <button
+            {showExtend && (
+              <Button
+                size="sm"
                 onClick={extendGallery}
                 disabled={busy}
-                style={{
-                  ...styles.actionButton,
-                  ...styles.actionButtonOutline,
-                  alignSelf: 'flex-start',
-                  padding: '5px 12px',
-                  fontSize: '0.75rem',
-                }}
+                title={t('galleries.detail.extendHint')}
+                style={{ alignSelf: 'flex-start' }}
               >
-                {t('galleries.detail.extend')}
-              </button>
+                {extendLabel}
+              </Button>
             )}
           </div>
         </div>

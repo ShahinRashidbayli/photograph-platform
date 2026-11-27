@@ -10,6 +10,7 @@ import com.photographplatform.api.booking.dto.CreateBookingRequest;
 import com.photographplatform.api.booking.dto.UpdateBookingRequest;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
@@ -101,6 +102,7 @@ public class BookingCommandService {
             request.packageId(), request.totalAmountCents(), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.assignTo(resolveAssignee(request.assignedUserId(), tenantId));
+        booking.setLanguage(CustomerLanguage.fromCodeOrDefault(request.language()));
         booking.linkCustomer(customerAccounts.forEmail(booking.getClientEmail(), tenantId));
 
         Optional<Set<UUID>> resources = requireOwnResources(request.resourceIds());
@@ -194,6 +196,9 @@ public class BookingCommandService {
             request.packageId(), statedTotal(request, booking), request.depositAmountCents()));
         booking.setInternalNotes(Normalize.trimToNull(request.internalNotes()));
         booking.assignTo(resolveAssignee(request.assignedUserId(), booking.getTenantId()));
+        if (request.language() != null) {
+            booking.setLanguage(CustomerLanguage.fromCode(request.language()));
+        }
 
         Optional<Set<UUID>> resources = requireOwnResources(request.resourceIds());
         resources.ifPresent(r -> replaceResources(booking.getId(), r));

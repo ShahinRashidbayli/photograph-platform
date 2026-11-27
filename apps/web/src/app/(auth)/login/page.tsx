@@ -51,7 +51,7 @@ export default function LoginPage() {
         onSuccess: (user) => {
           const role = user.role?.toUpperCase();
           const isPhotographer = role === 'PHOTOGRAPHER' || role === 'ADMIN';
-          // The middleware puts the blocked destination in `?next=` precisely so
+          // The proxy puts the blocked destination in `?next=` precisely so
           // login can return to it ("Preserve the original destination so
           // post-login can return to it"), but nothing ever read it — so any deep
           // link into the app (an emailed booking link, a bookmarked lead) lost
@@ -88,7 +88,7 @@ export default function LoginPage() {
       visualTitle={t('login.visualTitle')}
       visualSubtitle={t('login.visualSubtitle')}
       crossLink={{
-        // Keep `?next=` across the switch: a client sent here by the middleware
+        // Keep `?next=` across the switch: a client sent here by the proxy
         // and correcting themselves should not lose the link that sent them.
         href: withPreservedNext(CLIENT_LOGIN, search),
         label: t('login.crossLink'),

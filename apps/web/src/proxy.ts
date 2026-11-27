@@ -80,7 +80,7 @@ function extractSubdomain(host: string): string | null {
   return candidate.toLowerCase();
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const host = request.headers.get('host') ?? '';
   const subdomain = extractSubdomain(host);
@@ -119,7 +119,7 @@ export function middleware(request: NextRequest) {
     // for 30 days" did not work at all.
     //
     // The refresh token cannot be *validated* here: it is an opaque
-    // database-backed token and middleware has no database. So this trusts its
+    // database-backed token and the proxy has no database. So this trusts its
     // presence only far enough to render the shell, and the interceptor
     // decides: a good token refreshes silently, a stale one lands back here
     // with both cookies cleared. Worst case is a brief shell before that

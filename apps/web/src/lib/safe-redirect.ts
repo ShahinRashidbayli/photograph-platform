@@ -1,7 +1,7 @@
 /**
  * Validates a caller-supplied post-login redirect target.
  *
- * The middleware attaches the blocked destination as `?next=` so login can
+ * The proxy attaches the blocked destination as `?next=` so login can
  * return the user to where they were headed. That value arrives from the query
  * string, so it is attacker-controllable: following it blindly would make the
  * login page an open redirect, handing a phishing clone a user who has just

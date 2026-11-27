@@ -12,10 +12,9 @@ import { join } from 'node:path';
  * CI Build job died with "Cannot read properties of null (reading '1')" on
  * whichever run drew such a response.
  *
- * `patches/next+15.5.28.patch` backports next 16's fix. This replays a
- * response captured on a runner through the real loader, so it fails if the
- * patch stops applying, e.g. after a next 15.x bump it no longer fits. Next 16
- * ships the fix itself: drop the patch then, and keep this test.
+ * next 16 reads the format from the CSS instead (until then a patch-package
+ * backport did). This replays a response captured on a runner through the
+ * real loader, so it fails if a next upgrade brings the crash back.
  */
 const CSS_URL = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap';
 

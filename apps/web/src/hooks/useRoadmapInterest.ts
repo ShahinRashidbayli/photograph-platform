@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
 export function roadmapInterestKey() {
@@ -18,16 +19,27 @@ export function useRoadmapInterest(enabled = true) {
 }
 
 /**
- * Registers or withdraws interest in one idea.
+ * Toggles interest in one idea: returns `toggle(feature)`.
  *
  * <p>Optimistic, and deliberately so: the answer is a checkbox against a
  * feature that does not exist, so a spinner would be a heavier promise than the
- * action deserves. Both server calls are idempotent, and a failure rolls the
- * list back to whatever the server last said.
+ * action deserves. Both server calls are idempotent.
+ *
+ * <p>Built to survive a double click, which used to lose the second click:
+ * - The direction is read from the cache at click time, not from the rendered
+ *   checkbox. A controlled checkbox still shows the old state until React
+ *   re-renders, so the second click asked to register again.
+ * - The cache flips before the first `await`, so the second click already sees
+ *   the first one's answer.
+ * - The calls share a `scope`, so they reach the server in click order: a
+ *   DELETE overtaking its PUT would leave the vote stored but unticked.
+ * - A failure undoes only its own feature's change, not a snapshot that a
+ *   later click has already moved on from.
  */
 export function useToggleRoadmapInterest() {
   const qc = useQueryClient();
-  return useMutation({
+  const { mutate } = useMutation({
+    scope: { id: 'roadmap-interest' },
     mutationFn: async ({ feature, wanted }: { feature: string; wanted: boolean }) => {
       if (wanted) {
         await api.put(`/api/roadmap/interest/${feature}`);
@@ -36,17 +48,25 @@ export function useToggleRoadmapInterest() {
       }
     },
     onMutate: async ({ feature, wanted }) => {
+      setInterest(qc, feature, wanted);
       await qc.cancelQueries({ queryKey: roadmapInterestKey() });
-      const previous = qc.getQueryData<string[]>(roadmapInterestKey()) ?? [];
-      qc.setQueryData<string[]>(
-        roadmapInterestKey(),
-        wanted ? [...previous, feature] : previous.filter((f) => f !== feature)
-      );
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) qc.setQueryData(roadmapInterestKey(), context.previous);
-    },
+    onError: (_err, { feature, wanted }) => setInterest(qc, feature, !wanted),
     onSettled: () => qc.invalidateQueries({ queryKey: roadmapInterestKey() }),
+  });
+
+  return useCallback(
+    (feature: string) => {
+      const current = qc.getQueryData<string[]>(roadmapInterestKey()) ?? [];
+      mutate({ feature, wanted: !current.includes(feature) });
+    },
+    [qc, mutate]
+  );
+}
+
+function setInterest(qc: QueryClient, feature: string, wanted: boolean) {
+  qc.setQueryData<string[]>(roadmapInterestKey(), (old = []) => {
+    const without = old.filter((f) => f !== feature);
+    return wanted ? [...without, feature] : without;
   });
 }

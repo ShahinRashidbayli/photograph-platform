@@ -15,6 +15,22 @@ public interface FeatureInterestRepository
     List<FeatureInterest> findByTenantId(UUID tenantId);
 
     /**
+     * Registering interest, as one statement that cannot fail on a duplicate.
+     *
+     * <p>Not {@code save()}: a new entity's INSERT is only sent at flush, which
+     * is at commit, outside any {@code try} in the service. Two PUTs from a
+     * double click both inserted, the second hit the primary key at commit and
+     * returned 409. Here the primary key still decides, and a duplicate is a
+     * no-op the way {@code ProcessedStripeEventRepository#tryClaim} is.
+     */
+    @Modifying
+    @Query(value = """
+        INSERT INTO feature_interest (tenant_id, feature) VALUES (:tenantId, :feature)
+        ON CONFLICT (tenant_id, feature) DO NOTHING
+        """, nativeQuery = true)
+    int registerInterest(@Param("tenantId") UUID tenantId, @Param("feature") String feature);
+
+    /**
      * Withdrawing interest.
      *
      * <p>A delete rather than a flag: the row means "wants this", and a row that

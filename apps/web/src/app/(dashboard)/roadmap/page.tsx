@@ -66,7 +66,7 @@ export default function RoadmapPage() {
             idea={idea}
             wanted={wanted.has(idea.key)}
             disabled={isLoading}
-            onChange={(next) => toggle.mutate({ feature: idea.key, wanted: next })}
+            onChange={() => toggle(idea.key)}
           />
         ))}
       </div>

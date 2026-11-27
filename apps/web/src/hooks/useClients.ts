@@ -48,6 +48,9 @@ export function useClient(id: string | null | undefined) {
   return useQuery({
     queryKey: clientKey(id ?? ''),
     enabled: Boolean(id),
+    // The galleries, invoices and contracts here are written on the galleries
+    // screen and the booking detail, whose mutations do not touch this key.
+    staleTime: 0,
     queryFn: async () => {
       const { data } = await api.get<ClientDetail>(`/api/clients/${id}`);
       return {

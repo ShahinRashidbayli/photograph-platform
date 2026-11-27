@@ -62,6 +62,37 @@ class ClientDirectoryIT extends IntegrationTestBase {
         });
     }
 
+    @Test
+    void aConvertedLeadAppearsInTheDirectory() {
+        String token = registerStudio();
+        // Manual lead entry and conversion are gated on a verified address.
+        executeAcrossTenants(
+            "UPDATE users SET email_verified_at = now() "
+                + "WHERE email LIKE 'owner-%@example.test' AND email_verified_at IS NULL");
+
+        ResponseEntity<Map> lead = rest.exchange("/api/leads", HttpMethod.POST, new HttpEntity<>(Map.of(
+            "name", "Jonas Berg",
+            "email", "Jonas.Berg@Example.test",
+            "eventDate", LocalDate.now().plusDays(60).toString(),
+            "eventType", "Hochzeit",
+            "budgetRange", "2000-3000"), headers(token, true)), Map.class);
+        assertThat(lead.getStatusCode().is2xxSuccessful()).as(String.valueOf(lead.getBody())).isTrue();
+
+        ResponseEntity<String> converted = rest.exchange(
+            "/api/leads/" + lead.getBody().get("id") + "/convert", HttpMethod.POST,
+            new HttpEntity<>(Map.of(), headers(token, true)), String.class);
+        assertThat(converted.getStatusCode().is2xxSuccessful()).as(converted.getBody()).isTrue();
+
+        ResponseEntity<ClientResponse[]> clients = rest.exchange(
+            "/api/clients", HttpMethod.GET, new HttpEntity<>(headers(token, false)), ClientResponse[].class);
+
+        assertThat(clients.getBody()).singleElement().satisfies(c -> {
+            assertThat(c.fullName()).isEqualTo("Jonas Berg");
+            assertThat(c.email()).isEqualTo("jonas.berg@example.test");
+            assertThat(c.totalBookings()).isEqualTo(1);
+        });
+    }
+
     private String registerStudio() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String email = "owner-" + suffix + "@example.test";

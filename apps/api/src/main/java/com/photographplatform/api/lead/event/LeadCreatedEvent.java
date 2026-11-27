@@ -1,5 +1,7 @@
 package com.photographplatform.api.lead.event;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.context.ApplicationEvent;
 
@@ -24,37 +26,39 @@ public class LeadCreatedEvent extends ApplicationEvent {
     private final String clientEmail;
     private final String score;
     private final Origin origin;
-    private final String studioName;
+    private final CustomerLanguage language;
     private final String photographerEmail;
 
     /**
      * A lead the Customer sent through the studio's public request form.
      *
-     * @param studioName the name the Customer knows the studio by, or null when
-     *                   the studio has not entered one; never the subdomain
+     * <p>No studio name: {@code messaging} resolves who is speaking itself, at
+     * queue time, the same way for every Customer message.
+     *
+     * @param language   the form's UI language, which the Customer reads
      * @param ownerEmail where the "New lead" alert goes
      */
     public static LeadCreatedEvent fromPublicForm(Object source, UUID leadId, UUID tenantId, String clientName,
-                                                  String clientEmail, String score, String studioName,
+                                                  String clientEmail, String score, CustomerLanguage language,
                                                   String ownerEmail) {
         return new LeadCreatedEvent(source, leadId, tenantId, clientName, clientEmail, score,
-            Origin.PUBLIC_FORM, studioName, ownerEmail);
+            Origin.PUBLIC_FORM, language, ownerEmail);
     }
 
     /**
-     * A lead the studio's owner or staff typed in. It takes no studio name,
-     * because nothing writes to the Customer about it: with nine positional
-     * arguments, a null studio name next to the typist's address was one swap
-     * away from signing an email with an address (review on #141).
+     * A lead the studio's owner or staff typed in. Nothing writes to the
+     * Customer about it, but the language still travels, so a listener added
+     * later reads the lead as it was stored.
      */
     public static LeadCreatedEvent enteredByStudio(Object source, UUID leadId, UUID tenantId, String clientName,
-                                                   String clientEmail, String score, String enteredByEmail) {
+                                                   String clientEmail, String score, CustomerLanguage language,
+                                                   String enteredByEmail) {
         return new LeadCreatedEvent(source, leadId, tenantId, clientName, clientEmail, score,
-            Origin.ENTERED_BY_STUDIO, null, enteredByEmail);
+            Origin.ENTERED_BY_STUDIO, language, enteredByEmail);
     }
 
     private LeadCreatedEvent(Object source, UUID leadId, UUID tenantId, String clientName, String clientEmail,
-                             String score, Origin origin, String studioName, String photographerEmail) {
+                             String score, Origin origin, CustomerLanguage language, String photographerEmail) {
         super(source);
         this.leadId = leadId;
         this.tenantId = tenantId;
@@ -62,7 +66,7 @@ public class LeadCreatedEvent extends ApplicationEvent {
         this.clientEmail = clientEmail;
         this.score = score;
         this.origin = origin;
-        this.studioName = studioName;
+        this.language = Objects.requireNonNull(language, "language");
         this.photographerEmail = photographerEmail;
     }
 
@@ -90,8 +94,8 @@ public class LeadCreatedEvent extends ApplicationEvent {
         return origin;
     }
 
-    public String getStudioName() {
-        return studioName;
+    public CustomerLanguage getLanguage() {
+        return language;
     }
 
     public String getPhotographerEmail() {

@@ -18,6 +18,7 @@ import com.photographplatform.api.payment.dto.StripeConnectStatusResponse;
 import com.photographplatform.api.payment.service.StripeConnectService;
 import com.photographplatform.api.tenant.controller.TenantSettingsController;
 import com.photographplatform.api.tenant.dto.BillingProfileResponse;
+import com.photographplatform.api.tenant.dto.EnquiryAcknowledgementSetting;
 import com.photographplatform.api.tenant.service.TenantSettingsService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,6 +149,55 @@ class TenantSettingsSecurityRuleTest {
         mvc.perform(get("/api/settings/stripe")
                 .header("Authorization", "Bearer " + tokenFor("PHOTOGRAPHER")))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void photographerCanReadTheEnquiryAcknowledgementSwitch() throws Exception {
+        when(settingsService.getEnquiryAcknowledgement()).thenReturn(new EnquiryAcknowledgementSetting(true));
+
+        mvc.perform(get("/api/settings/enquiry-acknowledgement")
+                .header("Authorization", "Bearer " + tokenFor("PHOTOGRAPHER")))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void photographerCanSwitchTheEnquiryAcknowledgementOff() throws Exception {
+        when(settingsService.updateEnquiryAcknowledgement(any(), nullable(String.class)))
+            .thenReturn(new EnquiryAcknowledgementSetting(false));
+
+        mvc.perform(put("/api/settings/enquiry-acknowledgement")
+                .header("Authorization", "Bearer " + tokenFor("PHOTOGRAPHER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"enabled\":false}")
+                .with(xsrf()))
+            .andExpect(status().isOk());
+
+        verify(ownershipGuard).requireOwner();
+    }
+
+    /** A body without the flag is refused, never read as "off". */
+    @Test
+    void aSwitchWithoutAValueIsRejectedBeforeItReachesTheService() throws Exception {
+        mvc.perform(put("/api/settings/enquiry-acknowledgement")
+                .header("Authorization", "Bearer " + tokenFor("PHOTOGRAPHER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+                .with(xsrf()))
+            .andExpect(status().isUnprocessableEntity());
+
+        verify(settingsService, never()).updateEnquiryAcknowledgement(any(), nullable(String.class));
+    }
+
+    @Test
+    void customerTokenCannotSwitchOffTheStudiosAcknowledgement() throws Exception {
+        mvc.perform(put("/api/settings/enquiry-acknowledgement")
+                .header("Authorization", "Bearer " + tokenFor("CUSTOMER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"enabled\":false}")
+                .with(xsrf()))
+            .andExpect(status().isForbidden());
+
+        verify(settingsService, never()).updateEnquiryAcknowledgement(any(), nullable(String.class));
     }
 
     // ── validation ────────────────────────────────────────────────────────

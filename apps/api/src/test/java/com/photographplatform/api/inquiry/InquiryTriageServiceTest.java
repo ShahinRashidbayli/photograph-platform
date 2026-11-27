@@ -10,8 +10,9 @@ import com.photographplatform.api.inquiry.domain.InquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
 import com.photographplatform.api.inquiry.service.InquiryRequestService;
-import com.photographplatform.api.notification.dto.OutgoingEmail;
-import com.photographplatform.api.notification.service.EmailService;
+import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.inquiry.event.InquiryDecidedEvent;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import com.photographplatform.api.common.security.RateLimiter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,8 +39,9 @@ import static org.mockito.Mockito.when;
  * Unit-level verification of {@link InquiryRequestService#updateStatus} — the
  * photographer's accept/reject triage (roadmap §4.5.7). Accepting must convert
  * the inquiry into a booking in one step and land it in {@code BOOKING_CREATED};
- * rejecting must not create a booking; both notify the customer; and an
- * already-triaged inquiry is terminal (409).
+ * rejecting must not create a booking; both publish an {@link InquiryDecidedEvent}
+ * for the Customer message; a personal note travels on the event and never into
+ * the audit trail; and an already-triaged inquiry is terminal (409).
  */
 class InquiryTriageServiceTest {
 
@@ -50,7 +53,7 @@ class InquiryTriageServiceTest {
 
     private InquiryRequestRepository inquiryRepository;
     private BookingConversionService bookingConversionService;
-    private EmailService emailService;
+    private ApplicationEventPublisher eventPublisher;
     private AuditService auditService;
     private User customer;
     private InquiryRequestService service;
@@ -60,14 +63,13 @@ class InquiryTriageServiceTest {
         inquiryRepository = mock(InquiryRequestRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
         bookingConversionService = mock(BookingConversionService.class);
-        emailService = mock(EmailService.class);
         auditService = mock(AuditService.class);
         TenantRepository tenantRepository = mock(TenantRepository.class);
-        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         RateLimiter rateLimiter = mock(RateLimiter.class);
 
         service = new InquiryRequestService(inquiryRepository, userRepository, tenantRepository,
-            auditService, eventPublisher, rateLimiter, bookingConversionService, emailService,
+            auditService, eventPublisher, rateLimiter, bookingConversionService,
             java.time.Clock.systemUTC());
 
         customer = mock(User.class);
@@ -93,18 +95,38 @@ class InquiryTriageServiceTest {
             LocalDate.now().plusDays(60), "Berlin", "Looking forward", "HIGH", "BIO_LINK");
     }
 
+    private InquiryDecidedEvent publishedDecision() {
+        ArgumentCaptor<InquiryDecidedEvent> event = ArgumentCaptor.forClass(InquiryDecidedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        return event.getValue();
+    }
+
     @Test
     void acceptCreatesBookingAndMovesToBookingCreated() {
         InquiryRequest inquiry = pendingInquiry();
+        inquiry.setLanguage(CustomerLanguage.EN);
         when(inquiryRepository.findById(INQUIRY_ID)).thenReturn(Optional.of(inquiry));
+        BookingResponse booking = mock(BookingResponse.class);
+        UUID bookingId = UUID.randomUUID();
+        when(booking.id()).thenReturn(bookingId);
+        when(bookingConversionService.createFromInquiry(inquiry, customer, IP)).thenReturn(booking);
 
-        InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "ACCEPTED", IP);
+        InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "ACCEPTED", null, IP);
 
         assertThat(response.status()).isEqualTo("BOOKING_CREATED");
         verify(bookingConversionService).createFromInquiry(eq(inquiry), eq(customer), eq(IP));
-        verify(emailService).queue(any(OutgoingEmail.class));
         verify(auditService).log(
             eq("INQUIRY_ACCEPTED"), eq("INQUIRY_REQUEST"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
+
+        InquiryDecidedEvent event = publishedDecision();
+        assertThat(event.isAccepted()).isTrue();
+        assertThat(event.getBookingId()).isEqualTo(bookingId);
+        assertThat(event.getTenantId()).isEqualTo(TENANT_ID);
+        assertThat(event.getRecipientEmail()).isEqualTo("maria@example.com");
+        assertThat(event.getRecipientName()).isEqualTo("Maria Kellner");
+        assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.EN);
+        assertThat(event.getNote()).isNull();
+        assertThat(event.getSentAt()).isNotNull();
     }
 
     @Test
@@ -112,11 +134,38 @@ class InquiryTriageServiceTest {
         InquiryRequest inquiry = pendingInquiry();
         when(inquiryRepository.findById(INQUIRY_ID)).thenReturn(Optional.of(inquiry));
 
-        InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "REJECTED", IP);
+        InquiryRequestResponse response = service.updateStatus(INQUIRY_ID, "REJECTED", "  ", IP);
 
         assertThat(response.status()).isEqualTo("REJECTED");
         verify(bookingConversionService, never()).createFromInquiry(any(), any(), any());
-        verify(emailService).queue(any(OutgoingEmail.class));
+        InquiryDecidedEvent event = publishedDecision();
+        assertThat(event.isAccepted()).isFalse();
+        assertThat(event.getBookingId()).isNull();
+        assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.DE);
+        assertThat(event.getNote()).as("a blank note is no note").isNull();
+    }
+
+    /**
+     * The note reaches the Customer through the event; the audit row says only
+     * that there was one.
+     */
+    @Test
+    void aNoteTravelsOnTheEventAndTheAuditRecordsOnlyThatOneWasSent() {
+        InquiryRequest inquiry = pendingInquiry();
+        when(inquiryRepository.findById(INQUIRY_ID)).thenReturn(Optional.of(inquiry));
+        String note = "<b>Leider</b> sind wir an dem Tag schon gebucht.";
+
+        service.updateStatus(INQUIRY_ID, "REJECTED", note, IP);
+
+        assertThat(publishedDecision().getNote()).isEqualTo(note);
+        ArgumentCaptor<String> oldValue = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> newValue = ArgumentCaptor.forClass(String.class);
+        verify(auditService).logChange(eq("INQUIRY_REJECTED"), eq("INQUIRY_REQUEST"), any(), eq(TENANT_ID),
+            eq(ACTOR_ID), eq(IP), oldValue.capture(), newValue.capture());
+        assertThat(oldValue.getValue()).isNull();
+        assertThat(newValue.getValue()).isEqualTo(InquiryRequestService.SENT_WITH_A_NOTE)
+            .doesNotContain("Leider");
+        verify(auditService, never()).log(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -125,15 +174,16 @@ class InquiryTriageServiceTest {
         inquiry.setStatus("BOOKING_CREATED");
         when(inquiryRepository.findById(INQUIRY_ID)).thenReturn(Optional.of(inquiry));
 
-        assertThatThrownBy(() -> service.updateStatus(INQUIRY_ID, "ACCEPTED", IP))
+        assertThatThrownBy(() -> service.updateStatus(INQUIRY_ID, "ACCEPTED", null, IP))
             .isInstanceOf(ConflictException.class);
 
         verify(bookingConversionService, never()).createFromInquiry(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
     void unsupportedTargetStatusIsRejected() {
-        assertThatThrownBy(() -> service.updateStatus(INQUIRY_ID, "PENDING", IP))
+        assertThatThrownBy(() -> service.updateStatus(INQUIRY_ID, "PENDING", null, IP))
             .isInstanceOf(ConflictException.class);
     }
 }

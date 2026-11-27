@@ -86,24 +86,20 @@ export function buildInbox(
   const q = search.trim().toLowerCase();
   const map = pendingMap(pending);
   const items: InboxItem[] = [
-    ...leads.map(
-      (lead): InboxItem => ({
-        kind: 'lead',
-        id: lead.id,
-        createdAt: lead.createdAt,
-        group: leadGroup(lead.status),
-        lead,
-      })
-    ),
-    ...inquiries.map(
-      (inquiry): InboxItem => ({
-        kind: 'inquiry',
-        id: inquiry.id,
-        createdAt: inquiry.createdAt,
-        group: inquiryGroup(inquiry.status),
-        inquiry,
-      })
-    ),
+    ...leads.map((lead): InboxItem => ({
+      kind: 'lead',
+      id: lead.id,
+      createdAt: lead.createdAt,
+      group: leadGroup(lead.status),
+      lead,
+    })),
+    ...inquiries.map((inquiry): InboxItem => ({
+      kind: 'inquiry',
+      id: inquiry.id,
+      createdAt: inquiry.createdAt,
+      group: inquiryGroup(inquiry.status),
+      inquiry,
+    })),
   ]
     .filter((item) => matches(item, q))
     .map((item) => ({ ...item, group: effectiveGroup(item, map) }));
@@ -181,9 +177,7 @@ export function firstName(full: string): string {
 // ─── Am I free that day? ───────────────────────────────────────────────────
 
 export type Availability =
-  | { kind: 'none' }
-  | { kind: 'free' }
-  | { kind: 'busy'; bookings: Booking[] };
+  { kind: 'none' } | { kind: 'free' } | { kind: 'busy'; bookings: Booking[] };
 
 /**
  * Whether the studio already has a shoot on the requested day — the first

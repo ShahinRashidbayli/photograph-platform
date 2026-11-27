@@ -17,14 +17,30 @@ import javax.imageio.ImageIO;
 public final class ExifJpegFixture {
 
     /** The colour of the stored image's top-left quadrant; the rest is {@link #BACKGROUND}. */
-    public static final Color MARKER = Color.RED;
-    public static final Color BACKGROUND = Color.BLUE;
+    private static final Color MARKER = Color.RED;
+    private static final Color BACKGROUND = Color.BLUE;
 
     private ExifJpegFixture() {
     }
 
     /** A {@code width × height} JPEG, top-left quadrant {@link #MARKER}, tagged with {@code orientation}. */
     public static byte[] jpeg(int width, int height, int orientation) throws IOException {
+        byte[] jpeg = plainJpeg(width, height);
+        // SOI (2 bytes), then ImageIO's JFIF APP0 whose length field follows its marker.
+        int app0Length = ((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF);
+        return withOrientation(jpeg, 4 + app0Length, orientation);
+    }
+
+    /**
+     * The same JPEG with the EXIF segment before the JFIF one, as some cameras
+     * and editors write it. ImageIO decodes the pixels but refuses the metadata
+     * ("JFIF APP0 must be first marker after SOI").
+     */
+    public static byte[] jpegWithExifBeforeJfif(int width, int height, int orientation) throws IOException {
+        return withOrientation(plainJpeg(width, height), 2, orientation);
+    }
+
+    private static byte[] plainJpeg(int width, int height) throws IOException {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
         g.setColor(BACKGROUND);
@@ -35,14 +51,10 @@ public final class ExifJpegFixture {
 
         ByteArrayOutputStream encoded = new ByteArrayOutputStream();
         ImageIO.write(image, "jpg", encoded);
-        return withOrientation(encoded.toByteArray(), orientation);
+        return encoded.toByteArray();
     }
 
-    private static byte[] withOrientation(byte[] jpeg, int orientation) {
-        // SOI (2 bytes), then ImageIO's JFIF APP0 whose length field follows its marker.
-        int app0Length = ((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF);
-        int insertAt = 4 + app0Length;
-
+    private static byte[] withOrientation(byte[] jpeg, int insertAt, int orientation) {
         ByteBuffer tiff = ByteBuffer.allocate(26)
             .put("MM".getBytes(StandardCharsets.US_ASCII)) // big-endian
             .putShort((short) 42)

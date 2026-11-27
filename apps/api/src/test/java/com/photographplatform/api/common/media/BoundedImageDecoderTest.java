@@ -85,11 +85,17 @@ class BoundedImageDecoderTest {
         }
     }
 
+    /**
+     * ImageIO decodes these pixels but throws reading the metadata. The upload
+     * worked before orientation was read, so it must still get its derivatives
+     * — as stored, since the tag cannot be read.
+     */
     @Test
-    void leavesAJpegWithoutExifAsStored() throws IOException {
-        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpeg(80, 40, 1));
+    void decodesAJpegWhoseMetadataImageIoRejectsAsStored() throws IOException {
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpegWithExifBeforeJfif(80, 40, 6));
 
-        assertThat(decoded.sourceWidth()).isEqualTo(80);
+        assertThat(decoded.image().getWidth()).isEqualTo(80);
+        assertThat(decoded.image().getHeight()).isEqualTo(40);
         assertThat(isRed(decoded.image().getRGB(10, 10))).isTrue();
     }
 

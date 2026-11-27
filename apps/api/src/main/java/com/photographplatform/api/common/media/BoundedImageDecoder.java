@@ -11,6 +11,8 @@ import javax.imageio.stream.ImageInputStream;
 import net.coobird.thumbnailator.util.exif.ExifFilterUtils;
 import net.coobird.thumbnailator.util.exif.ExifUtils;
 import net.coobird.thumbnailator.util.exif.Orientation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Decodes an uploaded image with a hard ceiling on the heap it can take.
@@ -47,6 +49,8 @@ import net.coobird.thumbnailator.util.exif.Orientation;
  * browser shows for the original.
  */
 public final class BoundedImageDecoder {
+
+    private static final Logger LOG = LoggerFactory.getLogger(BoundedImageDecoder.class);
 
     /**
      * Refused outright above this. The largest sensor shipping is about 151 MP
@@ -138,8 +142,11 @@ public final class BoundedImageDecoder {
     /**
      * The orientation a JPEG's EXIF block declares, or {@code null} when there
      * is none. Only JPEG is asked: the lookup reads the JPEG-native metadata
-     * tree, which other readers do not offer. A malformed EXIF block is treated
-     * as no tag — a sideways thumbnail beats no thumbnail.
+     * tree, which other readers do not offer. Metadata ImageIO cannot parse is
+     * treated as no tag — a sideways thumbnail beats no thumbnail. That includes
+     * an IIOException: ImageIO rejects metadata it decodes the pixels of fine
+     * (e.g. EXIF written before the JFIF segment), and such uploads got
+     * derivatives before orientation was read.
      */
     private static Orientation exifOrientation(ImageReader reader) throws IOException {
         if (!"jpeg".equalsIgnoreCase(reader.getFormatName())) {
@@ -147,7 +154,8 @@ public final class BoundedImageDecoder {
         }
         try {
             return ExifUtils.getExifOrientation(reader, 0);
-        } catch (RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
+            LOG.debug("Ignoring unreadable JPEG metadata: {}", e.toString());
             return null;
         }
     }

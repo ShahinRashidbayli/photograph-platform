@@ -54,6 +54,18 @@ class BoundedImageDecoderTest {
         assertThat(decoded.sourceHeight()).isEqualTo(80);
     }
 
+    /** A large portrait original is subsampled first, then turned; both sizes come out upright. */
+    @Test
+    void turnsASubsampledJpegUpright() throws IOException {
+        // 80 000 px against a 20 000 px budget → step 2.
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpeg(400, 200, 6), Long.MAX_VALUE, 20_000);
+
+        assertThat(decoded.image().getWidth()).isEqualTo(100);
+        assertThat(decoded.image().getHeight()).isEqualTo(200);
+        assertThat(decoded.sourceWidth()).isEqualTo(200);
+        assertThat(decoded.sourceHeight()).isEqualTo(400);
+    }
+
     /**
      * Where the stored top-left quadrant ends up once upright, for every EXIF
      * orientation: 1–4 keep the dimensions (identity, mirror, 180°, flip),

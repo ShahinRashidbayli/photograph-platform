@@ -13,8 +13,13 @@
  * for that reason.
  */
 
+import { safeRedirectPath } from './safe-redirect';
+
 export const PHOTOGRAPHER_LOGIN = '/login';
 export const CLIENT_LOGIN = '/customer/auth/login';
+
+/** Where a Customer lands when the link that brought them named no page. */
+export const CUSTOMER_HOME = '/bookings';
 
 /** Paths that only a client can be on, and so identify them without a session. */
 const CLIENT_PREFIXES = ['/customer/'];
@@ -63,6 +68,20 @@ export function loginPathFor(pathname: string, search = ''): string {
 /** True when this path is itself a sign-in screen. */
 export function isLoginPath(pathname: string): boolean {
   return LOGIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/**
+ * Where to go once signed in: `next` when `safeRedirectPath` accepts it and it
+ * is not itself a sign-in screen, else null for the caller's default.
+ * `loginUrlFor` never writes a sign-in into `next`, but anyone can hand-write
+ * one, and following it sent someone who had just authenticated back to a form.
+ *
+ * @param search the raw query string, e.g. `window.location.search`
+ * @param origin the current origin to compare against
+ */
+export function nextAfterSignIn(search: string, origin: string): string | null {
+  const next = safeRedirectPath(search, origin);
+  return next && !isLoginPath(new URL(next, origin).pathname) ? next : null;
 }
 
 /**

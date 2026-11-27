@@ -306,6 +306,10 @@ describe('CustomerLoginPage', () => {
       expect(await signInFrom('')).toBe('/bookings');
     });
 
+    it('does not land back on a sign-in', async () => {
+      expect(await signInFrom('?next=%2Flogin')).toBe('/bookings');
+    });
+
     /** `next` is in the query string, so anyone can write a link with their own. */
     it.each([['//evil.example'], ['https://evil.example'], ['/\\evil.example']])(
       'refuses to leave the site for %s',

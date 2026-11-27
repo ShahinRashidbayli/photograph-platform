@@ -4,6 +4,7 @@ import {
   isLoginPath,
   loginPathFor,
   loginUrlFor,
+  nextAfterSignIn,
   withPreservedNext,
 } from './login-redirect';
 import { safeRedirectPath } from './safe-redirect';
@@ -149,5 +150,27 @@ describe('withPreservedNext', () => {
     const search = url.slice(url.indexOf('?'));
 
     expect(safeRedirectPath(search, 'https://app.fotolio.de')).toBeNull();
+  });
+});
+
+describe('nextAfterSignIn', () => {
+  const origin = 'https://app.fotolio.de';
+
+  it('follows a same-origin destination', () => {
+    expect(nextAfterSignIn('?next=%2Fdocuments%3Fid%3Dx', origin)).toBe('/documents?id=x');
+  });
+
+  /** A hand-written `next` pointing at a sign-in sent the user straight back to a form. */
+  it.each([
+    ['/login'],
+    ['/login?next=%2Fbookings'],
+    ['/customer/auth/login'],
+    ['/customer/auth/login/'],
+  ])('refuses the sign-in %s', (target) => {
+    expect(nextAfterSignIn(`?next=${encodeURIComponent(target)}`, origin)).toBeNull();
+  });
+
+  it('still refuses what safeRedirectPath refuses', () => {
+    expect(nextAfterSignIn(`?next=${encodeURIComponent('//evil.example')}`, origin)).toBeNull();
   });
 });

@@ -8,8 +8,13 @@ import { getColors } from '@/lib/design-tokens';
 import { extractApiError } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
-import { PHOTOGRAPHER_LOGIN, SUBDOMAIN_PATTERN, withPreservedNext } from '@/lib/login-redirect';
-import { safeRedirectPath } from '@/lib/safe-redirect';
+import {
+  CUSTOMER_HOME,
+  PHOTOGRAPHER_LOGIN,
+  SUBDOMAIN_PATTERN,
+  nextAfterSignIn,
+  withPreservedNext,
+} from '@/lib/login-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -24,9 +29,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // (the marketing apex, the app shell) are not photographer tenants.
 const BASE_DOMAINS = ['fotolio.de'];
 const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin']);
-
-/** Where a Customer lands when the link that brought them named no page. */
-const DEFAULT_DESTINATION = '/bookings';
 
 /**
  * Derives the photographer subdomain from the current host, e.g.
@@ -269,9 +271,10 @@ function CustomerLoginInner() {
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
           // `next` is where the link pointed (a contract to sign, a booking); it
-          // came from the query string, so only a same-origin path is followed.
+          // came from the query string, so only a same-origin path that is not a
+          // sign-in is followed.
           window.location.href =
-            safeRedirectPath(window.location.search, window.location.origin) ?? DEFAULT_DESTINATION;
+            nextAfterSignIn(window.location.search, window.location.origin) ?? CUSTOMER_HOME;
         },
         onError: (err) => {
           const msg =

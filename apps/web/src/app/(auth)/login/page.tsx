@@ -10,8 +10,12 @@ import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { safeRedirectPath } from '@/lib/safe-redirect';
-import { CLIENT_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import {
+  CLIENT_LOGIN,
+  CUSTOMER_HOME,
+  nextAfterSignIn,
+  withPreservedNext,
+} from '@/lib/login-redirect';
 import { useEffect, useState } from 'react';
 import { getAuthStyles } from '../auth.styles';
 
@@ -59,8 +63,8 @@ export default function LoginPage() {
           const next =
             typeof window === 'undefined'
               ? null
-              : safeRedirectPath(window.location.search, window.location.origin);
-          router.push(next ?? (isPhotographer ? '/dashboard' : '/bookings'));
+              : nextAfterSignIn(window.location.search, window.location.origin);
+          router.push(next ?? (isPhotographer ? '/dashboard' : CUSTOMER_HOME));
         },
         onError: (err) => {
           // A lockout gets its own message. The backend counts failed attempts

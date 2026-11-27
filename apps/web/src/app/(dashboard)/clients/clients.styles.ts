@@ -345,6 +345,54 @@ export const getClientsStyles = (theme: ClientsTheme): Record<string, React.CSSP
       gap: '14px',
     },
 
+    // The client's bookings, galleries, invoices and contracts: one link per
+    // record, highlighted on hover through `ui-row-hover`.
+    recordList: {
+      display: 'flex',
+      flexDirection: 'column',
+      background: c.surfaceAlt,
+      borderRadius: '14px',
+      border: `1px solid ${c.border}`,
+      overflow: 'hidden',
+    },
+    recordRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      padding: '12px 16px',
+      textDecoration: 'none',
+      color: 'inherit',
+      borderTop: `1px solid ${c.border}`,
+      ['--ui-row-hover' as string]: c.surfaceHover,
+    },
+    recordMain: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: 0,
+    },
+    recordTitle: {
+      fontSize: '0.9rem',
+      fontWeight: 600,
+      color: c.text,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    recordMeta: {
+      fontSize: '0.8rem',
+      color: c.textMuted,
+    },
+    recordEmpty: {
+      padding: '14px 16px',
+      fontSize: '0.85rem',
+      color: c.textMuted,
+      background: c.surfaceAlt,
+      borderRadius: '14px',
+      border: `1px solid ${c.border}`,
+    },
+
     infoGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',

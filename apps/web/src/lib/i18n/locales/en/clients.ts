@@ -49,6 +49,16 @@ export const clients = {
   'clientDetail.notesCancel': 'Cancel',
   'clientDetail.notesPlaceholder': 'Add a private note about this client…',
   'clientDetail.notesError': 'Couldn’t save the note. Please try again.',
+  'clientDetail.records.bookings': 'Bookings',
+  'clientDetail.records.galleries': 'Galleries',
+  'clientDetail.records.invoices': 'Invoices',
+  'clientDetail.records.contracts': 'Contracts',
+  'clientDetail.records.noBookings': 'No bookings for this client.',
+  'clientDetail.records.noGalleries': 'No galleries for this client yet.',
+  'clientDetail.records.noInvoices': 'No invoices for this client yet.',
+  'clientDetail.records.noContracts': 'No contracts for this client yet.',
+  'clientDetail.records.loading': 'Loading bookings, galleries, invoices and contracts…',
+  'clientDetail.records.error': 'Couldn’t load this client’s bookings and documents.',
   'clients.backToList': 'All clients',
 } as const;
 

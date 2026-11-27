@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
 import { CustomerGalleries } from './CustomerGalleries';
@@ -1048,6 +1049,15 @@ function CreateGalleryModal({
 
 // ─── GalleriesPage ────────────────────────────────────────────────────────────
 export default function GalleriesPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense fallback={null}>
+      <Galleries />
+    </Suspense>
+  );
+}
+
+function Galleries() {
   const { t, tPlural } = useTranslation();
   const { theme } = useThemeStore();
   const styles = useMemo(() => getGalleriesStyles(theme), [theme]);
@@ -1058,7 +1068,10 @@ export default function GalleriesPage() {
   const galleriesQuery = useGalleries(isPhotographer);
   const galleries = galleriesQuery.data ?? NO_GALLERIES;
   const loading = galleriesQuery.isLoading;
-  const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null);
+  // `?id=` opens one gallery straight away: the client detail links here.
+  const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(
+    useSearchParams().get('id')
+  );
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Expired'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   // A failed action on a gallery. Kept apart from the load error: that one

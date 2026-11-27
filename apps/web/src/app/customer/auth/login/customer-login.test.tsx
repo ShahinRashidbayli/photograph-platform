@@ -69,6 +69,26 @@ describe('CustomerLoginPage', () => {
   });
 
   /**
+   * A Customer message ("Contract to sign") links here with the address it was
+   * sent to, so the Customer only has the code left to enter.
+   */
+  it('prefills the email a Customer message linked here with', async () => {
+    const user = setupUser();
+    mockedApi.post.mockResolvedValue({ status: 204 } as never);
+    mockSearch = new URLSearchParams('email=maria%40example.test&next=%2Fdocuments%3Fid%3D42');
+    render();
+
+    expect(screen.getByLabelText('Email address')).toHaveValue('maria@example.test');
+    await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
+
+    await screen.findByText('Enter your code');
+    expect(mockedApi.post).toHaveBeenCalledWith(
+      '/api/auth/customer/login-code/request',
+      expect.objectContaining({ email: 'maria@example.test' })
+    );
+  });
+
+  /**
    * The server allows five requests an hour. Without a hold, four impatient
    * clicks burn the allowance in ten seconds and the user then cannot ask again
    * for an hour.
@@ -221,6 +241,28 @@ describe('CustomerLoginPage', () => {
       expect(mockedApi.post).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ subdomain: 'studio-lichtblick' })
+      );
+    });
+
+    /**
+     * A request decision links here with the Customer's address, so the code is
+     * the only thing left to enter; the email used to be dropped and asked again.
+     */
+    it('takes the address from the studio’s link', async () => {
+      const user = setupUser();
+      mockSearch = new URLSearchParams(
+        'subdomain=studio-lichtblick&email=maria%40example.test&next=%2Fbookings%3Fid%3Dabc'
+      );
+      mockedApi.post.mockResolvedValue({ status: 204 } as never);
+      render();
+
+      expect(await screen.findByLabelText('Email address')).toHaveValue('maria@example.test');
+      await user.click(screen.getByRole('button', { name: 'Send me a code →' }));
+
+      await screen.findByText('Enter your code');
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/api/auth/customer/login-code/request',
+        expect.objectContaining({ email: 'maria@example.test', subdomain: 'studio-lichtblick' })
       );
     });
 

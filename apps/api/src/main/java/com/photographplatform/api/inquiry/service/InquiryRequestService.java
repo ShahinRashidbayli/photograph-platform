@@ -16,10 +16,8 @@ import com.photographplatform.api.inquiry.domain.InquiryStatus;
 import com.photographplatform.api.inquiry.dto.CreateInquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
+import com.photographplatform.api.inquiry.event.InquiryDecidedEvent;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
-import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.dto.OutgoingEmail;
-import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.Duration;
@@ -80,6 +78,9 @@ public class InquiryRequestService {
      * can't flood the photographer's inbox.
      */
     private static final int MAX_PER_CUSTOMER_PER_HOUR = 5;
+
+    /** The audit row's new value when a decision went out with a personal note. */
+    public static final String SENT_WITH_A_NOTE = "sent with a note";
     private static final Duration RATE_WINDOW = Duration.ofHours(1);
 
     private final InquiryRequestRepository inquiryRepository;
@@ -89,7 +90,6 @@ public class InquiryRequestService {
     private final ApplicationEventPublisher eventPublisher;
     private final RateLimiter rateLimiter;
     private final BookingConversionService bookingConversionService;
-    private final EmailService emailService;
     private final Clock clock;
 
     public InquiryRequestService(InquiryRequestRepository inquiryRepository,
@@ -99,7 +99,6 @@ public class InquiryRequestService {
                                  ApplicationEventPublisher eventPublisher,
                                  RateLimiter rateLimiter,
                                  BookingConversionService bookingConversionService,
-                                 EmailService emailService,
                                  Clock clock) {
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
@@ -108,7 +107,6 @@ public class InquiryRequestService {
         this.eventPublisher = eventPublisher;
         this.rateLimiter = rateLimiter;
         this.bookingConversionService = bookingConversionService;
-        this.emailService = emailService;
         this.clock = clock;
     }
 
@@ -211,8 +209,9 @@ public class InquiryRequestService {
      * (roadmap §4.5.7): a booking is created in {@code ENQUIRY} from the
      * inquiry's basics — the photographer fills pricing on the booking
      * afterwards — and the inquiry moves to the terminal {@code
-     * BOOKING_CREATED}. Rejecting moves it to {@code REJECTED}. Either way the
-     * customer gets an email. The repository is tenant-scoped by RLS, so the
+     * BOOKING_CREATED}. Rejecting moves it to {@code REJECTED}. Either way an
+     * {@link InquiryDecidedEvent} tells the Customer, with the photographer's
+     * optional personal note. The repository is tenant-scoped by RLS, so the
      * id can only ever resolve within the caller's own tenant.
      *
      * <p>The PENDING check is only meaningful because {@code InquiryRequest}
@@ -223,7 +222,8 @@ public class InquiryRequestService {
      * booking at the database as a backstop.
      */
     @Transactional
-    public InquiryRequestResponse updateStatus(UUID id, String targetStatus, String ipAddress) {
+    public InquiryRequestResponse updateStatus(UUID id, String targetStatus, String note,
+                                               String ipAddress) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         UUID actorId = SecurityUtils.requireCurrentUserId();
 
@@ -245,9 +245,9 @@ public class InquiryRequestService {
             .orElseThrow(() -> new NotFoundException("Customer not found for inquiry: " + id));
 
         boolean accepted = target == InquiryStatus.BOOKING_CREATED;
-        if (accepted) {
-            bookingConversionService.createFromInquiry(inquiry, customer, ipAddress);
-        }
+        UUID bookingId = accepted
+            ? bookingConversionService.createFromInquiry(inquiry, customer, ipAddress).id()
+            : null;
         inquiry.setStatus(target.name());
         InquiryRequest saved = inquiryRepository.save(inquiry);
 
@@ -255,10 +255,29 @@ public class InquiryRequestService {
         // state it resolved to: "INQUIRY_ACCEPTED" is what the existing rows
         // say, and renaming it to match the enum would split the history of one
         // action across two names.
-        auditService.log(accepted ? "INQUIRY_ACCEPTED" : "INQUIRY_REJECTED",
-            "INQUIRY_REQUEST", saved.getId(), tenantId, actorId, ipAddress);
+        //
+        // A note is the photographer's words to one Customer: the trail says
+        // that one was sent, never what it said.
+        String personalNote = Normalize.trimToNull(note);
+        String action = accepted ? "INQUIRY_ACCEPTED" : "INQUIRY_REJECTED";
+        if (personalNote == null) {
+            auditService.log(action, "INQUIRY_REQUEST", saved.getId(), tenantId, actorId, ipAddress);
+        } else {
+            auditService.logChange(action, "INQUIRY_REQUEST", saved.getId(), tenantId, actorId, ipAddress,
+                null, SENT_WITH_A_NOTE);
+        }
 
-        notifyCustomerOfDecision(saved.getId(), customer, accepted);
+        eventPublisher.publishEvent(new InquiryDecidedEvent(
+            this,
+            saved.getId(),
+            tenantId,
+            customer.getEmail(),
+            displayName(customer),
+            saved.getLanguage(),
+            accepted,
+            bookingId,
+            personalNote,
+            clock.instant()));
 
         return toResponse(saved, customer);
     }
@@ -343,18 +362,6 @@ public class InquiryRequestService {
         rateLimiter.check("inquiry:rate:" + customerId, MAX_PER_CUSTOMER_PER_HOUR, RATE_WINDOW,
             "You've sent several requests recently. Please give your photographer "
                 + "a moment to reply before sending another.");
-    }
-
-    /**
-     * Queues the customer's email about the decision, in the decision's own
-     * transaction: if accepting fails and rolls back, no "accepted" email goes
-     * out (ADR-005). A decision is terminal, so the inquiry id is a natural key.
-     */
-    private void notifyCustomerOfDecision(UUID inquiryId, User customer, boolean accepted) {
-        emailService.queue(new OutgoingEmail(
-            InquiryDecisionEmail.TEMPLATE, customer.getEmail(), customer.getTenantId(),
-            new InquiryDecisionEmail.Params(displayName(customer), accepted),
-            EmailType.INQUIRY_REPLY + ":" + inquiryId, null));
     }
 
     private InquiryRequestResponse toResponse(InquiryRequest inquiry, User customer) {

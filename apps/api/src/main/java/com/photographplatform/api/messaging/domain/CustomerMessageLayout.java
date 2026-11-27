@@ -2,6 +2,9 @@ package com.photographplatform.api.messaging.domain;
 
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.util.HtmlEscape;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * What a Customer message looks like: a neutral shell with the studio's name at
@@ -73,6 +76,25 @@ public final class CustomerMessageLayout {
             + ";\">" + note.html() + "</td></tr></table>";
     }
 
+    /**
+     * "Guten Tag Frau Weber," / "Hello Anna,": the same opening in every
+     * Customer message, so each message does not carry its own copy of it.
+     *
+     * @param customerName how the studio knows them; blank opens without a name
+     */
+    public static String greeting(CustomerLanguage language, String customerName) {
+        String hello = language == CustomerLanguage.EN ? "Hello" : "Guten Tag";
+        String customer = customerName == null ? "" : customerName.strip();
+        return paragraph(customer.isEmpty() ? hello + "," : hello + " " + esc(customer) + ",");
+    }
+
+    /** The closing, signed with the studio's name when it has one. */
+    public static String signOff(StudioIdentity studio, CustomerLanguage language) {
+        String regards = language == CustomerLanguage.EN ? "Kind regards" : "Freundliche Grüße";
+        String name = studio.displayName();
+        return paragraph(name == null ? regards : regards + "<br><strong>" + esc(name) + "</strong>");
+    }
+
     // ── document shell ──────────────────────────────────────────────────────
 
     /**
@@ -83,13 +105,17 @@ public final class CustomerMessageLayout {
      */
     public static String document(StudioIdentity studio, CustomerLanguage language, String preheader,
                                   String bodyHtml) {
-        return SHELL
-            .replace("{{LANG}}", language.code())
-            .replace("{{TITLE}}", esc(studio.displayName()))
-            .replace("{{PREHEADER}}", esc(preheader))
-            .replace("{{HEADER}}", header(studio))
-            .replace("{{FOOTER}}", footer(studio, language))
-            .replace("{{BODY}}", bodyHtml);
+        Map<String, String> values = Map.of(
+            "LANG", language.code(),
+            "TITLE", esc(studio.displayName()),
+            "PREHEADER", esc(preheader),
+            "HEADER", header(studio),
+            "FOOTER", footer(studio, language),
+            "BODY", bodyHtml);
+        // One pass over the shell: a value is never scanned for placeholders,
+        // so a studio named "{{FOOTER}}" stays a name.
+        return PLACEHOLDER.matcher(SHELL)
+            .replaceAll(m -> Matcher.quoteReplacement(values.get(m.group(1))));
     }
 
     private static String header(StudioIdentity studio) {
@@ -125,9 +151,10 @@ public final class CustomerMessageLayout {
         return HtmlEscape.escape(value);
     }
 
-    // Placeholders are replaced literally (String.replace), so the body may
-    // contain any characters without format-specifier hazards. BODY goes last:
-    // a body that happened to contain "{{FOOTER}}" must stay text.
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(LANG|TITLE|PREHEADER|HEADER|FOOTER|BODY)}}");
+
+    // Placeholders are filled in one pass (see document), so no value, the
+    // body included, is ever read as a placeholder or a format specifier.
     private static final String SHELL = """
         <!DOCTYPE html>
         <html lang="{{LANG}}" xmlns="http://www.w3.org/1999/xhtml">

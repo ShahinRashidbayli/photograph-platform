@@ -31,7 +31,7 @@
           container running the 21 JRE the Dockerfile pins.
         -->
         <maven.compiler.release>21</maven.compiler.release>
-        <checkstyle.version>10.18.1</checkstyle.version>
+        <checkstyle.version>14.4.0</checkstyle.version>
         <!-- Override the Testcontainers version pinned by the Spring Boot 3.4.x
              BOM (1.20.6). That release ships an older docker-java that talks a
              Docker API version Docker Engine 29+ no longer accepts (the daemon
@@ -71,7 +71,7 @@
         -->
         <jacocoArgLine></jacocoArgLine>
         <!-- See the spotbugs-maven-plugin dependency block for why this is pinned. -->
-        <asm.version>9.10.1</asm.version>
+        <asm.version>9.11.1</asm.version>
     </properties>
 
     <dependencies>
@@ -137,18 +137,18 @@
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
+            <version>0.13.0</version>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
+            <version>0.13.0</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
+            <version>0.13.0</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -190,7 +190,7 @@
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
-            <version>1.3.0</version>
+            <version>1.5.1</version>
             <scope>test</scope>
         </dependency>
 
@@ -198,7 +198,7 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
-            <version>2.48.0</version>
+            <version>2.59.8</version>
         </dependency>
 
         <!-- Thumbnailator — pure-Java image scaling, no native deps. Used by
@@ -207,7 +207,7 @@
         <dependency>
             <groupId>net.coobird</groupId>
             <artifactId>thumbnailator</artifactId>
-            <version>0.4.20</version>
+            <version>0.4.21</version>
         </dependency>
 
         <!-- openhtmltopdf — renders the invoice/contract HTML templates (built
@@ -217,7 +217,7 @@
         <dependency>
             <groupId>io.github.openhtmltopdf</groupId>
             <artifactId>openhtmltopdf-pdfbox</artifactId>
-            <version>1.1.73</version>
+            <version>1.1.117</version>
         </dependency>
 
         <!-- Actuator — /actuator/health only (see application.yml).
@@ -284,7 +284,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.7.0</version>
                 <executions>
                     <execution>
                         <id>require-java-21</id>
@@ -388,7 +388,7 @@ See .java-version at the repository root.</message>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
+                <version>0.8.16</version>
                 <configuration>
                     <excludes>
                         <!-- Generated accessors and the boot entry point carry
@@ -475,7 +475,7 @@ See .java-version at the repository root.</message>
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.9.3.0</version>
+                <version>4.10.5.0</version>
                 <dependencies>
                     <!--
                       SpotBugs reads the class files of whatever JDK it runs on,
@@ -540,7 +540,7 @@ See .java-version at the repository root.</message>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.6.0</version>
                 <dependencies>
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>

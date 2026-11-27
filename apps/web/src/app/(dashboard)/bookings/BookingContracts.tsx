@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState } from 'react';
 import { getColors, type Theme } from '@/lib/design-tokens';
-import { extractApiError } from '@/lib/helpers';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PersonalNoteDialog } from '@/components/PersonalNoteDialog';
 import { Alert, Badge, Button, Modal, ModalHeader, Note } from '@/components/ui';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { useTranslation } from '@/lib/i18n';
@@ -14,6 +15,7 @@ import {
   useBookingContracts,
   useCancelContract,
   useCreateContract,
+  useResendContract,
   useSendContract,
   useUpdateContract,
   type Contract,
@@ -48,12 +50,17 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
   const create = useCreateContract(booking.id);
   const update = useUpdateContract(booking.id);
   const send = useSendContract(booking.id);
+  const resend = useResendContract(booking.id);
+  const { mutate: mutateSend } = send;
+  const { mutate: mutateResend } = resend;
   const cancel = useCancelContract(booking.id);
 
   const [editing, setEditing] = useState<Contract | null>(null);
-  const [confirmSend, setConfirmSend] = useState<Contract | null>(null);
+  // Sending and "Erneut senden" share the Personal note dialog; which one it
+  // is decides the endpoint and the words.
+  const [sending, setSending] = useState<{ contract: Contract; again: boolean } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Contract | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AsyncError | null>(null);
 
   if (!allowed) {
     return (
@@ -79,7 +86,7 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
     try {
       await action();
     } catch (e) {
-      setError(extractApiError(e, t('contracts.loadError')));
+      setError(asyncError(e, 'contracts.loadError'));
     }
   }
 
@@ -103,7 +110,7 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
 
       {error && (
         <Alert tone="danger" style={{ marginBottom: 10 }}>
-          {error}
+          {asyncErrorText(error, t)}
         </Alert>
       )}
       {isLoading && <Note style={{ marginBottom: 10 }}>{t('contracts.loading')}</Note>}
@@ -122,7 +129,8 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
             format={format}
             t={t}
             onEdit={() => setEditing(contract)}
-            onSend={() => setConfirmSend(contract)}
+            onSend={() => setSending({ contract, again: false })}
+            onResend={() => setSending({ contract, again: true })}
             onCancel={() => setConfirmCancel(contract)}
             onDownload={() =>
               run(() =>
@@ -151,22 +159,30 @@ export function BookingContracts({ booking, theme }: { booking: Booking; theme: 
         />
       )}
 
-      <ConfirmDialog
-        open={confirmSend !== null}
-        theme={theme}
-        tone="primary"
-        title={t('contracts.sendConfirmTitle')}
-        message={t('contracts.sendConfirmBody')}
-        confirmLabel={t('contracts.action.send')}
-        busy={send.isPending}
-        onCancel={() => setConfirmSend(null)}
-        onConfirm={() =>
-          run(async () => {
-            if (confirmSend) await send.mutateAsync(confirmSend.id);
-            setConfirmSend(null);
-          })
-        }
-      />
+      {sending && (
+        <PersonalNoteDialog
+          title={t(sending.again ? 'contracts.resendTitle' : 'contracts.sendConfirmTitle')}
+          description={t(sending.again ? 'contracts.resendBody' : 'contracts.sendConfirmBody', {
+            name: sending.contract.recipientName,
+          })}
+          confirmLabel={t(sending.again ? 'contracts.action.resend' : 'contracts.action.send')}
+          busy={sending.again ? resend.isPending : send.isPending}
+          onClose={() => setSending(null)}
+          onSend={(note) => {
+            setError(null);
+            (sending.again ? mutateResend : mutateSend)(
+              { id: sending.contract.id, note },
+              {
+                onError: (e) => setError(asyncError(e, 'contracts.sendError')),
+                // Closed on failure too, with the error above the list: a
+                // dialog left open invites the second click that would send a
+                // second email.
+                onSettled: () => setSending(null),
+              }
+            );
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmCancel !== null}
@@ -194,6 +210,7 @@ function ContractRow({
   t,
   onEdit,
   onSend,
+  onResend,
   onCancel,
   onDownload,
 }: {
@@ -203,6 +220,7 @@ function ContractRow({
   t: ReturnType<typeof useTranslation>['t'];
   onEdit: () => void;
   onSend: () => void;
+  onResend: () => void;
   onCancel: () => void;
   onDownload: () => void;
 }) {
@@ -247,6 +265,13 @@ function ContractRow({
               {t('contracts.action.send')}
             </Button>
           </>
+        )}
+        {/* For the Customer whose first email went missing. The contract
+            itself does not change, so only a SENT one offers it. */}
+        {contract.status === 'SENT' && (
+          <Button variant="secondary" size="sm" onClick={onResend}>
+            {t('contracts.action.resend')}
+          </Button>
         )}
         {contract.status !== 'CANCELLED' && (
           <Button variant="secondary" size="sm" onClick={onDownload}>

@@ -179,13 +179,30 @@ export function useConvertLead() {
   });
 }
 
-/** Accepting creates a booking server-side (status → BOOKING_CREATED). */
+/**
+ * Mirrors `UpdateInquiryStatusRequest` on the API. `note` is the
+ * photographer's optional Personal note, sent to the Customer with the
+ * decision (at most 1000 characters, never stored on the inquiry).
+ */
+export interface UpdateInquiryStatusRequest {
+  status: 'ACCEPTED' | 'REJECTED';
+  note?: string | null;
+}
+
+/**
+ * The request decision. The server emails the Customer either way, in the
+ * studio's name; accepting also creates a booking (status → BOOKING_CREATED).
+ */
 export function useTriageInquiry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; status: 'ACCEPTED' | 'REJECTED' }) =>
-      (await api.patch<Inquiry>(`/api/inquiries/${input.id}/status`, { status: input.status }))
-        .data,
+    mutationFn: async (input: { id: string } & UpdateInquiryStatusRequest) =>
+      (
+        await api.patch<Inquiry>(`/api/inquiries/${input.id}/status`, {
+          status: input.status,
+          note: input.note ?? null,
+        } satisfies UpdateInquiryStatusRequest)
+      ).data,
     onSuccess: (updated, input) => {
       qc.setQueryData<Inquiry[]>(inquiriesKey(), (list) =>
         list?.map((i) => (i.id === updated.id ? updated : i))

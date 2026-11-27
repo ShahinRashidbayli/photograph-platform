@@ -111,10 +111,44 @@ export function useUpdateContract(bookingId: string) {
   });
 }
 
+/**
+ * Mirrors `SendContractRequest` on the API: the body of both `…/send` and
+ * `…/resend`. `note` is the photographer's optional Personal note to the
+ * Customer, at most 1000 characters; it is never stored on the contract.
+ */
+export interface SendContractRequest {
+  note: string | null;
+}
+
+/** "An Kunden senden": freezes the draft and emails the Customer a link to sign it. */
 export function useSendContract(bookingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => (await api.post<Contract>(`/api/contracts/${id}/send`)).data,
+    mutationFn: async (input: { id: string } & SendContractRequest) =>
+      (
+        await api.post<Contract>(`/api/contracts/${input.id}/send`, {
+          note: input.note,
+        } satisfies SendContractRequest)
+      ).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: bookingContractsKey(bookingId) }),
+  });
+}
+
+/**
+ * "Erneut senden": emails a SENT contract to the Customer again — for the one
+ * whose first email went missing. The contract itself does not change, but
+ * the list is still refreshed rather than patched: the server decides what the
+ * row says, and the photographer should see what it now holds.
+ */
+export function useResendContract(bookingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string } & SendContractRequest) =>
+      (
+        await api.post<Contract>(`/api/contracts/${input.id}/resend`, {
+          note: input.note,
+        } satisfies SendContractRequest)
+      ).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingContractsKey(bookingId) }),
   });
 }

@@ -5,7 +5,9 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.context.ApplicationEvent;
 
-public class LeadCreatedEvent extends ApplicationEvent {
+// final: the constructor rejects a null language, and SpotBugs (CT_CONSTRUCTOR_THROW)
+// flags a throwing constructor on any class a subclass could finalize.
+public final class LeadCreatedEvent extends ApplicationEvent {
 
     /**
      * Where the lead came from. Listeners that write to the Customer must

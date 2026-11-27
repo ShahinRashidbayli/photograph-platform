@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
 import { CustomerGalleries } from './CustomerGalleries';
-import { asyncErrorText, type AsyncError } from '@/lib/async-error';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { StatStrip } from '@/components/StatStrip';
 import { Alert, Badge, Button, Toggle } from '@/components/ui';
+import { PersonalNoteDialog } from '@/components/PersonalNoteDialog';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import {
   useCreateGallery,
@@ -19,6 +20,7 @@ import {
   useGalleries,
   useGalleryBookingOptions,
   useGalleryPhotos,
+  useSendGallery,
   useUpdateGallery,
   useUploadGalleryPhotos,
   type DeliveryPhoto,
@@ -535,6 +537,7 @@ function GalleryDetail({
   busy,
   onPatch,
   onExtend,
+  onSend,
   onDelete,
   onUpload,
 }: Readonly<{
@@ -545,6 +548,7 @@ function GalleryDetail({
   busy: boolean;
   onPatch: (_id: string, _body: Record<string, unknown>) => void;
   onExtend: (_id: string) => void;
+  onSend: (_id: string) => void;
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
 }>) {
@@ -709,6 +713,15 @@ function GalleryDetail({
           >
             <IconUpload /> {busy ? t('galleries.detail.uploading') : t('galleries.detail.upload')}
           </button>
+          {/* Sent when the photos are in, not when the gallery is created —
+              so a Customer never opens an empty one. Sendable again. */}
+          <Button
+            onClick={() => onSend(gallery.id)}
+            disabled={busy || gallery.photoCount === 0}
+            title={gallery.photoCount === 0 ? t('galleries.send.empty') : undefined}
+          >
+            {t('galleries.send.action')}
+          </Button>
           {shareUrl && (
             <a
               href={shareUrl}
@@ -1054,6 +1067,8 @@ export default function GalleriesPage() {
   // failed delete, extend or upload on an existing gallery showed nothing.
   const [actionError, setActionError] = useState<AsyncError | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // The gallery whose "An Kunden senden" dialog is open.
+  const [sendingId, setSendingId] = useState<string | null>(null);
   // The rail shows the first page of galleries and offers the rest behind one
   // click — a photographer two seasons in has a hundred of them, and the ones
   // that need doing something about are already sorted to the top.
@@ -1065,6 +1080,8 @@ export default function GalleriesPage() {
   const extendGalleryMutation = useExtendGallery();
   const deleteGalleryMutation = useDeleteGallery();
   const uploadGalleryPhotos = useUploadGalleryPhotos();
+  const sendGalleryMutation = useSendGallery();
+  const { mutate: mutateSend } = sendGalleryMutation;
   // `mutate` is stable across renders; the mutation object around it is not.
   const { mutate: mutateUpdate } = updateGallery;
   const { mutate: mutateExtend } = extendGalleryMutation;
@@ -1077,6 +1094,7 @@ export default function GalleriesPage() {
     (extendGalleryMutation.isPending && extendGalleryMutation.variables) ||
     (deleteGalleryMutation.isPending && deleteGalleryMutation.variables) ||
     (uploadGalleryPhotos.isPending && uploadGalleryPhotos.variables?.id) ||
+    (sendGalleryMutation.isPending && sendGalleryMutation.variables?.id) ||
     null;
 
   const patchGallery = useCallback(
@@ -1098,6 +1116,22 @@ export default function GalleriesPage() {
       });
     },
     [mutateExtend]
+  );
+
+  const sendGallery = useCallback(
+    (id: string, note: string | null) => {
+      setActionError(null);
+      mutateSend(
+        { id, note },
+        {
+          onError: (err) => setActionError(asyncError(err, 'galleries.send.error')),
+          // Closed on failure too, with the error above the galleries: a
+          // dialog left open invites a second click and a second email.
+          onSettled: () => setSendingId(null),
+        }
+      );
+    },
+    [mutateSend]
   );
 
   const deleteGallery = useCallback(
@@ -1488,11 +1522,25 @@ export default function GalleriesPage() {
             busy={busyId !== null && busyId === selectedGallery?.id}
             onPatch={patchGallery}
             onExtend={extendGallery}
+            onSend={setSendingId}
             onDelete={deleteGallery}
             onUpload={uploadPhotos}
           />
         </div>
       </div>
+
+      {sendingId && (
+        <PersonalNoteDialog
+          title={t('galleries.send.title')}
+          description={t('galleries.send.body', {
+            name: galleries.find((g) => g.id === sendingId)?.bookingName ?? '',
+          })}
+          confirmLabel={t('galleries.send.action')}
+          busy={sendGalleryMutation.isPending}
+          onSend={(note) => sendGallery(sendingId, note)}
+          onClose={() => setSendingId(null)}
+        />
+      )}
     </div>
   );
 }

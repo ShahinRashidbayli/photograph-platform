@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderWithProviders, setupUser } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
@@ -8,6 +8,7 @@ import { bookingsQueryKey } from '@/hooks/useBookings';
 import { useConvertLead, useUpdateLeadStatus } from '@/hooks/useLeads';
 import { useAttention } from '@/hooks/useAttention';
 import type { Lead } from '@/types/api';
+import type { Inquiry } from './inquiryTypes';
 import LeadsPage from './page';
 import { UNDO_WINDOW_MS } from './useDeferredStatus';
 
@@ -209,6 +210,114 @@ describe('LeadsPage', () => {
 
     expect((await screen.findAllByText('Klara Weber')).length).toBeGreaterThan(0);
     expect(screen.queryByText("Couldn't load leads")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A client's request is decided in the Personal note dialog: the server emails
+ * them with the decision, so the note goes with it and there is no draft to
+ * open — and no undo window, since the dialog is the moment to reconsider.
+ */
+describe('the request decision', () => {
+  const INQUIRY: Inquiry = {
+    id: 'i1',
+    customerName: 'Jonas Richter',
+    customerEmail: 'jonas@example.de',
+    eventType: 'HOCHZEIT',
+    budgetRange: '1000_2000',
+    proposedDate: '2027-05-08',
+    location: null,
+    message: 'Standesamt im Mai',
+    score: 'MED',
+    status: 'PENDING',
+    source: 'PORTAL',
+    createdAt: '2026-10-21T10:00:00Z',
+  };
+
+  /** Records each status body, answering once `until` resolves. */
+  function fakeRequests(until?: Promise<void>) {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get('/api/leads', () => HttpResponse.json([])),
+      http.get('/api/inquiries', () => HttpResponse.json([INQUIRY])),
+      http.get('/api/photographerBookings', () => HttpResponse.json([])),
+      http.patch('/api/inquiries/i1/status', async ({ request }) => {
+        const body = (await request.json()) as { status: Inquiry['status'] };
+        bodies.push(body);
+        if (until) await until;
+        return HttpResponse.json({ ...INQUIRY, status: body.status });
+      })
+    );
+    return bodies;
+  }
+
+  it('accepts with the Personal note typed into the dialog', async () => {
+    const bodies = fakeRequests();
+    const user = setupUser();
+    renderWithProviders(<LeadsPage />, { lang: 'de' });
+
+    await user.click(await screen.findByRole('button', { name: 'Anfrage annehmen' }));
+    const dialog = screen.getByRole('dialog', { name: 'Diese Anfrage annehmen?' });
+    await user.type(
+      within(dialog).getByLabelText('Persönliche Notiz (optional)'),
+      'Ich freue mich!'
+    );
+    expect(within(dialog).getByText('15 / 1000')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Annehmen und senden' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(bodies).toEqual([{ status: 'ACCEPTED', note: 'Ich freue mich!' }]);
+  });
+
+  it('declines through the dialog at once, with no note when none is written', async () => {
+    const bodies = fakeRequests();
+    const user = setupUser();
+    renderWithProviders(<LeadsPage />, { lang: 'en' });
+
+    await user.click(await screen.findByRole('button', { name: 'Decline politely' }));
+    const dialog = screen.getByRole('dialog', { name: 'Decline this request?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Decline and send' }));
+
+    await waitFor(() => expect(bodies).toEqual([{ status: 'REJECTED', note: null }]));
+  });
+
+  it('disables the decision while the request runs, so a double click sends one email', async () => {
+    let open: () => void = () => {};
+    const bodies = fakeRequests(new Promise<void>((resolve) => (open = resolve)));
+    const user = setupUser();
+    renderWithProviders(<LeadsPage />, { lang: 'en' });
+
+    await user.click(await screen.findByRole('button', { name: 'Accept request' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Accept and send' }));
+
+    const pending = await within(dialog).findByRole('button', { name: 'Sending…' });
+    expect(pending).toBeDisabled();
+    await user.click(pending);
+    expect(bodies).toHaveLength(1);
+
+    open();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(bodies).toHaveLength(1);
+  });
+
+  it('closes the dialog on failure and shows the error above the inbox', async () => {
+    fakeRequests();
+    server.use(
+      http.patch('/api/inquiries/i1/status', () =>
+        HttpResponse.json({ error: 'Mail is down' }, { status: 500 })
+      )
+    );
+    const user = setupUser();
+    renderWithProviders(<LeadsPage />, { lang: 'en' });
+
+    await user.click(await screen.findByRole('button', { name: 'Accept request' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Accept and send' })
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Mail is down');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 

@@ -80,6 +80,14 @@ export const galleries = {
   'galleries.detail.statusPurged': 'Deleted',
 
   'galleries.update.error': 'Could not update the gallery.',
+  // "An Kunden senden": emails the Customer the gallery link, with an optional
+  // Personal note. Only once there are photos to see.
+  'galleries.send.action': 'Send to client',
+  'galleries.send.title': 'Send this gallery to your client?',
+  'galleries.send.body':
+    '{name} gets an email in your studio’s name with the link to the gallery. You can send it again later.',
+  'galleries.send.empty': 'Upload photos first — an empty gallery cannot be sent.',
+  'galleries.send.error': 'Could not send the gallery. Please try again.',
   'galleries.extend.error':
     'Could not extend the gallery. If its photos have already been deleted, they cannot be restored.',
   'galleries.delete.error': 'Could not delete the gallery.',

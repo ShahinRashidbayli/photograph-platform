@@ -13,9 +13,13 @@ jest.mock('@/lib/api', () => ({
   default: { get: jest.fn(), post: jest.fn() },
 }));
 
+jest.mock('@/lib/navigation', () => ({ hardNavigate: jest.fn() }));
+
 import api from '@/lib/api';
+import { hardNavigate } from '@/lib/navigation';
 
 const mockedApi = api as jest.Mocked<typeof api>;
+const mockedNavigate = hardNavigate as jest.MockedFunction<typeof hardNavigate>;
 
 async function requestCode(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
@@ -264,29 +268,15 @@ describe('CustomerLoginPage', () => {
    * contract the email promised was nowhere to be seen.
    */
   describe('after signing in from a link', () => {
-    const realLocation = Object.getOwnPropertyDescriptor(globalThis, 'location')!;
-
-    /** jsdom refuses navigation; the stub records where the page sent us. */
-    function stubLocation(search: string) {
-      Object.defineProperty(globalThis, 'location', {
-        value: {
-          href: '',
-          search,
-          origin: 'https://app.fotolio.de',
-          hostname: 'app.fotolio.de',
-        },
-        writable: true,
-        configurable: true,
-      });
-    }
-
     afterEach(() => {
-      Object.defineProperty(globalThis, 'location', realLocation);
+      window.history.replaceState(null, '', '/');
+      mockedNavigate.mockReset();
     });
 
+    /** jsdom does not navigate; the mocked `hardNavigate` records where the page went. */
     async function signInFrom(search: string) {
       mockSearch = new URLSearchParams(search);
-      stubLocation(search);
+      window.history.replaceState(null, '', `/customer/auth/login${search}`);
       const user = setupUser();
       mockedApi.post.mockResolvedValue({ status: 200, data: {} } as never);
       render();
@@ -294,8 +284,8 @@ describe('CustomerLoginPage', () => {
       await requestCode(user);
       await user.type(await screen.findByLabelText('6-digit code'), '123456');
       await user.click(screen.getByRole('button', { name: 'Sign in →' }));
-      await waitFor(() => expect(globalThis.location.href).not.toBe(''));
-      return globalThis.location.href;
+      await waitFor(() => expect(mockedNavigate).toHaveBeenCalledTimes(1));
+      return mockedNavigate.mock.calls[0][0];
     }
 
     it('lands on the page the link pointed to', async () => {

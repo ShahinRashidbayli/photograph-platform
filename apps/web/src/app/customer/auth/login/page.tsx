@@ -15,6 +15,7 @@ import {
   nextAfterSignIn,
   withPreservedNext,
 } from '@/lib/login-redirect';
+import { hardNavigate } from '@/lib/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -273,8 +274,9 @@ function CustomerLoginInner() {
           // `next` is where the link pointed (a contract to sign, a booking); it
           // came from the query string, so only a same-origin path that is not a
           // sign-in is followed.
-          window.location.href =
-            nextAfterSignIn(window.location.search, window.location.origin) ?? CUSTOMER_HOME;
+          hardNavigate(
+            nextAfterSignIn(window.location.search, window.location.origin) ?? CUSTOMER_HOME
+          );
         },
         onError: (err) => {
           // A wrong, spent or expired code is a 401. Ours, not the server's

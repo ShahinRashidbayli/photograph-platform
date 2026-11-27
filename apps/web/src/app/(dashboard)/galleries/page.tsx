@@ -9,7 +9,7 @@ import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { StatStrip } from '@/components/StatStrip';
-import { Alert, Badge, Toggle } from '@/components/ui';
+import { Alert, Badge, Button, Toggle } from '@/components/ui';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import {
   useCreateGallery,
@@ -776,20 +776,15 @@ function GalleryDetail({
               </div>
             )}
             {showExtend && (
-              <button
+              <Button
+                size="sm"
                 onClick={extendGallery}
                 disabled={busy}
                 title={t('galleries.detail.extendHint')}
-                style={{
-                  ...styles.actionButton,
-                  ...styles.actionButtonOutline,
-                  alignSelf: 'flex-start',
-                  padding: '5px 12px',
-                  fontSize: '0.75rem',
-                }}
+                style={{ alignSelf: 'flex-start' }}
               >
                 {extendLabel}
-              </button>
+              </Button>
             )}
           </div>
         </div>

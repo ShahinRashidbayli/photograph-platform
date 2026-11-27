@@ -2,7 +2,15 @@ package com.photographplatform.api.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.photographplatform.api.common.media.BoundedImageDecoder;
+import com.photographplatform.api.common.media.ExifJpegFixture;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ThumbnailServiceTest {
 
@@ -34,5 +42,22 @@ class ThumbnailServiceTest {
     void thumbnailKeyForHandlesKeyWithoutExtension() {
         assertThat(ThumbnailService.thumbnailKeyFor("t/photos/abc"))
             .isEqualTo("t/photos/thumb_abc.jpg");
+    }
+
+    /**
+     * A portrait phone photo: 600 × 400 stored pixels, EXIF-tagged to be shown
+     * rotated a quarter turn. The thumbnail is portrait, 400 px on its long edge
+     * and 400 × 400 / 600 ≈ 267 px on its short one.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {6, 8})
+    void thumbnailOfAnExifRotatedJpegIsUpright(int orientation) throws IOException {
+        byte[] original = ExifJpegFixture.jpeg(600, 400, orientation);
+
+        byte[] thumbnail = ThumbnailService.renderThumbnail(BoundedImageDecoder.decode(original).image());
+
+        BufferedImage rendered = ImageIO.read(new ByteArrayInputStream(thumbnail));
+        assertThat(rendered.getWidth()).isEqualTo(267);
+        assertThat(rendered.getHeight()).isEqualTo(400);
     }
 }

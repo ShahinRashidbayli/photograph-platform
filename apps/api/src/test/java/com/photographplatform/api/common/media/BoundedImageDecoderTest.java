@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BoundedImageDecoderTest {
 
@@ -35,6 +37,84 @@ class BoundedImageDecoderTest {
         assertThat(decoded.image().getHeight()).isEqualTo(100);
         assertThat(decoded.sourceWidth()).isEqualTo(400);
         assertThat(decoded.sourceHeight()).isEqualTo(200);
+    }
+
+    /**
+     * A phone's portrait JPEG: 80 × 40 stored pixels, tagged to be shown
+     * rotated. The decoded image and the reported dimensions are both upright.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {6, 8})
+    void turnsAPortraitJpegUprightFromItsExifOrientation(int orientation) throws IOException {
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpeg(80, 40, orientation));
+
+        assertThat(decoded.image().getWidth()).isEqualTo(40);
+        assertThat(decoded.image().getHeight()).isEqualTo(80);
+        assertThat(decoded.sourceWidth()).isEqualTo(40);
+        assertThat(decoded.sourceHeight()).isEqualTo(80);
+    }
+
+    /** A large portrait original is subsampled first, then turned; both sizes come out upright. */
+    @Test
+    void turnsASubsampledJpegUpright() throws IOException {
+        // 80 000 px against a 20 000 px budget → step 2.
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpeg(400, 200, 6), Long.MAX_VALUE, 20_000);
+
+        assertThat(decoded.image().getWidth()).isEqualTo(100);
+        assertThat(decoded.image().getHeight()).isEqualTo(200);
+        assertThat(decoded.sourceWidth()).isEqualTo(200);
+        assertThat(decoded.sourceHeight()).isEqualTo(400);
+    }
+
+    /**
+     * Where the stored top-left quadrant ends up once upright, for every EXIF
+     * orientation: 1–4 keep the dimensions (identity, mirror, 180°, flip),
+     * 5–8 transpose them.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 4, 5, 6, 7, 8})
+    void placesThePixelsWhereEveryExifOrientationSays(int orientation) throws IOException {
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpeg(80, 40, orientation));
+        BufferedImage image = decoded.image();
+        boolean transposed = orientation >= 5;
+
+        assertThat(image.getWidth()).isEqualTo(transposed ? 40 : 80);
+        assertThat(image.getHeight()).isEqualTo(transposed ? 80 : 40);
+
+        // The stored top-left corner, seen upright, sits at TL, TR, BR, BL for
+        // orientations 1–4 and again for 5–8 (EXIF 2.3, tag 0x0112).
+        int corner = (orientation - 1) % 4;
+        boolean right = corner == 1 || corner == 2;
+        boolean bottom = corner == 2 || corner == 3;
+        for (int qx = 0; qx < 2; qx++) {
+            for (int qy = 0; qy < 2; qy++) {
+                boolean marked = (qx == 1) == right && (qy == 1) == bottom;
+                int rgb = image.getRGB(image.getWidth() * (1 + 2 * qx) / 4, image.getHeight() * (1 + 2 * qy) / 4);
+                assertThat(isRed(rgb))
+                    .as("orientation %d, quadrant (%d,%d)", orientation, qx, qy)
+                    .isEqualTo(marked);
+            }
+        }
+    }
+
+    /**
+     * ImageIO decodes these pixels but throws reading the metadata. The upload
+     * worked before orientation was read, so it must still get its derivatives
+     * — as stored, since the tag cannot be read.
+     */
+    @Test
+    void decodesAJpegWhoseMetadataImageIoRejectsAsStored() throws IOException {
+        DecodedImage decoded = BoundedImageDecoder.decode(ExifJpegFixture.jpegWithExifBeforeJfif(80, 40, 6));
+
+        assertThat(decoded.image().getWidth()).isEqualTo(80);
+        assertThat(decoded.image().getHeight()).isEqualTo(40);
+        assertThat(isRed(decoded.image().getRGB(10, 10))).isTrue();
+    }
+
+    private static boolean isRed(int rgb) {
+        int red = (rgb >> 16) & 0xFF;
+        int blue = rgb & 0xFF;
+        return red > 200 && blue < 60;
     }
 
     /**

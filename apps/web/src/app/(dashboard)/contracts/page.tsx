@@ -8,7 +8,7 @@ import { extractApiError } from '@/lib/helpers';
 import { Alert, Badge, Button, Card, EmptyState, Note } from '@/components/ui';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { useTranslation } from '@/lib/i18n';
-import { contractSubline } from '@/lib/contract-status';
+import { contractStatusTone, contractSubline } from '@/lib/contract-status';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadContractPdf, useTenantContracts, type Contract } from '@/hooks/useContracts';
 
@@ -139,7 +139,7 @@ export default function ContractsPage() {
                       <div
                         style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
                       >
-                        <Badge tone={statusTone(contract.status, c)}>
+                        <Badge tone={contractStatusTone(contract.status, c)}>
                           {t(`contracts.status.${contract.status}` as never)}
                         </Badge>
                         {contract.status !== 'CANCELLED' && (
@@ -214,15 +214,4 @@ function FilterChip({
       {label} <span style={{ opacity: 0.7 }}>{count}</span>
     </button>
   );
-}
-
-function statusTone(status: Contract['status'], c: ReturnType<typeof getColors>): string {
-  switch (status) {
-    case 'SIGNED':
-      return c.successText;
-    case 'SENT':
-      return c.warningText;
-    default:
-      return c.textMuted;
-  }
 }

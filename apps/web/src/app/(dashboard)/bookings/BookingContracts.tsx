@@ -20,7 +20,7 @@ import {
   useUpdateContract,
   type Contract,
 } from '@/hooks/useContracts';
-import { contractSubline } from '@/lib/contract-status';
+import { contractStatusTone, contractSubline } from '@/lib/contract-status';
 import type { Booking } from '@/types/api';
 
 /**
@@ -225,7 +225,7 @@ function ContractRow({
   onCancel: () => void;
   onDownload: () => void;
 }) {
-  const tone = statusTone(contract.status, c);
+  const tone = contractStatusTone(contract.status, c);
 
   return (
     // Flat, not a card inside the detail card: the row sits in a section that
@@ -370,17 +370,4 @@ function ContractEditor({
       </div>
     </Modal>
   );
-}
-
-function statusTone(status: Contract['status'], c: ReturnType<typeof getColors>): string {
-  switch (status) {
-    case 'SIGNED':
-      return c.successText;
-    case 'SENT':
-      return c.warningText;
-    case 'CANCELLED':
-      return c.textMuted;
-    default:
-      return c.textMuted;
-  }
 }

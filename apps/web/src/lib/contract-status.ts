@@ -1,5 +1,6 @@
 import type { TranslationKey, useTranslation } from '@/lib/i18n';
 import type { Contract } from '@/hooks/useContracts';
+import type { getColors } from '@/lib/design-tokens';
 
 type I18n = ReturnType<typeof useTranslation>;
 
@@ -30,5 +31,20 @@ export function contractSubline(
       return t('contracts.withdrawnFor', name);
     default:
       return t('contracts.sentTo', name);
+  }
+}
+
+/** The badge colour for a contract's status: signed done, sent waiting, the rest quiet. */
+export function contractStatusTone(
+  status: Contract['status'],
+  c: ReturnType<typeof getColors>
+): string {
+  switch (status) {
+    case 'SIGNED':
+      return c.successText;
+    case 'SENT':
+      return c.warningText;
+    default:
+      return c.textMuted;
   }
 }

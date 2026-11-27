@@ -17,8 +17,10 @@ export const UNDO_WINDOW_MS = 6000;
  * it, "Undo" simply drops it, and only then is it sent. Leaving the page
  * sends whatever is still held rather than losing it.
  *
- * <p>Accepting a client's request is not routed through here: it creates the
- * booking on the server, which is a decision worth making on the spot.
+ * <p>A client's request is not routed through here at all: the server emails
+ * them with the decision, so it is made on the spot in the Personal note
+ * dialog (`useLeadActions`), where the dialog itself is the moment to
+ * reconsider.
  */
 export function useDeferredStatus(onError: (_error: unknown, _change: PendingStatus) => void) {
   const { mutate: mutateLead } = useUpdateLeadStatus();
@@ -46,7 +48,8 @@ export function useDeferredStatus(onError: (_error: unknown, _change: PendingSta
       if (change.kind === 'lead') {
         mutateLead({ id: change.id, status: change.status }, { ...settle, onError: fail });
       } else {
-        // An inquiry is only ever declined through here.
+        // Not reached from the inbox today (see above); kept so a held
+        // inquiry decline is still sent rather than dropped.
         mutateInquiry({ id: change.id, status: 'REJECTED' }, { ...settle, onError: fail });
       }
     },

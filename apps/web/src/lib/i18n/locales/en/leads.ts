@@ -136,12 +136,12 @@ export const leads = {
   'leads.priority.weak': 'weak {list}',
   'leads.priority.inquiry': 'scored on budget and date',
   'leads.reply.email': 'Reply by email',
-  'leads.reply.accept': 'Accept & reply by email',
+  'leads.reply.accept': 'Accept request',
   'leads.reply.call': 'Call',
   'leads.reply.hint':
     'Opens a draft to {name} in your mail app. The lead moves to “Waiting for client” — you can undo.',
   'leads.reply.acceptHint':
-    'Accepts the request — this creates the booking — and opens a draft to {name}.',
+    'Accepting creates the booking and emails {name} in your studio’s name.',
   'leads.reply.noEmail': 'No email address on this lead — call or message them instead.',
   'leads.waiting.text':
     'You replied. Once {name} confirms, turn it into a booking — the form comes prefilled.',
@@ -149,6 +149,16 @@ export const leads = {
   'leads.closed.booked': 'This enquiry became a booking.',
   'leads.closed.declined': 'You declined this enquiry.',
   'leads.decline': 'Decline politely',
+  // The request decision. The server emails the Customer either way, so the
+  // dialog says so and offers the Personal note.
+  'leads.decision.acceptTitle': 'Accept this request?',
+  'leads.decision.acceptBody':
+    'This creates the booking and emails {name} in your studio’s name, with a link to it.',
+  'leads.decision.accept': 'Accept and send',
+  'leads.decision.declineTitle': 'Decline this request?',
+  'leads.decision.declineBody':
+    '{name} gets a short, polite email in your studio’s name. This cannot be undone.',
+  'leads.decision.decline': 'Decline and send',
   'leads.note.add': 'Add note',
   'leads.note.show': 'Note',
   'leads.note.label': 'Private note · only you and your team see this',
@@ -166,8 +176,6 @@ export const leads = {
   'leads.draft.subject': 'Your enquiry{date}',
   'leads.draft.reply':
     'Hi {name},\n\nthank you for your enquiry{date} — I’d love to hear more.\n\n',
-  'leads.draft.accept':
-    'Hi {name},\n\nthank you for your request{date} — I’m happy to confirm it. I’ll be in touch with the details.\n\n',
   'leads.draft.decline':
     'Hi {name},\n\nthank you for your enquiry{date}. Unfortunately I can’t take it on this time — I’m sorry, and I hope you find the right photographer.\n\nAll the best\n',
   'leads.draft.followUp':

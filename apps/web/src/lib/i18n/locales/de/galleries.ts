@@ -79,6 +79,14 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.detail.statusPurged': 'Gelöscht',
 
   'galleries.update.error': 'Die Galerie konnte nicht aktualisiert werden.',
+  'galleries.send.action': 'An Kunden senden',
+  'galleries.send.title': 'Diese Galerie an Ihren Kunden senden?',
+  'galleries.send.body':
+    '{name} erhält eine E-Mail im Namen Ihres Studios mit dem Link zur Galerie. Sie können sie später erneut senden.',
+  'galleries.send.empty':
+    'Laden Sie zuerst Fotos hoch — eine leere Galerie lässt sich nicht senden.',
+  'galleries.send.error':
+    'Die Galerie konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
   'galleries.extend.error':
     'Galerie konnte nicht verlängert werden. Wenn die Fotos bereits gelöscht wurden, können sie nicht wiederhergestellt werden.',
   'galleries.delete.error': 'Die Galerie konnte nicht gelöscht werden.',

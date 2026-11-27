@@ -29,10 +29,7 @@ const BUDGET_RANGES: { value: string; from?: number; to?: number }[] = [
 ];
 
 type SubmitState =
-  | { kind: 'idle' }
-  | { kind: 'submitting' }
-  | { kind: 'ok' }
-  | { kind: 'error'; message: string };
+  { kind: 'idle' } | { kind: 'submitting' } | { kind: 'ok' } | { kind: 'error'; message: string };
 
 export default function RequestForm({ subdomain, variant = 'light' }: Props) {
   const { t, format } = useTranslation();

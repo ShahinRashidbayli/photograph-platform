@@ -180,12 +180,7 @@ export function progressSteps(booking: Booking, ctx: BookingContext): ProgressSt
 // ─── What the buttons should be ────────────────────────────────────────────
 
 export type ActionKey =
-  | 'confirm'
-  | 'decline'
-  | 'complete'
-  | 'recordPayment'
-  | 'newInvoice'
-  | 'createGallery';
+  'confirm' | 'decline' | 'complete' | 'recordPayment' | 'newInvoice' | 'createGallery';
 
 /**
  * The lead action and, at most, one beside it. Everything else the status

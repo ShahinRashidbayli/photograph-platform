@@ -21,20 +21,11 @@ import type { TranslationKey } from '@/lib/i18n';
  */
 
 export type BookingStatusKey =
-  | 'ENQUIRY'
-  | 'CONFIRMED'
-  | 'POSTPONED'
-  | 'COMPLETED'
-  | 'DECLINED'
-  | 'CANCELLED';
+  'ENQUIRY' | 'CONFIRMED' | 'POSTPONED' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 
 /** Mirrors the backend `BookingPaymentState` enum — always derived, never set directly. */
 export type BookingPaymentStateKey =
-  | 'NOT_INVOICED'
-  | 'OPEN'
-  | 'PARTIALLY_PAID'
-  | 'PAID'
-  | 'OVERDUE';
+  'NOT_INVOICED' | 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
 
 export type StatusTone = 'neutral' | 'warning' | 'success' | 'info' | 'danger';
 

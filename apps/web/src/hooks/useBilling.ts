@@ -18,13 +18,7 @@ import type { StripeConnectStatus } from '@/types/api';
 export interface BillingStatus {
   plan: 'STARTER' | 'PRO' | 'STUDIO';
   subscriptionStatus:
-    | 'NONE'
-    | 'TRIALING'
-    | 'ACTIVE'
-    | 'PAST_DUE'
-    | 'CANCELED'
-    | 'INCOMPLETE'
-    | 'UNPAID';
+    'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'INCOMPLETE' | 'UNPAID';
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   subscriptionConfigured: boolean;

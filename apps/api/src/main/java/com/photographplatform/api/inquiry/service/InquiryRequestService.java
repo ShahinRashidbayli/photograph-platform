@@ -4,11 +4,11 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.service.BookingConversionService;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
-import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.Paging;
 import com.photographplatform.api.inquiry.domain.InquiryRequest;
@@ -17,9 +17,8 @@ import com.photographplatform.api.inquiry.dto.CreateInquiryRequest;
 import com.photographplatform.api.inquiry.dto.InquiryRequestResponse;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
 import com.photographplatform.api.inquiry.repository.InquiryRequestRepository;
-import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
@@ -147,16 +146,18 @@ public class InquiryRequestService {
             "BIO_LINK"
         );
         inquiry.setTenantId(tenantId);
+        inquiry.setLanguage(CustomerLanguage.fromCodeOrDefault(req.language()));
         InquiryRequest saved = inquiryRepository.save(inquiry);
 
         auditService.log("INQUIRY_CREATED", "INQUIRY_REQUEST", saved.getId(),
             tenantId, customerId, ipAddress);
 
-        // The listener is @Async, so TenantContext is already gone by the time it
-        // runs — every value it needs travels on the event itself.
+        // Every value the email needs travels on the event, so the listener
+        // queues it without a lookup.
         eventPublisher.publishEvent(new InquiryCreatedEvent(
             this,
             saved.getId(),
+            tenantId,
             displayName(customer),
             customer.getEmail(),
             saved.getEventType(),
@@ -257,7 +258,7 @@ public class InquiryRequestService {
         auditService.log(accepted ? "INQUIRY_ACCEPTED" : "INQUIRY_REJECTED",
             "INQUIRY_REQUEST", saved.getId(), tenantId, actorId, ipAddress);
 
-        notifyCustomerOfDecision(customer, accepted);
+        notifyCustomerOfDecision(saved.getId(), customer, accepted);
 
         return toResponse(saved, customer);
     }
@@ -345,29 +346,15 @@ public class InquiryRequestService {
     }
 
     /**
-     * Email the customer the outcome of their inquiry. Best-effort by
-     * construction: {@link EmailService#send} swallows and logs delivery
-     * failures, so a mail problem can never roll back the booking that
-     * acceptance just created.
+     * Queues the customer's email about the decision, in the decision's own
+     * transaction: if accepting fails and rolls back, no "accepted" email goes
+     * out (ADR-005). A decision is terminal, so the inquiry id is a natural key.
      */
-    private void notifyCustomerOfDecision(User customer, boolean accepted) {
-        String subject = accepted
-            ? "Your booking request was accepted"
-            : "Update on your booking request";
-        String message = accepted
-            ? "Great news — your photographer accepted your request and started a booking. "
-                + "They'll be in touch shortly to confirm the details."
-            : "Thank you for reaching out. Unfortunately your photographer isn't able to take "
-                + "this booking. We wish you the very best finding the right fit.";
-        String html = EmailTemplate.document(
-            accepted
-                ? "Good news — your photographer accepted your request."
-                : "An update on your booking request.",
-            EmailTemplate.heading(subject)
-                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(displayName(customer)) + ",")
-                + EmailTemplate.paragraph(message));
-        emailService.send(new EmailMessage(customer.getEmail(), subject, html,
-            EmailType.INQUIRY_REPLY, customer.getTenantId()));
+    private void notifyCustomerOfDecision(UUID inquiryId, User customer, boolean accepted) {
+        emailService.queue(new OutgoingEmail(
+            InquiryDecisionEmail.TEMPLATE, customer.getEmail(), customer.getTenantId(),
+            new InquiryDecisionEmail.Params(displayName(customer), accepted),
+            EmailType.INQUIRY_REPLY + ":" + inquiryId, null));
     }
 
     private InquiryRequestResponse toResponse(InquiryRequest inquiry, User customer) {
@@ -383,6 +370,7 @@ public class InquiryRequestService {
             inquiry.getScore(),
             inquiry.getStatus(),
             inquiry.getSource(),
+            inquiry.getLanguage().code(),
             inquiry.getCreatedAt()
         );
     }

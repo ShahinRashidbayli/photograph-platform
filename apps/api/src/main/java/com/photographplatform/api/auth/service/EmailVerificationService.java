@@ -6,20 +6,14 @@ import com.photographplatform.api.auth.repository.EmailVerificationTokenReposito
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
-import com.photographplatform.api.notification.dto.EmailMessage;
-import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.email.EmailTemplate;
+import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
-import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.common.util.TokenUtils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import com.photographplatform.api.common.security.RateLimiter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,8 +33,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EmailVerificationService {
 
-    private static final Logger LOG = LoggerFactory.getLogger(EmailVerificationService.class);
-
     private static final Duration TOKEN_TTL = Duration.ofHours(24);
     private static final int RESEND_MAX_PER_USER_PER_HOUR = 3;
     private static final int RESEND_MAX_PER_IP_PER_HOUR = 10;
@@ -51,22 +43,19 @@ public class EmailVerificationService {
     private final EmailService emailService;
     private final RateLimiter rateLimiter;
     private final Clock clock;
-    private final String webBaseUrl;
 
     public EmailVerificationService(
         EmailVerificationTokenRepository tokenRepository,
         UserRepository userRepository,
         EmailService emailService,
         RateLimiter rateLimiter,
-        Clock clock,
-        @Value("${app.web.base-url:http://localhost:3000}") String webBaseUrl
+        Clock clock
     ) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.rateLimiter = rateLimiter;
         this.clock = clock;
-        this.webBaseUrl = webBaseUrl;
     }
 
     /**
@@ -160,29 +149,12 @@ public class EmailVerificationService {
     }
 
     private void sendVerificationEmail(User user, String rawToken) {
-        String link = webBaseUrl.replaceAll("/+$", "")
-            + "/verify-email?token=" + rawToken;
         String name = user.getFullName() != null && !user.getFullName().isBlank()
             ? user.getFullName() : "there";
-        String html = EmailTemplate.document(
-            "Confirm your email to activate your Fotolio account.",
-            EmailTemplate.heading("Confirm your email")
-                + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(name)
-                    + ", please confirm this email address belongs to you so we can deliver booking "
-                    + "notifications, lead alerts and password resets.")
-                + EmailTemplate.button("Confirm email", link)
-                + EmailTemplate.note("Or paste this link into your browser:<br>"
-                    + "<span style=\"word-break:break-all;\">" + HtmlEscape.escape(link) + "</span>")
-                + EmailTemplate.note("This link expires in 24 hours. If you didn't create an account, "
-                    + "you can safely ignore this email."));
-        try {
-            emailService.send(new EmailMessage(
-                user.getEmail(), "Confirm your Fotolio email", html,
-                EmailType.EMAIL_VERIFICATION, user.getTenantId()));
-        } catch (RuntimeException ex) {
-            // Email delivery is best-effort — log loudly but never fail the caller.
-            LOG.warn("Failed to send verification email to {}", user.getEmail(), ex);
-        }
+        emailService.queue(new OutgoingEmail(
+            EmailVerificationEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
+            new EmailVerificationEmail.Params(name, rawToken),
+            null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
 
 }

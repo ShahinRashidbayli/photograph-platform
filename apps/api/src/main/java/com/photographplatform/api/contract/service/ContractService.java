@@ -5,6 +5,7 @@ import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -16,6 +17,7 @@ import com.photographplatform.api.contract.dto.ContractResponse;
 import com.photographplatform.api.contract.dto.CreateContractRequest;
 import com.photographplatform.api.contract.dto.SignContractRequest;
 import com.photographplatform.api.contract.dto.UpdateContractRequest;
+import com.photographplatform.api.contract.event.ContractSentEvent;
 import com.photographplatform.api.contract.event.ContractSignedEvent;
 import com.photographplatform.api.contract.repository.ContractRepository;
 import com.photographplatform.api.entitlement.domain.Capability;
@@ -23,6 +25,7 @@ import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -48,8 +51,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ContractService {
 
+    /** The audit row's new value when a contract went out with a personal note. */
+    public static final String SENT_WITH_A_NOTE = "sent with a note";
+
     private final ContractRepository contractRepository;
     private final BookingRepository bookingRepository;
+    private final BookingQueryService bookingQueryService;
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final EntitlementService entitlementService;
@@ -60,6 +67,7 @@ public class ContractService {
 
     public ContractService(ContractRepository contractRepository,
                            BookingRepository bookingRepository,
+                           BookingQueryService bookingQueryService,
                            TenantRepository tenantRepository,
                            UserRepository userRepository,
                            EntitlementService entitlementService,
@@ -69,6 +77,7 @@ public class ContractService {
                            Clock clock) {
         this.contractRepository = contractRepository;
         this.bookingRepository = bookingRepository;
+        this.bookingQueryService = bookingQueryService;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.entitlementService = entitlementService;
@@ -151,19 +160,25 @@ public class ContractService {
     }
 
     /**
-     * Freezes the draft and makes it visible to the customer.
+     * Freezes the draft, makes it visible to the Customer and tells them so.
      *
      * <p>Refuses when the photographer has not filled in their statutory
      * identity. A contract naming no party is not a contract, and the legal
      * details were collected in Settings precisely so this could be answered
      * without asking again — see the tenant legal work (V33).
+     *
+     * @param personalNote the photographer's optional personal note; null for none
      */
     @Transactional
-    public ContractResponse send(UUID id, String ip) {
+    public ContractResponse send(UUID id, String personalNote, String ip) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         entitlementService.requireCapabilityForCurrentTenant(Capability.CONTRACTS);
 
         Contract contract = requireOwn(id, tenantId);
+        // Checked here as well as on the entity: the entity's refusal is an
+        // IllegalStateException, which answers 500, and a double click on
+        // "An Kunden senden" is a conflict, not a fault.
+        requireStatus(contract, ContractStatus.DRAFT, "Only a draft contract can be sent");
         Tenant tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Tenant not found"));
 
@@ -173,16 +188,71 @@ public class ContractService {
                 "Add your legal details in Settings first — a contract has to say who is offering it");
         }
 
+        Instant sentAt = clock.instant();
         contract.send(
-            OffsetDateTime.now(clock),
+            OffsetDateTime.ofInstant(sentAt, clock.getZone()),
             issuerName,
             ContractDraftTemplate.issuerAddress(tenant),
             blankToNull(tenant.getLegalEmail())
         );
 
-        auditService.logQuietly("CONTRACT_SENT", "CONTRACT", id,
-            tenantId, SecurityUtils.requireCurrentUserId(), ip);
+        tellTheCustomer(contract, "CONTRACT_SENT", personalNote, sentAt, ip);
         return ContractResponse.from(contract);
+    }
+
+    /**
+     * "Erneut senden": tells the Customer again about a contract that waits
+     * for their signature. Changes nothing on the contract; its {@code
+     * sentAt} stays the day it was first sent.
+     *
+     * @param personalNote the photographer's optional personal note; null for none
+     */
+    @Transactional
+    public ContractResponse resend(UUID id, String personalNote, String ip) {
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+        entitlementService.requireCapabilityForCurrentTenant(Capability.CONTRACTS);
+
+        Contract contract = requireOwn(id, tenantId);
+        requireStatus(contract, ContractStatus.SENT, "Only a contract waiting for its signature can be sent again");
+
+        tellTheCustomer(contract, "CONTRACT_RESENT", personalNote, clock.instant(), ip);
+        return ContractResponse.from(contract);
+    }
+
+    /**
+     * Audits the send and publishes {@link ContractSentEvent}. The Customer's
+     * language comes from the booking, through booking's service; the address
+     * is the contract's recipient, the one address the portal shows it to.
+     */
+    private void tellTheCustomer(Contract contract, String action, String personalNote, Instant sentAt, String ip) {
+        // A note is the photographer's words to one Customer: the trail says
+        // that one was sent, never what it said.
+        String trimmedNote = Normalize.trimToNull(personalNote);
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+        if (trimmedNote == null) {
+            auditService.logQuietly(action, "CONTRACT", contract.getId(), contract.getTenantId(), actorId, ip);
+        } else {
+            auditService.logChange(action, "CONTRACT", contract.getId(), contract.getTenantId(), actorId, ip,
+                null, SENT_WITH_A_NOTE);
+        }
+
+        eventPublisher.publishEvent(new ContractSentEvent(
+            this,
+            contract.getId(),
+            contract.getBookingId(),
+            contract.getTenantId(),
+            contract.getRecipientEmail(),
+            contract.getRecipientName(),
+            bookingQueryService.customerLanguage(contract.getBookingId()),
+            trimmedNote,
+            sentAt));
+    }
+
+    private static void requireStatus(Contract contract, ContractStatus expected, String message) {
+        if (contract.getStatus() != expected) {
+            throw new ConflictException(
+                message + " (this one is " + contract.getStatus().name().toLowerCase(java.util.Locale.ROOT) + ")");
+        }
     }
 
     @Transactional

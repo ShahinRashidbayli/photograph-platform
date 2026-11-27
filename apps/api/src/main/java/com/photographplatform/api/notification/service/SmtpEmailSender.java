@@ -76,13 +76,16 @@ public class SmtpEmailSender implements EmailSender {
             // than arriving as a wall of markup in a text/plain body.
             MimeMessageHelper helper =
                 new MimeMessageHelper(mime, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(fromAddress());
+            helper.setFrom(fromAddress(message));
+            if (message.replyTo() != null) {
+                helper.setReplyTo(message.replyTo());
+            }
             helper.setTo(message.to());
             helper.setSubject(message.subject());
             helper.setText(message.htmlBody(), true);
         } catch (jakarta.mail.MessagingException | UnsupportedEncodingException e) {
-            // Wrapped in Spring's own mail exception so EmailService's
-            // best-effort catch treats this like any other transport failure.
+            // Wrapped in Spring's own mail exception so the outbox retries
+            // this like any other transport failure.
             throw new MailPreparationException("Could not build the SMTP message", e);
         }
 
@@ -91,10 +94,10 @@ public class SmtpEmailSender implements EmailSender {
             providerName(), message.type(), message.tenantId());
     }
 
-    private InternetAddress fromAddress()
+    private InternetAddress fromAddress(EmailMessage message)
         throws UnsupportedEncodingException, jakarta.mail.internet.AddressException {
-        String name = props.fromName();
-        return name != null && !name.isBlank()
+        String name = message.senderName(props.fromName());
+        return name != null
             ? new InternetAddress(props.from(), name, StandardCharsets.UTF_8.name())
             : new InternetAddress(props.from());
     }

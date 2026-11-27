@@ -11,9 +11,10 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react';
 
 /**
  * LegalPageShell — one layout for every legal page (Impressum, Datenschutz,
- * AGB). Renders the marketing chrome (logo + theme toggle), a prominent
- * "draft, not yet binding" notice, the structured document, and a slim footer
- * whose links satisfy the "≤ 2 clicks to Impressum" requirement from issue #7.
+ * AGB). Renders the marketing chrome (logo, language and theme toggles, like the
+ * landing nav), a prominent "draft, not yet binding" notice, the structured
+ * document, and a slim footer whose links satisfy the "≤ 2 clicks to
+ * Impressum" requirement from issue #7.
  *
  * Placeholders written as [text] in the content are highlighted so unfinished
  * fields are impossible to miss on the rendered page.

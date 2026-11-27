@@ -197,12 +197,23 @@ function BookingsView() {
   // Phone only: the detail's actions move to a bar under the thumb and the
   // progress line turns vertical — a tablet has the width for neither change.
   const isPhone = useMediaQuery('(max-width: 640px)');
-  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
+  // A link to one booking (`?id=`, from an email or the dashboard) opens on its
+  // detail. Starting on the list made that link look broken on a phone (#104).
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(
+    urlSelectedId ? 'detail' : 'list'
+  );
 
   // Keep the selection valid as data loads or changes: keep the current pick if
-  // it still exists, otherwise fall back to the first booking. (Previously this
+  // it still exists, otherwise fall back to the first booking — and on a narrow
+  // screen show the list rather than the fallback's detail. (Previously this
   // lived inside the fetch; now it reacts to the cached data.)
   useEffect(() => {
+    // A link to a booking that is gone opens the list on a narrow screen, not
+    // the detail of whichever booking the selection falls back to — nor an
+    // empty detail when it was the studio's last booking.
+    if (!loading && selectedId && !bookings.some((b) => b.id === selectedId)) {
+      setMobilePane('list');
+    }
     // Not while the list is still empty: on a fresh load the first pass sees
     // no bookings yet, and "keep it if it exists" then threw away the `?id=`
     // a deep link (or the "Next shoot" tile) had just put in the URL.
@@ -210,7 +221,8 @@ function BookingsView() {
     setSelectedId((prev) =>
       prev && bookings.some((b) => b.id === prev) ? prev : (bookings[0]?.id ?? null)
     );
-  }, [bookings]);
+    // `selectedId` too: back/forward to a deleted booking changes only the URL.
+  }, [bookings, loading, selectedId]);
 
   // Recomputed per mount rather than per render — the bucket boundaries only
   // move at midnight, and a fresh `new Date()` on every render would make the
@@ -526,8 +538,9 @@ function BookingsView() {
 
       {/* The overview is four tiles, three of which filter the list. */}
       {/* On a phone with a booking open, the tiles would push the booking a
-          screen down; they come back with the list. */}
-      {!(isNarrow && mobilePane === 'detail') && (
+          screen down; they come back with the list. The calendar has no detail
+          pane, so it keeps them even when the URL names a booking. */}
+      {!(isNarrow && viewMode === 'table' && mobilePane === 'detail') && (
         <BookingsOverview
           bookings={bookings}
           ctxFor={ctxFor}

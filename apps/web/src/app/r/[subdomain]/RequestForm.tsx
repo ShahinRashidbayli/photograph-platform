@@ -32,7 +32,7 @@ type SubmitState =
   { kind: 'idle' } | { kind: 'submitting' } | { kind: 'ok' } | { kind: 'error'; message: string };
 
 export default function RequestForm({ subdomain, variant = 'light' }: Props) {
-  const { t, format } = useTranslation();
+  const { t, format, lang } = useTranslation();
   const [state, setState] = useState<SubmitState>({ kind: 'idle' });
 
   const budgetLabel = (b: (typeof BUDGET_RANGES)[number]) =>
@@ -112,19 +112,25 @@ export default function RequestForm({ subdomain, variant = 'light' }: Props) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const data = new FormData(form);
+    // Read off the form's own controls rather than `new FormData(form)`: the
+    // same values, and it runs under the jsdom tests, whose FormData is Node's
+    // (for MSW) and cannot read a form element.
+    const field = (name: string) =>
+      (form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? '';
 
-    const honeypot = String(data.get('website') ?? '');
+    const honeypot = field('website');
 
     const payload = {
-      name: String(data.get('name') ?? '').trim(),
-      email: String(data.get('email') ?? '').trim(),
-      phone: String(data.get('phone') ?? '').trim() || null,
-      eventDate: String(data.get('eventDate') ?? ''),
-      eventType: String(data.get('eventType') ?? ''),
-      budgetRange: String(data.get('budgetRange') ?? ''),
-      message: String(data.get('message') ?? '').trim() || null,
+      name: field('name').trim(),
+      email: field('email').trim(),
+      phone: field('phone').trim() || null,
+      eventDate: field('eventDate'),
+      eventType: field('eventType'),
+      budgetRange: field('budgetRange'),
+      message: field('message').trim() || null,
       website: honeypot,
+      // The Customer messages that follow are written in the language they read the form in.
+      language: lang,
     };
 
     setState({ kind: 'submitting' });

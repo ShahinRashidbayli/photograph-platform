@@ -42,9 +42,11 @@ export const metadata: Metadata = {
   },
 };
 
-// Runs before first paint so the page background matches the persisted theme
-// instead of flashing the light default while the client store rehydrates from
-// localStorage. Kept tiny and dependency-free because it's inlined into <head>.
+// Runs before first paint so the page background matches the theme instead of
+// flashing the light default while the client store rehydrates from
+// localStorage. The theme is the persisted explicit choice, or without one the
+// system setting — the rule `store/themeStore.ts` applies after hydration.
+// Kept tiny and dependency-free because it's inlined into <head>.
 //
 // It also corrects <html lang> for the persisted language: the markup ships the
 // source locale (this is a server component and localStorage is client-only),
@@ -64,7 +66,7 @@ export const metadata: Metadata = {
 // class>` (the font variables below) and may drop a script-added class when it
 // reconciles that attribute on hydration, and `html.js …` would outrank the
 // `.in` rule the observer relies on — see the note in globals.css.
-const CLIENT_INIT = `(function(){document.documentElement.setAttribute('data-js','');try{var r=localStorage.getItem('theme-storage');if(r){var t=JSON.parse(r);var m=t&&t.state&&t.state.theme;var el=document.documentElement;if(m==='dark'){el.style.backgroundColor='#0E0E0D';el.style.colorScheme='dark';el.setAttribute('data-theme','dark');}else{el.style.backgroundColor='#FAFAF9';el.style.colorScheme='light';el.setAttribute('data-theme','light');}}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
+const CLIENT_INIT = `(function(){document.documentElement.setAttribute('data-js','');try{var el=document.documentElement;var m=null;try{var r=localStorage.getItem('theme-storage');var t=r&&JSON.parse(r);m=t&&t.state&&t.state.theme;}catch(e){}if(m!=='dark'&&m!=='light'){m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(m==='dark'){el.style.backgroundColor='#0E0E0D';el.style.colorScheme='dark';el.setAttribute('data-theme','dark');}else{el.style.backgroundColor='#FAFAF9';el.style.colorScheme='light';el.setAttribute('data-theme','light');}var l=localStorage.getItem('lang-storage');if(l){var p=JSON.parse(l);var g=p&&p.state&&p.state.lang;if(g){document.documentElement.lang=g;}}}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

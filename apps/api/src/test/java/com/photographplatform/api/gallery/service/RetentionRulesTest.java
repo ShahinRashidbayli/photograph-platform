@@ -115,6 +115,34 @@ class RetentionRulesTest {
         assertThat(gallery.getExpiresAt()).isEqualTo(NOW.plusDays(60));
     }
 
+    /**
+     * The downgrade case: a gallery delivered on STUDIO (730 days) still has
+     * most of its window left when the tenant drops to STARTER (60 days).
+     * Extending used to reset the expiry to "now + 60", cutting the gallery by
+     * well over a year — and the retention job deletes the photos on that date.
+     */
+    @Test
+    void extendingAfterADowngradeNeverShortensTheExpiry() {
+        Gallery gallery = gallery(NOW.minusDays(30), 730);
+        OffsetDateTime before = gallery.getExpiresAt();
+
+        gallery.extend(NOW, 60);
+
+        assertThat(gallery.getExpiresAt()).isEqualTo(before);
+        assertThat(gallery.getRetentionDays()).isEqualTo(730);
+        assertThat(gallery.getExpiryState()).isEqualTo(GalleryExpiryState.ACTIVE);
+    }
+
+    @Test
+    void extendingAnActiveGalleryRenewsTheFullWindowFromNow() {
+        Gallery gallery = gallery(NOW.minusDays(50), 60);
+
+        gallery.extend(NOW, 60);
+
+        assertThat(gallery.getExpiresAt()).isEqualTo(NOW.plusDays(60));
+        assertThat(gallery.getExtensionCount()).isEqualTo(1);
+    }
+
     // ── configuration guards ────────────────────────────────────────────
 
     /**

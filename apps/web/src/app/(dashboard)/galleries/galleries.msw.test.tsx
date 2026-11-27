@@ -68,9 +68,27 @@ function signInAsPhotographer() {
   });
 }
 
+/** The plan window the extend button is labelled with. */
+function entitlementsWithRetention(galleryRetentionDays: number) {
+  return http.get('/api/entitlements', () =>
+    HttpResponse.json({
+      plan: 'STARTER',
+      capabilities: [],
+      galleryRetentionDays,
+      seats: 1,
+      commissionBps: 0,
+      writable: true,
+      lockReason: null,
+      trialEndsAt: null,
+      subscriptionStatus: 'ACTIVE',
+    })
+  );
+}
+
 beforeEach(() => {
   signInAsPhotographer();
   jest.spyOn(window, 'confirm').mockReturnValue(true);
+  server.use(entitlementsWithRetention(60));
 });
 
 afterEach(() => {
@@ -136,6 +154,36 @@ describe('GalleriesPage', () => {
       await screen.findByText('Could not delete that photo. Please try again.')
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete first.jpg' })).toBeInTheDocument();
+  });
+
+  /**
+   * The button used to read "+30 days" while the server reset the expiry to
+   * the plan's whole window — on STUDIO that changed nothing, and after a
+   * downgrade it could shorten the gallery. It now says what it does.
+   */
+  it('labels extending with the plan window it grants, not a fixed 30 days', async () => {
+    let extended = 0;
+    server.use(
+      entitlementsWithRetention(730),
+      http.get('/api/galleries', () => HttpResponse.json([GALLERY])),
+      http.get('/api/galleries/g1/photos', () => HttpResponse.json(PHOTOS)),
+      http.post('/api/galleries/g1/extend', () => {
+        extended += 1;
+        return HttpResponse.json(GALLERY);
+      })
+    );
+    const user = setupUser();
+    renderWithProviders(<GalleriesPage />, { lang: 'en' });
+
+    const button = await screen.findByRole('button', { name: 'Extend to 730 days from today' });
+    expect(screen.queryByText('+30 days')).not.toBeInTheDocument();
+    expect(button).toHaveAttribute(
+      'title',
+      expect.stringMatching(/never brings the expiry date forward/)
+    );
+
+    await user.click(button);
+    await waitFor(() => expect(extended).toBe(1));
   });
 
   it('offers a retry when the list cannot be loaded', async () => {

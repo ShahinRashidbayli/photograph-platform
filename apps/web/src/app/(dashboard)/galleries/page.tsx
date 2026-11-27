@@ -7,6 +7,7 @@ import { CustomerGalleries } from './CustomerGalleries';
 import { asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { StatStrip } from '@/components/StatStrip';
 import { Alert, Badge, Toggle } from '@/components/ui';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
@@ -530,6 +531,7 @@ function GalleryDetail({
   // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
   // can tell the user to copy the link manually instead of appearing inert.
   const { t, tPlural } = useTranslation();
+  const { entitlements } = useEntitlements();
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   // Reset the transient feedback after a moment, cancelled on unmount so it
@@ -628,6 +630,14 @@ function GalleryDetail({
     if (!gallery) return;
     onExtend(gallery.id);
   }
+
+  // Named after what the server does — a full plan window from today, never
+  // shortening — rather than a fixed "+30 days" it never added. The number
+  // comes from the plan; until it is known the label just says "Extend".
+  const planRetentionDays = entitlements?.galleryRetentionDays;
+  const extendLabel = planRetentionDays
+    ? t('galleries.detail.extend', { days: planRetentionDays })
+    : t('galleries.detail.extendFallback');
 
   return (
     <>
@@ -747,6 +757,7 @@ function GalleryDetail({
               <button
                 onClick={extendGallery}
                 disabled={busy}
+                title={t('galleries.detail.extendHint')}
                 style={{
                   ...styles.actionButton,
                   ...styles.actionButtonOutline,
@@ -755,7 +766,7 @@ function GalleryDetail({
                   fontSize: '0.75rem',
                 }}
               >
-                {t('galleries.detail.extend')}
+                {extendLabel}
               </button>
             )}
           </div>

@@ -178,7 +178,8 @@ public class GalleryService {
      *
      * <p>The new window is a full plan-sized window measured from now, not the
      * remainder of the old one: restoring a gallery that lapsed three weeks
-     * ago into a window that has already passed would help nobody.
+     * ago into a window that has already passed would help nobody. It never
+     * shortens what the gallery already has (see {@link Gallery#extend}).
      */
     @Transactional
     public GalleryResponse extend(UUID id, String ipAddress) {

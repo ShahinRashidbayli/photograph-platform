@@ -239,11 +239,20 @@ public class Gallery {
      * <p>Measured from now rather than from the old expiry so that extending a
      * gallery that lapsed three weeks ago actually gives the client time to
      * download, instead of restoring it into a window that has already passed.
+     *
+     * <p>Never moves the expiry earlier. After a downgrade the plan window can
+     * be shorter than what a gallery still has left, and resetting to it
+     * would cut a two-year gallery to sixty days with one click — and the
+     * retention job deletes the photos once that date passes.
      */
     public void extend(OffsetDateTime now, int retentionDays) {
+        OffsetDateTime renewed = now.plusDays(retentionDays);
+        // A null expiry is "never expires" — later than any window, so it stays.
+        if (expiresAt != null && renewed.isAfter(expiresAt)) {
+            this.retentionDays = retentionDays;
+            this.expiresAt = renewed;
+        }
         this.expiryState = GalleryExpiryState.ACTIVE.name();
-        this.retentionDays = retentionDays;
-        this.expiresAt = now.plusDays(retentionDays);
         this.softDeletedAt = null;
         this.purgeAfter = null;
         this.extendedAt = now;

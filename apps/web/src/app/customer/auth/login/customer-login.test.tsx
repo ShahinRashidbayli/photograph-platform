@@ -13,9 +13,13 @@ jest.mock('@/lib/api', () => ({
   default: { get: jest.fn(), post: jest.fn() },
 }));
 
+jest.mock('@/lib/navigation', () => ({ hardNavigate: jest.fn() }));
+
 import api from '@/lib/api';
+import { hardNavigate } from '@/lib/navigation';
 
 const mockedApi = api as jest.Mocked<typeof api>;
+const mockedNavigate = hardNavigate as jest.MockedFunction<typeof hardNavigate>;
 
 async function requestCode(user: ReturnType<typeof setupUser>) {
   await user.type(screen.getByLabelText('Email address'), 'maria@example.test');
@@ -298,5 +302,64 @@ describe('CustomerLoginPage', () => {
 
     expect(await screen.findByText('Studio Lichtblick')).toBeInTheDocument();
     expect(screen.getByText('SL')).toBeInTheDocument();
+  });
+
+  /**
+   * A Customer message links to the sign-in with the page it is about in
+   * `next`. Signing in used to drop it and land on the bookings list, so the
+   * contract the email promised was nowhere to be seen.
+   */
+  describe('after signing in from a link', () => {
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+      mockedNavigate.mockReset();
+    });
+
+    /** jsdom does not navigate; the mocked `hardNavigate` records where the page went. */
+    async function signInFrom(search: string) {
+      mockSearch = new URLSearchParams(search);
+      window.history.replaceState(null, '', `/customer/auth/login${search}`);
+      const user = setupUser();
+      mockedApi.post.mockResolvedValue({ status: 200, data: {} } as never);
+      render();
+
+      await requestCode(user);
+      await user.type(await screen.findByLabelText('6-digit code'), '123456');
+      await user.click(screen.getByRole('button', { name: 'Sign in →' }));
+      await waitFor(() => expect(mockedNavigate).toHaveBeenCalledTimes(1));
+      return mockedNavigate.mock.calls[0][0];
+    }
+
+    it('lands on the page the link pointed to', async () => {
+      expect(await signInFrom('?next=%2Fdocuments%3Fid%3Dx')).toBe('/documents?id=x');
+    });
+
+    it('lands on the bookings when the link named no page', async () => {
+      expect(await signInFrom('')).toBe('/bookings');
+    });
+
+    it('does not land back on a sign-in', async () => {
+      expect(await signInFrom('?next=%2Flogin')).toBe('/bookings');
+    });
+
+    /** `next` is in the query string, so anyone can write a link with their own. */
+    it.each([['//evil.example'], ['https://evil.example'], ['/\\evil.example']])(
+      'refuses to leave the site for %s',
+      async (target) => {
+        expect(await signInFrom(`?next=${encodeURIComponent(target)}`)).toBe('/bookings');
+      }
+    );
+  });
+
+  /** The message was sent to this address, so the Customer should not have to type it. */
+  it('prefills the email and the studio from the link', async () => {
+    mockSearch = new URLSearchParams('subdomain=studio-lichtblick&email=maria%40example.test');
+    mockedApi.get.mockResolvedValue({
+      data: { subdomain: 'studio-lichtblick', legalName: 'Lena Hoffmann' },
+    } as never);
+    render();
+
+    expect(await screen.findByText('Lena Hoffmann')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email address')).toHaveValue('maria@example.test');
   });
 });

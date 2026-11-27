@@ -8,8 +8,14 @@ import { getColors } from '@/lib/design-tokens';
 import { extractApiError, httpStatus } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
-import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
-import { safeRedirectPath } from '@/lib/safe-redirect';
+import {
+  CUSTOMER_HOME,
+  PHOTOGRAPHER_LOGIN,
+  SUBDOMAIN_PATTERN,
+  nextAfterSignIn,
+  withPreservedNext,
+} from '@/lib/login-redirect';
+import { hardNavigate } from '@/lib/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -17,7 +23,6 @@ import { Suspense, useEffect, useReducer, useState } from 'react';
 import { getAuthStyles } from '../../../(auth)/auth.styles';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 
 // Apex domains under which each photographer gets a subdomain. When the client
 // arrives on anna-foto.fotolio.de the subdomain is authoritative and there is no
@@ -66,7 +71,7 @@ const LAST_STUDIO_KEY = 'fotolio.customer.lastStudio';
 function readLastStudio(): string | null {
   try {
     const v = window.localStorage.getItem(LAST_STUDIO_KEY);
-    return v && SUBDOMAIN_REGEX.test(v) ? v : null;
+    return v && SUBDOMAIN_PATTERN.test(v) ? v : null;
   } catch {
     return null;
   }
@@ -89,6 +94,10 @@ function initialsOf(name: string): string {
 function CustomerLoginInner() {
   const searchParams = useSearchParams();
   const initialSubdomain = (searchParams.get('subdomain') ?? '').trim().toLowerCase();
+  // A Customer message links here with the address it was sent to, so the
+  // Customer only has to ask for the code. Still editable: the link may have
+  // been forwarded to whoever actually signs.
+  const initialEmail = (searchParams.get('email') ?? '').trim();
 
   const theme = useThemeStore((st) => st.theme);
   const colors = getColors(theme);
@@ -97,9 +106,7 @@ function CustomerLoginInner() {
   const retryWait = useRetryWait();
   const waitText = useWaitText();
 
-  // A Customer message links here with `?email=` (and `?next=` to the thing it
-  // is about), so the Customer has only the code left to enter.
-  const [email, setEmail] = useState((searchParams.get('email') ?? '').trim());
+  const [email, setEmail] = useState(initialEmail);
   const [subdomain, setSubdomain] = useState(initialSubdomain);
   const [subdomainLocked, setSubdomainLocked] = useState(false);
   // A link from the studio (`?subdomain=`), the studio's own host, or this
@@ -183,7 +190,7 @@ function CustomerLoginInner() {
 
   const cooldown = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
 
-  const linkedStudio = SUBDOMAIN_REGEX.test(subdomain.trim().toLowerCase())
+  const linkedStudio = SUBDOMAIN_PATTERN.test(subdomain.trim().toLowerCase())
     ? subdomain.trim().toLowerCase()
     : null;
   const showStudio =
@@ -264,10 +271,12 @@ function CustomerLoginInner() {
           if (opened) rememberStudio(opened);
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
-          // `?next=` is attacker-controllable, so only a same-origin path is
-          // followed — the same check as the photographer sign-in.
-          window.location.href =
-            safeRedirectPath(window.location.search, window.location.origin) ?? '/bookings';
+          // `next` is where the link pointed (a contract to sign, a booking); it
+          // came from the query string, so only a same-origin path that is not a
+          // sign-in is followed.
+          hardNavigate(
+            nextAfterSignIn(window.location.search, window.location.origin) ?? CUSTOMER_HOME
+          );
         },
         onError: (err) => {
           // A wrong, spent or expired code is a 401. Ours, not the server's

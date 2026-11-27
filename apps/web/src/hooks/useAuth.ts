@@ -128,13 +128,13 @@ export function useSubdomainAvailability(subdomain: string | null) {
   });
 }
 
-/** Answers 204 whether or not the address exists — see the forgot-password screen. */
 /**
  * For the endpoints whose 401 means the code or token in the body is wrong,
  * not that the session expired — see `skipAuthRefresh` in `lib/api`.
  */
 const NO_REFRESH = { skipAuthRefresh: true } as const;
 
+/** Answers 204 whether or not the address exists — see the forgot-password screen. */
 export function useForgotPassword() {
   return useMutation({
     mutationFn: (email: string) => api.post('/api/auth/password/forgot', { email }),

@@ -73,6 +73,7 @@ class ClientDirectoryIT extends IntegrationTestBase {
         ResponseEntity<Map> lead = rest.exchange("/api/leads", HttpMethod.POST, new HttpEntity<>(Map.of(
             "name", "Jonas Berg",
             "email", "Jonas.Berg@Example.test",
+            "phone", "+49 170 1234567",
             "eventDate", LocalDate.now().plusDays(60).toString(),
             "eventType", "Hochzeit",
             "budgetRange", "2000-3000"), headers(token, true)), Map.class);
@@ -90,6 +91,8 @@ class ClientDirectoryIT extends IntegrationTestBase {
             assertThat(c.fullName()).isEqualTo("Jonas Berg");
             assertThat(c.email()).isEqualTo("jonas.berg@example.test");
             assertThat(c.totalBookings()).isEqualTo(1);
+            // Bookings hold no phone; the lead the booking came from does.
+            assertThat(c.phone()).isEqualTo("+49 170 1234567");
         });
     }
 

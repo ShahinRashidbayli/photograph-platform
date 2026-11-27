@@ -25,19 +25,23 @@ import org.springframework.data.repository.query.Param;
  *   <li>bookings: every booking that is not Not happening;</li>
  *   <li>upcoming: those dated {@code :today} or later and not yet completed;</li>
  *   <li>last session: the latest such date up to {@code :today};</li>
- *   <li>spent: succeeded payments on invoices for the client's bookings, any
- *       status, since a payment on a withdrawn invoice carries over (ADR-004);</li>
  *   <li>joined: when their first booking was created.</li>
  * </ul>
+ *
+ * <p>Collected is not summed here. Which payments count is invoice's {@code
+ * Settlement} to decide (ADR-004 §1), so {@code ClientService} asks it for the
+ * client's bookings found by {@link #findBookingIds}. A sum over {@code
+ * payments} in this query would be a copy ArchUnit cannot see, because it is
+ * native SQL.
  *
  * <p>The id is a hash of tenant and address rather than a stored key, so a
  * client has a stable id from their first booking on without a row to create,
  * and the address itself never travels in a URL. Anonymised bookings ({@code
  * :erasedPattern}) are left out, or each would list as a client of its own.
- * Tenant isolation is RLS's job, on {@code bookings}, {@code invoices}, {@code
- * payments} and {@code client_notes} alike; the joins still carry {@code
- * tenant_id}, because the id is already per tenant and an address shared by
- * two studios must never pick up the other's spend or notes.
+ * Tenant isolation is RLS's job, on {@code bookings} and {@code client_notes}
+ * alike; the join still carries {@code tenant_id}, because the id is already
+ * per tenant and an address shared by two studios must never pick up the
+ * other's notes.
  */
 public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
 
@@ -63,26 +67,16 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
                    MAX(pb.created_at) AS last_activity
             FROM person_bookings pb
             GROUP BY pb.tenant_id, pb.email
-        ),
-        spend AS (
-            SELECT b.tenant_id, lower(btrim(b.client_email)) AS email, SUM(p.amount_cents) AS spent_cents
-            FROM payments p
-            JOIN invoices i ON i.id = p.invoice_id
-            JOIN bookings b ON b.id = i.booking_id
-            WHERE p.status = 'SUCCEEDED'
-            GROUP BY b.tenant_id, lower(btrim(b.client_email))
         )
         SELECT d.id                                      AS id,
                d.email                                   AS email,
                d.full_name                               AS fullName,
                n.notes                                   AS notes,
                CAST(d.total_bookings AS integer)         AS totalBookings,
-               CAST(COALESCE(s.spent_cents, 0) AS bigint) AS totalSpentCents,
                CAST(d.upcoming_bookings AS integer)      AS upcomingBookings,
                d.last_booking_date                       AS lastBookingDate,
                d.created_at                              AS createdAt
         FROM directory d
-        LEFT JOIN spend s        ON s.tenant_id = d.tenant_id AND s.email = d.email
         LEFT JOIN client_notes n ON n.tenant_id = d.tenant_id AND n.email = d.email
         """;
 
@@ -102,7 +96,27 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
         @Param("notHappening") Collection<String> notHappening,
         @Param("erasedPattern") String erasedPattern);
 
+    /**
+     * Every booking of these clients, in any status: a payment on a booking
+     * that was later cancelled is still money the studio holds. Filtered on
+     * the tenant as well as RLS, for the same reason as the directory's joins.
+     */
+    @Query(value = """
+        SELECT lower(btrim(b.client_email)) AS email, b.id AS bookingId
+        FROM bookings b
+        WHERE b.tenant_id = :tenantId
+          AND lower(btrim(b.client_email)) IN (:emails)
+        """, nativeQuery = true)
+    List<ClientBooking> findBookingIds(
+        @Param("tenantId") UUID tenantId,
+        @Param("emails") Collection<String> emails);
+
     Optional<ClientNote> findByEmail(String normalizedEmail);
+
+    interface ClientBooking {
+        String getEmail();
+        UUID getBookingId();
+    }
 
     interface ClientView {
         UUID getId();
@@ -110,7 +124,6 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
         String getFullName();
         String getNotes();
         Integer getTotalBookings();
-        Long getTotalSpentCents();
         Integer getUpcomingBookings();
         LocalDate getLastBookingDate();
         Instant getCreatedAt();

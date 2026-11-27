@@ -9,15 +9,18 @@ import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.repository.LeadRepository;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Read-only views derived from lead data: the CSV export and the per-lead
- * activity timeline.
+ * Read-only views derived from lead data: the CSV export, the per-lead
+ * activity timeline, and the phone numbers the client directory shows.
  *
  * <p>Split out of {@link LeadService} because neither mutates a lead — they
  * exist to render lead data somewhere else (a spreadsheet, an audit panel) and
@@ -92,6 +95,21 @@ public class LeadReportingService {
             .stream()
             .map(LeadReportingService::toAuditResponse)
             .toList();
+    }
+
+    /**
+     * The newest phone number each of these addresses gave on a lead, keyed
+     * by the lower-cased, trimmed address. Bookings record no phone, so a
+     * lead is the only place a client's number is ever written down. An
+     * address with none is absent from the map.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> latestPhoneByEmail(Collection<String> normalizedEmails) {
+        if (normalizedEmails.isEmpty()) {
+            return Map.of();
+        }
+        return leadRepository.findLatestPhones(SecurityUtils.requireCurrentTenantId(), normalizedEmails).stream()
+            .collect(Collectors.toMap(LeadRepository.LatestPhone::getEmail, LeadRepository.LatestPhone::getPhone));
     }
 
     private static AuditLogResponse toAuditResponse(AuditLog row) {

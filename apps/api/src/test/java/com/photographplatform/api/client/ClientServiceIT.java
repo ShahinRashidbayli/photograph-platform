@@ -11,7 +11,11 @@ import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -121,6 +125,48 @@ class ClientServiceIT extends IntegrationTestBase {
 
         assertThat(byEmail(clients, "maria@example.test").totalSpentCents()).isEqualTo(120_000);
         assertThat(byEmail(clients, "jonas@example.test").totalSpentCents()).isEqualTo(70_000);
+    }
+
+    /**
+     * Collected follows the client's bookings, not only the ones that still
+     * count: a cancelled shoot's payment still arrived. Settlement decides
+     * which payments count; the directory only adds them up per client.
+     */
+    @Test
+    void collectedCountsEveryBookingOfTheClientWhateverItsStatus() {
+        Fixture fx = createTenant();
+        UUID cancelled = booking(fx, "Maria", "maria@example.test", TODAY.minusDays(30), "CANCELLED");
+        UUID live = booking(fx, "Maria", "maria@example.test", TODAY.plusDays(30), "CONFIRMED");
+        payment(fx, invoice(fx, cancelled, 1, 40_000), "SUCCEEDED", 40_000);
+        payment(fx, invoice(fx, live, 2, 60_000), "SUCCEEDED", 25_000);
+
+        ClientResponse maria = asUser(fx, () -> clientService.list()).get(0);
+
+        assertThat(maria.totalBookings()).isEqualTo(1);
+        assertThat(maria.totalSpentCents()).isEqualTo(65_000);
+    }
+
+    /**
+     * Bookings record no phone, so the number is the newest one the client
+     * gave on a lead, matched by address however it was typed. Another
+     * studio's lead from the same address is not theirs to show.
+     */
+    @Test
+    void thePhoneIsTheNewestOneTheirLeadsGave() {
+        Fixture fx = createTenant();
+        Fixture other = createTenant();
+        Instant now = Instant.now();
+        booking(fx, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        booking(fx, "Jonas", "jonas@example.test", TODAY.plusDays(5), "CONFIRMED");
+        lead(fx, "Maria@Example.test ", "+49 30 1111", now.minus(Duration.ofDays(30)));
+        lead(fx, "maria@example.test", " +49 30 2222 ", now.minus(Duration.ofDays(10)));
+        lead(fx, "maria@example.test", null, now.minus(Duration.ofDays(1)));
+        lead(other, "jonas@example.test", "+49 40 9999", now);
+
+        List<ClientResponse> clients = asUser(fx, () -> clientService.list());
+
+        assertThat(byEmail(clients, "maria@example.test").phone()).isEqualTo("+49 30 2222");
+        assertThat(byEmail(clients, "jonas@example.test").phone()).isNull();
     }
 
     /** An erased person's bookings stay for the books, but they are nobody's client any more. */
@@ -270,6 +316,13 @@ class ClientServiceIT extends IntegrationTestBase {
             INSERT INTO payments (tenant_id, invoice_id, method, status, amount_cents)
             VALUES (?, ?, 'UEBERWEISUNG', ?, ?)
             """, fx.tenantId(), invoiceId, status, amountCents));
+    }
+
+    private void lead(Fixture fx, String email, String phone, Instant createdAt) {
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO leads (tenant_id, name, email, phone, created_at)
+            VALUES (?, 'Lead', ?, ?, ?)
+            """, fx.tenantId(), email, phone, OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC)));
     }
 
     private Fixture createTenant() {

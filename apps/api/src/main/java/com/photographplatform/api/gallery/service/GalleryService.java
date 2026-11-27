@@ -1,7 +1,9 @@
 package com.photographplatform.api.gallery.service;
 
 import com.photographplatform.api.audit.service.AuditService;
+import com.photographplatform.api.booking.dto.BookingCustomer;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.common.config.TenantContext;
@@ -10,6 +12,7 @@ import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.media.ImageUploadType;
 import com.photographplatform.api.common.media.UploadLimits;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.entitlement.service.EntitlementService;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
@@ -20,6 +23,7 @@ import com.photographplatform.api.gallery.dto.GalleryDownloadPlan;
 import com.photographplatform.api.gallery.dto.GalleryResponse;
 import com.photographplatform.api.gallery.dto.PublicGalleryResponse;
 import com.photographplatform.api.gallery.dto.UpdateGalleryRequest;
+import com.photographplatform.api.gallery.event.GalleryDeliveredEvent;
 import com.photographplatform.api.gallery.repository.DeliveryPhotoRepository;
 import com.photographplatform.api.gallery.repository.GalleryRepository;
 import com.photographplatform.api.gallery.repository.GalleryRepository.GalleryStatsView;
@@ -30,8 +34,10 @@ import com.photographplatform.api.portfolio.config.R2Properties;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.portfolio.service.ThumbnailService;
 import com.photographplatform.api.common.security.RateLimiter;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -42,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +64,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 public class GalleryService {
 
+    /** The audit row's new value when a gallery went out with a personal note. */
+    public static final String SENT_WITH_A_NOTE = "sent with a note";
+
     private final GalleryRepository galleryRepository;
     private final BrandingService brandingService;
     private final DeliveryPhotoRepository deliveryPhotoRepository;
@@ -68,6 +78,9 @@ public class GalleryService {
     private final Clock clock;
     private final RateLimiter rateLimiter;
     private final R2Properties r2Properties;
+    private final BookingQueryService bookingQueryService;
+    private final PublicTenantResolver tenants;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** See {@link #prepareDownload} — the ZIP is the costliest thing we serve. */
     private static final int DOWNLOAD_MAX_PER_DAY = 20;
@@ -83,7 +96,10 @@ public class GalleryService {
                           Clock clock,
                           RateLimiter rateLimiter,
                           R2Properties r2Properties,
-        BrandingService brandingService
+                          BrandingService brandingService,
+                          BookingQueryService bookingQueryService,
+                          PublicTenantResolver tenants,
+                          ApplicationEventPublisher eventPublisher
     ) {
         this.galleryRepository = galleryRepository;
         this.brandingService = brandingService;
@@ -96,6 +112,9 @@ public class GalleryService {
         this.clock = clock;
         this.rateLimiter = rateLimiter;
         this.r2Properties = r2Properties;
+        this.bookingQueryService = bookingQueryService;
+        this.tenants = tenants;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -199,6 +218,64 @@ public class GalleryService {
             audit("GALLERY_EXTENDED", id, ipAddress);
         }
         return toResponse(requireStats(id));
+    }
+
+    /**
+     * "An Kunden senden": tells the booking's Customer that their gallery is
+     * ready, with a link to it. Can be sent again; each send is one message.
+     *
+     * <p>Changes nothing on the gallery. The retention clock started when it
+     * was created ({@code deliveredAt}) and keeps running from there: whether
+     * sending should restart it is a decision not taken yet.
+     *
+     * <p>Refuses while the gallery has no photos, so the Customer never opens an
+     * empty gallery, and once it can no longer be opened: a link to a gallery
+     * that is gone only sends the Customer to a tombstone.
+     *
+     * @param personalNote the photographer's optional Personal note; null for none
+     */
+    @Transactional
+    public GalleryResponse send(UUID id, String personalNote, String ipAddress) {
+        Gallery gallery = galleryRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Gallery not found: " + id));
+        GalleryStatsView stats = requireStats(id);
+        if (stats.getPhotoCount() == null || stats.getPhotoCount() == 0) {
+            throw new ConflictException("Upload photos before sending this gallery to the customer");
+        }
+        Instant sentAt = clock.instant();
+        if (!gallery.isReachable(OffsetDateTime.ofInstant(sentAt, clock.getZone()))) {
+            throw new ConflictException("This gallery has expired; extend it before sending it again");
+        }
+        BookingCustomer customer = bookingQueryService.customer(gallery.getBookingId());
+        String to = Normalize.trimToNull(customer.email());
+        if (to == null) {
+            throw new ConflictException("Add the customer's email to the booking before sending the gallery");
+        }
+
+        // A note is the photographer's words to one Customer: the trail says
+        // that one was sent, never what it said.
+        String trimmedNote = Normalize.trimToNull(personalNote);
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+        if (trimmedNote == null) {
+            auditService.log("GALLERY_SENT", "GALLERY", id, tenantId, actorId, ipAddress);
+        } else {
+            auditService.logChange("GALLERY_SENT", "GALLERY", id, tenantId, actorId, ipAddress,
+                null, SENT_WITH_A_NOTE);
+        }
+
+        eventPublisher.publishEvent(new GalleryDeliveredEvent(
+            this,
+            id,
+            tenantId,
+            to,
+            customer.name(),
+            customer.language(),
+            trimmedNote,
+            sentAt,
+            tenants.requireById(tenantId).getSubdomain(),
+            gallery.getAccessToken()));
+        return toResponse(stats);
     }
 
     /** Deletes the gallery and its photos' files; see {@link GalleryRemoval}. */

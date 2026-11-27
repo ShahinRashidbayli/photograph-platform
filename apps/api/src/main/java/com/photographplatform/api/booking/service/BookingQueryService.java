@@ -5,6 +5,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingConflictResponse;
+import com.photographplatform.api.booking.dto.BookingCustomer;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
@@ -23,6 +24,7 @@ import java.time.Month;
 import java.time.Year;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -101,6 +103,26 @@ public class BookingQueryService {
      */
     public List<UUID> tenantsWithClientEmail(String email) {
         return bookingRepository.findTenantsWithClientEmail(email);
+    }
+
+    /**
+     * The Customer behind a booking, for a Customer message about something
+     * hung off it. Tenant-scoped by RLS, so another studio's id resolves to
+     * nothing.
+     */
+    public BookingCustomer customer(UUID bookingId) {
+        return findCustomer(bookingId)
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+    }
+
+    /**
+     * {@link #customer} for a caller that must carry on without one: throwing
+     * out of this transactional bean would mark the caller's transaction
+     * rollback-only (the retention sweep records reminders in it).
+     */
+    public Optional<BookingCustomer> findCustomer(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(b -> new BookingCustomer(b.getClientEmail(), b.getClientName(), b.getLanguage()));
     }
 
     /**

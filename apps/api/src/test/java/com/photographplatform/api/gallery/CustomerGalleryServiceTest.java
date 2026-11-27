@@ -15,6 +15,8 @@ import static org.mockito.Mockito.when;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
+import org.springframework.context.ApplicationEventPublisher;
 import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -71,7 +73,8 @@ class CustomerGalleryServiceTest {
             galleryRepository, photoRepository, mock(BookingRepository.class),
             Optional.of(storage), mock(AuditService.class), mock(DeliveryPhotoProcessor.class),
             mock(EntitlementService.class), CLOCK, mock(RateLimiter.class), new R2Properties(),
-            mock(BrandingService.class));
+            mock(BrandingService.class), bookingQueryService, mock(PublicTenantResolver.class),
+            mock(ApplicationEventPublisher.class));
 
         service = new CustomerGalleryService(
             bookingQueryService, galleryRepository, photoRepository, galleryService, CLOCK);

@@ -260,9 +260,8 @@ public class SecurityConfig {
                 // photographer's own drafts. The customer's view of the
                 // same documents is /api/customer/contracts/**, which is
                 // scoped to the caller's own address — this one is not.
-                // Send and resend (POST /api/contracts/{id}/send|resend)
-                // email the Customer in the studio's name, so they are
-                // staff-only for the same reason.
+                // Send and resend (POST …/{id}/send|resend) email the Customer
+                // in the studio's name, so they are staff-only too.
                 "/api/contracts/**",
                 // Which unbuilt ideas this studio has asked for. Tenant-wide
                 // and the owner's business, like every other answer here.

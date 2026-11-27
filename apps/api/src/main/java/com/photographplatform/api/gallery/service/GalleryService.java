@@ -194,9 +194,10 @@ public class GalleryService {
 
         int retentionDays = entitlementService.accessForCurrentTenant()
             .entitlements().galleryRetentionDays();
-        gallery.extend(OffsetDateTime.now(clock), retentionDays);
-        galleryRepository.save(gallery);
-        audit("GALLERY_EXTENDED", id, ipAddress);
+        if (gallery.extend(OffsetDateTime.now(clock), retentionDays)) {
+            galleryRepository.save(gallery);
+            audit("GALLERY_EXTENDED", id, ipAddress);
+        }
         return toResponse(requireStats(id));
     }
 

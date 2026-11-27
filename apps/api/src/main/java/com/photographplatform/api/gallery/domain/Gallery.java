@@ -244,11 +244,21 @@ public class Gallery {
      * be shorter than what a gallery still has left, and resetting to it
      * would cut a two-year gallery to sixty days with one click — and the
      * retention job deletes the photos once that date passes.
+     *
+     * @return whether anything changed. A live gallery that already runs past
+     *     the plan window is left exactly as it was — counting that as an
+     *     extension would put one in the history and audit log that never
+     *     happened.
      */
-    public void extend(OffsetDateTime now, int retentionDays) {
+    public boolean extend(OffsetDateTime now, int retentionDays) {
         OffsetDateTime renewed = now.plusDays(retentionDays);
         // A null expiry is "never expires" — later than any window, so it stays.
-        if (expiresAt != null && renewed.isAfter(expiresAt)) {
+        boolean movesExpiry = expiresAt != null && renewed.isAfter(expiresAt);
+        boolean revives = getExpiryState() != GalleryExpiryState.ACTIVE;
+        if (!movesExpiry && !revives) {
+            return false;
+        }
+        if (movesExpiry) {
             this.retentionDays = retentionDays;
             this.expiresAt = renewed;
         }
@@ -257,6 +267,7 @@ public class Gallery {
         this.purgeAfter = null;
         this.extendedAt = now;
         this.extensionCount = (this.extensionCount == null ? 0 : this.extensionCount) + 1;
+        return true;
     }
 
     /** Purged galleries have no bytes left to bring back. */

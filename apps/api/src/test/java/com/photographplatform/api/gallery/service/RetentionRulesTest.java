@@ -126,21 +126,36 @@ class RetentionRulesTest {
         Gallery gallery = gallery(NOW.minusDays(30), 730);
         OffsetDateTime before = gallery.getExpiresAt();
 
-        gallery.extend(NOW, 60);
+        boolean changed = gallery.extend(NOW, 60);
 
         assertThat(gallery.getExpiresAt()).isEqualTo(before);
         assertThat(gallery.getRetentionDays()).isEqualTo(730);
         assertThat(gallery.getExpiryState()).isEqualTo(GalleryExpiryState.ACTIVE);
+        // Nothing happened, so nothing goes into the history or the audit log.
+        assertThat(changed).isFalse();
+        assertThat(gallery.getExtensionCount()).isZero();
+        assertThat(gallery.getExtendedAt()).isNull();
     }
 
     @Test
     void extendingAnActiveGalleryRenewsTheFullWindowFromNow() {
         Gallery gallery = gallery(NOW.minusDays(50), 60);
 
-        gallery.extend(NOW, 60);
+        boolean changed = gallery.extend(NOW, 60);
 
+        assertThat(changed).isTrue();
         assertThat(gallery.getExpiresAt()).isEqualTo(NOW.plusDays(60));
         assertThat(gallery.getExtensionCount()).isEqualTo(1);
+    }
+
+    /** "No expiry" is later than any plan window, so extending keeps it. */
+    @Test
+    void extendingAGalleryWithoutAnExpiryLeavesItUnlimited() {
+        Gallery gallery = gallery(NOW.minusDays(50), 60);
+        gallery.setExpiresAt(null);
+
+        assertThat(gallery.extend(NOW, 60)).isFalse();
+        assertThat(gallery.getExpiresAt()).isNull();
     }
 
     // ── configuration guards ────────────────────────────────────────────

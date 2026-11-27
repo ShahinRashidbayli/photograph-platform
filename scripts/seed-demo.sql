@@ -84,6 +84,7 @@ TRUNCATE payments, invoice_line_items, invoices, invoice_counters CASCADE;
 
 DELETE FROM bookings   USING seed_target s WHERE bookings.tenant_id   = s.tenant_id;
 DELETE FROM clients    USING seed_target s WHERE clients.tenant_id    = s.tenant_id;
+DELETE FROM client_notes USING seed_target s WHERE client_notes.tenant_id = s.tenant_id;
 DELETE FROM leads      USING seed_target s WHERE leads.tenant_id      = s.tenant_id;
 DELETE FROM packages   USING seed_target s WHERE packages.tenant_id   = s.tenant_id;
 DELETE FROM inquiry_requests USING seed_target s WHERE inquiry_requests.tenant_id = s.tenant_id;
@@ -116,49 +117,33 @@ FROM seed_target s, (VALUES
     ('11111111-0000-4000-a000-000000000006'::uuid, 'Newborn (2024)',      35000,  2.0,  30, false, 6)
 ) AS p(id, name, price_cents, hours, photos, active, sort);
 
--- ── Clients ─────────────────────────────────────────────────────────────────
--- Chosen so the directory's three filters all have something to show:
---   Active — has a future booking that is not COMPLETED/CANCELLED
---   Repeat — total_bookings > 1
---   neither — past-only, or an enquiry that never became a booking
-INSERT INTO clients (id, tenant_id, email, full_name, phone, notes, tags, source,
-                     total_bookings, total_spent_cents, last_booking_date, created_at)
-SELECT c.id, s.tenant_id, c.email, c.name, c.phone, c.notes, c.tags, c.source,
-       -- Placeholders: the UPDATE after the bookings insert derives the real
-       -- figures from the rows that actually exist.
-       0, 0, NULL, now() - c.age
+-- ── Client notes ────────────────────────────────────────────────────────────
+-- The client directory is derived from the bookings below (V40): one client
+-- per address, with their counts, upcoming sessions and spend computed on
+-- read. The only thing it stores is the photographer's notes, keyed by the
+-- client's normalised address. The bookings are chosen so the directory's
+-- three filters all have something to show:
+--   Active — has a future booking that is not COMPLETED/CANCELLED/DECLINED
+--   Repeat — more than one booking that is happening
+--   neither — past-only, or a single cancelled booking
+INSERT INTO client_notes (tenant_id, email, notes)
+SELECT s.tenant_id, n.email, n.notes
 FROM seed_target s, (VALUES
-    ('22222222-0000-4000-a000-000000000001'::uuid, 'maria.kellner@web.de', 'Maria Kellner', '+49 170 1234567',
-     'Zweite Hochzeit in der Familie — Schwester heiratet 2027, Kontakt halten.',
-     ARRAY['hochzeit','stammkunde'], 'REFERRAL', 3, 437000, CURRENT_DATE + 21, INTERVAL '400 days'),
-    ('22222222-0000-4000-a000-000000000002'::uuid, 'j.hoffmann@gmx.de', 'Julia Hoffmann', '+49 151 9876543',
-     'Möchte unbedingt Available Light, kein Blitz in der Kirche.',
-     ARRAY['hochzeit'], 'INSTAGRAM', 1, 149000, CURRENT_DATE + 62, INTERVAL '90 days'),
-    ('22222222-0000-4000-a000-000000000003'::uuid, 'familie.bauer@t-online.de', 'Familie Bauer', '+49 160 2223344',
-     'Jedes Jahr im Herbst — Erinnerung im August schicken.',
-     ARRAY['familie','stammkunde'], 'WEBSITE', 4, 156000, CURRENT_DATE - 30, INTERVAL '900 days'),
-    ('22222222-0000-4000-a000-000000000004'::uuid, 'thomas.wagner@outlook.de', 'Thomas Wagner', '+49 176 5551122',
-     NULL, ARRAY['business'], 'WEBSITE', 1, 29000, CURRENT_DATE - 120, INTERVAL '200 days'),
-    ('22222222-0000-4000-a000-000000000005'::uuid, 'lena.schulz@posteo.de', 'Lena Schulz', '+49 152 3334455',
-     'Hat kurzfristig abgesagt, war aber sehr freundlich — nicht abschreiben.',
-     ARRAY['hochzeit'], 'REFERRAL', 1, 0, CURRENT_DATE - 45, INTERVAL '150 days'),
-    ('22222222-0000-4000-a000-000000000006'::uuid, 'p.neumann@mail.de', 'Paul Neumann', NULL,
-     NULL, ARRAY['portrait'], 'INSTAGRAM', 0, 0, NULL, INTERVAL '9 days'),
-    ('22222222-0000-4000-a000-000000000007'::uuid, 'sandra.klein@web.de', 'Sandra Klein', '+49 171 8889900',
-     'Verschoben auf 2027 wegen Bauverzögerung in der Location.',
-     ARRAY['hochzeit'], 'WEBSITE', 2, 149000, CURRENT_DATE + 200, INTERVAL '300 days'),
-    ('22222222-0000-4000-a000-000000000008'::uuid, 'm.fischer@gmail.com', 'Michael Fischer', '+49 157 4445566',
-     NULL, ARRAY['business','stammkunde'], 'REFERRAL', 5, 145000, CURRENT_DATE + 7, INTERVAL '600 days')
-) AS c(id, email, name, phone, notes, tags, source, total_bookings, spent, last_booking, age);
+    ('maria.kellner@web.de',      'Zweite Hochzeit in der Familie — Schwester heiratet 2027, Kontakt halten.'),
+    ('j.hoffmann@gmx.de',         'Möchte unbedingt Available Light, kein Blitz in der Kirche.'),
+    ('familie.bauer@t-online.de', 'Jedes Jahr im Herbst — Erinnerung im August schicken.'),
+    ('lena.schulz@posteo.de',     'Hat kurzfristig abgesagt, war aber sehr freundlich — nicht abschreiben.'),
+    ('sandra.klein@web.de',       'Verschoben auf 2027 wegen Bauverzögerung in der Location.')
+) AS n(email, notes);
 
 -- ── Bookings ────────────────────────────────────────────────────────────────
 -- Every status the schema allows, spread across past and future so the
 -- calendar, the "upcoming" counts and the revenue figures all have something
 -- to work with.
-INSERT INTO bookings (id, tenant_id, client_id, client_name, client_email, event_date, event_time,
+INSERT INTO bookings (id, tenant_id, client_name, client_email, event_date, event_time,
                       event_type, location, package_id, total_amount_cents, deposit_amount_cents,
                       status, internal_notes, created_at, updated_at)
-SELECT b.id, s.tenant_id, b.client_id, b.name, b.email, b.event_date, b.event_time,
+SELECT b.id, s.tenant_id, b.name, b.email, b.event_date, b.event_time,
        b.event_type, b.location, b.package_id, b.total, b.deposit, b.status, b.notes,
        now() - b.age, now() - b.age
 FROM seed_target s, (VALUES
@@ -247,35 +232,6 @@ FROM seed_target s, (VALUES
      29000, 0, 'COMPLETED', NULL, INTERVAL '720 days')
 ) AS b(id, client_id, name, email, event_date, event_time, event_type, location,
        package_id, total, deposit, status, notes, age);
-
--- ── Client statistics ───────────────────────────────────────────────────────
--- Derived from the bookings above rather than typed in beside them. Hand-
--- written totals drifted from the rows they claimed to summarise the moment
--- the booking list changed — the directory said "5 bookings" over a client
--- whose detail panel listed two, which reads as an application bug rather
--- than as bad demo data.
---
--- Cancelled and declined bookings are excluded from the count: neither was a
--- session this client had. Spend counts COMPLETED only, because the column is
--- shown as *lifetime revenue* and a confirmed booking six weeks out is not
--- revenue yet.
-UPDATE clients c
-SET total_bookings = stats.booking_count,
-    total_spent_cents = stats.completed_cents,
-    last_booking_date = stats.last_event
-FROM (
-    SELECT b.client_id,
-           count(*) FILTER (WHERE b.status NOT IN ('CANCELLED', 'DECLINED')) AS booking_count,
-           COALESCE(SUM(b.total_amount_cents) FILTER (WHERE b.status = 'COMPLETED'), 0)
-             AS completed_cents,
-           max(b.event_date) FILTER (WHERE b.status NOT IN ('CANCELLED', 'DECLINED'))
-             AS last_event
-    FROM bookings b
-    WHERE b.client_id IS NOT NULL
-    GROUP BY b.client_id
-) AS stats
-WHERE c.id = stats.client_id
-  AND c.tenant_id = (SELECT tenant_id FROM seed_target);
 
 -- ── Leads ───────────────────────────────────────────────────────────────────
 -- Every status × a spread of scores, so the inbox, the badge count and the
@@ -471,7 +427,7 @@ JOIN LATERAL (
 COMMIT;
 
 -- ── What landed ─────────────────────────────────────────────────────────────
-SELECT 'clients'   AS table_name, count(*) FROM clients   WHERE tenant_id = (SELECT tenant_id FROM seed_target)
+SELECT 'clients'   AS table_name, count(DISTINCT lower(client_email)) FROM bookings WHERE tenant_id = (SELECT tenant_id FROM seed_target)
 UNION ALL SELECT 'bookings',  count(*) FROM bookings  WHERE tenant_id = (SELECT tenant_id FROM seed_target)
 UNION ALL SELECT 'leads',     count(*) FROM leads     WHERE tenant_id = (SELECT tenant_id FROM seed_target)
 UNION ALL SELECT 'galleries', count(*) FROM galleries WHERE tenant_id = (SELECT tenant_id FROM seed_target)

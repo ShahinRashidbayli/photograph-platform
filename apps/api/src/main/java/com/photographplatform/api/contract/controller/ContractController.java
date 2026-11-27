@@ -3,6 +3,7 @@ package com.photographplatform.api.contract.controller;
 import com.photographplatform.api.common.security.ClientIp;
 import com.photographplatform.api.contract.dto.ContractResponse;
 import com.photographplatform.api.contract.dto.CreateContractRequest;
+import com.photographplatform.api.contract.dto.SendContractRequest;
 import com.photographplatform.api.contract.dto.UpdateContractRequest;
 import com.photographplatform.api.contract.service.ContractService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -69,9 +70,24 @@ public class ContractController {
         return ResponseEntity.ok(contractService.update(id, request, ClientIp.from(http)));
     }
 
+    /** The body is optional: {@code { "note": "…" }}, the photographer's personal note. */
     @PostMapping("/contracts/{id}/send")
-    public ResponseEntity<ContractResponse> send(@PathVariable UUID id, HttpServletRequest http) {
-        return ResponseEntity.ok(contractService.send(id, ClientIp.from(http)));
+    public ResponseEntity<ContractResponse> send(
+        @PathVariable UUID id,
+        @Valid @RequestBody(required = false) SendContractRequest request,
+        HttpServletRequest http
+    ) {
+        return ResponseEntity.ok(contractService.send(id, personalNoteOf(request), ClientIp.from(http)));
+    }
+
+    /** "Erneut senden": SENT contracts only; the contract itself does not change. */
+    @PostMapping("/contracts/{id}/resend")
+    public ResponseEntity<ContractResponse> resend(
+        @PathVariable UUID id,
+        @Valid @RequestBody(required = false) SendContractRequest request,
+        HttpServletRequest http
+    ) {
+        return ResponseEntity.ok(contractService.resend(id, personalNoteOf(request), ClientIp.from(http)));
     }
 
     @PostMapping("/contracts/{id}/cancel")
@@ -87,5 +103,9 @@ public class ContractController {
             .header(HttpHeaders.CONTENT_DISPOSITION,
                 "attachment; filename=\"" + contractService.pdfFilename(contract) + "\"")
             .body(contractService.renderPdf(id));
+    }
+
+    private static String personalNoteOf(SendContractRequest request) {
+        return request == null ? null : request.note();
     }
 }

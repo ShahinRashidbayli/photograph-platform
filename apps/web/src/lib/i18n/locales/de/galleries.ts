@@ -69,13 +69,24 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.detail.watermarkOff': 'Aus — Fotos werden ohne Logo gezeigt',
   'galleries.detail.expiresOn': 'Läuft ab am {date}',
   'galleries.detail.neverExpires': 'Kein Ablaufdatum',
-  'galleries.detail.extend': '+30 Tage',
+  'galleries.detail.extend': 'Auf {days} Tage ab heute verlängern',
+  'galleries.detail.extendFallback': 'Verlängern',
+  'galleries.detail.extendHint':
+    'Hält die Galerie für das volle Aufbewahrungsfenster Ihres Tarifs online, ab heute gerechnet. Das Ablaufdatum wird dabei nie vorgezogen.',
   'galleries.detail.addPhotos': 'Hinzufügen',
   'galleries.detail.statusActive': 'Aktiv',
   'galleries.detail.statusExpired': 'Abgelaufen',
   'galleries.detail.statusPurged': 'Gelöscht',
 
   'galleries.update.error': 'Die Galerie konnte nicht aktualisiert werden.',
+  'galleries.send.action': 'An Kunden senden',
+  'galleries.send.title': 'Diese Galerie an Ihren Kunden senden?',
+  'galleries.send.body':
+    '{name} erhält eine E-Mail im Namen Ihres Studios mit dem Link zur Galerie. Sie können sie später erneut senden.',
+  'galleries.send.empty':
+    'Laden Sie zuerst Fotos hoch — eine leere Galerie lässt sich nicht senden.',
+  'galleries.send.error':
+    'Die Galerie konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
   'galleries.extend.error':
     'Galerie konnte nicht verlängert werden. Wenn die Fotos bereits gelöscht wurden, können sie nicht wiederhergestellt werden.',
   'galleries.delete.error': 'Die Galerie konnte nicht gelöscht werden.',

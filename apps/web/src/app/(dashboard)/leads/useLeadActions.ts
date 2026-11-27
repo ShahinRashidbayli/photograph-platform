@@ -7,6 +7,12 @@ import { useTriageInquiry } from '@/hooks/useLeads';
 import type { Booking, Lead } from '@/types/api';
 import type { Inquiry } from './inquiryTypes';
 
+/** A request decision being made in the Personal note dialog. */
+export interface Decision {
+  inquiry: Inquiry;
+  status: 'ACCEPTED' | 'REJECTED';
+}
+
 export interface ConvertSuccess {
   bookingId: string;
   leadName: string;
@@ -24,8 +30,14 @@ export interface LeadActions {
   addOpen: boolean;
   openAdd: () => void;
   closeAdd: () => void;
-  // Accepting a client's request (creates the booking).
-  acceptInquiry: (_inquiry: Inquiry) => void;
+  // Deciding a client's request: accepting creates the booking, and either
+  // way the server emails the Customer, with the optional Personal note.
+  deciding: Decision | null;
+  startDecision: (_inquiry: Inquiry, _status: Decision['status']) => void;
+  cancelDecision: () => void;
+  decide: (_note: string | null) => void;
+  /** The decision request is running — from the mutation, never local state. */
+  decisionPending: boolean;
   // A failed mutation surfaces here so the user sees it went wrong instead of
   // the click seeming to do nothing.
   actionError: AsyncError | null;
@@ -40,11 +52,13 @@ export interface LeadActions {
  * `useDeferredStatus`.
  */
 export function useLeadActions(): LeadActions {
-  const { mutate: mutateTriage } = useTriageInquiry();
+  const triage = useTriageInquiry();
+  const { mutate: mutateTriage } = triage;
 
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [convertSuccess, setConvertSuccess] = useState<ConvertSuccess | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [deciding, setDeciding] = useState<Decision | null>(null);
   const [actionError, setActionError] = useState<AsyncError | null>(null);
 
   // Auto-dismiss the success banner after 6s. Cleanup on unmount / re-entry so
@@ -70,24 +84,32 @@ export function useLeadActions(): LeadActions {
     });
   }, []);
 
-  const acceptInquiry = useCallback(
-    (inquiry: Inquiry) => {
+  const decide = useCallback(
+    (note: string | null) => {
+      if (!deciding) return;
+      const { inquiry, status } = deciding;
       setActionError(null);
       mutateTriage(
-        { id: inquiry.id, status: 'ACCEPTED' },
+        { id: inquiry.id, status, note },
         {
           // Accepting creates a booking on the server, so it is announced
           // exactly like a lead conversion — the "view in bookings" banner.
-          onSuccess: (updated) =>
-            setConvertSuccess({
-              bookingId: '',
-              leadName: updated.customerName ?? inquiry.customerName ?? '',
-            }),
+          onSuccess: (updated) => {
+            if (status === 'ACCEPTED') {
+              setConvertSuccess({
+                bookingId: '',
+                leadName: updated.customerName ?? inquiry.customerName ?? '',
+              });
+            }
+          },
           onError: (err) => setActionError(asyncError(err, 'leads.error.triage')),
+          // Closed on failure too: the error shows above the inbox, not in a
+          // dialog that would invite a second click and a second email.
+          onSettled: () => setDeciding(null),
         }
       );
     },
-    [mutateTriage]
+    [deciding, mutateTriage]
   );
 
   const reportError = useCallback(
@@ -105,7 +127,11 @@ export function useLeadActions(): LeadActions {
     addOpen,
     openAdd: () => setAddOpen(true),
     closeAdd: () => setAddOpen(false),
-    acceptInquiry,
+    deciding,
+    startDecision: (inquiry, status) => setDeciding({ inquiry, status }),
+    cancelDecision: () => setDeciding(null),
+    decide,
+    decisionPending: triage.isPending,
     actionError,
     reportError,
     dismissActionError: () => setActionError(null),

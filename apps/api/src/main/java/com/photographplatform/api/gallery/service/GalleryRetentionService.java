@@ -1,16 +1,16 @@
 package com.photographplatform.api.gallery.service;
 
 import com.photographplatform.api.audit.service.AuditService;
-import com.photographplatform.api.booking.domain.Booking;
-import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.dto.BookingCustomer;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.gallery.config.RetentionProperties;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
 import com.photographplatform.api.gallery.domain.GalleryExpiryReminder;
+import com.photographplatform.api.gallery.event.GalleryExpiringEvent;
 import com.photographplatform.api.gallery.repository.DeliveryPhotoRepository;
 import com.photographplatform.api.gallery.repository.GalleryExpiryReminderRepository;
 import com.photographplatform.api.gallery.repository.GalleryRepository;
-import com.photographplatform.api.notification.service.GalleryExpiryNotificationService;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.common.repository.QueryLimits;
@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -49,8 +50,8 @@ public class GalleryRetentionService {
     private final GalleryRepository galleryRepository;
     private final GalleryExpiryReminderRepository reminderRepository;
     private final DeliveryPhotoRepository deliveryPhotoRepository;
-    private final BookingRepository bookingRepository;
-    private final GalleryExpiryNotificationService notifications;
+    private final BookingQueryService bookings;
+    private final ApplicationEventPublisher eventPublisher;
     private final Optional<R2StorageService> storage;
     private final AuditService auditService;
     private final RetentionProperties properties;
@@ -60,8 +61,8 @@ public class GalleryRetentionService {
         GalleryRepository galleryRepository,
         GalleryExpiryReminderRepository reminderRepository,
         DeliveryPhotoRepository deliveryPhotoRepository,
-        BookingRepository bookingRepository,
-        GalleryExpiryNotificationService notifications,
+        BookingQueryService bookings,
+        ApplicationEventPublisher eventPublisher,
         Optional<R2StorageService> storage,
         AuditService auditService,
         RetentionProperties properties,
@@ -69,8 +70,8 @@ public class GalleryRetentionService {
         this.galleryRepository = galleryRepository;
         this.reminderRepository = reminderRepository;
         this.deliveryPhotoRepository = deliveryPhotoRepository;
-        this.bookingRepository = bookingRepository;
-        this.notifications = notifications;
+        this.bookings = bookings;
+        this.eventPublisher = eventPublisher;
         this.storage = storage;
         this.auditService = auditService;
         this.properties = properties;
@@ -80,8 +81,8 @@ public class GalleryRetentionService {
     // ── phase 1: warn the client (ADR-001 §4.1) ─────────────────────────
 
     /**
-     * Emails the client for every gallery that has crossed a warning
-     * threshold, and records that it did.
+     * Warns the Customer, through {@link GalleryExpiringEvent}, about every
+     * gallery that has crossed a warning threshold, and records that it did.
      *
      * <p>Only the most urgent unsent threshold is emailed per gallery per run,
      * but every threshold that has been passed is recorded. That matters after
@@ -120,8 +121,8 @@ public class GalleryRetentionService {
             return false;
         }
 
-        Booking booking = bookingRepository.findById(gallery.getBookingId()).orElse(null);
-        if (booking == null || booking.getClientEmail() == null || booking.getClientEmail().isBlank()) {
+        BookingCustomer customer = bookings.findCustomer(gallery.getBookingId()).orElse(null);
+        if (customer == null || customer.email() == null || customer.email().isBlank()) {
             // Nothing to warn. Logged at WARN rather than skipped silently:
             // ADR-001 makes the client warning a precondition for deletion, so
             // a gallery that can never be warned about is a gallery that
@@ -138,15 +139,20 @@ public class GalleryRetentionService {
                 new GalleryExpiryReminder(tenant.getId(), gallery.getId(), threshold));
         }
 
-        notifications.sendExpiryWarning(
+        // messaging writes the warning, in the Customer's language and the
+        // studio's name, before this transaction commits: with the reminder
+        // rows above, or not at all.
+        eventPublisher.publishEvent(new GalleryExpiringEvent(
+            this,
+            gallery.getId(),
             tenant.getId(),
-            booking.getClientEmail(),
-            booking.getClientName(),
-            displayName(tenant),
+            customer.email(),
+            customer.name(),
+            customer.language(),
             tenant.getSubdomain(),
             gallery.getAccessToken(),
             gallery.getExpiresAt(),
-            (int) Math.max(0, daysLeft));
+            (int) Math.max(0, daysLeft)));
         return true;
     }
 
@@ -257,11 +263,5 @@ public class GalleryRetentionService {
         }
         long days = remaining.toDays();
         return remaining.minusDays(days).isZero() ? days : days + 1;
-    }
-
-    private static String displayName(Tenant tenant) {
-        return tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()
-            ? tenant.getBusinessName()
-            : tenant.getSubdomain();
     }
 }

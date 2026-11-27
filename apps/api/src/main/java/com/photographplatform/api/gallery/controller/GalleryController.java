@@ -5,6 +5,7 @@ import com.photographplatform.api.gallery.dto.CreateGalleryRequest;
 import com.photographplatform.api.gallery.dto.DeliveryPhotoResponse;
 import com.photographplatform.api.gallery.dto.GalleryResponse;
 import com.photographplatform.api.gallery.dto.PublicGalleryResponse;
+import com.photographplatform.api.gallery.dto.SendGalleryRequest;
 import com.photographplatform.api.gallery.dto.UpdateGalleryRequest;
 import com.photographplatform.api.gallery.dto.GalleryDownloadPlan;
 import com.photographplatform.api.gallery.service.GalleryArchiveWriter;
@@ -85,6 +86,21 @@ public class GalleryController {
     public ResponseEntity<GalleryResponse> extend(
         @PathVariable UUID id, HttpServletRequest http) {
         return ResponseEntity.ok(galleryService.extend(id, ClientIp.from(http)));
+    }
+
+    /**
+     * "An Kunden senden": emails the booking's Customer a link to the gallery.
+     * 409 while it has no photos; can be sent again. The body is optional:
+     * {@code { "note": "…" }}, the photographer's personal note.
+     */
+    @PostMapping("/galleries/{id}/send")
+    public ResponseEntity<GalleryResponse> send(
+        @PathVariable UUID id,
+        @Valid @RequestBody(required = false) SendGalleryRequest request,
+        HttpServletRequest http
+    ) {
+        String personalNote = request == null ? null : request.personalNote();
+        return ResponseEntity.ok(galleryService.send(id, personalNote, ClientIp.from(http)));
     }
 
     @DeleteMapping("/galleries/{id}")

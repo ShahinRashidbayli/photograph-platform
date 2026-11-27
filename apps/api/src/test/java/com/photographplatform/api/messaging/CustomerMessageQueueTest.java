@@ -19,6 +19,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +46,7 @@ class CustomerMessageQueueTest {
     @BeforeEach
     void setUp() {
         tenant = new Tenant("lichtblick", "anna@gmail.com");
+        ReflectionTestUtils.setField(tenant, "id", TENANT);
         tenant.setBusinessName("Lichtblick Fotografie");
         tenant.setLegalEmail("kontakt@lichtblick.de");
         tenant.setLogoKey("logos/" + TENANT + "/00000000-0000-0000-0000-000000000001.png");
@@ -116,6 +118,16 @@ class CustomerMessageQueueTest {
     @Test
     void hasNoLogoUrlWhenTheStudioUploadedNone() {
         tenant.setLogoKey(null);
+        plan(Capability.WHITE_LABEL_BRANDING);
+
+        assertThat(((Params) queued().params()).studio().logoUrl()).isNull();
+    }
+
+    @Test
+    void hasNoLogoUrlForAKeyThePublicRouteWouldNotServe() {
+        // An absolute URL stored by hand: the route answers 404, so the email
+        // would show a broken image.
+        tenant.setLogoKey("https://elsewhere.test/logo.png");
         plan(Capability.WHITE_LABEL_BRANDING);
 
         assertThat(((Params) queued().params()).studio().logoUrl()).isNull();

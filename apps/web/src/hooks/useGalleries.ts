@@ -197,6 +197,34 @@ export function useExtendGallery() {
   });
 }
 
+/**
+ * Mirrors `SendGalleryRequest` on the API. `note` is the photographer's
+ * optional Personal note to the Customer, at most 1000 characters; it is
+ * never stored on the gallery.
+ */
+export interface SendGalleryRequest {
+  note: string | null;
+}
+
+/**
+ * "An Kunden senden": emails the booking's Customer the link to the gallery.
+ * Each call is one message, so it can be sent again. The API answers 409
+ * while the gallery has no photos, which is why the screen disables it then.
+ */
+export function useSendGallery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string } & SendGalleryRequest) =>
+      (
+        await api.post<Gallery>(`/api/galleries/${input.id}/send`, {
+          note: input.note,
+        } satisfies SendGalleryRequest)
+      ).data,
+    onSuccess: (updated) =>
+      qc.setQueryData<Gallery[]>(galleriesKey(), (list) => replaceInList(list, updated)),
+  });
+}
+
 export function useDeleteGallery() {
   const qc = useQueryClient();
   return useMutation({

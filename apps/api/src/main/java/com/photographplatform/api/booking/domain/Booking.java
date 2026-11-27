@@ -1,6 +1,9 @@
 package com.photographplatform.api.booking.domain;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.common.domain.CustomerLanguageConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -116,6 +119,11 @@ public class Booking {
 
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
+
+    /** The language every Customer message about this record is written in (V40). */
+    @Convert(converter = CustomerLanguageConverter.class)
+    @Column(nullable = false, length = 2)
+    private CustomerLanguage language = CustomerLanguage.DEFAULT;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -349,5 +357,13 @@ public class Booking {
 
     public OffsetDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public CustomerLanguage getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(CustomerLanguage language) {
+        this.language = language;
     }
 }

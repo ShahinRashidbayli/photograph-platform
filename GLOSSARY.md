@@ -118,3 +118,30 @@ values (`data-tone` in the markup):
 - **Follows the theme**: light in light mode, dark in dark mode (`theme`).
 - **Dark in both themes**: charcoal whatever the theme (`dark`).
 _Avoid_: Dark section, dark room (as a type of Band), inverted
+
+## Studios, Customers and what reaches them
+
+**Studio**:
+One photographer's business on Fotolio: one tenant, with its own Customers,
+bookings and plan.
+_Avoid_: Tenant (in UI copy), account, photographer (for the business)
+
+**Customer**:
+A person a Studio photographs or may photograph: whoever sent an enquiry, holds
+a booking or logs in to the portal.
+_Avoid_: `client` in new code; the existing `client` names stay until #57
+
+**Customer message**:
+An email from a Studio to one of its Customers, written in the Customer's
+language. Composed only in the `messaging` module.
+_Avoid_: Notification, mail, email (as the concept)
+
+**Notification**:
+A message from Fotolio to a Studio about something that happened in it, such as
+a new enquiry. Never sent to a Customer.
+_Avoid_: Customer message, alert
+
+**Personal note**:
+Optional plain text a photographer adds to one send action of a Customer
+message, at most 1000 characters. It is never stored after delivery.
+_Avoid_: Comment, custom message, note (unqualified)

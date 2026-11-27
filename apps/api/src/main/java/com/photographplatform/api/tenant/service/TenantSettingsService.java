@@ -6,6 +6,7 @@ import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.dto.BillingProfileRequest;
 import com.photographplatform.api.tenant.dto.BillingProfileResponse;
+import com.photographplatform.api.tenant.dto.EnquiryAcknowledgementSetting;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Tenant-level settings the photographer owns: the billing profile printed on
- * every invoice.
+ * every invoice, and whether enquiries are acknowledged automatically.
  *
  * <p>Until this existed the columns V12 added were unreachable — {@code
  * setTaxId}/{@code setVatId} had no callers, which is why {@link
@@ -71,6 +72,35 @@ public class TenantSettingsService {
         auditService.log("TENANT_BILLING_PROFILE_UPDATED", "TENANT", tenantId, tenantId, actorId, ipAddress);
 
         return toResponse(tenant);
+    }
+
+    @Transactional(readOnly = true)
+    public EnquiryAcknowledgementSetting getEnquiryAcknowledgement() {
+        return new EnquiryAcknowledgementSetting(
+            tenantRepository.require(SecurityUtils.requireCurrentTenantId()).isEnquiryAcknowledgementEnabled());
+    }
+
+    /**
+     * Switches the automatic "Enquiry received" acknowledgement on or off. It
+     * speaks to the studio's Customers in the studio's name, so who turned it
+     * off, and when, is worth keeping.
+     */
+    @Transactional
+    public EnquiryAcknowledgementSetting updateEnquiryAcknowledgement(EnquiryAcknowledgementSetting req,
+                                                                      String ipAddress) {
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+        UUID actorId = SecurityUtils.requireCurrentUserId();
+        Tenant tenant = tenantRepository.require(tenantId);
+
+        boolean before = tenant.isEnquiryAcknowledgementEnabled();
+        boolean after = req.enabled();
+        if (before != after) {
+            tenant.setEnquiryAcknowledgementEnabled(after);
+            tenantRepository.save(tenant);
+            auditService.logChange("TENANT_ENQUIRY_ACKNOWLEDGEMENT_UPDATED", "TENANT", tenantId, tenantId,
+                actorId, ipAddress, String.valueOf(before), String.valueOf(after));
+        }
+        return new EnquiryAcknowledgementSetting(after);
     }
 
     private BillingProfileResponse toResponse(Tenant tenant) {

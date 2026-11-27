@@ -207,6 +207,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         publicEndpoint("POST /api/public/leads/{subdomain}");
         publicEndpoint("GET /api/public/legal/{subdomain}");
         publicEndpoint("GET /api/public/portfolio/{subdomain}");
+        publicEndpoint("GET /api/public/studios/{subdomain}/logo");
         publicEndpoint("POST /api/public/webhooks/stripe");
         publicEndpoint("POST /api/public/webhooks/stripe/billing");
         staffOnly("GET /api/resources");
@@ -217,6 +218,8 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         staffOnly("PUT /api/roadmap/interest/{feature}");
         staffOnly("GET /api/settings/billing-profile");
         staffOnly("PUT /api/settings/billing-profile");
+        staffOnly("GET /api/settings/enquiry-acknowledgement");
+        staffOnly("PUT /api/settings/enquiry-acknowledgement");
         staffOnly("GET /api/settings/branding");
         staffOnly("PUT /api/settings/branding");
         staffOnly("POST /api/settings/branding/logo/presign");

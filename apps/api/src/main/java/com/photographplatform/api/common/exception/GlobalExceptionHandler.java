@@ -1,12 +1,16 @@
 package com.photographplatform.api.common.exception;
 
+import com.photographplatform.api.common.logging.RequestRoute;
 import jakarta.servlet.http.HttpServletRequest;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,6 +51,9 @@ public class GlobalExceptionHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /** The constraint's name in a Postgres violation message: the name only, never the Detail line. */
+    private static final Pattern CONSTRAINT_NAME = Pattern.compile("constraint \"([^\"]+)\"");
+
     private final Clock clock;
 
     public GlobalExceptionHandler(Clock clock) {
@@ -78,7 +85,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(
         NoResourceFoundException ex, HttpServletRequest request) {
-        LOG.debug("No handler for {} {}", request.getMethod(), request.getRequestURI());
         return respond(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND,
             "That endpoint does not exist.", request);
     }
@@ -170,7 +176,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLock(
         OptimisticLockingFailureException ex, HttpServletRequest request) {
-        LOG.info("Concurrent modification on {}", request.getRequestURI());
+        LOG.info("Concurrent modification on {}", RequestRoute.of(request));
         return respond(
             HttpStatus.CONFLICT, ErrorCode.CONCURRENT_MODIFICATION,
             "Someone else changed this while you were editing it — reload and try again.",
@@ -180,11 +186,20 @@ public class GlobalExceptionHandler {
     /**
      * Likely a race on a unique constraint (subdomain / email). Answered as a
      * conflict without echoing the column or constraint name.
+     *
+     * <p>Logged without the exception. Postgres writes the offending value into
+     * the message ({@code Key (email)=(anna@…) already exists}), so the message,
+     * and every stack trace that carries it, would put a Customer's email in the
+     * log. The constraint and SQL state say which rule fired, which is all a
+     * diagnosis needs.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(
         DataIntegrityViolationException ex, HttpServletRequest request) {
-        LOG.warn("Data integrity violation on {}", request.getRequestURI(), ex);
+        Throwable cause = ex.getMostSpecificCause();
+        LOG.warn("Data integrity violation on {} (constraint={}, sqlState={})",
+            RequestRoute.of(request), constraintName(cause),
+            cause instanceof SQLException sql ? sql.getSQLState() : null);
         return respond(
             HttpStatus.CONFLICT, ErrorCode.ALREADY_EXISTS, "Resource already exists", request);
     }
@@ -254,7 +269,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalState(
         IllegalStateException ex, HttpServletRequest request) {
-        LOG.error("Unexpected illegal state on {}", request.getRequestURI(), ex);
+        LOG.error("Unexpected illegal state on {}", RequestRoute.of(request), ex);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
             "Something went wrong on our side. Please try again.", request);
     }
@@ -267,12 +282,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(
         Exception ex, HttpServletRequest request) {
-        LOG.error("Unhandled exception on {}", request.getRequestURI(), ex);
+        LOG.error("Unhandled exception on {}", RequestRoute.of(request), ex);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
             "Something went wrong on our side. Please try again.", request);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private static String constraintName(Throwable cause) {
+        String message = cause.getMessage();
+        if (message == null) {
+            return null;
+        }
+        Matcher matcher = CONSTRAINT_NAME.matcher(message);
+        return matcher.find() ? matcher.group(1) : null;
+    }
 
     private ResponseEntity<ErrorResponse> respond(
         HttpStatus status, String code, String message, HttpServletRequest request) {

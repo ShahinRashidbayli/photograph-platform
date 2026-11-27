@@ -285,7 +285,8 @@ Global only, via `@ControllerAdvice`. Hierarchy: `BusinessException`,
 
 ## Logging & Audit
 
-- **Structured logging** only. Every request logs: Tenant · User · Correlation ID · Execution Time · Endpoint · IP · Status.
+- **Structured logging** only (one JSON object per line in production). Every request logs one line: Tenant · User · Request ID · Execution Time · Route (the template, never the URI) · Status.
+- **No personal data in logs** — ids only. No IP address, email, name, token or raw URL. The client IP is kept where it has a purpose and a retention rule: the audit trail.
 - **Audit trail** for critical operations (Booking Deleted, Invoice Edited, Payment Refunded, Portfolio Published, Lead Converted). Audit records: Who · When · What · Old Value · New Value.
 
 ## Notifications

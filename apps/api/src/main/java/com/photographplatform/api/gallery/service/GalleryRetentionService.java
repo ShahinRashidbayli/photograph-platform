@@ -173,8 +173,9 @@ public class GalleryRetentionService {
                 "GALLERY_EXPIRED", "gallery", gallery.getId(), tenant.getId(), null, null);
         }
         if (!due.isEmpty()) {
-            LOG.info("Expired {} galleries for tenant {} (bytes retained until purge)",
-                due.size(), tenant.getSubdomain());
+            // The tenant is in the log context (TenantJobRunner); its subdomain
+            // is usually the photographer's name and stays out of the log.
+            LOG.info("Expired {} galleries (bytes retained until purge)", due.size());
         }
         return due.size();
     }
@@ -203,17 +204,17 @@ public class GalleryRetentionService {
         for (Gallery gallery : due) {
             if (reminderRepository.findSentThresholds(gallery.getId()).isEmpty()) {
                 LOG.error(
-                    "Refusing to purge gallery {} (tenant {}): no expiry warning was ever sent to "
+                    "Refusing to purge gallery {}: no expiry warning was ever sent to "
                         + "the client. ADR-001 §4.1 makes that a precondition for deletion — this "
                         + "means the reminder phase did not run for this gallery.",
-                    gallery.getId(), tenant.getSubdomain());
+                    gallery.getId());
                 continue;
             }
             purgeOne(tenant, gallery);
             purged++;
         }
         if (purged > 0) {
-            LOG.info("Purged {} galleries for tenant {}", purged, tenant.getSubdomain());
+            LOG.info("Purged {} galleries", purged);
         }
         return purged;
     }

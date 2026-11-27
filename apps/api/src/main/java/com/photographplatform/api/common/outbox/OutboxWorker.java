@@ -1,6 +1,8 @@
 package com.photographplatform.api.common.outbox;
 
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.logging.LogFields;
+import com.photographplatform.api.common.logging.MdcScope;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
@@ -93,14 +95,27 @@ public class OutboxWorker {
         return claimed;
     }
 
+    /**
+     * Everything the job logs — here and inside its handler — carries the job,
+     * its kind and its tenant, which is what links a failed send back to the
+     * {@code Outbox job queued} line its request wrote.
+     */
     private void runOne(String queue, OutboxJob job) {
+        try (MdcScope scope = MdcScope.open()
+                .with(LogFields.OUTBOX_JOB_ID, job.id())
+                .with(LogFields.OUTBOX_KIND, job.kind())
+                .with(LogFields.TENANT_ID, job.tenantId())) {
+            run(queue, job);
+        }
+    }
+
+    private void run(String queue, OutboxJob job) {
         if (job.expiresAt() != null && !job.expiresAt().isAfter(OffsetDateTime.now(clock))) {
             // A sign-in code that arrives after it stopped working is worse
             // than none: the user types it, it fails, and they blame the code.
             outbox.delete(job.id());
             count(queue, job.kind(), "expired");
-            LOG.info("Outbox job {} kind={} tenant={} expired before delivery; dropped",
-                job.id(), job.kind(), job.tenantId());
+            LOG.info("Outbox job {} kind={} expired before delivery; dropped", job.id(), job.kind());
             return;
         }
         OutboxHandler handler = handlers.get(job.kind());
@@ -133,15 +148,15 @@ public class OutboxWorker {
         if (job.attempts() >= MAX_ATTEMPTS) {
             outbox.markDead(job.id(), error);
             count(queue, job.kind(), "dead");
-            LOG.error("Outbox job {} kind={} tenant={} failed {} times ({}); marked DEAD",
-                job.id(), job.kind(), job.tenantId(), job.attempts(), error);
+            LOG.error("Outbox job {} kind={} failed {} times ({}); marked DEAD",
+                job.id(), job.kind(), job.attempts(), error);
             return;
         }
         Duration wait = BACKOFF.get(job.attempts() - 1);
         outbox.retryAt(job.id(), OffsetDateTime.now(clock).plus(wait), error);
         count(queue, job.kind(), "retried");
-        LOG.warn("Outbox job {} kind={} tenant={} failed attempt {} ({}); retrying in {}",
-            job.id(), job.kind(), job.tenantId(), job.attempts(), error, wait);
+        LOG.warn("Outbox job {} kind={} failed attempt {} ({}); retrying in {}",
+            job.id(), job.kind(), job.attempts(), error, wait);
     }
 
     private void count(String queue, String kind, String outcome) {

@@ -192,7 +192,8 @@ public class CustomerAuthService {
         Tenant tenant = tenantRepository.findBySubdomain(normalizedSubdomain).orElse(null);
         if (tenant == null) {
             // Don't leak which subdomains are valid via timing — log and return.
-            LOG.info("Login code requested for unknown subdomain '{}'", normalizedSubdomain);
+            // The subdomain itself stays out of the log: it is usually a name.
+            LOG.info("Login code requested for an unknown subdomain");
             return;
         }
 
@@ -203,8 +204,8 @@ public class CustomerAuthService {
         // a photographer trying the customer flow on their own subdomain)
         // should not be eligible for code login.
         if (!"CUSTOMER".equals(user.getRole())) {
-            LOG.warn("Login code requested for non-customer user {} on subdomain {}",
-                user.getId(), normalizedSubdomain);
+            LOG.warn("Login code requested for non-customer user {} on tenant {}",
+                user.getId(), tenant.getId());
             return;
         }
 

@@ -166,7 +166,7 @@ public class BillingWebhookService {
         auditService.log("SUBSCRIPTION_" + status, "TENANT", tenant.getId(), tenant.getId(),
             null, "stripe-webhook");
         LOG.info("Tenant {} subscription is now {} on plan {} (was {})",
-            tenant.getSubdomain(), status, tenant.plan(), previousPlan);
+            tenant.getId(), status, tenant.plan(), previousPlan);
     }
 
     /**

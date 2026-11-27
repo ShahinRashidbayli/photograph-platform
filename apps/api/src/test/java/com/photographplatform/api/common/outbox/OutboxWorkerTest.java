@@ -1,6 +1,7 @@
 package com.photographplatform.api.common.outbox;
 
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.logging.LogFields;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
@@ -9,10 +10,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +50,7 @@ class OutboxWorkerTest {
     @AfterEach
     void clearTenant() {
         TenantContext.clear();
+        MDC.clear();
     }
 
     private void claims(OutboxJob... jobs) {
@@ -143,6 +147,23 @@ class OutboxWorkerTest {
         assertThat(TenantContext.getTenant()).isEqualTo("someone-else");
     }
 
+    /** What links a failed send back to the request that queued it. */
+    @Test
+    void everyLineTheJobWritesNamesTheJobItsKindAndItsTenant() {
+        MDC.put(LogFields.TENANT_ID, "someone-else");
+        OutboxJob job = job("probe", 1, null);
+        claims(job);
+
+        worker.drain("q");
+
+        assertThat(handler.logContextSeen)
+            .containsEntry(LogFields.OUTBOX_JOB_ID, job.id().toString())
+            .containsEntry(LogFields.OUTBOX_KIND, "probe")
+            .containsEntry(LogFields.TENANT_ID, TENANT.toString());
+        assertThat(MDC.get(LogFields.TENANT_ID)).isEqualTo("someone-else");
+        assertThat(MDC.get(LogFields.OUTBOX_JOB_ID)).isNull();
+    }
+
     @Test
     void theStoredErrorIsWhatTheHandlerDescribesNotTheMessage() {
         handler.failWith = new IllegalStateException("secret subject: Your sign-in code: 123456");
@@ -215,6 +236,7 @@ class OutboxWorkerTest {
     private static final class RecordingHandler implements OutboxHandler {
         final List<UUID> ran = new ArrayList<>();
         String tenantSeen;
+        Map<String, String> logContextSeen;
         RuntimeException failWith;
 
         @Override
@@ -225,6 +247,7 @@ class OutboxWorkerTest {
         @Override
         public void handle(OutboxJob job) {
             tenantSeen = TenantContext.getTenant();
+            logContextSeen = MDC.getCopyOfContextMap();
             if (failWith != null) {
                 throw failWith;
             }

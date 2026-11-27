@@ -191,7 +191,7 @@ Current state vs the standard (assessed 2026-07-26):
 | **4-layer internal split** | ❌ | current is `{controller · domain · dto · repository · service}` — no explicit `application`/`infrastructure` layer |
 | **MapStruct** | ❌ | mapping is manual (constructors/records) |
 | **API versioning** (`/api/v1`) | ❌ | all routes are `/api/...` |
-| **Observability** (Actuator/Micrometer/Sentry) | ❌ | none in `pom.xml` |
+| **Observability** (Actuator/Micrometer/Sentry) | 🟡 partial | structured JSON logs with a request id on every line and one access line per request (`common/logging`, added 2026-11-27); Actuator health only; no alerting, error tracking or tracing yet |
 | Integration adapters (Stripe/etc.) | ❌/n-a | Stripe unbuilt; when built it must live behind an adapter (Phase 2) |
 
 **Reading:** the codebase already embodies most of the standard's _principles_;

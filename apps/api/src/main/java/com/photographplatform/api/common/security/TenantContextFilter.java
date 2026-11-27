@@ -1,12 +1,14 @@
 package com.photographplatform.api.common.security;
 
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.logging.LogFields;
+import com.photographplatform.api.common.logging.MdcScope;
+import com.photographplatform.api.common.logging.RequestLoggingFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.slf4j.MDC;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,8 +26,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       RLS already fails that closed (the {@code app.tenant_id} GUC resolves
  *       to NULL, matching no rows), but this rejects earlier with a clearer
  *       signal than a silently empty result.</li>
- *   <li>Pushes {@code tenant_id} into MDC so log lines from this request are
- *       attributable to one tenant during incident investigation.</li>
+ *   <li>Pushes {@code tenant_id} and {@code user_id} into MDC so log lines
+ *       from this request are attributable to one tenant and one user during
+ *       incident investigation, and leaves both on the request for the access
+ *       line {@link RequestLoggingFilter} writes after this filter has
+ *       cleared them.</li>
  * </ul>
  *
  * <p>This filter never <em>sets</em> the tenant — that is {@code JwtAuthFilter}'s
@@ -33,8 +38,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 @Component
 public class TenantContextFilter extends OncePerRequestFilter {
-
-    private static final String MDC_KEY = "tenant_id";
 
     @Override
     protected void doFilterInternal(
@@ -51,17 +54,21 @@ public class TenantContextFilter extends OncePerRequestFilter {
             return;
         }
 
-        boolean mdcSet = false;
-        try {
-            if (tenantId != null && !tenantId.isBlank()) {
-                MDC.put(MDC_KEY, tenantId);
-                mdcSet = true;
-            }
+        String tenant = tenantId == null || tenantId.isBlank() ? null : tenantId;
+        String userId = isAuthenticated()
+            ? SecurityContextHolder.getContext().getAuthentication().getName()
+            : null;
+        if (tenant != null) {
+            request.setAttribute(RequestLoggingFilter.TENANT_ID_ATTRIBUTE, tenant);
+        }
+        if (userId != null) {
+            request.setAttribute(RequestLoggingFilter.USER_ID_ATTRIBUTE, userId);
+        }
+
+        try (MdcScope scope = MdcScope.open()
+                .with(LogFields.TENANT_ID, tenant)
+                .with(LogFields.USER_ID, userId)) {
             chain.doFilter(request, response);
-        } finally {
-            if (mdcSet) {
-                MDC.remove(MDC_KEY);
-            }
         }
     }
 

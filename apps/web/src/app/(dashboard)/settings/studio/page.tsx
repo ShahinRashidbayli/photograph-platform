@@ -15,7 +15,8 @@ import { SettingsSection } from '../SettingsSection';
  *
  * <p>Branding first because it is the studio's face, then how it answers an
  * enquiry, then the catalogue that face is selling, then the rooms and gear
- * that catalogue draws on — outward in to inward, which is the order a photographer sets a studio up in.
+ * that catalogue draws on — outward in to inward, which is the order a
+ * photographer sets a studio up in.
  */
 export default function StudioSettingsPage() {
   const { t } = useTranslation();

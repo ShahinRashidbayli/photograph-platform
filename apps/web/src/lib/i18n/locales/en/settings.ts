@@ -167,9 +167,6 @@ export const settings = {
   'settings.datev.download': 'Download CSV',
   'settings.datev.accountsNotice':
     'The export uses SKR03 standard accounts (debtor 10000, revenue 8400 / 8337 for Kleinunternehmer). Have your tax advisor confirm these match your chart of accounts before importing — the structure is correct, but the account mapping is their call.',
-  // ── Team / seats ──────────────────────────────────────────────────────────
-  // Studio's "up to 3 photographers". Every photographer sees the section; the
-  // controls appear only for the owner, decided by the server's `canManage`.
   'settings.enquiryAck.title': 'Enquiry acknowledgement',
   'settings.enquiryAck.description':
     'A short email in your studio’s name to everyone who sends your request form, saying their enquiry arrived. No prices or packages — only that you will be in touch.',
@@ -178,6 +175,9 @@ export const settings = {
   'settings.enquiryAck.off': 'Off — enquirers hear only from you, in your own words.',
   'settings.enquiryAck.loadError': 'Could not load this setting.',
   'settings.enquiryAck.saveError': 'Could not save this setting.',
+  // ── Team / seats ──────────────────────────────────────────────────────────
+  // Studio's "up to 3 photographers". Every photographer sees the section; the
+  // controls appear only for the owner, decided by the server's `canManage`.
   'settings.branding.title': 'Your branding',
   'settings.branding.description':
     'Your logo and colour on the pages your clients see — the portfolio, the booking form and every gallery you deliver. Fotolio’s name comes off those pages too.',

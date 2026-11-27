@@ -169,7 +169,6 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.datev.download': 'CSV herunterladen',
   'settings.datev.accountsNotice':
     'Der Export verwendet SKR03-Standardkonten (Debitor 10000, Erlöse 8400 bzw. 8337 bei Kleinunternehmern). Lassen Sie Ihren Steuerberater vor dem Import prüfen, ob diese zu Ihrem Kontenrahmen passen — die Struktur stimmt, die Kontenzuordnung ist seine Entscheidung.',
-  // ── Team / Plätze ─────────────────────────────────────────────────────────
   'settings.enquiryAck.title': 'Eingangsbestätigung für Anfragen',
   'settings.enquiryAck.description':
     'Eine kurze E-Mail in Ihrem Namen an alle, die Ihr Anfrageformular senden: dass ihre Anfrage angekommen ist. Keine Preise oder Pakete — nur, dass Sie sich melden.',
@@ -178,6 +177,7 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.enquiryAck.off': 'Aus — Anfragende hören nur von Ihnen, in Ihren eigenen Worten.',
   'settings.enquiryAck.loadError': 'Diese Einstellung konnte nicht geladen werden.',
   'settings.enquiryAck.saveError': 'Diese Einstellung konnte nicht gespeichert werden.',
+  // ── Team / Plätze ─────────────────────────────────────────────────────────
   'settings.branding.title': 'Ihr Branding',
   'settings.branding.description':
     'Ihr Logo und Ihre Farbe auf den Seiten, die Ihre Kunden sehen — Portfolio, Anfrageformular und jede ausgelieferte Galerie. Der Name Fotolio verschwindet dort ebenfalls.',

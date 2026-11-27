@@ -181,7 +181,6 @@ describe('key warnings across the dashboard', () => {
     useAuthStore.setState({ user: PHOTOGRAPHER });
     // Required lazily: the page has to be loaded after the mocks above are in
     // place, and `name` is what varies per case.
-    // eslint-disable-next-line no-undef
     const Page = require(`@/app/(dashboard)/${name}/page`).default;
     renderWithProviders(
       <DashboardLayout>

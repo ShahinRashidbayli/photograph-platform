@@ -405,16 +405,28 @@ function ClientsView() {
   const loadFailed = clientsQuery.isError && !clientsQuery.data;
   // A deep link (?selected=<clientId>) picks the client; otherwise the detail
   // pane falls back to the first visible row (see selectedClient below).
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const urlSelectedId = searchParams.get('selected');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(urlSelectedId);
   useEffect(() => {
-    const selected = searchParams.get('selected');
-    if (selected) setSelectedClientId(selected);
-  }, [searchParams]);
+    if (urlSelectedId) setSelectedClientId(urlSelectedId);
+  }, [urlSelectedId]);
 
   // Same narrow-screen treatment as Bookings and Leads: the 380px master column
   // and the detail pane cannot share a phone, so they take turns.
   const isNarrow = useMediaQuery('(max-width: 900px)');
-  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list');
+  // A link to one client opens on its detail, as on Bookings (#145): starting
+  // on the list made that link look broken on a phone.
+  const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(
+    urlSelectedId ? 'detail' : 'list'
+  );
+  // A link to a client that is gone opens the list, not the detail of whichever
+  // client the selection falls back to. Checked against all clients, not the
+  // filtered ones: a filter hiding the client does not make the link wrong.
+  useEffect(() => {
+    if (!loading && selectedClientId && !clients.some((cl) => cl.id === selectedClientId)) {
+      setMobilePane('list');
+    }
+  }, [clients, loading, selectedClientId]);
   const [filterStatus, setFilterStatus] = useState<ClientFilter>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);

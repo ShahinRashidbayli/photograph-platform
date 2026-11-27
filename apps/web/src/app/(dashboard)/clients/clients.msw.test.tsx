@@ -1,5 +1,5 @@
 import React from 'react';
-import { renderHook, screen, waitFor } from '@testing-library/react';
+import { isInaccessible, renderHook, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderWithProviders, setupUser } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
@@ -11,27 +11,32 @@ import type { Gallery } from '@/hooks/useGalleries';
 import { useAuthStore } from '@/store/authStore';
 import ClientsPage from './page';
 
+let mockQuery = '';
 jest.mock('next/navigation', () => ({
   usePathname: () => '/clients',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn() }),
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => new URLSearchParams(mockQuery),
   useParams: () => ({}),
 }));
 
 // jsdom has no matchMedia; the screen asks it whether to split into list/detail panes.
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }),
-});
+// A wide screen unless a test says otherwise.
+function screenWidth(narrow: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: narrow && query.includes('900px'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+screenWidth(false);
 
 /**
  * The client directory against a faked API.
@@ -322,5 +327,70 @@ describe('the directory follows the bookings', () => {
     await result.current.mutateAsync({ payload: { clientName: 'x' } as BookingPayload });
 
     await waitFor(() => expect(client.getQueryState(clientsKey())?.isInvalidated).toBe(true));
+  });
+});
+
+// Hidden by an ancestor's `display: none`, as the off-screen pane is.
+const isVisible = (el: HTMLElement) => !isInaccessible(el);
+
+const JONAS: Client = {
+  ...CLIENT,
+  id: 'c2',
+  fullName: 'Jonas Keller',
+  email: 'jonas@example.de',
+};
+
+/**
+ * A link to one client (`/clients?selected=…`) opens that client's detail on a
+ * phone too, as a link to one booking does (#145). It used to open the list.
+ */
+describe('a link to one client on a narrow screen', () => {
+  beforeEach(() => {
+    screenWidth(true);
+    server.use(
+      http.get('/api/clients', () => HttpResponse.json([CLIENT, JONAS])),
+      http.get('/api/clients/:id', ({ params }) =>
+        HttpResponse.json({
+          client: params.id === 'c2' ? JONAS : CLIENT,
+          bookings: [],
+          galleries: [],
+          invoices: [],
+          contracts: [],
+        })
+      )
+    );
+  });
+  afterEach(() => {
+    screenWidth(false);
+    mockQuery = '';
+  });
+
+  it('opens the linked client, not the list', async () => {
+    mockQuery = 'selected=c2';
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: 'All clients' })).toBeVisible();
+    // The name shows twice: in the hidden list row and in the detail header.
+    await waitFor(() =>
+      expect(screen.getAllByText('Jonas Keller').filter((el) => isVisible(el))).toHaveLength(1)
+    );
+    expect(screen.getByRole('button', { name: /Jonas Keller/, hidden: true })).not.toBeVisible();
+    expect(screen.getByPlaceholderText('Search name or email…')).not.toBeVisible();
+  });
+
+  it('opens the list, not another client, when the linked client is gone', async () => {
+    mockQuery = 'selected=deleted';
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: /Jonas Keller/ })).toBeVisible();
+    expect(screen.getByPlaceholderText('Search name or email…')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'All clients', hidden: true })).not.toBeVisible();
+  });
+
+  it('opens the list without a link', async () => {
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: /Jonas Keller/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'All clients', hidden: true })).not.toBeVisible();
   });
 });

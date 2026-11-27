@@ -6,6 +6,8 @@ export function roadmapInterestKey() {
   return ['roadmap', 'interest'] as const;
 }
 
+const TOGGLE_KEY = ['roadmap', 'interest', 'toggle'] as const;
+
 /** The roadmap keys this studio has asked for. Mirrors `RoadmapFeature` on the API. */
 export function useRoadmapInterest(enabled = true) {
   return useQuery({
@@ -35,10 +37,13 @@ export function useRoadmapInterest(enabled = true) {
  *   DELETE overtaking its PUT would leave the vote stored but unticked.
  * - A failure undoes only its own feature's change, not a snapshot that a
  *   later click has already moved on from.
+ * - Only the last call to settle refetches. A refetch after the PUT, while
+ *   the DELETE still waits its turn, would tick the box again for a moment.
  */
 export function useToggleRoadmapInterest() {
   const qc = useQueryClient();
   const { mutate } = useMutation({
+    mutationKey: TOGGLE_KEY,
     scope: { id: 'roadmap-interest' },
     mutationFn: async ({ feature, wanted }: { feature: string; wanted: boolean }) => {
       if (wanted) {
@@ -52,7 +57,11 @@ export function useToggleRoadmapInterest() {
       await qc.cancelQueries({ queryKey: roadmapInterestKey() });
     },
     onError: (_err, { feature, wanted }) => setInterest(qc, feature, !wanted),
-    onSettled: () => qc.invalidateQueries({ queryKey: roadmapInterestKey() }),
+    // Still counts itself here: TanStack marks it settled after this returns.
+    onSettled: () =>
+      qc.isMutating({ mutationKey: TOGGLE_KEY }) === 1
+        ? qc.invalidateQueries({ queryKey: roadmapInterestKey() })
+        : undefined,
   });
 
   return useCallback(

@@ -12,7 +12,10 @@ function fakeApi(initial: string[] = []) {
   const stored = new Set(initial);
   const calls: string[] = [];
   server.use(
-    http.get('/api/roadmap/interest', () => HttpResponse.json([...stored])),
+    http.get('/api/roadmap/interest', () => {
+      calls.push('GET');
+      return HttpResponse.json([...stored]);
+    }),
     http.put('/api/roadmap/interest/:feature', async ({ params }) => {
       calls.push(`PUT ${params.feature}`);
       // Slow enough that the second click lands while this is in flight.
@@ -41,11 +44,17 @@ describe('Roadmap vote', () => {
     // re-rendered it, the API answered 409, and the box stayed ticked.
     await user.dblClick(first!);
 
-    await waitFor(() => expect(api.calls).toHaveLength(2));
-    expect(api.calls[0]).toMatch(/^PUT /);
-    expect(api.calls[1]).toMatch(/^DELETE /);
     await waitFor(() => expect(api.stored.size).toBe(0));
     await waitFor(() => expect(first).not.toBeChecked());
+    // One refetch, after the DELETE. One between them would read the vote the
+    // PUT stored and tick the box again until the DELETE's refetch landed.
+    await waitFor(() =>
+      expect(api.calls.slice(api.calls.indexOf('GET') + 1)).toEqual([
+        expect.stringMatching(/^PUT /),
+        expect.stringMatching(/^DELETE /),
+        'GET',
+      ])
+    );
   });
 
   it('a single click registers the vote', async () => {
@@ -59,7 +68,7 @@ describe('Roadmap vote', () => {
 
     expect(await screen.findByRole('checkbox', { name: 'You asked for this' })).toBeChecked();
     await waitFor(() => expect(api.stored.size).toBe(1));
-    expect(api.calls).toHaveLength(1);
+    expect(api.calls.filter((c) => c !== 'GET')).toHaveLength(1);
   });
 
   it('a failed vote unticks the box again', async () => {

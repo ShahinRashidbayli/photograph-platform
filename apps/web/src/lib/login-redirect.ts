@@ -8,9 +8,9 @@
  * fill in, which looks like an account they have lost rather than the wrong
  * door.
  *
- * Shared by `middleware.ts` (edge runtime) and the axios interceptor, so both
- * halves of "your session ended" agree. Keep it free of browser and Node APIs
- * for that reason.
+ * Shared by `proxy.ts` (Next 16's renamed middleware) and the axios
+ * interceptor, so both halves of "your session ended" agree. Keep it free of
+ * browser and Node APIs for that reason.
  */
 
 export const PHOTOGRAPHER_LOGIN = '/login';
@@ -64,7 +64,7 @@ export function loginUrlFor(pathname: string, search = ''): string {
  * The other sign-in screen, still carrying wherever the user was headed.
  *
  * The two forms cross-link to each other ("Client sign in" / "Photographer sign
- * in"), and following that link used to drop the `?next=` the middleware had
+ * in"), and following that link used to drop the `?next=` the proxy had
  * attached — so a client who arrived at the wrong door and corrected themselves
  * lost the booking link that sent them there in the first place.
  *

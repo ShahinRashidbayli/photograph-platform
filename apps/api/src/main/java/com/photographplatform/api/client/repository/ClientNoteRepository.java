@@ -1,0 +1,131 @@
+package com.photographplatform.api.client.repository;
+
+import com.photographplatform.api.client.domain.ClientNote;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+/**
+ * The client directory: the studio's bookings grouped by client address, plus
+ * the notes written about each client.
+ *
+ * <p>One person is one {@code lower(btrim(client_email))}, the identity V38
+ * already signs customers in by. Every figure is computed on read, so a
+ * booking created, edited or cancelled anywhere shows here at once:
+ *
+ * <ul>
+ *   <li>name: from the client's most recently created booking;</li>
+ *   <li>bookings: every booking that is not Not happening;</li>
+ *   <li>upcoming: those dated {@code :today} or later and not yet completed;</li>
+ *   <li>last session: the latest such date up to {@code :today};</li>
+ *   <li>joined: when their first booking was created.</li>
+ * </ul>
+ *
+ * <p>Collected is not summed here. Which payments count is invoice's {@code
+ * Settlement} to decide (ADR-004 §1), so {@code ClientService} asks it for the
+ * client's bookings found by {@link #findBookingIds}. A sum over {@code
+ * payments} in this query would be a copy ArchUnit cannot see, because it is
+ * native SQL.
+ *
+ * <p>The id is a hash of tenant and address rather than a stored key, so a
+ * client has a stable id from their first booking on without a row to create,
+ * and the address itself never travels in a URL. Anonymised bookings ({@code
+ * :erasedPattern}) are left out, or each would list as a client of its own.
+ * Tenant isolation is RLS's job, on {@code bookings} and {@code client_notes}
+ * alike; the join still carries {@code tenant_id}, because the id is already
+ * per tenant and an address shared by two studios must never pick up the
+ * other's notes.
+ */
+public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
+
+    String DIRECTORY = """
+        WITH person_bookings AS (
+            SELECT b.tenant_id, lower(btrim(b.client_email)) AS email, b.client_name,
+                   b.status, b.event_date, b.created_at
+            FROM bookings b
+            WHERE b.client_email NOT LIKE :erasedPattern
+        ),
+        directory AS (
+            SELECT CAST(md5(CAST(pb.tenant_id AS text) || ':' || pb.email) AS uuid) AS id,
+                   pb.tenant_id,
+                   pb.email,
+                   (array_agg(pb.client_name ORDER BY pb.created_at DESC))[1] AS full_name,
+                   COUNT(*) FILTER (WHERE pb.status NOT IN (:notHappening)) AS total_bookings,
+                   COUNT(*) FILTER (WHERE pb.event_date >= :today
+                                      AND pb.status <> 'COMPLETED'
+                                      AND pb.status NOT IN (:notHappening)) AS upcoming_bookings,
+                   MAX(pb.event_date) FILTER (WHERE pb.event_date <= :today
+                                                AND pb.status NOT IN (:notHappening)) AS last_booking_date,
+                   MIN(pb.created_at) AS created_at,
+                   MAX(pb.created_at) AS last_activity
+            FROM person_bookings pb
+            GROUP BY pb.tenant_id, pb.email
+        )
+        SELECT d.id                                      AS id,
+               d.email                                   AS email,
+               d.full_name                               AS fullName,
+               n.notes                                   AS notes,
+               CAST(d.total_bookings AS integer)         AS totalBookings,
+               CAST(d.upcoming_bookings AS integer)      AS upcomingBookings,
+               d.last_booking_date                       AS lastBookingDate,
+               d.created_at                              AS createdAt
+        FROM directory d
+        LEFT JOIN client_notes n ON n.tenant_id = d.tenant_id AND n.email = d.email
+        """;
+
+    /** The whole directory, most recently booked first. */
+    @Query(value = DIRECTORY + " ORDER BY d.last_activity DESC", nativeQuery = true)
+    List<ClientView> findDirectory(
+        @Param("today") LocalDate today,
+        @Param("notHappening") Collection<String> notHappening,
+        @Param("erasedPattern") String erasedPattern,
+        Limit limit);
+
+    /** One directory entry by its derived id; empty when no booking carries it. */
+    @Query(value = DIRECTORY + " WHERE d.id = :id", nativeQuery = true)
+    Optional<ClientView> findDirectoryEntry(
+        @Param("id") UUID id,
+        @Param("today") LocalDate today,
+        @Param("notHappening") Collection<String> notHappening,
+        @Param("erasedPattern") String erasedPattern);
+
+    /**
+     * Every booking of these clients, in any status: a payment on a booking
+     * that was later cancelled is still money the studio holds. Filtered on
+     * the tenant as well as RLS, for the same reason as the directory's joins.
+     */
+    @Query(value = """
+        SELECT lower(btrim(b.client_email)) AS email, b.id AS bookingId
+        FROM bookings b
+        WHERE b.tenant_id = :tenantId
+          AND lower(btrim(b.client_email)) IN (:emails)
+        """, nativeQuery = true)
+    List<ClientBooking> findBookingIds(
+        @Param("tenantId") UUID tenantId,
+        @Param("emails") Collection<String> emails);
+
+    Optional<ClientNote> findByEmail(String normalizedEmail);
+
+    interface ClientBooking {
+        String getEmail();
+        UUID getBookingId();
+    }
+
+    interface ClientView {
+        UUID getId();
+        String getEmail();
+        String getFullName();
+        String getNotes();
+        Integer getTotalBookings();
+        Integer getUpcomingBookings();
+        LocalDate getLastBookingDate();
+        Instant getCreatedAt();
+    }
+}

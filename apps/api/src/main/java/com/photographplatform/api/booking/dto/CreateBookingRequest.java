@@ -17,9 +17,10 @@ import java.util.UUID;
  * always starts in {@code ENQUIRY} — the lifecycle is advanced afterwards via
  * {@code PATCH /api/bookings/{id}/status}, which enforces the state machine.
  *
- * <p>{@code clientId} is optional: a booking may be linked to an existing
- * {@code Client} directory entry, or stand alone (e.g. a fresh enquiry whose
- * client record does not exist yet). Amount fields default to 0 when omitted.
+ * <p>{@code clientId} is deprecated and the web app never sends it: it names
+ * a row of the old {@code clients} table, which nothing writes (V41). The
+ * client directory is derived from {@code clientEmail} instead, so every
+ * booking puts its client there. Amount fields default to 0 when omitted.
  */
 public record CreateBookingRequest(
     @NotBlank(message = "Client name is required")

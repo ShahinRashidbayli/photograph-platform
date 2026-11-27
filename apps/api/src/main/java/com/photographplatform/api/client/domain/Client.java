@@ -11,6 +11,11 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
+/**
+ * A row of the deprecated {@code clients} table (V41). The application never
+ * wrote it; the client directory is derived from bookings instead. Kept only
+ * for erasure of old rows and the legacy {@code bookings.client_id} link.
+ */
 @Entity
 @Table(name = "clients")
 public class Client {

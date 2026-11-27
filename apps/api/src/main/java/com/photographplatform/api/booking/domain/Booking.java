@@ -26,6 +26,13 @@ public class Booking {
     /** What an erased client's name reads as; see {@link #erasePersonalData()}. */
     public static final String ERASED_CLIENT_NAME = "[gelöscht]";
 
+    /**
+     * The domain every erased client address ends in. Readers that list people
+     * (the client directory) skip it, so each anonymised booking does not
+     * reappear as a client of its own.
+     */
+    public static final String ERASED_EMAIL_DOMAIN = "@erased.invalid";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -215,7 +222,7 @@ public class Booking {
      */
     public void erasePersonalData() {
         this.clientName = ERASED_CLIENT_NAME;
-        this.clientEmail = "erased-" + id + "@erased.invalid";
+        this.clientEmail = "erased-" + id + ERASED_EMAIL_DOMAIN;
         this.location = null;
         this.internalNotes = null;
         this.clientId = null;

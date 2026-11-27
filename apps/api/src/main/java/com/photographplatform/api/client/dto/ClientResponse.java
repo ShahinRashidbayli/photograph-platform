@@ -11,7 +11,7 @@ public record ClientResponse(
     String phone,
     String notes,
     Integer totalBookings,
-    Integer totalSpentCents,
+    Long totalSpentCents,
     Integer upcomingBookings,
     LocalDate lastBookingDate,
     OffsetDateTime createdAt

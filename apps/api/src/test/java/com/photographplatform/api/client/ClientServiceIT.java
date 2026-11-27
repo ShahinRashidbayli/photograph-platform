@@ -8,13 +8,20 @@ import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.service.ClientService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
-import jakarta.persistence.EntityManager;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -26,18 +33,150 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * The client directory against a real Postgres.
  *
- * <p>These cover the behaviour that moved out of {@code ClientController} when
- * it grew a service — in particular the notes update, which previously
- * answered {@code 200} with an empty body for an id that did not exist,
- * reporting success for a write that never happened.
+ * <p>The directory is the studio's bookings grouped by address (V41). It used
+ * to read a {@code clients} table that nothing in the application wrote, so
+ * every studio but the seeded demo saw an empty page. These tests write
+ * bookings, invoices and payments only, never a client, and expect the
+ * client to be there.
  */
 class ClientServiceIT extends IntegrationTestBase {
+
+    private static final LocalDate TODAY = LocalDate.now(BusinessZone.ID);
 
     @Autowired private ClientService clientService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private UserRepository userRepository;
-    @Autowired private EntityManager entityManager;
+    @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager txManager;
+
+    @Test
+    void aBookingIsEnoughToMakeAClient() {
+        Fixture fx = createTenant();
+        booking(fx, "Maria Kellner", "maria@example.test", TODAY.plusDays(30), "ENQUIRY");
+
+        List<ClientResponse> clients = asUser(fx, () -> clientService.list());
+
+        assertThat(clients).singleElement().satisfies(c -> {
+            assertThat(c.id()).isNotNull();
+            assertThat(c.fullName()).isEqualTo("Maria Kellner");
+            assertThat(c.email()).isEqualTo("maria@example.test");
+            assertThat(c.totalBookings()).isEqualTo(1);
+            assertThat(c.upcomingBookings()).isEqualTo(1);
+            assertThat(c.totalSpentCents()).isZero();
+            assertThat(c.lastBookingDate()).isNull();
+            assertThat(c.createdAt()).isNotNull();
+        });
+    }
+
+    /** One person, however the address was typed; their name is the latest one used. */
+    @Test
+    void bookingsGroupByAddressIgnoringCase() {
+        Fixture fx = createTenant();
+        booking(fx, "Maria Kellner", "maria@example.test", TODAY.minusDays(400), "COMPLETED");
+        booking(fx, "Maria Weber", "  MARIA@Example.TEST ", TODAY.plusDays(10), "CONFIRMED");
+        booking(fx, "Jonas Weber", "jonas@example.test", TODAY.plusDays(20), "CONFIRMED");
+
+        List<ClientResponse> clients = asUser(fx, () -> clientService.list());
+
+        assertThat(clients).hasSize(2);
+        ClientResponse maria = byEmail(clients, "maria@example.test");
+        assertThat(maria.fullName()).isEqualTo("Maria Weber");
+        assertThat(maria.totalBookings()).isEqualTo(2);
+        assertThat(maria.upcomingBookings()).isEqualTo(1);
+        assertThat(maria.lastBookingDate()).isEqualTo(TODAY.minusDays(400));
+    }
+
+    /**
+     * A shoot that is not happening is neither counted nor upcoming, whatever
+     * its date — and because nothing is stored, cancelling one shows at once.
+     */
+    @Test
+    void cancelledAndDeclinedBookingsAreNotCounted() {
+        Fixture fx = createTenant();
+        for (String status : List.of("CONFIRMED", "ENQUIRY", "DECLINED", "CANCELLED")) {
+            booking(fx, "Lea Brandt", "lea@example.test", TODAY.plusDays(30), status);
+        }
+        UUID later = booking(fx, "Lea Brandt", "lea@example.test", TODAY.plusDays(60), "CONFIRMED");
+
+        ClientResponse before = asUser(fx, () -> clientService.list()).get(0);
+        inTenant(fx, () -> jdbc.update("UPDATE bookings SET status = 'CANCELLED' WHERE id = ?", later));
+        ClientResponse after = asUser(fx, () -> clientService.list()).get(0);
+
+        assertThat(before.totalBookings()).isEqualTo(3);
+        assertThat(before.upcomingBookings()).isEqualTo(3);
+        assertThat(after.totalBookings()).isEqualTo(2);
+        assertThat(after.upcomingBookings()).isEqualTo(2);
+    }
+
+    /** Spend is money received — succeeded payments — not what the bookings were priced at. */
+    @Test
+    void spendIsTheSucceededPaymentsOnTheClientsInvoices() {
+        Fixture fx = createTenant();
+        UUID first = booking(fx, "Maria", "maria@example.test", TODAY.minusDays(30), "COMPLETED");
+        UUID second = booking(fx, "Maria", "Maria@example.test", TODAY.plusDays(30), "CONFIRMED");
+        UUID other = booking(fx, "Jonas", "jonas@example.test", TODAY.plusDays(30), "CONFIRMED");
+        payment(fx, invoice(fx, first, 1, 100_000), "SUCCEEDED", 100_000);
+        UUID secondInvoice = invoice(fx, second, 2, 50_000);
+        payment(fx, secondInvoice, "SUCCEEDED", 20_000);
+        payment(fx, secondInvoice, "PENDING", 30_000);
+        payment(fx, invoice(fx, other, 3, 70_000), "SUCCEEDED", 70_000);
+
+        List<ClientResponse> clients = asUser(fx, () -> clientService.list());
+
+        assertThat(byEmail(clients, "maria@example.test").totalSpentCents()).isEqualTo(120_000);
+        assertThat(byEmail(clients, "jonas@example.test").totalSpentCents()).isEqualTo(70_000);
+    }
+
+    /**
+     * Collected follows the client's bookings, not only the ones that still
+     * count: a cancelled shoot's payment still arrived. Settlement decides
+     * which payments count; the directory only adds them up per client.
+     */
+    @Test
+    void collectedCountsEveryBookingOfTheClientWhateverItsStatus() {
+        Fixture fx = createTenant();
+        UUID cancelled = booking(fx, "Maria", "maria@example.test", TODAY.minusDays(30), "CANCELLED");
+        UUID live = booking(fx, "Maria", "maria@example.test", TODAY.plusDays(30), "CONFIRMED");
+        payment(fx, invoice(fx, cancelled, 1, 40_000), "SUCCEEDED", 40_000);
+        payment(fx, invoice(fx, live, 2, 60_000), "SUCCEEDED", 25_000);
+
+        ClientResponse maria = asUser(fx, () -> clientService.list()).get(0);
+
+        assertThat(maria.totalBookings()).isEqualTo(1);
+        assertThat(maria.totalSpentCents()).isEqualTo(65_000);
+    }
+
+    /**
+     * Bookings record no phone, so the number is the newest one the client
+     * gave on a lead, matched by address however it was typed. Another
+     * studio's lead from the same address is not theirs to show.
+     */
+    @Test
+    void thePhoneIsTheNewestOneTheirLeadsGave() {
+        Fixture fx = createTenant();
+        Fixture other = createTenant();
+        Instant now = Instant.now();
+        booking(fx, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        booking(fx, "Jonas", "jonas@example.test", TODAY.plusDays(5), "CONFIRMED");
+        lead(fx, "Maria@Example.test ", "+49 30 1111", now.minus(Duration.ofDays(30)));
+        lead(fx, "maria@example.test", " +49 30 2222 ", now.minus(Duration.ofDays(10)));
+        lead(fx, "maria@example.test", null, now.minus(Duration.ofDays(1)));
+        lead(other, "jonas@example.test", "+49 40 9999", now);
+
+        List<ClientResponse> clients = asUser(fx, () -> clientService.list());
+
+        assertThat(byEmail(clients, "maria@example.test").phone()).isEqualTo("+49 30 2222");
+        assertThat(byEmail(clients, "jonas@example.test").phone()).isNull();
+    }
+
+    /** An erased person's bookings stay for the books, but they are nobody's client any more. */
+    @Test
+    void anonymisedBookingsAreNotClients() {
+        Fixture fx = createTenant();
+        booking(fx, "[gelöscht]", "erased-" + UUID.randomUUID() + "@erased.invalid", TODAY, "COMPLETED");
+
+        assertThat(asUser(fx, () -> clientService.list())).isEmpty();
+    }
 
     @Test
     void unknownClientIsReportedAsNotFound() {
@@ -51,7 +190,8 @@ class ClientServiceIT extends IntegrationTestBase {
     @Test
     void notesAreSavedAndReturnedWithDerivedStats() {
         Fixture fx = createTenant();
-        UUID clientId = createClient(fx, "maria@example.test", "Maria Kellner");
+        booking(fx, "Maria Kellner", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID clientId = asUser(fx, () -> clientService.list()).get(0).id();
 
         ClientResponse updated = asUser(fx, () ->
             clientService.updateNotes(clientId, new UpdateClientNotesRequest("  Prefers morning shoots  "),
@@ -60,31 +200,43 @@ class ClientServiceIT extends IntegrationTestBase {
         assertThat(updated.id()).isEqualTo(clientId);
         assertThat(updated.notes()).isEqualTo("Prefers morning shoots");
         assertThat(updated.fullName()).isEqualTo("Maria Kellner");
-        // Comes from the projection, not the entity — proving the response is
-        // read back through findStatsById rather than mapped off the row saved.
-        assertThat(updated.upcomingBookings()).isZero();
-        assertThat(updated.totalBookings()).isZero();
+        assertThat(updated.upcomingBookings()).isEqualTo(1);
+        assertThat(asUser(fx, () -> clientService.list()).get(0).notes()).isEqualTo("Prefers morning shoots");
     }
 
-    /** A blank body clears the notes rather than storing whitespace. */
+    /** The id is derived from the address, so a client keeps theirs as their bookings come and go. */
     @Test
-    void blankNotesAreStoredAsNull() {
+    void theIdIsStableAcrossNewBookings() {
         Fixture fx = createTenant();
-        UUID clientId = createClient(fx, "jonas@example.test", "Jonas Weber");
+        booking(fx, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID before = asUser(fx, () -> clientService.list()).get(0).id();
+        booking(fx, "Maria", "MARIA@example.test", TODAY.plusDays(50), "CONFIRMED");
+
+        assertThat(asUser(fx, () -> clientService.list()).get(0).id()).isEqualTo(before);
+    }
+
+    /** A blank body clears the notes, and leaves no empty row behind. */
+    @Test
+    void blankNotesClearTheNote() {
+        Fixture fx = createTenant();
+        booking(fx, "Jonas Weber", "jonas@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID clientId = asUser(fx, () -> clientService.list()).get(0).id();
 
         asUser(fx, () -> clientService.updateNotes(clientId, new UpdateClientNotesRequest("something"), null));
         ClientResponse cleared = asUser(fx, () ->
             clientService.updateNotes(clientId, new UpdateClientNotesRequest("   "), null));
 
         assertThat(cleared.notes()).isNull();
+        assertThat(inTenant(fx, () -> jdbc.queryForObject("SELECT count(*) FROM client_notes", Integer.class)))
+            .isZero();
     }
 
     @Test
     void listReturnsOnlyTheCallersOwnTenant() {
         Fixture a = createTenant();
         Fixture b = createTenant();
-        createClient(a, "a-client@example.test", "A Client");
-        createClient(b, "b-client@example.test", "B Client");
+        booking(a, "A Client", "a-client@example.test", TODAY.plusDays(5), "CONFIRMED");
+        booking(b, "B Client", "b-client@example.test", TODAY.plusDays(5), "CONFIRMED");
 
         List<ClientResponse> visibleToA = asUser(a, () -> clientService.list());
 
@@ -99,7 +251,8 @@ class ClientServiceIT extends IntegrationTestBase {
     void aClientFromAnotherTenantCannotBeUpdated() {
         Fixture a = createTenant();
         Fixture b = createTenant();
-        UUID clientOfB = createClient(b, "b-client@example.test", "B Client");
+        booking(b, "B Client", "b-client@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID clientOfB = asUser(b, () -> clientService.list()).get(0).id();
 
         assertThatThrownBy(() -> asUser(a, () ->
             clientService.updateNotes(clientOfB, new UpdateClientNotesRequest("nosy"), null)))
@@ -107,24 +260,25 @@ class ClientServiceIT extends IntegrationTestBase {
     }
 
     /**
-     * A shoot that is not happening is not upcoming, whatever its date. The
-     * count used to exclude only cancelled bookings, so a declined enquiry for
-     * next month still showed on the client as an upcoming booking.
+     * Two studios with the same client keep separate notes. Both directories
+     * join client_notes by address alone, so this holds only because RLS
+     * hides the other studio's row.
      */
     @Test
-    void cancelledAndDeclinedFutureBookingsAreNotUpcoming() {
-        Fixture fx = createTenant();
-        UUID clientId = createClient(fx, "lea@example.test", "Lea Brandt");
-        for (String status : List.of("CONFIRMED", "ENQUIRY", "DECLINED", "CANCELLED")) {
-            createFutureBooking(fx, clientId, status);
-        }
+    void notesAreIsolatedPerStudio() {
+        Fixture a = createTenant();
+        Fixture b = createTenant();
+        booking(a, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        booking(b, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID inA = asUser(a, () -> clientService.list()).get(0).id();
+        UUID inB = asUser(b, () -> clientService.list()).get(0).id();
 
-        ClientResponse listed = asUser(fx, () -> clientService.list()).get(0);
-        ClientResponse single = asUser(fx, () ->
-            clientService.updateNotes(clientId, new UpdateClientNotesRequest("note"), null));
+        asUser(a, () -> clientService.updateNotes(inA, new UpdateClientNotesRequest("A's note"), null));
 
-        assertThat(listed.upcomingBookings()).isEqualTo(2);
-        assertThat(single.upcomingBookings()).isEqualTo(2);
+        assertThat(inA).isNotEqualTo(inB);
+        assertThat(asUser(b, () -> clientService.list()).get(0).notes()).isNull();
+        assertThat(inTenant(b, () -> jdbc.queryForObject("SELECT count(*) FROM client_notes", Integer.class)))
+            .isZero();
     }
 
     // ── fixtures ──────────────────────────────────────────────────────────
@@ -132,70 +286,70 @@ class ClientServiceIT extends IntegrationTestBase {
     private record Fixture(UUID tenantId, UUID userId) {
     }
 
-    private void createFutureBooking(Fixture fx, UUID clientId, String status) {
-        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(tx -> {
-            entityManager.createNativeQuery("""
-                INSERT INTO bookings (tenant_id, client_id, client_name, client_email, event_date, status)
-                VALUES (:tenantId, :clientId, 'Lea Brandt', 'lea@example.test', :eventDate, :status)
-                """)
-                .setParameter("tenantId", fx.tenantId())
-                .setParameter("clientId", clientId)
-                .setParameter("eventDate", java.time.LocalDate.now().plusDays(30))
-                .setParameter("status", status)
-                .executeUpdate();
-            return null;
-        }));
+    private static ClientResponse byEmail(List<ClientResponse> clients, String email) {
+        return clients.stream().filter(c -> c.email().equals(email)).findFirst().orElseThrow();
+    }
+
+    private UUID booking(Fixture fx, String name, String email, LocalDate eventDate, String status) {
+        UUID id = UUID.randomUUID();
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO bookings (id, tenant_id, client_name, client_email, event_date, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, id, fx.tenantId(), name, email, eventDate, status));
+        return id;
+    }
+
+    private UUID invoice(Fixture fx, UUID bookingId, int sequence, int totalCents) {
+        UUID id = UUID.randomUUID();
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO invoices (id, tenant_id, booking_id, invoice_number, issue_year, sequence_number,
+                status, tax_mode, issuer_business_name, issuer_address_line1, issuer_postal_code,
+                issuer_city, issuer_country, buyer_name, buyer_email, subtotal_cents, tax_cents, total_cents)
+            VALUES (?, ?, ?, ?, 2026, ?, 'ISSUED', 'KLEINUNTERNEHMER', 'Studio', 'Str. 1', '10115',
+                'Berlin', 'DE', 'Buyer', 'buyer@example.test', ?, 0, ?)
+            """, id, fx.tenantId(), bookingId, "RE-" + sequence, sequence, totalCents, totalCents));
+        return id;
+    }
+
+    private void payment(Fixture fx, UUID invoiceId, String status, int amountCents) {
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO payments (tenant_id, invoice_id, method, status, amount_cents)
+            VALUES (?, ?, 'UEBERWEISUNG', ?, ?)
+            """, fx.tenantId(), invoiceId, status, amountCents));
+    }
+
+    private void lead(Fixture fx, String email, String phone, Instant createdAt) {
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO leads (tenant_id, name, email, phone, created_at)
+            VALUES (?, 'Lead', ?, ?, ?)
+            """, fx.tenantId(), email, phone, OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC)));
     }
 
     private Fixture createTenant() {
         UUID tenantId = new TransactionTemplate(txManager).execute(status -> tenantRepository.save(
             new Tenant("client-test-" + UUID.randomUUID(),
                 "owner-" + UUID.randomUUID() + "@example.test")).getId());
-        UUID userId = asTenant(tenantId, () -> userRepository.save(
+        Fixture tenantOnly = new Fixture(tenantId, null);
+        UUID userId = inTenant(tenantOnly, () -> userRepository.save(
             new User(tenantId, "photographer-" + UUID.randomUUID() + "@example.test", "hash", "Anna")).getId());
         return new Fixture(tenantId, userId);
     }
 
-    /**
-     * Inserted with SQL rather than through the entity on purpose: {@code
-     * Client} exposes no public constructor and no setters for email/name,
-     * because <em>nothing in the application writes this table</em> — rows
-     * would come from the booking flow, which does not create them yet. The
-     * read and update paths still have to be correct for the day it does.
-     */
-    private UUID createClient(Fixture fx, String email, String fullName) {
-        UUID id = UUID.randomUUID();
-        asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager).execute(status -> {
-            entityManager.createNativeQuery("""
-                INSERT INTO clients (id, tenant_id, email, full_name)
-                VALUES (:id, :tenantId, :email, :fullName)
-                """)
-                .setParameter("id", id)
-                .setParameter("tenantId", fx.tenantId())
-                .setParameter("email", email)
-                .setParameter("fullName", fullName)
-                .executeUpdate();
-            return null;
-        }));
-        return id;
-    }
-
-    private <T> T asUser(Fixture fx, java.util.function.Supplier<T> action) {
+    private <T> T asUser(Fixture fx, Supplier<T> action) {
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(fx.userId().toString(), null));
-        TenantContext.setTenant(fx.tenantId().toString());
         try {
-            return action.get();
+            return inTenant(fx, action);
         } finally {
             SecurityContextHolder.clearContext();
-            TenantContext.clear();
         }
     }
 
-    private <T> T asTenant(UUID tenantId, java.util.function.Supplier<T> action) {
-        TenantContext.setTenant(tenantId.toString());
+    /** Each call in its own transaction, so RLS sees the tenant bound for it. */
+    private <T> T inTenant(Fixture fx, Supplier<T> action) {
+        TenantContext.setTenant(fx.tenantId().toString());
         try {
-            return action.get();
+            return new TransactionTemplate(txManager).execute(status -> action.get());
         } finally {
             TenantContext.clear();
         }

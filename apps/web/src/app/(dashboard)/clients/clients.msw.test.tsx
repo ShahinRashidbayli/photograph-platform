@@ -107,6 +107,33 @@ describe('ClientsPage', () => {
   });
 });
 
+describe('the directory is derived from bookings', () => {
+  it('shows each client with the figures their bookings add up to', async () => {
+    server.use(
+      http.get('/api/clients', () =>
+        HttpResponse.json([
+          { ...CLIENT, totalBookings: 3, upcomingBookings: 2, lastBookingDate: '2026-10-12' },
+        ])
+      )
+    );
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(await screen.findByText(/3 bookings/)).toBeInTheDocument();
+    expect(screen.getAllByText('2 upcoming').length).toBeGreaterThan(0);
+    expect(screen.getByText('Collected')).toBeInTheDocument();
+  });
+
+  it('explains where clients come from while there are none', async () => {
+    server.use(http.get('/api/clients', () => HttpResponse.json([])));
+    renderWithProviders(<ClientsPage />, { lang: 'de' });
+
+    expect(await screen.findByText('Noch keine Kunden')).toBeInTheDocument();
+    expect(
+      screen.getByText('Kunden erscheinen hier automatisch, sobald Sie ihre erste Buchung anlegen.')
+    ).toBeInTheDocument();
+  });
+});
+
 describe('the directory follows the bookings', () => {
   it('marks clients stale when a booking is saved', async () => {
     server.use(

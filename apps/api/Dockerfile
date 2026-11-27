@@ -55,6 +55,10 @@ USER fotolio
 # platform restart a clean process instead.
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true"
 ENV SERVER_PORT=8080
+# One JSON object per log line wherever this image runs, so the setting travels
+# with the image instead of living in one platform's dashboard. Local runs
+# (`make api`, e2e-stack) do not use the image and stay plain text.
+ENV LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \

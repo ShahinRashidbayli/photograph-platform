@@ -1,6 +1,8 @@
 package com.photographplatform.api.common.scheduling;
 
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.logging.LogFields;
+import com.photographplatform.api.common.logging.MdcScope;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.util.function.ToIntFunction;
@@ -93,30 +95,39 @@ public class TenantJobRunner {
         // fixed amount of memory.
         Page<Tenant> page;
         int pageNumber = 0;
-        do {
-            page = tenantRepository.findAll(PageRequest.of(pageNumber, PAGE_SIZE, PAGE_ORDER));
+        // Every line the work writes carries the job and the tenant, so a
+        // nightly failure can be found by either without the work having to
+        // say which it was.
+        try (MdcScope jobScope = MdcScope.open().with(LogFields.JOB, jobName)) {
+            do {
+                page = tenantRepository.findAll(PageRequest.of(pageNumber, PAGE_SIZE, PAGE_ORDER));
 
-            for (Tenant tenant : page.getContent()) {
-                visited++;
-                try {
-                    TenantContext.setTenant(tenant.getId().toString());
-                    Integer count = perTenantTransaction.execute(status -> work.applyAsInt(tenant));
-                    processed += count == null ? 0 : count;
-                } catch (RuntimeException ex) {
-                    failed++;
-                    LOG.error("Job '{}' failed for tenant {} ({}): {}",
-                        jobName, tenant.getSubdomain(), tenant.getId(), ex.getMessage(), ex);
-                } finally {
-                    // Not optional. The scheduler's threads are pooled and reused
-                    // across jobs, so a binding left behind here would silently
-                    // become the next job's tenant — RLS would happily serve one
-                    // tenant's rows to work intended for another. Clearing here
-                    // also means the next page is fetched unbound, as it must be.
-                    TenantContext.clear();
+                for (Tenant tenant : page.getContent()) {
+                    visited++;
+                    // Opened outside the try so the catch below still logs under it.
+                    try (MdcScope tenantScope = MdcScope.open().with(LogFields.TENANT_ID, tenant.getId())) {
+                        try {
+                            TenantContext.setTenant(tenant.getId().toString());
+                            Integer count = perTenantTransaction.execute(status -> work.applyAsInt(tenant));
+                            processed += count == null ? 0 : count;
+                        } catch (RuntimeException ex) {
+                            failed++;
+                            // Named by id (in the log context), never by subdomain:
+                            // a solo photographer's subdomain is usually their name.
+                            LOG.error("Job '{}' failed for this tenant; continuing with the next", jobName, ex);
+                        } finally {
+                            // Not optional. The scheduler's threads are pooled and reused
+                            // across jobs, so a binding left behind here would silently
+                            // become the next job's tenant — RLS would happily serve one
+                            // tenant's rows to work intended for another. Clearing here
+                            // also means the next page is fetched unbound, as it must be.
+                            TenantContext.clear();
+                        }
+                    }
                 }
-            }
-            pageNumber++;
-        } while (page.hasNext());
+                pageNumber++;
+            } while (page.hasNext());
+        }
 
         return new Result(visited, processed, failed);
     }

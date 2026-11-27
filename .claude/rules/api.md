@@ -34,6 +34,33 @@ module's repository — call its service, or publish an event.
 | Image uploads | `common/media/*` (`BoundedImageDecoder`, `UploadLimits`) |
 | Scheduled jobs | `TenantJobRunner` + `JobLock` |
 | GDPR erasure | implement `common/privacy/PersonalDataEraser`; it is picked up automatically |
+| Log fields / context | `common/logging` (`LogFields`, `MdcScope`, `RequestRoute`); rules under "Logging" below |
+
+## Logging
+
+Deployed, every line is one JSON object (Spring Boot `logstash` format, switched on in
+`Dockerfile`); locally and in tests it is plain text. Railway filters on top-level fields:
+`@request_id:…`, `@tenant_id:…`, `@level:error`, `@status:500`, `@duration_ms:>=1000`.
+
+- **No personal data, no secrets.** Ids (UUIDs) only. Never an email, name, phone, IP address,
+  token, request/response body, tenant subdomain (usually the photographer's name) or raw
+  URI — `/public/galleries/{subdomain}/{token}` carries the gallery's access token; name a
+  request with `RequestRoute.of(request)`. Postgres and provider exception messages embed
+  values (`Key (email)=(…) already exists`): see `GlobalExceptionHandler.handleDataIntegrity`.
+  Who-did-what belongs in the audit trail, not the log.
+- **Levels.** ERROR: a human has to look (unexpected exception, retries exhausted, inconsistent
+  data) — alerting will hang off it, so never for an expected outcome. WARN: degraded but
+  handled. INFO: a state change worth finding later. DEBUG: off in production. Log a failure
+  once, where it is handled.
+- **Context is in the MDC, not the message.** Per request: `request_id`, `tenant_id`, `user_id`
+  (`RequestLoggingFilter`, `TenantContextFilter`). Per tenant in `TenantJobRunner`: `job`,
+  `tenant_id`. Per outbox job: `outbox_job_id`, `outbox_kind`, `tenant_id`. New background
+  work opens its own with `MdcScope`.
+- **An event's own ids go in fields**: `LOG.atInfo().addKeyValue(LogFields.X, id).log("…")`,
+  names in `LogFields` (`snake_case`). Keep the message readable without them — plain-text
+  output does not print fields.
+- Every request already gets one access line (method, route, status, duration); don't add
+  per-endpoint "called"/"returned" lines.
 
 ## Database
 

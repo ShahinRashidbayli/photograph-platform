@@ -1,5 +1,6 @@
 package com.photographplatform.api.common.outbox;
 
+import com.photographplatform.api.common.logging.LogFields;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -10,6 +11,8 @@ import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -35,6 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Component
 public class Outbox {
+
+    private static final Logger LOG = LoggerFactory.getLogger(Outbox.class);
 
     /** Most rows one claim takes. Small, because each one may block on a provider for seconds. */
     static final int CLAIM_BATCH = 20;
@@ -78,16 +83,32 @@ public class Outbox {
      */
     public boolean enqueue(OutboxEntry entry) {
         Timestamp now = Timestamp.from(clock.instant());
-        Integer rows = joinOrStart.execute(status -> jdbc.update("""
+        // RETURNING so the new job's id can be logged; a conflict returns no row.
+        List<UUID> ids = joinOrStart.execute(status -> jdbc.queryForList("""
             INSERT INTO outbox_jobs (queue, kind, tenant_id, payload, recipient_email, priority,
                                      next_run_at, expires_at, idempotency_key, created_at, updated_at)
             VALUES (?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (idempotency_key) DO NOTHING
+            RETURNING id
             """,
+            UUID.class,
             entry.queue(), entry.kind(), entry.tenantId(), entry.payloadJson(),
             trimToNull(entry.recipientEmail()), entry.priority(),
             now, timestamp(entry.expiresAt()), entry.idempotencyKey(), now, now));
-        return rows != null && rows == 1;
+        if (ids == null || ids.isEmpty()) {
+            return false;
+        }
+        // The bridge from a request to the job it started: this line carries the
+        // request's id (it runs inside the request), and every line the worker
+        // writes for the job later carries the job's. "The customer never got
+        // the confirmation" starts at the request and needs to reach the job.
+        // Written before the caller commits, so on a rollback it names a job
+        // that never existed — harmless, since nothing else will mention it.
+        LOG.atInfo()
+            .addKeyValue(LogFields.OUTBOX_JOB_ID, ids.get(0))
+            .addKeyValue(LogFields.OUTBOX_KIND, entry.kind())
+            .log("Outbox job {} queued on {}", ids.get(0), entry.queue());
+        return true;
     }
 
     /**

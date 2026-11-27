@@ -1,6 +1,7 @@
 package com.photographplatform.api.common.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.photographplatform.api.common.logging.RequestId;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
@@ -27,6 +28,10 @@ import java.util.Map;
  *                  capability and tier behind a {@code PLAN_UPGRADE_REQUIRED},
  *                  the failing field behind a {@code VALIDATION_FAILED});
  *                  omitted from the JSON entirely when there is none
+ * @param requestId the {@link RequestId} of the failed request — what a user
+ *                  quotes to support, and what finds the request's log lines;
+ *                  taken from the log context so every error carries it
+ *                  without each handler remembering to
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ErrorResponse(
@@ -34,15 +39,16 @@ public record ErrorResponse(
     String error,
     OffsetDateTime timestamp,
     String path,
-    Map<String, Object> details
+    Map<String, Object> details,
+    String requestId
 ) {
 
     public static ErrorResponse of(String code, String message, String path, OffsetDateTime now) {
-        return new ErrorResponse(code, message, now, path, null);
+        return new ErrorResponse(code, message, now, path, null, RequestId.current());
     }
 
     public static ErrorResponse of(
         String code, String message, String path, OffsetDateTime now, Map<String, Object> details) {
-        return new ErrorResponse(code, message, now, path, details);
+        return new ErrorResponse(code, message, now, path, details, RequestId.current());
     }
 }

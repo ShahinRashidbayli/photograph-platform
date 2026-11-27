@@ -1,5 +1,6 @@
 package com.photographplatform.api.common.config;
 
+import com.photographplatform.api.common.logging.MdcTaskDecorator;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,6 +53,9 @@ public class WebAsyncConfig implements WebMvcConfigurer {
         executor.setAllowCoreThreadTimeOut(true);
         executor.setThreadNamePrefix("mvc-stream-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        // The archive writer logs skipped photos and the finished stream; without
+        // this those lines lose the download's request_id.
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
     }

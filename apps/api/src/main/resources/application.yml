@@ -129,6 +129,19 @@ management:
       show-details: never
       show-components: never
 
+# Plain text here (`make api`, tests, e2e-stack). The deployed image switches the
+# console to JSON with LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash (see
+# apps/api/Dockerfile): `logstash` because it writes `level` and `message` at the
+# top level, which is what Railway's log explorer reads, and puts every
+# log-context field beside them as a filterable attribute. What a log line may
+# contain: .claude/rules/api.md, "Logging".
+logging:
+  pattern:
+    # The request and tenant on every plain-text line, so a local trace can be
+    # followed the way a production one is filtered. Unused by the JSON format,
+    # which writes both as fields of their own.
+    correlation: "[%X{request_id:-}] [%X{tenant_id:-}] "
+
 server:
   port: 8080
   # Hand X-Forwarded-* to Tomcat's RemoteIpValve instead of reading it in

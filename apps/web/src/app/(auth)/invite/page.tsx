@@ -5,7 +5,7 @@ import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard } from '@/components/AuthStatusCard';
 import { PasswordField } from '@/components/PasswordField';
 import { getColors } from '@/lib/design-tokens';
-import { extractApiError } from '@/lib/helpers';
+import { extractApiError, httpStatus } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
@@ -42,8 +42,7 @@ function InviteForm() {
   const accept = useAcceptInvitation();
   // Spent between opening the link and submitting (accepted in another tab,
   // revoked, expired): the same dead link the preview would have reported.
-  const spent =
-    (accept.error as { response?: { status?: number } } | null)?.response?.status === 401;
+  const spent = httpStatus(accept.error) === 401;
   const invalid = !token || previewQuery.isError || spent;
 
   const [fullName, setFullName] = useState('');

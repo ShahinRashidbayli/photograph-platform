@@ -5,7 +5,7 @@ import { usePublicTenantLegal } from '@/hooks/useTenantLegal';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
-import { extractApiError } from '@/lib/helpers';
+import { extractApiError, httpStatus } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
 import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
@@ -266,9 +266,8 @@ function CustomerLoginInner() {
         onError: (err) => {
           // A wrong, spent or expired code is a 401. Ours, not the server's
           // sentence: that one is English-only.
-          const status = (err as { response?: { status?: number } })?.response?.status;
           setError(
-            status === 401
+            httpStatus(err) === 401
               ? t('customerLogin.errorCodeInvalid')
               : extractApiError(err, t('customerLogin.errorCodeInvalid'))
           );

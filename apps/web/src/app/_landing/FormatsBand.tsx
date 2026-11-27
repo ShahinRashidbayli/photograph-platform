@@ -60,6 +60,8 @@ export function FormatsBand() {
                   src={photo.src}
                   alt=""
                   fill
+                  // Mirrors the .lp-formats-grid breakpoints in globals.css
+                  // (520px snap row at 38vw, 960px four across); change both.
                   sizes="(max-width: 520px) 38vw, (max-width: 960px) 25vw, 160px"
                   style={focus ? { objectPosition: focus } : undefined}
                 />

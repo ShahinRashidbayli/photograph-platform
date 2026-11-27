@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
- * The deprecated {@code clients} table (see V40). The directory no longer
+ * The deprecated {@code clients} table (see V41). The directory no longer
  * reads it — that is {@link ClientNoteRepository} — but it can still hold
  * personal data written before, and {@code CreateBookingRequest.clientId}
  * still points at it, so it keeps the two lookups those need until it is

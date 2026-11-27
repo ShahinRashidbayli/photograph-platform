@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * The client directory against a real Postgres.
  *
- * <p>The directory is the studio's bookings grouped by address (V40). It used
+ * <p>The directory is the studio's bookings grouped by address (V41). It used
  * to read a {@code clients} table that nothing in the application wrote, so
  * every studio but the seeded demo saw an empty page. These tests write
  * bookings, invoices and payments only, never a client, and expect the

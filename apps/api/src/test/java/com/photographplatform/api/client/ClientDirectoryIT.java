@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Regression for the empty client directory: a booking created through the
  * API must make its client appear in {@code GET /api/clients}, with no
- * further step. Before V40 the directory read a table that nothing wrote, so
+ * further step. Before V41 the directory read a table that nothing wrote, so
  * this returned {@code []} for every real studio.
  */
 class ClientDirectoryIT extends IntegrationTestBase {

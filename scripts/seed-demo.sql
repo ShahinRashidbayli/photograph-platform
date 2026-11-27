@@ -118,7 +118,7 @@ FROM seed_target s, (VALUES
 ) AS p(id, name, price_cents, hours, photos, active, sort);
 
 -- ── Client notes ────────────────────────────────────────────────────────────
--- The client directory is derived from the bookings below (V40): one client
+-- The client directory is derived from the bookings below (V41): one client
 -- per address, with their counts, upcoming sessions and spend computed on
 -- read. The only thing it stores is the photographer's notes, keyed by the
 -- client's normalised address. The bookings are chosen so the directory's

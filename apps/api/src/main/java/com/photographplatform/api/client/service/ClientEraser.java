@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>The directory is derived from bookings, so once {@code BookingEraser}
  * has anonymised those the subject drops out of it on its own; what is left
  * here is the photographer's notes about them, and any rows of the
- * deprecated {@code clients} table (V40).
+ * deprecated {@code clients} table (V41).
  *
  * <p>Identifies before bookings do, because a booking can still name its
  * client by legacy directory entry rather than by address. Bookings that

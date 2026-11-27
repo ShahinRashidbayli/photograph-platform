@@ -53,6 +53,6 @@ CREATE POLICY client_notes_tenant_isolation ON client_notes
 CREATE INDEX idx_bookings_client_email_lower ON bookings (tenant_id, lower(btrim(client_email)));
 
 COMMENT ON TABLE clients IS
-    'Deprecated (V40): nothing reads it for the directory any more, which is '
+    'Deprecated (V41): nothing reads it for the directory any more, which is '
     'derived from bookings; notes moved to client_notes. Kept only until '
     'bookings.client_id and CreateBookingRequest.clientId are removed.';

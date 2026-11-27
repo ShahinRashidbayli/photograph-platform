@@ -11,7 +11,7 @@ import java.util.UUID;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * A photographer's private notes about one client (V40).
+ * A photographer's private notes about one client (V41).
  *
  * <p>The only part of the client directory that is not derived from bookings,
  * so the only part stored. Keyed by the client's normalised address, the

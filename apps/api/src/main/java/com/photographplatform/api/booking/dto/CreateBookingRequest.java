@@ -17,7 +17,7 @@ import java.util.UUID;
  * {@code PATCH /api/bookings/{id}/status}, which enforces the state machine.
  *
  * <p>{@code clientId} is deprecated and the web app never sends it: it names
- * a row of the old {@code clients} table, which nothing writes (V40). The
+ * a row of the old {@code clients} table, which nothing writes (V41). The
  * client directory is derived from {@code clientEmail} instead, so every
  * booking puts its client there. Amount fields default to 0 when omitted.
  */

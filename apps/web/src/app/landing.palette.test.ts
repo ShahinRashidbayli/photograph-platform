@@ -121,9 +121,12 @@ const BOTH: Pair[] = [
   ['pv-muted', 'pv-panel', TEXT, 'a preview'],
   ['pv-muted', 'pv-bg', TEXT, 'a preview'],
   ['pv-on-text', 'pv-text', TEXT, 'a preview’s filled button'],
-  ...['green', 'amber', 'blue', 'grey'].map(
-    (tone): Pair => [`pv-${tone}`, `pv-${tone}-bg`, TEXT, 'a status chip']
-  ),
+  ...['green', 'amber', 'blue', 'grey'].map((tone): Pair => [
+    `pv-${tone}`,
+    `pv-${tone}-bg`,
+    TEXT,
+    'a status chip',
+  ]),
   ['ink', 'bg', RING, 'the focus ring on paper'],
   ['ink', 'band', RING, 'the focus ring on a band'],
   ['ink', 'surface', RING, 'the focus ring on a card'],

@@ -160,7 +160,7 @@ jobs:
       # number, and the report is the only thing that says which lines moved.
       - name: Upload coverage and SpotBugs reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-analysis-reports
           path: |

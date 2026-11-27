@@ -11,7 +11,9 @@ import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.service.EmailService;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.service.PublicTenantResolver;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +55,7 @@ class CustomerMessageQueueTest {
         when(emailService.queue(any())).thenReturn(true);
         StudioIdentityResolver identities =
             new StudioIdentityResolver(tenants, entitlements, "https://app.fotolio.de");
-        queue = new CustomerMessageQueue(identities, emailService);
+        queue = new CustomerMessageQueue(identities, emailService, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private void plan(Capability... capabilities) {
@@ -64,7 +66,7 @@ class CustomerMessageQueueTest {
     private OutgoingEmail queued() {
         queue.queue(new CustomerMessageQueue.Message(
             "messaging.gallery-ready", EmailType.GALLERY_READY, GALLERY, TENANT, "maria@example.test",
-            studio -> new Params(studio, "Maria"), null, NOW));
+            studio -> new Params(studio, "Maria"), null));
         ArgumentCaptor<OutgoingEmail> sent = ArgumentCaptor.forClass(OutgoingEmail.class);
         verify(emailService).queue(sent.capture());
         return sent.getValue();

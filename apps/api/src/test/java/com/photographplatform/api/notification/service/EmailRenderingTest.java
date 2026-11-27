@@ -13,6 +13,7 @@ import com.photographplatform.api.common.outbox.OutboxEntry;
 import com.photographplatform.api.common.outbox.OutboxJob;
 import com.photographplatform.api.common.outbox.Outbox;
 import com.photographplatform.api.messaging.application.RequestDecisionMessage;
+import com.photographplatform.api.messaging.application.ContractToSignMessage;
 import com.photographplatform.api.messaging.application.EnquiryReceivedMessage;
 import com.photographplatform.api.messaging.domain.StudioIdentity;
 import com.photographplatform.api.notification.dto.EmailMessage;
@@ -95,6 +96,12 @@ class EmailRenderingTest {
                     "HOCHZEIT", "OVER_2000", LocalDate.of(2027, 6, 12), "Berlin")},
             new Object[] {withBaseUrl(new ContractNotificationService(null)),
                 new ContractNotificationService.Params(UUID.randomUUID(), UUID.randomUUID(), "Vertrag", "Maria")},
+            new Object[] {new ContractToSignMessage(null, null, null), new ContractToSignMessage.Params(
+                new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
+                "Maria", "https://app.fotolio.de/customer/auth/login", "Bis Freitag <b>bitte</b>")},
+            new Object[] {new ContractToSignMessage(null, null, null), new ContractToSignMessage.Params(
+                new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN, null,
+                "https://app.fotolio.de/customer/auth/login", null)},
             new Object[] {withBaseUrl(new GalleryExpiryNotificationService(null)),
                 new GalleryExpiryNotificationService.Params("Maria", "Anna", "anna-foto", "acc",
                     OffsetDateTime.of(2027, 1, 31, 12, 0, 0, 0, ZoneOffset.UTC), 5)});

@@ -31,6 +31,13 @@ export const common = {
   'common.confirm': 'Confirm',
   'common.working': 'Working…',
 
+  // ── Personal note (send dialogs for Customer messages) ────────────────────
+  'personalNote.label': 'Personal note (optional)',
+  'personalNote.hint': 'Shown to your client as plain text in the email.',
+  'personalNote.placeholder': 'A few words in your own voice…',
+  'personalNote.counter': '{count} / {max}',
+  'personalNote.sending': 'Sending…',
+
   'common.tryOtherFilter': 'Try a different filter or search term.',
 
   // ── Contact actions (leads + clients) ─────────────────────────────────────

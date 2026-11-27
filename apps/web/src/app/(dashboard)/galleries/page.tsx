@@ -4,11 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
 import { CustomerGalleries } from './CustomerGalleries';
-import { asyncErrorText, type AsyncError } from '@/lib/async-error';
+import { asyncError, asyncErrorText, type AsyncError } from '@/lib/async-error';
 import { formatMonthDayYear } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { StatStrip } from '@/components/StatStrip';
-import { Alert, Badge, Toggle } from '@/components/ui';
+import { Alert, Badge, Button, Toggle } from '@/components/ui';
+import { PersonalNoteDialog } from '@/components/PersonalNoteDialog';
 import { getInitials, pickAvatarColor } from '@/lib/avatar';
 import {
   useCreateGallery,
@@ -18,6 +20,7 @@ import {
   useGalleries,
   useGalleryBookingOptions,
   useGalleryPhotos,
+  useSendGallery,
   useUpdateGallery,
   useUploadGalleryPhotos,
   type DeliveryPhoto,
@@ -506,6 +509,26 @@ function GalleryPhotos({
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Mirrors `Gallery.extend` on the API: a live gallery that already runs past
+ * a full plan window from today (or never expires) is left as it is. Offering
+ * the button there is the "did nothing visible" bug of #108 — after a
+ * downgrade it would read "Extend to 60 days" on a gallery with two years left.
+ * A gain under a day is treated the same: the expiry is shown as a date, so a
+ * gallery delivered this morning would "extend" without the date changing.
+ * An expired gallery is always worth extending; so is one whose plan window
+ * is not known yet, since the server decides.
+ */
+function extendWouldChangeAnything(gallery: Gallery, planRetentionDays: number | null): boolean {
+  if (gallery.expiryState !== 'ACTIVE') return true;
+  if (gallery.expiresAt === null) return false;
+  if (planRetentionDays === null) return true;
+  const renewed = Date.now() + planRetentionDays * DAY_MS;
+  return renewed - new Date(gallery.expiresAt).getTime() >= DAY_MS;
+}
+
 function GalleryDetail({
   gallery,
   subdomain,
@@ -514,6 +537,7 @@ function GalleryDetail({
   busy,
   onPatch,
   onExtend,
+  onSend,
   onDelete,
   onUpload,
 }: Readonly<{
@@ -524,12 +548,14 @@ function GalleryDetail({
   busy: boolean;
   onPatch: (_id: string, _body: Record<string, unknown>) => void;
   onExtend: (_id: string) => void;
+  onSend: (_id: string) => void;
   onDelete: (_id: string) => void;
   onUpload: (_id: string, _files: FileList) => void;
 }>) {
   // 'idle' | 'copied' | 'failed' — 'failed' needs its own state so the button
   // can tell the user to copy the link manually instead of appearing inert.
   const { t, tPlural } = useTranslation();
+  const { entitlements } = useEntitlements();
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   // Reset the transient feedback after a moment, cancelled on unmount so it
@@ -629,6 +655,16 @@ function GalleryDetail({
     onExtend(gallery.id);
   }
 
+  // Named after what the server does — a full plan window from today, never
+  // shortening — rather than a fixed "+30 days" it never added. The number
+  // comes from the plan; until it is known the label just says "Extend".
+  const planRetentionDays = entitlements?.galleryRetentionDays;
+  const extendLabel = planRetentionDays
+    ? t('galleries.detail.extend', { days: planRetentionDays })
+    : t('galleries.detail.extendFallback');
+  const showExtend =
+    gallery.canExtend && extendWouldChangeAnything(gallery, planRetentionDays ?? null);
+
   return (
     <>
       <div style={styles.detailHeader}>
@@ -677,6 +713,15 @@ function GalleryDetail({
           >
             <IconUpload /> {busy ? t('galleries.detail.uploading') : t('galleries.detail.upload')}
           </button>
+          {/* Sent when the photos are in, not when the gallery is created —
+              so a Customer never opens an empty one. Sendable again. */}
+          <Button
+            onClick={() => onSend(gallery.id)}
+            disabled={busy || gallery.photoCount === 0}
+            title={gallery.photoCount === 0 ? t('galleries.send.empty') : undefined}
+          >
+            {t('galleries.send.action')}
+          </Button>
           {shareUrl && (
             <a
               href={shareUrl}
@@ -743,20 +788,16 @@ function GalleryDetail({
                 />
               </div>
             )}
-            {gallery.canExtend && (
-              <button
+            {showExtend && (
+              <Button
+                size="sm"
                 onClick={extendGallery}
                 disabled={busy}
-                style={{
-                  ...styles.actionButton,
-                  ...styles.actionButtonOutline,
-                  alignSelf: 'flex-start',
-                  padding: '5px 12px',
-                  fontSize: '0.75rem',
-                }}
+                title={t('galleries.detail.extendHint')}
+                style={{ alignSelf: 'flex-start' }}
               >
-                {t('galleries.detail.extend')}
-              </button>
+                {extendLabel}
+              </Button>
             )}
           </div>
         </div>
@@ -1026,6 +1067,8 @@ export default function GalleriesPage() {
   // failed delete, extend or upload on an existing gallery showed nothing.
   const [actionError, setActionError] = useState<AsyncError | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // The gallery whose "An Kunden senden" dialog is open.
+  const [sendingId, setSendingId] = useState<string | null>(null);
   // The rail shows the first page of galleries and offers the rest behind one
   // click — a photographer two seasons in has a hundred of them, and the ones
   // that need doing something about are already sorted to the top.
@@ -1037,6 +1080,8 @@ export default function GalleriesPage() {
   const extendGalleryMutation = useExtendGallery();
   const deleteGalleryMutation = useDeleteGallery();
   const uploadGalleryPhotos = useUploadGalleryPhotos();
+  const sendGalleryMutation = useSendGallery();
+  const { mutate: mutateSend } = sendGalleryMutation;
   // `mutate` is stable across renders; the mutation object around it is not.
   const { mutate: mutateUpdate } = updateGallery;
   const { mutate: mutateExtend } = extendGalleryMutation;
@@ -1049,6 +1094,7 @@ export default function GalleriesPage() {
     (extendGalleryMutation.isPending && extendGalleryMutation.variables) ||
     (deleteGalleryMutation.isPending && deleteGalleryMutation.variables) ||
     (uploadGalleryPhotos.isPending && uploadGalleryPhotos.variables?.id) ||
+    (sendGalleryMutation.isPending && sendGalleryMutation.variables?.id) ||
     null;
 
   const patchGallery = useCallback(
@@ -1070,6 +1116,22 @@ export default function GalleriesPage() {
       });
     },
     [mutateExtend]
+  );
+
+  const sendGallery = useCallback(
+    (id: string, note: string | null) => {
+      setActionError(null);
+      mutateSend(
+        { id, note },
+        {
+          onError: (err) => setActionError(asyncError(err, 'galleries.send.error')),
+          // Closed on failure too, with the error above the galleries: a
+          // dialog left open invites a second click and a second email.
+          onSettled: () => setSendingId(null),
+        }
+      );
+    },
+    [mutateSend]
   );
 
   const deleteGallery = useCallback(
@@ -1460,11 +1522,25 @@ export default function GalleriesPage() {
             busy={busyId !== null && busyId === selectedGallery?.id}
             onPatch={patchGallery}
             onExtend={extendGallery}
+            onSend={setSendingId}
             onDelete={deleteGallery}
             onUpload={uploadPhotos}
           />
         </div>
       </div>
+
+      {sendingId && (
+        <PersonalNoteDialog
+          title={t('galleries.send.title')}
+          description={t('galleries.send.body', {
+            name: galleries.find((g) => g.id === sendingId)?.bookingName ?? '',
+          })}
+          confirmLabel={t('galleries.send.action')}
+          busy={sendGalleryMutation.isPending}
+          onSend={(note) => sendGallery(sendingId, note)}
+          onClose={() => setSendingId(null)}
+        />
+      )}
     </div>
   );
 }

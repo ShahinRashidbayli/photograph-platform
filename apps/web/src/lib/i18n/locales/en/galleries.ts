@@ -70,13 +70,24 @@ export const galleries = {
   'galleries.detail.watermarkOff': 'Off — photos are shown without your logo',
   'galleries.detail.expiresOn': 'Expires on {date}',
   'galleries.detail.neverExpires': 'No expiry set',
-  'galleries.detail.extend': '+30 days',
+  'galleries.detail.extend': 'Extend to {days} days from today',
+  'galleries.detail.extendFallback': 'Extend',
+  'galleries.detail.extendHint':
+    "Keeps the gallery online for your plan's full retention window, counted from today. It never brings the expiry date forward.",
   'galleries.detail.addPhotos': 'Add',
   'galleries.detail.statusActive': 'Active',
   'galleries.detail.statusExpired': 'Expired',
   'galleries.detail.statusPurged': 'Deleted',
 
   'galleries.update.error': 'Could not update the gallery.',
+  // "An Kunden senden": emails the Customer the gallery link, with an optional
+  // Personal note. Only once there are photos to see.
+  'galleries.send.action': 'Send to client',
+  'galleries.send.title': 'Send this gallery to your client?',
+  'galleries.send.body':
+    '{name} gets an email in your studio’s name with the link to the gallery. You can send it again later.',
+  'galleries.send.empty': 'Upload photos first — an empty gallery cannot be sent.',
+  'galleries.send.error': 'Could not send the gallery. Please try again.',
   'galleries.extend.error':
     'Could not extend the gallery. If its photos have already been deleted, they cannot be restored.',
   'galleries.delete.error': 'Could not delete the gallery.',

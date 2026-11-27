@@ -15,8 +15,16 @@ import java.util.EnumSet;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.branding.service.BrandingService;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
+import com.photographplatform.api.tenant.service.PublicTenantResolver;
+import org.springframework.context.ApplicationEventPublisher;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.booking.dto.BookingCustomer;
+import com.photographplatform.api.gallery.event.GalleryDeliveredEvent;
+import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.gallery.domain.Gallery;
 import com.photographplatform.api.gallery.dto.CreateGalleryRequest;
 import com.photographplatform.api.gallery.dto.UpdateGalleryRequest;
@@ -71,6 +79,9 @@ class GalleryServiceTest {
     private DeliveryPhotoProcessor photoProcessor;
     private EntitlementService entitlementService;
     private BrandingService brandingService;
+    private BookingQueryService bookingQueryService;
+    private PublicTenantResolver tenants;
+    private ApplicationEventPublisher eventPublisher;
     /** Permissive by default — the download quota has its own test. */
     private RateLimiter rateLimiter;
     private GalleryService galleryService;
@@ -95,11 +106,15 @@ class GalleryServiceTest {
         brandingService = mock(BrandingService.class);
 
         rateLimiter = mock(RateLimiter.class);
+        bookingQueryService = mock(BookingQueryService.class);
+        tenants = mock(PublicTenantResolver.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
 
         galleryService = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.<R2StorageService>empty(), auditService, photoProcessor,
-            entitlementService, FIXED_CLOCK, rateLimiter, new R2Properties(), brandingService);
+            entitlementService, FIXED_CLOCK, rateLimiter, new R2Properties(), brandingService,
+            bookingQueryService, tenants, eventPublisher);
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -201,7 +216,8 @@ class GalleryServiceTest {
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
-            rateLimiter, new R2Properties(), brandingService);
+            rateLimiter, new R2Properties(), brandingService,
+            bookingQueryService, tenants, eventPublisher);
         UUID id = UUID.randomUUID();
         Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, true);
         DeliveryPhoto marked = new DeliveryPhoto(id, "t/g/a.jpg", "a.jpg");
@@ -228,7 +244,8 @@ class GalleryServiceTest {
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
-            rateLimiter, new R2Properties(), brandingService);
+            rateLimiter, new R2Properties(), brandingService,
+            bookingQueryService, tenants, eventPublisher);
         UUID id = UUID.randomUUID();
         Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
         when(galleryRepository.findById(id)).thenReturn(Optional.of(gallery));
@@ -362,7 +379,8 @@ class GalleryServiceTest {
         GalleryService withStorage = new GalleryService(
             galleryRepository, deliveryPhotoRepository, bookingRepository,
             Optional.of(r2), auditService, photoProcessor, entitlementService, FIXED_CLOCK,
-            rateLimiter, new R2Properties(), brandingService);
+            rateLimiter, new R2Properties(), brandingService,
+            bookingQueryService, tenants, eventPublisher);
 
         UUID photoId = UUID.randomUUID();
         DeliveryPhoto photo = new DeliveryPhoto(UUID.randomUUID(), "t/g/a.jpg", "a.jpg");
@@ -469,5 +487,110 @@ class GalleryServiceTest {
         // Zip-Slip: a separator in an entry name lets a careless extractor
         // write outside the target directory.
         assertThat(plan.entries().get(0).filename()).doesNotContain("/").doesNotContain("..");
+    }
+
+    // ── send to the Customer ─────────────────────────────────────────────────
+
+    /** "An Kunden senden" is disabled in the UI at 0 photos; the API says the same. */
+    @Test
+    void sendingAGalleryWithNoPhotosIsAConflictAndTellsNobody() {
+        Gallery gallery = sendable(0L);
+
+        assertThatThrownBy(() -> galleryService.send(gallery.getId(), null, IP))
+            .isInstanceOf(ConflictException.class);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void sendingTellsTheBookingsCustomerInTheirLanguage() {
+        Gallery gallery = sendable(12L);
+
+        galleryService.send(gallery.getId(), "  Viel Freude!  ", IP);
+
+        ArgumentCaptor<GalleryDeliveredEvent> event = ArgumentCaptor.forClass(GalleryDeliveredEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().getGalleryId()).isEqualTo(gallery.getId());
+        assertThat(event.getValue().getTenantId()).isEqualTo(TENANT_ID);
+        assertThat(event.getValue().getRecipientEmail()).isEqualTo("maria@example.test");
+        assertThat(event.getValue().getRecipientName()).isEqualTo("Maria Kellner");
+        assertThat(event.getValue().getLanguage()).isEqualTo(CustomerLanguage.EN);
+        assertThat(event.getValue().getPersonalNote()).isEqualTo("Viel Freude!");
+        assertThat(event.getValue().getSentAt()).isEqualTo(FIXED_CLOCK.instant());
+        assertThat(event.getValue().getSubdomain()).isEqualTo("anna-foto");
+        assertThat(event.getValue().getAccessToken()).isEqualTo(gallery.getAccessToken());
+    }
+
+    /** The trail says a note went out, never what it said. */
+    @Test
+    void theAuditRowSaysANoteWasSentButNotWhatItSaid() {
+        Gallery gallery = sendable(3L);
+
+        galleryService.send(gallery.getId(), "Unser Geheimnis", IP);
+
+        verify(auditService).logChange("GALLERY_SENT", "GALLERY", gallery.getId(), TENANT_ID, ACTOR_ID, IP,
+            null, GalleryService.SENT_WITH_A_NOTE);
+    }
+
+    @Test
+    void sendingWithoutANoteAuditsThePlainSend() {
+        Gallery gallery = sendable(3L);
+
+        galleryService.send(gallery.getId(), "   ", IP);
+
+        verify(auditService).log("GALLERY_SENT", "GALLERY", gallery.getId(), TENANT_ID, ACTOR_ID, IP);
+        ArgumentCaptor<GalleryDeliveredEvent> event = ArgumentCaptor.forClass(GalleryDeliveredEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().getPersonalNote()).isNull();
+    }
+
+    /** The retention clock is not the send's business: the gallery is not saved at all. */
+    @Test
+    void sendingLeavesTheRetentionClockAlone() {
+        Gallery gallery = sendable(3L);
+        OffsetDateTime expiresAt = gallery.getExpiresAt();
+
+        galleryService.send(gallery.getId(), null, IP);
+
+        verify(galleryRepository, never()).save(any());
+        assertThat(gallery.getExpiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void anExpiredGalleryCannotBeSent() {
+        UUID id = UUID.randomUUID();
+        Gallery lapsed = new Gallery(UUID.randomUUID(), NOW.minusDays(61), 60, true, false);
+        when(galleryRepository.findById(id)).thenReturn(Optional.of(lapsed));
+        GalleryStatsView stats = mock(GalleryStatsView.class);
+        when(stats.getPhotoCount()).thenReturn(3L);
+        when(galleryRepository.findStatsById(id)).thenReturn(Optional.of(stats));
+
+        assertThatThrownBy(() -> galleryService.send(id, null, IP)).isInstanceOf(ConflictException.class);
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void aBookingWithoutACustomerAddressCannotBeSentTo() {
+        Gallery gallery = sendable(3L);
+        when(bookingQueryService.customer(gallery.getBookingId()))
+            .thenReturn(new BookingCustomer(" ", "Maria Kellner", CustomerLanguage.DE));
+
+        assertThatThrownBy(() -> galleryService.send(gallery.getId(), null, IP))
+            .isInstanceOf(ConflictException.class);
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    /** A live gallery with {@code photoCount} photos, behind an English-speaking Customer's booking. */
+    private Gallery sendable(long photoCount) {
+        Gallery gallery = new Gallery(UUID.randomUUID(), NOW, 60, true, false);
+        org.springframework.test.util.ReflectionTestUtils.setField(gallery, "id", UUID.randomUUID());
+        when(galleryRepository.findById(gallery.getId())).thenReturn(Optional.of(gallery));
+        GalleryStatsView stats = mock(GalleryStatsView.class);
+        when(stats.getPhotoCount()).thenReturn(photoCount);
+        when(galleryRepository.findStatsById(gallery.getId())).thenReturn(Optional.of(stats));
+        when(bookingQueryService.customer(gallery.getBookingId()))
+            .thenReturn(new BookingCustomer("maria@example.test", "Maria Kellner", CustomerLanguage.EN));
+        when(tenants.requireById(TENANT_ID)).thenReturn(new Tenant("anna-foto", "anna@example.test"));
+        return gallery;
     }
 }

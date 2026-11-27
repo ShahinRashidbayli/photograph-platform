@@ -3,13 +3,11 @@ package com.photographplatform.api.notification.service;
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.notification.dto.EmailType;
-import com.photographplatform.api.notification.dto.OutgoingEmail;
 import com.photographplatform.api.notification.email.EmailRenderer;
 import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.EmailTemplate.Row;
 import com.photographplatform.api.notification.email.RenderedEmail;
 import java.time.OffsetDateTime;
-import java.util.UUID;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -17,18 +15,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Warns the <em>client</em> that their gallery is about to come down.
+ * Renders the old German gallery expiry warning for rows already in the outbox.
  *
- * <p>ADR-001 §4.1 makes this a precondition for deleting anything: "the
- * dashboard countdown is <em>not</em> sufficient: a client who never opens the
- * dashboard sees nothing at all, and photos then vanish silently. The client —
- * not only the photographer — must be warned."
- *
- * <p>Written in German. The recipient is the photographer's customer in the
- * German market, and they never chose a language in our UI — the photographer
- * did. English here would reach someone who may not read it, about their own
- * wedding photos being deleted.
+ * <p>Nothing queues it any more: the retention job publishes
+ * {@code GalleryExpiringEvent}, and {@code messaging}'s Gallery expiring
+ * replaced this one, in the Customer's language, addressed with <em>Sie</em>
+ * and in the studio's name (#127). It stays registered for one release so rows
+ * queued before that deploy still render. Delete it, and
+ * {@link EmailType#GALLERY_EXPIRY}, in the release after.
  */
+@Deprecated(forRemoval = true)
 @Service
 public class GalleryExpiryNotificationService
     implements EmailRenderer<GalleryExpiryNotificationService.Params> {
@@ -48,48 +44,13 @@ public class GalleryExpiryNotificationService
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
 
-    private final EmailService emailService;
-
-    public GalleryExpiryNotificationService(EmailService emailService) {
-        this.emailService = emailService;
-    }
-
-    /**
-     * @param tenantId whose studio this gallery belongs to — carried so a failed
-     *                 send can be attributed in the log without naming the
-     *                 recipient
-     * @param daysLeft which warning this is, in days before expiry — it decides
-     *                 the tone, because "in two weeks" and "tomorrow" are not
-     *                 the same message about someone's wedding photos
-     */
-    public void sendExpiryWarning(
-        UUID tenantId,
-        String clientEmail,
-        String clientName,
-        String photographerName,
-        String subdomain,
-        String accessToken,
-        OffsetDateTime expiresAt,
-        int daysLeft) {
-        // No idempotency key: the reminder row GalleryRetentionService writes
-        // in the same transaction is what stops a second warning. Expires with
-        // the gallery — a warning that arrives after the photos are gone is
-        // only distressing.
-        emailService.queue(new OutgoingEmail(
-            template(),
-            clientEmail,
-            tenantId,
-            new Params(clientName, photographerName, subdomain, accessToken, expiresAt, daysLeft),
-            null,
-            expiresAt));
-    }
-
     @Override
     public String template() {
         return "gallery.expiry-warning";
     }
 
     @Override
+    @SuppressWarnings("removal") // both go in the same release
     public EmailType type() {
         return EmailType.GALLERY_EXPIRY;
     }

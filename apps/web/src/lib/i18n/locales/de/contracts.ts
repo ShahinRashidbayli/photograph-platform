@@ -20,6 +20,7 @@ export const contracts: Record<keyof EnContracts, string> = {
 
   'contracts.action.edit': 'Bearbeiten',
   'contracts.action.send': 'An Kunden senden',
+  'contracts.action.resend': 'Erneut senden',
   'contracts.action.cancel': 'Zurückziehen',
   'contracts.action.download': 'PDF herunterladen',
   'contracts.action.save': 'Speichern',
@@ -36,7 +37,11 @@ export const contracts: Record<keyof EnContracts, string> = {
     'Dieser Entwurf ist ein Ausgangspunkt, keine Rechtsberatung. Lesen Sie ihn vor dem Senden — gebunden sind Sie.',
   'contracts.sendConfirmTitle': 'Diesen Vertrag senden?',
   'contracts.sendConfirmBody':
-    'Nach dem Senden ist der Text festgeschrieben und Ihr Kunde kann ihn unterzeichnen. Eine Bearbeitung ist danach nicht mehr möglich — Sie können ihn nur zurückziehen und einen neuen entwerfen.',
+    '{name} erhält eine E-Mail mit einem Link zum Unterzeichnen. Nach dem Senden ist der Text festgeschrieben und Ihr Kunde kann ihn unterzeichnen. Eine Bearbeitung ist danach nicht mehr möglich — Sie können ihn nur zurückziehen und einen neuen entwerfen.',
+  'contracts.resendTitle': 'Diesen Vertrag erneut senden?',
+  'contracts.resendBody':
+    '{name} erhält die E-Mail mit dem Link zum Unterzeichnen noch einmal. Der Vertrag selbst bleibt unverändert.',
+  'contracts.sendError': 'Der Vertrag konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
   'contracts.cancelConfirmTitle': 'Diesen Vertrag zurückziehen?',
   'contracts.cancelConfirmBody':
     'Ihr Kunde kann ihn dann nicht mehr unterzeichnen. Der Datensatz bleibt erhalten und wird nicht gelöscht.',

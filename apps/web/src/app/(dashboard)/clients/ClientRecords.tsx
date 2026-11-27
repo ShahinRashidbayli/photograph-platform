@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui';
 import { getBookingStatusMeta } from '@/lib/booking-status';
 import { parseApiDate } from '@/lib/date';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
-import type { Invoice } from '@/types/api';
+import { INVOICE_STATUS, invoiceStatus } from '@/lib/invoice-status';
 
 type Styles = Record<string, React.CSSProperties>;
 
@@ -69,7 +69,7 @@ export function ClientRecords({ clientId, s }: Readonly<{ clientId: string; s: S
           href: i.bookingId ? `/bookings?id=${encodeURIComponent(i.bookingId)}` : null,
           title: i.invoiceNumber,
           meta: `${format.eur(i.totalCents)} · ${format.monthDayYear(i.issuedAt)}`,
-          badge: t(invoiceLabelKey(i)),
+          badge: t(INVOICE_STATUS[invoiceStatus(i)].labelKey),
         }))}
       />
       <RecordSection
@@ -86,20 +86,6 @@ export function ClientRecords({ clientId, s }: Readonly<{ clientId: string; s: S
       />
     </>
   );
-}
-
-/**
- * The same label `BookingInvoices` gives the invoice, read off the server's
- * Settlement flags (ADR-004) — never worked out here.
- */
-function invoiceLabelKey(invoice: Invoice): TranslationKey {
-  if (!invoice.live) {
-    return invoice.stornoOfId !== null
-      ? 'invoices.manage.status.storno'
-      : 'invoices.manage.status.cancelled';
-  }
-  if (invoice.overdue) return 'invoices.manage.status.overdue';
-  return invoice.collectable ? 'invoices.manage.status.open' : 'invoices.manage.status.paid';
 }
 
 interface RecordRow {

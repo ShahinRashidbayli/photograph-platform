@@ -15,6 +15,7 @@ import {
   type CreateInvoiceLineItemInput,
 } from '@/hooks/useInvoices';
 import { calculateTotals, netFromGross, taxRateFor } from '@/lib/invoice-totals';
+import { INVOICE_STATUS, invoiceStatus } from '@/lib/invoice-status';
 import type { Booking, Invoice, TaxCategory } from '@/types/api';
 import { BookingActionMenu } from './BookingActionMenu';
 import { dot, getDetailStyles, pill } from './bookingDetail.styles';
@@ -102,20 +103,16 @@ function InvoiceRow({
   const [error, setError] = useState<string | null>(null);
 
   // Live, Collectable, Overdue and the Due date are the server's Settlement,
-  // carried on the invoice itself (ADR-004). Working them out here is how the
-  // screens and the server came to disagree; fetching them per row cost one
-  // request per invoice. The Storno flag only picks the label.
-  const { live, collectable, overdue } = invoice;
-
-  const [fg, bg, labelKey]: [string, string, TranslationKey] = !live
-    ? invoice.stornoOfId !== null
-      ? [c.neutralText, c.neutralBg, 'invoices.manage.status.storno']
-      : [c.neutralText, c.neutralBg, 'invoices.manage.status.cancelled']
-    : overdue
-      ? [c.dangerText, c.dangerBg, 'invoices.manage.status.overdue']
-      : collectable
-        ? [c.warningText, c.warningBg, 'invoices.manage.status.open']
-        : [c.successText, c.successBg, 'invoices.manage.status.paid'];
+  // carried on the invoice itself (ADR-004); fetching them per row cost one
+  // request per invoice. `invoiceStatus` only reads them.
+  const { live, collectable } = invoice;
+  const { labelKey, tone } = INVOICE_STATUS[invoiceStatus(invoice)];
+  const [fg, bg] = {
+    neutral: [c.neutralText, c.neutralBg],
+    danger: [c.dangerText, c.dangerBg],
+    warning: [c.warningText, c.warningBg],
+    success: [c.successText, c.successBg],
+  }[tone];
 
   const menuItems = [
     ...(collectable

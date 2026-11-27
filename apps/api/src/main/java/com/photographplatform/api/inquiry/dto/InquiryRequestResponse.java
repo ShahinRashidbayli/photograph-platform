@@ -26,5 +26,7 @@ public record InquiryRequestResponse(
     String score,
     String status,
     String source,
+    /** The Customer's language as its ISO 639-1 code, {@code de} or {@code en}. */
+    String language,
     OffsetDateTime createdAt
 ) {}

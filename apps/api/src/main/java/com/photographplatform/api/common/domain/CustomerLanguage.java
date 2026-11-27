@@ -9,8 +9,8 @@ import java.util.Locale;
  * <p>Stored on leads, inquiry requests and bookings rather than on a person,
  * because the code has no single Customer record yet: a Customer exists as
  * whichever of those rows the studio holds (the {@code client} rename, #57,
- * comes later). Nothing copies it yet when a lead or a request becomes a
- * booking; until something does, the booking starts at {@link #DEFAULT}.
+ * comes later). Converting a lead or a request into a booking copies it
+ * onto the booking; a booking typed in by hand starts at {@link #DEFAULT}.
  *
  * <p>In {@code common} because lead, inquiry, booking, gallery, contract and
  * messaging all read it; any feature module as its owner would make the others
@@ -36,6 +36,17 @@ public enum CustomerLanguage {
     /** The ISO 639-1 code, as stored in the database. */
     public String code() {
         return code;
+    }
+
+    /**
+     * Parses an optional submitted code: absent or blank is {@link #DEFAULT}.
+     * The request forms send their UI language, and a caller that predates the
+     * field sends nothing, which must not fail.
+     *
+     * @throws IllegalArgumentException for anything else but {@code de} or {@code en}
+     */
+    public static CustomerLanguage fromCodeOrDefault(String code) {
+        return code == null || code.isBlank() ? DEFAULT : fromCode(code);
     }
 
     /**

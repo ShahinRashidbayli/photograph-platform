@@ -23,6 +23,11 @@ export const formatMonthDayYear = source.monthDayYear;
 
 export type { DateInput };
 
+/** The HTTP status of a failed `api` call, or undefined when it never got an answer. */
+export function httpStatus(err: unknown): number | undefined {
+  return (err as { response?: { status?: number } } | null)?.response?.status;
+}
+
 export function extractApiError(err: unknown, fallback: string): string {
   const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
   return typeof message === 'string' && message.trim() ? message : fallback;

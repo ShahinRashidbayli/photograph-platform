@@ -9,14 +9,15 @@ import type { Booking } from '@/types/api';
 import type { getDetailStyles } from './bookingDetail.styles';
 
 /**
- * The booking's update payload with only the note changed.
+ * The booking's update payload, as the booking has it.
  *
  * <p>`PATCH /api/bookings/{id}` is replace-style, so every field goes back as
- * the booking has it — except `resourceIds`, which is left out: absent means
- * "keep", and this screen never loaded the resource list it would otherwise
- * have to echo.
+ * the booking has it — except `resourceIds` and `language`, which are left
+ * out: absent means "keep", and this screen never loaded the resource list it
+ * would otherwise have to echo. The detail's inline saves (the note, the
+ * Customer's language) start from this and change one field.
  */
-export function notePayload(booking: Booking, note: string): BookingPayload {
+export function currentPayload(booking: Booking): BookingPayload {
   return {
     clientName: booking.clientName,
     clientEmail: booking.clientEmail,
@@ -27,9 +28,14 @@ export function notePayload(booking: Booking, note: string): BookingPayload {
     packageId: booking.packageId ?? null,
     totalAmountCents: booking.totalAmountCents,
     depositAmountCents: booking.depositAmountCents,
-    internalNotes: note.trim() || null,
+    internalNotes: booking.internalNotes ?? null,
     assignedUserId: booking.assignedUserId ?? null,
   };
+}
+
+/** The booking's update payload with only the note changed. */
+export function notePayload(booking: Booking, note: string): BookingPayload {
+  return { ...currentPayload(booking), internalNotes: note.trim() || null };
 }
 
 /**

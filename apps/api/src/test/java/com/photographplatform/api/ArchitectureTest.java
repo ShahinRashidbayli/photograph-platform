@@ -2,6 +2,7 @@ package com.photographplatform.api;
 
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.repository.PaymentRepository;
+import com.photographplatform.api.portfolio.service.PortfolioPublication;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -183,9 +184,14 @@ class ArchitectureTest {
      * identity ({@code tenant}, and {@code entitlement} for the white-label
      * check) and queues through {@code notification}. Nothing else: not a
      * feature module's services, and so never its rows.
+     *
+     * <p>One named exception: {@link PortfolioPublication}, whether the
+     * portfolio shows anything, which decides if Enquiry received links to it.
+     * The class, not the package: the question is the only thing allowed (#127).
      */
     @Test
-    @DisplayName("messaging depends only on events, tenant, entitlement, notification and common")
+    @DisplayName("messaging depends only on events, tenant, entitlement, notification, common "
+        + "and whether the portfolio is published")
     void messagingDependsOnlyOnItsInputs() {
         ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
             .classes().that().resideInAPackage("..api.messaging..")
@@ -194,7 +200,9 @@ class ArchitectureTest {
                     .or(JavaClass.Predicates.resideInAnyPackage(
                         "..api.messaging..", "..api.common..", "..api.tenant..", "..api.entitlement..",
                         "..api.notification..", "..api.*.event.."))
-                    .as("events, tenant, entitlement, notification, common or outside the application"))
+                    .or(JavaClass.Predicates.equivalentTo(PortfolioPublication.class))
+                    .as("events, tenant, entitlement, notification, common, PortfolioPublication "
+                        + "or outside the application"))
             .because("messaging composes Customer messages from events; it must not reach into "
                 + "the modules that publish them");
 

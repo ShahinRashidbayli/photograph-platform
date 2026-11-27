@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.dto;
 
+import com.photographplatform.api.common.util.Normalize;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -40,7 +41,7 @@ public record OutgoingEmail(
         Objects.requireNonNull(params, "params");
         // A studio with an empty reply address set must not get "" queued: every
         // provider rejects it, and the outbox would retry it until DEAD.
-        replyTo = replyTo == null || replyTo.isBlank() ? null : replyTo.strip();
+        replyTo = Normalize.trimToNull(replyTo);
     }
 
     /** Sent as Fotolio: the global sender name, and no Reply-To. */

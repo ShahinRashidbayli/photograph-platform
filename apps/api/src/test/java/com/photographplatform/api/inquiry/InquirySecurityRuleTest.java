@@ -97,7 +97,7 @@ class InquirySecurityRuleTest {
         return new InquiryRequestResponse(
             UUID.randomUUID(), "Maria Kellner", "maria@example.com",
             "HOCHZEIT", "1000_2000", LocalDate.now().plusDays(90),
-            "Berlin", "Looking forward", "HIGH", "PENDING", "BIO_LINK", null);
+            "Berlin", "Looking forward", "HIGH", "PENDING", "BIO_LINK", "de", null);
     }
 
     // ── the customer's own surface ────────────────────────────────────────────

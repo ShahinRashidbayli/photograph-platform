@@ -3,7 +3,7 @@ import api from '@/lib/api';
 import { insertSortedByDate } from '@/lib/helpers';
 import { clientsKey } from '@/hooks/useClients';
 import { yearSummaryKey } from '@/hooks/useAnalytics';
-import type { Booking } from '@/types/api';
+import type { Booking, CustomerLanguage } from '@/types/api';
 
 // Pull the whole booking list in pages rather than a single capped request.
 // A flat `?size=50` silently dropped booking #51+, and the dashboard's counts
@@ -157,6 +157,16 @@ export interface BookingPayload {
    * detail's note) leaves it out rather than echo back a list it never loaded.
    */
   resourceIds?: string[];
+  /** Absent leaves the Customer's language as it is, like `resourceIds`. */
+  language?: CustomerLanguage;
+}
+
+/**
+ * Tags every booking save, so one inline save on the detail can see another
+ * still running for the same booking (see `BookingLanguage`).
+ */
+export function saveBookingKey() {
+  return ['bookings', 'save'] as const;
 }
 
 /**
@@ -168,6 +178,7 @@ export interface BookingPayload {
 export function useSaveBooking() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: saveBookingKey(),
     mutationFn: async (input: { id?: string; payload: BookingPayload }) =>
       (input.id
         ? await api.patch<Booking>(`/api/bookings/${input.id}`, input.payload)

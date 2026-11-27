@@ -16,9 +16,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Notifies the photographer when a new lead lands. Runs alongside
- * {@link AutoReplyService} on the same {@link LeadCreatedEvent} so the
- * customer auto-reply and the photographer alert fire from a single
- * transactional source.
+ * {@code messaging}'s Enquiry received on the same {@link LeadCreatedEvent},
+ * so the Customer's acknowledgement and the photographer's alert fire from a
+ * single transactional source.
  *
  * <p>Queues before commit, in the lead's own transaction (ADR-005): no lead,
  * no email; a lead, and the email survives a crash.
@@ -40,6 +40,12 @@ public class LeadNotificationService implements EmailRenderer<LeadNotificationSe
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onLeadCreated(LeadCreatedEvent event) {
+        // Deny-list, unlike Enquiry received: alerting the studio is the default,
+        // so an origin added later still alerts. The one exception is a lead the
+        // studio typed in, which went to the very person who typed it (#103).
+        if (event.getOrigin() == LeadCreatedEvent.Origin.ENTERED_BY_STUDIO) {
+            return;
+        }
         emailService.queue(new OutgoingEmail(
             template(),
             event.getPhotographerEmail(),

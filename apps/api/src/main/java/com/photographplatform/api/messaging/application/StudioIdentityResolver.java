@@ -38,8 +38,7 @@ public class StudioIdentityResolver {
         // Only a key the public route will serve: any other answers 404 there,
         // and the email would show a broken image above the studio name.
         return StudioIdentity.resolve(
-            tenant.getBusinessName(),
-            tenant.getLegalName(),
+            tenant.customerFacingName(),
             tenant.getLegalEmail(),
             tenant.getOwnerEmail(),
             whiteLabel,

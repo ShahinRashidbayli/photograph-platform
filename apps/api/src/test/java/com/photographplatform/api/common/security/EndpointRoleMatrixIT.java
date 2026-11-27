@@ -219,6 +219,8 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         staffOnly("PUT /api/roadmap/interest/{feature}");
         staffOnly("GET /api/settings/billing-profile");
         staffOnly("PUT /api/settings/billing-profile");
+        staffOnly("GET /api/settings/enquiry-acknowledgement");
+        staffOnly("PUT /api/settings/enquiry-acknowledgement");
         staffOnly("GET /api/settings/branding");
         staffOnly("PUT /api/settings/branding");
         staffOnly("POST /api/settings/branding/logo/presign");

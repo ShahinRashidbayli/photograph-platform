@@ -44,7 +44,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.5.28",
     "jest": "^30.5.2",
-    "jest-environment-jsdom": "^29.7.0",
+    "jest-environment-jsdom": "^30.5.2",
     "msw": "^2.15.0",
     "prettier": "^3.3.3",
     "typescript": "^5.5.3"

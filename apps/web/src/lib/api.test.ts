@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import MockAdapter from 'axios-mock-adapter';
 
 import api from './api';
@@ -18,6 +21,16 @@ import { useAuthStore } from '@/store/authStore';
  * the endpoints that must never trigger one, because a refresh loop on the
  * refresh endpoint itself is the failure the exclusion list exists to prevent.
  */
+/*
+ * Node rather than jsdom, because the redirect has to be observed. jsdom 21+
+ * makes `window.location` unforgeable, so it can no longer be redefined, and a
+ * real jsdom Location turns `href = …` into a "navigation not implemented"
+ * error instead of recording the URL. In node `location` is simply absent, so
+ * the stub below can stand in for it. The interceptor only needs `window` as
+ * somewhere to dispatch its app events, which a bare EventTarget covers.
+ */
+Object.defineProperty(globalThis, 'window', { value: new EventTarget(), configurable: true });
+
 function stubLocation(pathname: string, search: string): void {
   Object.defineProperty(globalThis, 'location', {
     value: { href: '', pathname, search },
@@ -32,10 +45,9 @@ describe('api response interceptor', () => {
   beforeEach(() => {
     mock = new MockAdapter(api);
     useAuthStore.setState({ user: null } as never);
-    // jsdom refuses assignment to location.href otherwise, and the failure
-    // path under test ends in a redirect. `pathname`/`search` are part of the
-    // stub because the redirect reads them to decide *which* sign-in to use and
-    // what to come back to.
+    // The failure path under test ends in a redirect. `pathname`/`search` are
+    // part of the stub because the redirect reads them to decide *which*
+    // sign-in to use and what to come back to.
     stubLocation('/bookings', '?status=NEW');
   });
 

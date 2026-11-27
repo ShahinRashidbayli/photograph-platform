@@ -70,7 +70,10 @@ export const galleries = {
   'galleries.detail.watermarkOff': 'Off — photos are shown without your logo',
   'galleries.detail.expiresOn': 'Expires on {date}',
   'galleries.detail.neverExpires': 'No expiry set',
-  'galleries.detail.extend': '+30 days',
+  'galleries.detail.extend': 'Extend to {days} days from today',
+  'galleries.detail.extendFallback': 'Extend',
+  'galleries.detail.extendHint':
+    "Keeps the gallery online for your plan's full retention window, counted from today. It never brings the expiry date forward.",
   'galleries.detail.addPhotos': 'Add',
   'galleries.detail.statusActive': 'Active',
   'galleries.detail.statusExpired': 'Expired',

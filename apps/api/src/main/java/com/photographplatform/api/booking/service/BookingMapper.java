@@ -133,6 +133,7 @@ public class BookingMapper {
             booking.getAssignedUserId(),
             assigneeName,
             resourceIds,
+            booking.getLanguage().code(),
             booking.getCreatedAt()
         );
     }

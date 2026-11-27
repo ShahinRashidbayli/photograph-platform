@@ -69,7 +69,10 @@ export const galleries: Record<keyof EnGalleries, string> = {
   'galleries.detail.watermarkOff': 'Aus — Fotos werden ohne Logo gezeigt',
   'galleries.detail.expiresOn': 'Läuft ab am {date}',
   'galleries.detail.neverExpires': 'Kein Ablaufdatum',
-  'galleries.detail.extend': '+30 Tage',
+  'galleries.detail.extend': 'Auf {days} Tage ab heute verlängern',
+  'galleries.detail.extendFallback': 'Verlängern',
+  'galleries.detail.extendHint':
+    'Hält die Galerie für das volle Aufbewahrungsfenster Ihres Tarifs online, ab heute gerechnet. Das Ablaufdatum wird dabei nie vorgezogen.',
   'galleries.detail.addPhotos': 'Hinzufügen',
   'galleries.detail.statusActive': 'Aktiv',
   'galleries.detail.statusExpired': 'Abgelaufen',

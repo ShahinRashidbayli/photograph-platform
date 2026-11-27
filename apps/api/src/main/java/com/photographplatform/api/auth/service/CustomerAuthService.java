@@ -560,15 +560,15 @@ public class CustomerAuthService {
         ));
     }
 
-    /** How a studio is named to its client: its legal name, else its business name, else its address. */
+    /**
+     * How a studio is named in the sign-in email: the same name its other emails
+     * use ({@link Tenant#customerFacingName()}). The subdomain stays as a last
+     * resort only here, because this email lists several studios and a row with
+     * no label could not be told apart.
+     */
     private static String studioName(Tenant tenant) {
-        if (tenant.getLegalName() != null && !tenant.getLegalName().isBlank()) {
-            return tenant.getLegalName().trim();
-        }
-        if (tenant.getBusinessName() != null && !tenant.getBusinessName().isBlank()) {
-            return tenant.getBusinessName().trim();
-        }
-        return tenant.getSubdomain();
+        String name = tenant.customerFacingName();
+        return name != null ? name : tenant.getSubdomain();
     }
 
     /** One email for every studio that knows the address; see {@link StudioSignInCodesEmail}. */

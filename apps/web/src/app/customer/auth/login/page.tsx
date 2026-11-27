@@ -5,10 +5,11 @@ import { usePublicTenantLegal } from '@/hooks/useTenantLegal';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { Icon } from '@/components/Icon';
 import { getColors } from '@/lib/design-tokens';
-import { extractApiError } from '@/lib/helpers';
+import { extractApiError, httpStatus } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
 import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -96,7 +97,9 @@ function CustomerLoginInner() {
   const retryWait = useRetryWait();
   const waitText = useWaitText();
 
-  const [email, setEmail] = useState('');
+  // A Customer message links here with `?email=` (and `?next=` to the thing it
+  // is about), so the Customer has only the code left to enter.
+  const [email, setEmail] = useState((searchParams.get('email') ?? '').trim());
   const [subdomain, setSubdomain] = useState(initialSubdomain);
   const [subdomainLocked, setSubdomainLocked] = useState(false);
   // A link from the studio (`?subdomain=`), the studio's own host, or this
@@ -261,13 +264,19 @@ function CustomerLoginInner() {
           if (opened) rememberStudio(opened);
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
-          window.location.href = '/bookings';
+          // `?next=` is attacker-controllable, so only a same-origin path is
+          // followed — the same check as the photographer sign-in.
+          window.location.href =
+            safeRedirectPath(window.location.search, window.location.origin) ?? '/bookings';
         },
         onError: (err) => {
-          const msg =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            t('customerLogin.errorCodeInvalid');
-          setError(msg);
+          // A wrong, spent or expired code is a 401. Ours, not the server's
+          // sentence: that one is English-only.
+          setError(
+            httpStatus(err) === 401
+              ? t('customerLogin.errorCodeInvalid')
+              : extractApiError(err, t('customerLogin.errorCodeInvalid'))
+          );
           // Clear so the next attempt starts from an empty box rather than the
           // client having to select and delete six wrong digits on a phone.
           setCode('');
@@ -510,7 +519,11 @@ function CustomerLoginInner() {
           </p>
           <div style={{ ...s.alertInfo, marginTop: 20 }}>{t('customerLogin.sentHint')}</div>
 
-          {error && <div style={{ ...s.alertError, marginTop: 16 }}>{error}</div>}
+          {error && (
+            <div style={{ ...s.alertError, marginTop: 16 }} role="alert">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleVerify} style={{ marginTop: 20 }}>
             <div style={s.formGroup}>

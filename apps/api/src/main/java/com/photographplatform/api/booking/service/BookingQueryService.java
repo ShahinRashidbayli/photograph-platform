@@ -9,6 +9,8 @@ import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
@@ -111,6 +113,20 @@ public class BookingQueryService {
         Year y = Year.of(year);
         return bookingRepository.sumTotalAmountCents(
             tenantId, BookingStatus.BILLABLE, y.atDay(1), y.atMonth(Month.DECEMBER).atEndOfMonth());
+    }
+
+    /**
+     * The language every Customer message about this booking is written in.
+     *
+     * <p>For modules that write to the Customer about something hung off a
+     * booking (a contract, a gallery): they ask here rather than reading the
+     * booking row themselves. Tenant-scoped by RLS, so another studio's id
+     * resolves to nothing.
+     */
+    public CustomerLanguage customerLanguage(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(Booking::getLanguage)
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
     }
 
     /**

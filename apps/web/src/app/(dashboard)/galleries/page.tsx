@@ -507,6 +507,22 @@ function GalleryPhotos({
   );
 }
 
+/**
+ * Mirrors `Gallery.extend` on the API: a live gallery that already runs past
+ * a full plan window from today (or never expires) is left as it is. Offering
+ * the button there is the "did nothing visible" bug of #108 — after a
+ * downgrade it would read "Extend to 60 days" on a gallery with two years left.
+ * An expired gallery is always worth extending; so is one whose plan window
+ * is not known yet, since the server decides.
+ */
+function extendWouldChangeAnything(gallery: Gallery, planRetentionDays: number | null): boolean {
+  if (gallery.expiryState !== 'ACTIVE') return true;
+  if (gallery.expiresAt === null) return false;
+  if (planRetentionDays === null) return true;
+  const renewed = Date.now() + planRetentionDays * 24 * 60 * 60 * 1000;
+  return renewed > new Date(gallery.expiresAt).getTime();
+}
+
 function GalleryDetail({
   gallery,
   subdomain,
@@ -638,6 +654,8 @@ function GalleryDetail({
   const extendLabel = planRetentionDays
     ? t('galleries.detail.extend', { days: planRetentionDays })
     : t('galleries.detail.extendFallback');
+  const showExtend =
+    gallery.canExtend && extendWouldChangeAnything(gallery, planRetentionDays ?? null);
 
   return (
     <>
@@ -753,7 +771,7 @@ function GalleryDetail({
                 />
               </div>
             )}
-            {gallery.canExtend && (
+            {showExtend && (
               <button
                 onClick={extendGallery}
                 disabled={busy}

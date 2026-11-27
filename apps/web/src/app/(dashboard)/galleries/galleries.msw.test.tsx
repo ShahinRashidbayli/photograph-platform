@@ -68,6 +68,10 @@ function signInAsPhotographer() {
   });
 }
 
+function daysFromNow(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 /** The plan window the extend button is labelled with. */
 function entitlementsWithRetention(galleryRetentionDays: number) {
   return http.get('/api/entitlements', () =>
@@ -163,9 +167,10 @@ describe('GalleriesPage', () => {
    */
   it('labels extending with the plan window it grants, not a fixed 30 days', async () => {
     let extended = 0;
+    const endingSoon = { ...GALLERY, expiresAt: daysFromNow(10) };
     server.use(
       entitlementsWithRetention(730),
-      http.get('/api/galleries', () => HttpResponse.json([GALLERY])),
+      http.get('/api/galleries', () => HttpResponse.json([endingSoon])),
       http.get('/api/galleries/g1/photos', () => HttpResponse.json(PHOTOS)),
       http.post('/api/galleries/g1/extend', () => {
         extended += 1;
@@ -184,6 +189,24 @@ describe('GalleriesPage', () => {
 
     await user.click(button);
     await waitFor(() => expect(extended).toBe(1));
+  });
+
+  /**
+   * After a downgrade the plan window (60 days) is shorter than what the
+   * gallery has left. The server leaves it alone, so a button promising
+   * "60 days from today" would be the same do-nothing click #108 reported.
+   */
+  it('offers no extension when the gallery already runs past the plan window', async () => {
+    const longLived = { ...GALLERY, expiresAt: daysFromNow(700), retentionDays: 730 };
+    server.use(
+      entitlementsWithRetention(60),
+      http.get('/api/galleries', () => HttpResponse.json([longLived])),
+      http.get('/api/galleries/g1/photos', () => HttpResponse.json(PHOTOS))
+    );
+    renderWithProviders(<GalleriesPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: 'Delete first.jpg' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Extend/ })).not.toBeInTheDocument();
   });
 
   it('offers a retry when the list cannot be loaded', async () => {

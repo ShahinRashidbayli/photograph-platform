@@ -294,14 +294,13 @@ public class LeadService {
 
         auditService.log("LEAD_CREATED", "LEAD", saved.getId(), tenantId, actorId, ipAddress);
 
-        // No tenant lookup here (we have the actor's tenant id directly); the
-        // event publisher is left in place so notification flows that listen
-        // for new leads (email-the-photographer, etc.) still fire.
-        // The subdomain/ownerEmail args aren't strictly needed for a manual
-        // add but keep the event payload shape consistent with the public path.
+        // Still published, so anything that reacts to new leads sees this one.
+        // ENTERED_BY_STUDIO tells the email listeners to stay quiet: the
+        // Customer already talked to the studio, and the person who typed the
+        // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                null, actor.getEmail())
+            LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
+                actor.getEmail())
         );
 
         return mapper.toResponse(saved);
@@ -330,8 +329,8 @@ public class LeadService {
             ANONYMOUS_ACTOR_ID, ipAddress);
 
         eventPublisher.publishEvent(
-            new LeadCreatedEvent(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                tenant.getSubdomain(), tenant.getOwnerEmail())
+            LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
+                tenant.customerFacingName(), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);

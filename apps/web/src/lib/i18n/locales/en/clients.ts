@@ -17,7 +17,7 @@ export const clients = {
   'clients.stat.avgSpend': 'Average collected',
   'clients.stat.avgSpendHint': 'Per client lifetime',
   'clients.listTitle': 'All clients',
-  'clients.listSubtitle': 'Sorted by recent activity · spend & bookings at a glance',
+  'clients.listSubtitle': 'Sorted by recent activity · collected & bookings at a glance',
   'clients.search.placeholder': 'Search name or email…',
   'clients.filter.All': 'All',
   'clients.filter.Active': 'Active',

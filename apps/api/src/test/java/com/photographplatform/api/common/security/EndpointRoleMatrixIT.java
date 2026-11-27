@@ -164,6 +164,7 @@ class EndpointRoleMatrixIT extends IntegrationTestBase {
         staffOnly("DELETE /api/galleries/{id}");
         staffOnly("PATCH /api/galleries/{id}");
         staffOnly("POST /api/galleries/{id}/extend");
+        staffOnly("POST /api/galleries/{id}/send");
         staffOnly("GET /api/galleries/{id}/photos");
         staffOnly("POST /api/galleries/{id}/photos/initiate-upload");
         staffOnly("GET /api/inquiries");

@@ -102,4 +102,26 @@ class CustomerMessageLayoutTest {
             .containsOnlyOnce("Versendet über Fotolio")
             .containsOnlyOnce("<p>{{TITLE}}</p>");
     }
+
+    @Test
+    void greetsTheCustomerByNameInTheirLanguageAndEscapesIt() {
+        assertThat(CustomerMessageLayout.greeting(CustomerLanguage.DE, "  Anna <b>Weber</b> "))
+            .contains("Guten Tag Anna &lt;b&gt;Weber&lt;/b&gt;,").doesNotContain("<b>");
+        assertThat(CustomerMessageLayout.greeting(CustomerLanguage.EN, "Anna")).contains("Hello Anna,");
+    }
+
+    @Test
+    void greetsWithoutANameWhenTheStudioHasNone() {
+        assertThat(CustomerMessageLayout.greeting(CustomerLanguage.DE, " ")).contains(">Guten Tag,<");
+        assertThat(CustomerMessageLayout.greeting(CustomerLanguage.EN, null)).contains(">Hello,<");
+    }
+
+    @Test
+    void signsOffWithTheStudiosNameWhenItHasOne() {
+        assertThat(CustomerMessageLayout.signOff(STARTER, CustomerLanguage.DE))
+            .contains("Freundliche Grüße<br><strong>Lichtblick Fotografie</strong>");
+        assertThat(CustomerMessageLayout.signOff(
+                new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN))
+            .contains(">Kind regards<").doesNotContain("<strong>");
+    }
 }

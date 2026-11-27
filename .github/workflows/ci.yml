@@ -61,14 +61,11 @@ jobs:
         with:
           node-version: '20'
 
-      # patches/ is in the key in every job: `npm ci` applies the patches
-      # (postinstall), so a cache keyed on the lockfile alone would keep
-      # restoring node_modules patched the old way after a patch changes.
       - uses: actions/cache@v4
         id: npm-cache
         with:
           path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json', 'patches/**') }}
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
@@ -92,7 +89,7 @@ jobs:
         id: npm-cache
         with:
           path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json', 'patches/**') }}
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
@@ -184,7 +181,7 @@ jobs:
         id: npm-cache
         with:
           path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json', 'patches/**') }}
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
         if: steps.npm-cache.outputs.cache-hit != 'true'
@@ -265,7 +262,7 @@ jobs:
         id: npm-cache
         with:
           path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json', 'patches/**') }}
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install all workspace deps
         if: steps.npm-cache.outputs.cache-hit != 'true'

@@ -288,6 +288,33 @@ describe('BookingDetail', () => {
     expect(select).toHaveValue('en');
   });
 
+  it('holds the language while the note is still saving, so it cannot send the old note back', async () => {
+    fakeInvoices([]);
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.patch('/api/bookings/:id', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        await held;
+        return HttpResponse.json({ ...booking(), internalNotes: body.internalNotes });
+      }),
+      http.get('/api/bookings/conflicts', () => HttpResponse.json({ conflicts: [] })),
+      http.get('/api/clients', () => HttpResponse.json([]))
+    );
+    const user = setupUser();
+    renderDetail(booking());
+
+    const note = screen.getByLabelText(/Private note/);
+    await user.clear(note);
+    await user.type(note, 'Bring the step ladder.');
+    await user.click(screen.getByRole('button', { name: 'Save note' }));
+
+    const select = screen.getByLabelText('Language of your emails');
+    await waitFor(() => expect(select).toBeDisabled());
+    release();
+    await waitFor(() => expect(select).toBeEnabled());
+  });
+
   it('shows German for a booking whose language the API did not send', () => {
     fakeInvoices([]);
     renderDetail(booking());

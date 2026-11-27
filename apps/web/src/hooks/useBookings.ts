@@ -162,6 +162,14 @@ export interface BookingPayload {
 }
 
 /**
+ * Tags every booking save, so one inline save on the detail can see another
+ * still running for the same booking (see `BookingLanguage`).
+ */
+export function saveBookingKey() {
+  return ['bookings', 'save'] as const;
+}
+
+/**
  * Creates a booking, or edits one when `id` is given, and files the result
  * into the photographer's cached list at its date — so it appears at once,
  * without a refetch. Removed and re-inserted rather than mapped, since an edit
@@ -170,6 +178,7 @@ export interface BookingPayload {
 export function useSaveBooking() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: saveBookingKey(),
     mutationFn: async (input: { id?: string; payload: BookingPayload }) =>
       (input.id
         ? await api.patch<Booking>(`/api/bookings/${input.id}`, input.payload)

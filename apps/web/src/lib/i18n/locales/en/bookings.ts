@@ -130,6 +130,8 @@ export const bookings = {
   'bookings.detail.session': 'Session',
   'bookings.detail.dateTime': 'Date & time',
   'bookings.detail.package': 'Package',
+  'bookings.detail.resources': 'Rooms & equipment',
+  'bookings.detail.deposit': 'Deposit',
   'bookings.detail.openInMaps': 'Open in Maps',
   'bookings.detail.client': 'Client',
   'bookings.detail.firstBooking': 'First booking with you',
@@ -196,6 +198,12 @@ export const bookings = {
   'bookings.cancel.messageFallback': 'This cannot be undone.',
   'bookings.cancel.confirm': 'Cancel booking',
   'bookings.cancel.keep': 'Keep booking',
+
+  'bookings.decline.title': 'Decline this enquiry?',
+  'bookings.decline.message': 'This declines the enquiry from {name}. This cannot be undone.',
+  'bookings.decline.messageFallback': 'This cannot be undone.',
+  'bookings.decline.confirm': 'Decline enquiry',
+  'bookings.decline.keep': 'Keep enquiry',
 
   // ── Create-booking modal (photographer) ───────────────────────────────────
   'createBooking.aria': 'Create a new booking',

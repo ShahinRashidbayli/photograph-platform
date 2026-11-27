@@ -109,7 +109,29 @@ function renderDetail(b: Booking, onTransition = jest.fn(), lang: Locale = 'en')
 }
 
 describe('BookingDetail', () => {
-  it('leads with "Record payment" before the shoot, and keeps "Mark completed" in the menu', async () => {
+  beforeEach(() => {
+    // Retired too, so a room retired after it was booked keeps its name.
+    server.use(
+      http.get('/api/resources', ({ request }) =>
+        HttpResponse.json([
+          { id: 'r-studio', name: 'Studio A', kind: 'ROOM', notes: null, active: true },
+          ...(new URL(request.url).searchParams.get('includeRetired') === 'true'
+            ? [
+                {
+                  id: 'r-retired',
+                  name: 'Old softbox',
+                  kind: 'EQUIPMENT',
+                  notes: null,
+                  active: false,
+                },
+              ]
+            : []),
+        ])
+      )
+    );
+  });
+
+  it('leads with "Record payment" before the shoot, and does not offer to complete it', async () => {
     fakeInvoices([openInvoice]);
     const user = setupUser();
     renderDetail(booking());
@@ -117,9 +139,38 @@ describe('BookingDetail', () => {
     expect(await screen.findByRole('button', { name: 'Record payment' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark completed' })).toBeNull();
 
+    // A shoot cannot be completed before its date; the API refuses it, so the
+    // menu does not offer it. It used to, for a booking dated weeks away.
     await user.click(screen.getByRole('button', { name: 'More actions' }));
-    expect(screen.getByRole('menuitem', { name: 'Mark completed' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Mark completed' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Cancel booking' })).toBeInTheDocument();
+  });
+
+  it('offers "Mark completed" in the menu on the day of the shoot', async () => {
+    fakeInvoices([openInvoice]);
+    const user = setupUser();
+    renderDetail(booking({ eventDate: '2026-11-08' }));
+
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Mark completed' })).toBeInTheDocument();
+  });
+
+  it('shows the agreed deposit and the rooms and equipment booked', async () => {
+    fakeInvoices([]);
+    renderDetail(booking({ resourceIds: ['r-studio', 'r-retired'] }));
+
+    expect(await screen.findByText('Studio A, Old softbox')).toBeInTheDocument();
+    expect(screen.getByText('Deposit').nextSibling).toHaveTextContent('€450');
+  });
+
+  it('shows a dash where no rooms or deposit were agreed', async () => {
+    fakeInvoices([]);
+    renderDetail(booking({ resourceIds: [], depositAmountCents: 0 }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Rooms & equipment').nextSibling).toHaveTextContent('—')
+    );
+    expect(screen.getByText('Deposit').nextSibling).toHaveTextContent('—');
   });
 
   it('leads with "Mark completed" once the shoot date has passed', async () => {

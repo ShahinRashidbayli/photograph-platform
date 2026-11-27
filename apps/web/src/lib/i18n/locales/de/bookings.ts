@@ -123,6 +123,8 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.detail.session': 'Termin',
   'bookings.detail.dateTime': 'Datum & Uhrzeit',
   'bookings.detail.package': 'Paket',
+  'bookings.detail.resources': 'Räume & Ausrüstung',
+  'bookings.detail.deposit': 'Anzahlung',
   'bookings.detail.openInMaps': 'In Karten öffnen',
   'bookings.detail.client': 'Kunde',
   'bookings.detail.firstBooking': 'Erste Buchung bei Ihnen',
@@ -189,6 +191,13 @@ export const bookings: Record<keyof EnBookings, string> = {
   'bookings.cancel.messageFallback': 'Das kann nicht rückgängig gemacht werden.',
   'bookings.cancel.confirm': 'Buchung stornieren',
   'bookings.cancel.keep': 'Buchung behalten',
+
+  'bookings.decline.title': 'Diese Anfrage ablehnen?',
+  'bookings.decline.message':
+    'Damit wird die Anfrage von {name} abgelehnt. Das kann nicht rückgängig gemacht werden.',
+  'bookings.decline.messageFallback': 'Das kann nicht rückgängig gemacht werden.',
+  'bookings.decline.confirm': 'Anfrage ablehnen',
+  'bookings.decline.keep': 'Anfrage behalten',
 
   // ── Create-booking modal (photographer) ───────────────────────────────────
   'createBooking.aria': 'Neue Buchung erstellen',

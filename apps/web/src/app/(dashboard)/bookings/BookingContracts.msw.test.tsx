@@ -87,6 +87,15 @@ beforeEach(() => {
 afterEach(() => useAuthStore.setState({ user: null }));
 
 describe('BookingContracts', () => {
+  it('says a draft is a draft, not that it was sent', async () => {
+    // Every status but SIGNED used to read "Gesendet an …", a draft included.
+    fakeContracts([contract({})]);
+    renderWithProviders(<BookingContracts booking={booking} theme="light" />, { lang: 'de' });
+
+    expect(await screen.findByText('Entwurf für Sophie Bauer')).toBeInTheDocument();
+    expect(screen.queryByText(/Gesendet an/)).toBeNull();
+  });
+
   it('sends the contract with the Personal note typed into the dialog', async () => {
     fakeContracts([contract({})]);
     const bodies = recordPosts('/api/contracts/ct-1/send', contract({ status: 'SENT' }));

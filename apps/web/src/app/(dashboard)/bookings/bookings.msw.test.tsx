@@ -1,7 +1,7 @@
 import React from 'react';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { renderWithProviders } from '@/test-utils/render';
+import { renderWithProviders, setupUser } from '@/test-utils/render';
 import { http, HttpResponse, server } from '@/test-utils/msw';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
 import type { Booking } from '@/types/api';
@@ -84,8 +84,8 @@ describe('BookingsPage deep link', () => {
         HttpResponse.json({ year: 2027, bookedCents: 0, invoicedCents: 0, collectedCents: 0 })
       ),
       // Everything else the page loads alongside, answered empty.
-      ...['/api/galleries', '/api/packages', '/api/bookings/:id/invoices'].map((path) =>
-        http.get(path, () => HttpResponse.json([]))
+      ...['/api/galleries', '/api/packages', '/api/resources', '/api/bookings/:id/invoices'].map(
+        (path) => http.get(path, () => HttpResponse.json([]))
       )
     );
   });
@@ -141,5 +141,79 @@ describe('BookingsPage deep link', () => {
     renderWithProviders(<BookingsPage />, { lang: 'en' });
 
     expect(await screen.findByRole('region', { name: 'Overview' })).toBeVisible();
+  });
+});
+
+/**
+ * Declining an enquiry is final — DECLINED has no way back — so it asks first,
+ * the way cancelling does. It used to go through on one click.
+ */
+describe('BookingsPage declining an enquiry', () => {
+  let patches: string[];
+
+  beforeEach(() => {
+    narrowScreen();
+    patches = [];
+    mockQuery = 'id=b1';
+    useAuthStore.setState({ user: ANNA });
+    const enquiry = { ...booking('b1', 'Maria Weber'), status: 'ENQUIRY' as const };
+    server.use(
+      http.get('/api/photographerBookings', () => HttpResponse.json([enquiry])),
+      http.patch('/api/bookings/:id/status', async ({ request }) => {
+        const { status } = (await request.json()) as { status: string };
+        patches.push(status);
+        return HttpResponse.json({ ...enquiry, status });
+      }),
+      http.get('/api/entitlements', () =>
+        HttpResponse.json({
+          plan: 'STARTER',
+          capabilities: [],
+          galleryRetentionDays: 60,
+          seats: 1,
+          commissionBps: 0,
+          writable: true,
+        })
+      ),
+      http.get('/api/analytics/summary', () =>
+        HttpResponse.json({ year: 2027, bookedCents: 0, invoicedCents: 0, collectedCents: 0 })
+      ),
+      ...[
+        '/api/galleries',
+        '/api/packages',
+        '/api/resources',
+        '/api/bookings/:id/invoices',
+        '/api/bookings/conflicts',
+        '/api/clients',
+      ].map((path) => http.get(path, () => HttpResponse.json([])))
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    useAuthStore.setState({ user: null });
+    mockQuery = 'id=b2';
+  });
+
+  it('asks before declining, and sends nothing when the photographer keeps it', async () => {
+    const user = setupUser();
+    renderWithProviders(<BookingsPage />, { lang: 'en' });
+
+    await user.click(await screen.findByRole('button', { name: 'Decline enquiry' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/declines the enquiry from Maria Weber/)).toBeVisible();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Keep enquiry' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(patches).toEqual([]);
+  });
+
+  it('declines once the photographer confirms', async () => {
+    const user = setupUser();
+    renderWithProviders(<BookingsPage />, { lang: 'en' });
+
+    await user.click(await screen.findByRole('button', { name: 'Decline enquiry' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Decline enquiry' }));
+
+    await waitFor(() => expect(patches).toEqual(['DECLINED']));
   });
 });

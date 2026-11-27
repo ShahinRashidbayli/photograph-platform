@@ -8,6 +8,7 @@ import { extractApiError } from '@/lib/helpers';
 import { Alert, Badge, Button, Card, EmptyState, Note } from '@/components/ui';
 import { UpgradeCard } from '@/components/UpgradeCard';
 import { useTranslation } from '@/lib/i18n';
+import { contractSubline } from '@/lib/contract-status';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadContractPdf, useTenantContracts, type Contract } from '@/hooks/useContracts';
 
@@ -132,11 +133,7 @@ export default function ContractsPage() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 650, fontSize: '0.98rem' }}>{contract.title}</div>
                         <div style={{ fontSize: '0.83rem', color: c.textMuted, marginTop: 3 }}>
-                          {contract.status === 'SIGNED' && contract.signedAt
-                            ? t('contracts.signedOn' as never, {
-                                date: format.monthDayYear(contract.signedAt),
-                              })
-                            : t('contracts.sentTo' as never, { name: contract.recipientName })}
+                          {contractSubline(contract, t, format)}
                         </div>
                       </div>
                       <div

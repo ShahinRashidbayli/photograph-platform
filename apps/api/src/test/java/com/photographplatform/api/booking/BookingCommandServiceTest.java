@@ -23,6 +23,8 @@ import com.photographplatform.api.invoice.domain.BookingSettlement;
 import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.pricing.domain.Package;
 import com.photographplatform.api.pricing.repository.PackageRepository;
+import com.photographplatform.api.common.util.BusinessZone;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -57,6 +59,11 @@ class BookingCommandServiceTest {
     private static final UUID ACTOR_ID = UUID.randomUUID();
     private static final UUID TENANT_ID = UUID.randomUUID();
     private static final String IP = "203.0.113.9";
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 27);
+    // 23:30 in Berlin is already the 28th in UTC+2 and east of it: the rule
+    // must count the day in Berlin, where the studio is.
+    private static final Clock CLOCK = Clock.fixed(
+        TODAY.atTime(23, 30).atZone(BusinessZone.ID).toInstant(), BusinessZone.ID);
 
     private BookingRepository bookingRepository;
     private ClientRepository clientRepository;
@@ -81,7 +88,7 @@ class BookingCommandServiceTest {
             bookingRepository, clientRepository, userRepository, studioResourceRepository,
             bookingResourceRepository, new BookingPricingResolver(packageRepository),
             new CustomerAccountResolver(userRepository), auditService,
-            new BookingMapper(userRepository, bookingResourceRepository, settlement));
+            new BookingMapper(userRepository, bookingResourceRepository, settlement), CLOCK);
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null));
@@ -231,6 +238,54 @@ class BookingCommandServiceTest {
     }
 
     @Test
+    void changeStatusRefusesToCompleteAShootDatedAfterToday() {
+        // A booking dated 31.12. could be marked delivered in November. When a
+        // shoot really happens early, the photographer moves the date first.
+        UUID id = UUID.randomUUID();
+        Booking booking = confirmedOn(TODAY.plusDays(1));
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> commandService.changeStatus(id, "COMPLETED", IP))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("before its date");
+
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
+        verify(auditService, never()).logChange(
+            any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void changeStatusCompletesAShootOnItsDayAndAfter() {
+        // The day itself counts in Berlin time: CLOCK is 23:30 on TODAY there.
+        for (LocalDate date : List.of(TODAY, TODAY.minusDays(3))) {
+            UUID id = UUID.randomUUID();
+            Booking booking = confirmedOn(date);
+            when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+
+            assertThat(commandService.changeStatus(id, "COMPLETED", IP).status()).isEqualTo("COMPLETED");
+        }
+    }
+
+    @Test
+    void changeStatusLetsTheStudioCancelACompletedShoot() {
+        // COMPLETED is final for the shoot, not for the booking: the studio may
+        // still cancel it, and that is the only move left.
+        UUID id = UUID.randomUUID();
+        Booking booking = confirmedOn(TODAY.minusDays(1));
+        booking.changeStatus(BookingStatus.COMPLETED, TODAY);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+
+        assertThat(commandService.changeStatus(id, "CANCELLED", IP).status()).isEqualTo("CANCELLED");
+    }
+
+    private static Booking confirmedOn(LocalDate eventDate) {
+        Booking booking = new Booking("Maria", "maria@example.com", eventDate);
+        booking.setTenantId(TENANT_ID);
+        booking.changeStatus(BookingStatus.CONFIRMED, TODAY);
+        return booking;
+    }
+
+    @Test
     void changeStatusRejectsUnknownBookingWith404() {
         UUID id = UUID.randomUUID();
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.empty());
@@ -267,7 +322,7 @@ class BookingCommandServiceTest {
         UUID id = UUID.randomUUID();
         Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
         booking.setTenantId(TENANT_ID);
-        booking.changeStatus(BookingStatus.CANCELLED);
+        booking.changeStatus(BookingStatus.CANCELLED, LocalDate.now());
         when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> commandService.updateBooking(id, updateRequest(null), IP))

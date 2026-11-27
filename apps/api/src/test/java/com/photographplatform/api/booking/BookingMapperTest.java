@@ -61,7 +61,7 @@ class BookingMapperTest {
         ReflectionTestUtils.setField(booking, "id", id);
         booking.applyPricing(new BookingPricing(null, quotedCents, 0));
         for (BookingStatus next : path) {
-            booking.changeStatus(next);
+            booking.changeStatus(next, LocalDate.of(2025, 6, 14));
         }
         BookingSettlement settled = new BookingSettlement(BookingPaymentState.OPEN, quotedCents, paidCents, 0);
         return mapper.toResponse(booking, new PageLookups(Map.of(id, settled), Map.of(), Map.of(id, List.of())))

@@ -23,11 +23,18 @@ import java.util.Set;
  * ConflictException}) with a clear message, instead of bubbling up as a
  * generic constraint-violation 500.
  *
- * <p>{@code COMPLETED}, {@code DECLINED} and {@code CANCELLED} are terminal —
- * re-opening requires creating a new booking, which keeps the audit trail
- * honest. {@code POSTPONED} is not terminal: a postponed shoot returns to
+ * <p>{@code DECLINED} and {@code CANCELLED} are terminal — re-opening
+ * requires creating a new booking, which keeps the audit trail honest.
+ * {@code COMPLETED} is final for the shoot but not for the booking: the studio
+ * may still cancel it (a delivered shoot the client walks away from), and
+ * nothing else. The status endpoint is staff-only, so a client can never make
+ * that move. {@code POSTPONED} is not terminal: a postponed shoot returns to
  * {@code CONFIRMED} once a new date is agreed, or moves to {@code CANCELLED}
  * if it falls through entirely.
+ *
+ * <p>Which moves are legal here says nothing about the calendar. A shoot
+ * cannot be completed before its date, but that needs today's date, so it is
+ * {@link Booking#changeStatus}'s rule and not this enum's.
  */
 public enum BookingStatus {
     ENQUIRY,
@@ -91,12 +98,9 @@ public enum BookingStatus {
      * LeadService#updateLead} refuses a terminal lead.
      *
      * <p>Deliberately its own set rather than "has no legal transition left":
-     * this enum's javadoc calls {@code COMPLETED} terminal but {@link #ALLOWED}
-     * still permits {@code COMPLETED -> CANCELLED}, so the two disagree about
-     * what terminal means. Editing a completed shoot is wrong either way — it
-     * has been delivered and very likely invoiced — so the edit guard says what
-     * it means directly instead of inheriting that ambiguity. Resolving the
-     * disagreement itself is a change to the state machine, not to this guard.
+     * {@code COMPLETED} may still be cancelled, yet editing a completed shoot
+     * is wrong — it has been delivered and very likely invoiced — so the edit
+     * guard says what it means directly.
      */
     public boolean isClosedForEdits() {
         return this == COMPLETED || this == DECLINED || this == CANCELLED;

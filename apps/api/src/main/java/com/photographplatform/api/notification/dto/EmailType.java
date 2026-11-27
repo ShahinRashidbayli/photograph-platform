@@ -63,7 +63,12 @@ public enum EmailType {
     LEAD_NOTIFICATION(5),
     /** Tells the photographer a new booking inquiry arrived. */
     INQUIRY_NOTIFICATION(5),
-    /** Acknowledges a lead to the person who sent it. */
+    /**
+     * Acknowledges a lead to the person who sent it. Only rows queued before
+     * {@link #CUSTOMER_ENQUIRY_RECEIVED} replaced it still carry it; goes with
+     * {@code AutoReplyService} in the release after (#127).
+     */
+    @Deprecated(forRemoval = true)
     LEAD_AUTO_REPLY(5),
     /** The photographer's answer to a customer's inquiry. */
     INQUIRY_REPLY(5),

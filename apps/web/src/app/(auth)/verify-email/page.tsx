@@ -3,7 +3,7 @@
 import { useVerifyEmail } from '@/hooks/useAuth';
 import { AuthSplitLayout } from '@/components/AuthSplitLayout';
 import { AuthStatusCard, type AuthStatusTone } from '@/components/AuthStatusCard';
-import { extractApiError } from '@/lib/helpers';
+import { extractApiError, httpStatus } from '@/lib/helpers';
 import { useTranslation } from '@/lib/i18n';
 import { useThemeStore } from '@/store/themeStore';
 import Link from 'next/link';
@@ -33,7 +33,9 @@ function VerifyEmailInner() {
     verify(token, {
       onSuccess: () => setStatus('success'),
       onError: (err) => {
-        setApiMessage(extractApiError(err, ''));
+        // 401 is an unknown, expired or already-used link: the screen's own
+        // translated message says that, the server's English one does not.
+        setApiMessage(httpStatus(err) === 401 ? null : extractApiError(err, ''));
         setStatus('error');
       },
     });

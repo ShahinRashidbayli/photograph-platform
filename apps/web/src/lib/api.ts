@@ -13,6 +13,23 @@ const api = axios.create({
   xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
+declare module 'axios' {
+  // Declaration merging: the rule sees a new, unused interface.
+  // eslint-disable-next-line no-unused-vars
+  interface AxiosRequestConfig {
+    /**
+     * This request's 401 means "the credential in the body is wrong" — a
+     * sign-in code, a reset/verify/invitation token — not "the session
+     * expired". Refreshing there is meaningless: the refresh error replaced
+     * the real one ("No refresh token provided" for a mistyped code), a failed
+     * refresh bounced token links to /login, and a successful one replayed the
+     * guess so it counted twice against the attempt limit. Marked at the call
+     * site so the hook that knows what its 401 means is the one that says so.
+     */
+    skipAuthRefresh?: boolean;
+  }
+}
+
 let isRefreshing = false;
 
 /**
@@ -73,7 +90,7 @@ api.interceptors.response.use(
       throw error;
     }
 
-    if (error.response?.status !== 401 || original._retry) {
+    if (error.response?.status !== 401 || original._retry || original.skipAuthRefresh) {
       throw error;
     }
 

@@ -46,7 +46,8 @@ class ThumbnailServiceTest {
 
     /**
      * A portrait phone photo: 600 × 400 stored pixels, EXIF-tagged to be shown
-     * rotated a quarter turn. The thumbnail is portrait, 400 px on its long edge.
+     * rotated a quarter turn. The thumbnail is portrait, 400 px on its long edge
+     * and 400 × 400 / 600 ≈ 267 px on its short one.
      */
     @ParameterizedTest
     @ValueSource(ints = {6, 8})

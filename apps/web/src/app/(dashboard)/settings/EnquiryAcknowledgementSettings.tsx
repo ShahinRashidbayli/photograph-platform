@@ -37,13 +37,17 @@ export function EnquiryAcknowledgementSettings() {
   return (
     <>
       {error && <Alert tone="danger">{asyncErrorText(error, t)}</Alert>}
-      <Toggle
-        checked={enabled}
-        onChange={change}
-        disabled={q.isLoading || q.isError || save.isPending}
-        label={t('settings.enquiryAck.label')}
-        description={enabled ? t('settings.enquiryAck.on') : t('settings.enquiryAck.off')}
-      />
+      {/* Not drawn until the server has answered: a switch at its default would
+          tell the photographer "On" about a studio that may have turned it off. */}
+      {q.data && (
+        <Toggle
+          checked={enabled}
+          onChange={change}
+          disabled={save.isPending}
+          label={t('settings.enquiryAck.label')}
+          description={enabled ? t('settings.enquiryAck.on') : t('settings.enquiryAck.off')}
+        />
+      )}
     </>
   );
 }

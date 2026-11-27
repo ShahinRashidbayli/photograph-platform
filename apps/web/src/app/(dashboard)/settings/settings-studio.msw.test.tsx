@@ -230,6 +230,18 @@ describe('EnquiryAcknowledgementSettings', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
   });
 
+  it('says so when the setting cannot be loaded, and draws no switch it cannot vouch for', async () => {
+    server.use(
+      http.get('/api/settings/enquiry-acknowledgement', () =>
+        HttpResponse.json({}, { status: 500 })
+      )
+    );
+    renderWithProviders(<EnquiryAcknowledgementSettings />, { lang: 'en' });
+
+    expect(await screen.findByText('Could not load this setting.')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
   it('shows the switch off when the studio has turned it off', async () => {
     server.use(
       http.get('/api/settings/enquiry-acknowledgement', () => HttpResponse.json({ enabled: false }))

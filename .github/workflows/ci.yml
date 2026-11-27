@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v7
 
       # Java: Checkstyle
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           # Read from .java-version so CI and the maven-enforcer rule in
           # apps/api/pom.xml cannot drift apart: one file states the version,
@@ -121,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           # Read from .java-version so CI and the maven-enforcer rule in
           # apps/api/pom.xml cannot drift apart: one file states the version,
@@ -243,7 +243,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           # Read from .java-version so CI and the maven-enforcer rule in
           # apps/api/pom.xml cannot drift apart: one file states the version,

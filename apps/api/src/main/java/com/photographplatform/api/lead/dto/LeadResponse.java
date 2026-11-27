@@ -31,5 +31,7 @@ public record LeadResponse(
     String source,
     String igMessageId,
     String igUsername,
+    /** The Customer's language as its ISO 639-1 code, {@code de} or {@code en}. */
+    String language,
     OffsetDateTime createdAt
 ) {}

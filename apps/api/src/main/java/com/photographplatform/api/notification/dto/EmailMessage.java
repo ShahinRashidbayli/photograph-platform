@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.dto;
 
+import com.photographplatform.api.common.util.Normalize;
 import java.util.UUID;
 
 /**
@@ -35,7 +36,7 @@ public record EmailMessage(
     public EmailMessage {
         // Blank counts as absent, as for fromName: SMTP throws on "", and the
         // HTTP providers answer 400, so the message would never go out.
-        replyTo = replyTo == null || replyTo.isBlank() ? null : replyTo.strip();
+        replyTo = Normalize.trimToNull(replyTo);
     }
 
     /** Sent as Fotolio: the global sender name, and no Reply-To. */

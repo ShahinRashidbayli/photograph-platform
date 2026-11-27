@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -74,5 +75,12 @@ public record CreateBookingRequest(
      * list clears them — the form always sends its whole selection, so those
      * have to mean different things or removing the last one is impossible.
      */
-    List<UUID> resourceIds
+    List<UUID> resourceIds,
+
+    /**
+     * The language the Customer reads, and so every Customer message about
+     * this booking. Absent means {@code de}, the studios' own language.
+     */
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {}

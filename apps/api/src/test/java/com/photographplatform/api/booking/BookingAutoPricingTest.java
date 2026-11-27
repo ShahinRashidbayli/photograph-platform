@@ -222,6 +222,7 @@ class BookingAutoPricingTest {
             depositCents,
             null,
             null,
+            null,
             null
         );
     }

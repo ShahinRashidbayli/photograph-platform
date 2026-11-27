@@ -19,6 +19,7 @@ import type { Booking } from '@/types/api';
 import { BookingActionMenu, type MenuItem } from './BookingActionMenu';
 import { BookingContracts } from './BookingContracts';
 import { BookingGallery } from './BookingGallery';
+import { BookingLanguage } from './BookingLanguage';
 import { BookingInvoices, CreateInvoiceModal, RecordPaymentDialog } from './BookingInvoices';
 import { BookingNotes } from './BookingNotes';
 import { BookingProgress, relativeDay } from './BookingProgress';
@@ -304,6 +305,7 @@ export function BookingDetail({
               ? tPlural('bookings.detail.bookingsWithYou', clientBookingCount)
               : t('bookings.detail.firstBooking')}
           </p>
+          <BookingLanguage booking={booking} />
         </section>
       </div>
 

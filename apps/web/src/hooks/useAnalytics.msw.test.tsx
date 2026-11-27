@@ -82,6 +82,7 @@ describe('useCreateInquiryRequest', () => {
         location: null,
         message: null,
         website: '',
+        language: 'de',
       })
     );
 

@@ -3,6 +3,7 @@ package com.photographplatform.api.lead.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
@@ -185,7 +186,7 @@ public class LeadService {
         // current data.
         CreateLeadRequest forScoring = new CreateLeadRequest(
             req.name(), req.email(), req.phone(), req.eventDate(),
-            req.eventType(), req.budgetRange(), req.message(), null
+            req.eventType(), req.budgetRange(), req.message(), null, null
         );
         lead.setScore(calculateScore(forScoring));
 
@@ -290,6 +291,9 @@ public class LeadService {
         );
         lead.setTenantId(tenantId);
         lead.setScore(score);
+        // The manual form sends no language, so this is de unless a caller
+        // says otherwise; the photographer corrects it on the booking.
+        lead.setLanguage(CustomerLanguage.fromCodeOrDefault(req.language()));
         Lead saved = leadRepository.save(lead);
 
         auditService.log("LEAD_CREATED", "LEAD", saved.getId(), tenantId, actorId, ipAddress);
@@ -300,7 +304,7 @@ public class LeadService {
         // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
             LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                actor.getEmail())
+                saved.getLanguage(), actor.getEmail())
         );
 
         return mapper.toResponse(saved);
@@ -322,6 +326,7 @@ public class LeadService {
         );
         lead.setTenantId(tenant.getId());
         lead.setScore(score);
+        lead.setLanguage(CustomerLanguage.fromCodeOrDefault(req.language()));
 
         Lead saved = leadRepository.save(lead);
 
@@ -330,7 +335,7 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                tenant.customerFacingName(), tenant.getOwnerEmail())
+                saved.getLanguage(), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);

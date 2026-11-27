@@ -8,6 +8,9 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import net.coobird.thumbnailator.util.exif.ExifFilterUtils;
+import net.coobird.thumbnailator.util.exif.ExifUtils;
+import net.coobird.thumbnailator.util.exif.Orientation;
 
 /**
  * Decodes an uploaded image with a hard ceiling on the heap it can take.
@@ -33,6 +36,15 @@ import javax.imageio.stream.ImageInputStream;
  *
  * <p>The original dimensions are returned alongside the image, because callers
  * record them on the photo and a subsampled raster would report the wrong ones.
+ *
+ * <h2>EXIF orientation</h2>
+ * Phones and most cameras store a portrait JPEG as landscape pixels plus an
+ * EXIF {@code Orientation} tag. Browsers honour the tag, so the original looks
+ * right, but ImageIO ignores it and the JPEGs we encode carry no EXIF — every
+ * derivative came out sideways. The decoded image is therefore turned upright
+ * here, once, for every caller, and the returned dimensions are the upright
+ * ones (width and height swapped for orientations 5–8), matching what a
+ * browser shows for the original.
  */
 public final class BoundedImageDecoder {
 
@@ -103,16 +115,49 @@ public final class BoundedImageDecoder {
                 if (pixels > maxSourcePixels) {
                     throw new ImageTooLargeException(width, height);
                 }
+                Orientation orientation = exifOrientation(reader);
                 ImageReadParam param = reader.getDefaultReadParam();
                 int step = subsamplingStep(pixels, pixelBudget);
                 if (step > 1) {
                     param.setSourceSubsampling(step, step, 0, 0);
                 }
-                return new DecodedImage(reader.read(0, param), width, height);
+                BufferedImage image = reader.read(0, param);
+                if (orientation == null || orientation == Orientation.TOP_LEFT) {
+                    return new DecodedImage(image, width, height);
+                }
+                BufferedImage upright = ExifFilterUtils.getFilterForOrientation(orientation).apply(image);
+                return swapsDimensions(orientation)
+                    ? new DecodedImage(upright, height, width)
+                    : new DecodedImage(upright, width, height);
             } finally {
                 reader.dispose();
             }
         }
+    }
+
+    /**
+     * The orientation a JPEG's EXIF block declares, or {@code null} when there
+     * is none. Only JPEG is asked: the lookup reads the JPEG-native metadata
+     * tree, which other readers do not offer. A malformed EXIF block is treated
+     * as no tag — a sideways thumbnail beats no thumbnail.
+     */
+    private static Orientation exifOrientation(ImageReader reader) throws IOException {
+        if (!"jpeg".equalsIgnoreCase(reader.getFormatName())) {
+            return null;
+        }
+        try {
+            return ExifUtils.getExifOrientation(reader, 0);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Orientations 5–8 store the image transposed: its upright width is the stored height. */
+    private static boolean swapsDimensions(Orientation orientation) {
+        return orientation == Orientation.LEFT_TOP
+            || orientation == Orientation.RIGHT_TOP
+            || orientation == Orientation.RIGHT_BOTTOM
+            || orientation == Orientation.LEFT_BOTTOM;
     }
 
     /**

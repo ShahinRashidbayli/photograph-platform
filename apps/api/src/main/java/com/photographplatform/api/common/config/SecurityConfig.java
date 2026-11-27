@@ -222,6 +222,11 @@ public class SecurityConfig {
      * one list rather than as a clause in the middle of the chain assembly —
      * and because this is the part of the configuration that has to be read
      * carefully when anything is added.
+     *
+     * <p>{@code /api/public/**} is read by visitors with no session: portfolio,
+     * gallery by token, lead intake, Impressum, Stripe webhooks — and the
+     * studio logo ({@code /api/public/studios/{subdomain}/logo}), which mail
+     * clients load from Customer messages days after they were sent.
      */
     private static void authorizationRules(
         AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {

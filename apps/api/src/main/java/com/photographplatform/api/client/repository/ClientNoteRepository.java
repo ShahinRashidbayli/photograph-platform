@@ -35,7 +35,9 @@ import org.springframework.data.repository.query.Param;
  * and the address itself never travels in a URL. Anonymised bookings ({@code
  * :erasedPattern}) are left out, or each would list as a client of its own.
  * Tenant isolation is RLS's job, on {@code bookings}, {@code invoices}, {@code
- * payments} and {@code client_notes} alike.
+ * payments} and {@code client_notes} alike; the joins still carry {@code
+ * tenant_id}, because the id is already per tenant and an address shared by
+ * two studios must never pick up the other's spend or notes.
  */
 public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
 
@@ -48,6 +50,7 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
         ),
         directory AS (
             SELECT CAST(md5(CAST(pb.tenant_id AS text) || ':' || pb.email) AS uuid) AS id,
+                   pb.tenant_id,
                    pb.email,
                    (array_agg(pb.client_name ORDER BY pb.created_at DESC))[1] AS full_name,
                    COUNT(*) FILTER (WHERE pb.status NOT IN (:notHappening)) AS total_bookings,
@@ -62,12 +65,12 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
             GROUP BY pb.tenant_id, pb.email
         ),
         spend AS (
-            SELECT lower(btrim(b.client_email)) AS email, SUM(p.amount_cents) AS spent_cents
+            SELECT b.tenant_id, lower(btrim(b.client_email)) AS email, SUM(p.amount_cents) AS spent_cents
             FROM payments p
             JOIN invoices i ON i.id = p.invoice_id
             JOIN bookings b ON b.id = i.booking_id
             WHERE p.status = 'SUCCEEDED'
-            GROUP BY lower(btrim(b.client_email))
+            GROUP BY b.tenant_id, lower(btrim(b.client_email))
         )
         SELECT d.id                                      AS id,
                d.email                                   AS email,
@@ -79,8 +82,8 @@ public interface ClientNoteRepository extends JpaRepository<ClientNote, UUID> {
                d.last_booking_date                       AS lastBookingDate,
                d.created_at                              AS createdAt
         FROM directory d
-        LEFT JOIN spend s        ON s.email = d.email
-        LEFT JOIN client_notes n ON n.email = d.email
+        LEFT JOIN spend s        ON s.tenant_id = d.tenant_id AND s.email = d.email
+        LEFT JOIN client_notes n ON n.tenant_id = d.tenant_id AND n.email = d.email
         """;
 
     /** The whole directory, most recently booked first. */

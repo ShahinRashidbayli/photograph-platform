@@ -114,10 +114,12 @@ export function BookingDetail({
   );
 
   // Retired ones too: a room retired after it was booked is still the room
-  // this shoot uses. Same query the edit form's picker reads, so it is cached.
-  const resources = useResources({ includeRetired: true }).data;
+  // this shoot uses. Only fetched when the booking has any.
+  const hasResources = (booking.resourceIds ?? []).length > 0;
+  const resources = useResources({ includeRetired: true, enabled: hasResources }).data;
   const resourceNames = useMemo(() => {
-    const byId = new Map((resources ?? []).map((r) => [r.id, r.name]));
+    if (!resources) return null;
+    const byId = new Map(resources.map((r) => [r.id, r.name]));
     return (booking.resourceIds ?? []).flatMap((id) => byId.get(id) ?? []);
   }, [resources, booking.resourceIds]);
 
@@ -306,7 +308,8 @@ export function BookingDetail({
               {booking.assignedUserName || t('bookings.detail.unassigned')}
             </Fact>
             <Fact label={t('bookings.detail.resources')} s={s}>
-              {resourceNames.length > 0 ? resourceNames.join(', ') : '—'}
+              {/* Not "—" while the names load: that would read as "none booked". */}
+              {!hasResources ? '—' : resourceNames ? resourceNames.join(', ') || '—' : '…'}
             </Fact>
           </dl>
         </section>

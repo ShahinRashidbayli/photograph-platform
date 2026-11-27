@@ -392,8 +392,8 @@ function BookingsView() {
     if (!selected) return;
     // Cancelling and declining are terminal and have no legal way back, so
     // they ask first — an undo toast would be a promise we can't keep.
-    if (target === 'CANCELLED' || target === 'DECLINED') {
-      setConfirmMove(target);
+    if (target in CONFIRM_COPY) {
+      setConfirmMove(target as ConfirmedMove);
       return;
     }
     applyTransition(selected.id, selected.status as BookingStatusKey, target);

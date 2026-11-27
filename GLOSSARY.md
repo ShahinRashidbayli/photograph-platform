@@ -1,8 +1,28 @@
 # Fotolio
 
 A studio sells photography to its Customers and gets paid through invoices. These
-are the words for that money, one term per concept, used the same way in code, UI
-copy, commits and reviews.
+are its words, one term per concept, used the same way in code, UI copy, commits
+and reviews.
+
+## Studios and their Customers
+
+**Studio**:
+The photography business that uses Fotolio to sell to its Customers, run by an
+owner and their staff. One studio is one account on Fotolio.
+_Avoid_: Tenant (outside multi-tenancy code), photographer (when the business is meant)
+
+**Customer**:
+A person a studio photographs or may photograph, from their first enquiry onward.
+_Avoid_: Client, lead (that is the enquiry, not the person)
+
+**Customer message**:
+A message a studio sends to one of its Customers, in the studio's name and voice.
+In German UI copy: *Kundennachricht*.
+_Avoid_: Notification, email (as the concept)
+
+**Notification**:
+A message Fotolio sends to a studio's owner or staff about their studio.
+_Avoid_: Customer message, alert
 
 ## Money a studio earns
 
@@ -98,3 +118,30 @@ values (`data-tone` in the markup):
 - **Follows the theme**: light in light mode, dark in dark mode (`theme`).
 - **Dark in both themes**: charcoal whatever the theme (`dark`).
 _Avoid_: Dark section, dark room (as a type of Band), inverted
+
+## Studios, Customers and what reaches them
+
+**Studio**:
+One photographer's business on Fotolio: one tenant, with its own Customers,
+bookings and plan.
+_Avoid_: Tenant (in UI copy), account, photographer (for the business)
+
+**Customer**:
+A person a Studio photographs or may photograph: whoever sent an enquiry, holds
+a booking or logs in to the portal.
+_Avoid_: `client` in new code; the existing `client` names stay until #57
+
+**Customer message**:
+An email from a Studio to one of its Customers, written in the Customer's
+language. Composed only in the `messaging` module.
+_Avoid_: Notification, mail, email (as the concept)
+
+**Notification**:
+A message from Fotolio to a Studio about something that happened in it, such as
+a new enquiry. Never sent to a Customer.
+_Avoid_: Customer message, alert
+
+**Personal note**:
+Optional plain text a photographer adds to one send action of a Customer
+message, at most 1000 characters. It is never stored after delivery.
+_Avoid_: Comment, custom message, note (unqualified)

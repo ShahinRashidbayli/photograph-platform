@@ -170,7 +170,7 @@ class AuditAfterCommitIT extends IntegrationTestBase {
     private CreateBookingRequest request(UUID packageId) {
         return new CreateBookingRequest(
             "Maria Kellner", "maria@example.test", LocalDate.now().plusDays(30),
-            null, "WEDDING", "Berlin", null, packageId, 50_000, null, null, null, null);
+            null, "WEDDING", "Berlin", null, packageId, 50_000, null, null, null, null, null);
     }
 
     private Fixture createTenant() {

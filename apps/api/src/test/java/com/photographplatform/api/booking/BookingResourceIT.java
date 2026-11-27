@@ -151,7 +151,7 @@ class BookingResourceIT extends IntegrationTestBase {
         return new CreateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
             null, "WEDDING", "Berlin", null, packageId, totalCents, null, null,
-            null, resourceIds);
+            null, resourceIds, null);
     }
 
     private Fixture createTenant() {

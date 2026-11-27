@@ -264,10 +264,14 @@ function CustomerLoginInner() {
           window.location.href = '/bookings';
         },
         onError: (err) => {
-          const msg =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            t('customerLogin.errorCodeInvalid');
-          setError(msg);
+          // A wrong, spent or expired code is a 401. Ours, not the server's
+          // sentence: that one is English-only.
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          setError(
+            status === 401
+              ? t('customerLogin.errorCodeInvalid')
+              : extractApiError(err, t('customerLogin.errorCodeInvalid'))
+          );
           // Clear so the next attempt starts from an empty box rather than the
           // client having to select and delete six wrong digits on a phone.
           setCode('');
@@ -510,7 +514,11 @@ function CustomerLoginInner() {
           </p>
           <div style={{ ...s.alertInfo, marginTop: 20 }}>{t('customerLogin.sentHint')}</div>
 
-          {error && <div style={{ ...s.alertError, marginTop: 16 }}>{error}</div>}
+          {error && (
+            <div style={{ ...s.alertError, marginTop: 16 }} role="alert">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleVerify} style={{ marginTop: 20 }}>
             <div style={s.formGroup}>

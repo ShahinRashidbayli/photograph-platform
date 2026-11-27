@@ -129,6 +129,12 @@ export function useSubdomainAvailability(subdomain: string | null) {
 }
 
 /** Answers 204 whether or not the address exists — see the forgot-password screen. */
+/**
+ * For the endpoints whose 401 means the code or token in the body is wrong,
+ * not that the session expired — see `skipAuthRefresh` in `lib/api`.
+ */
+const NO_REFRESH = { skipAuthRefresh: true } as const;
+
 export function useForgotPassword() {
   return useMutation({
     mutationFn: (email: string) => api.post('/api/auth/password/forgot', { email }),
@@ -140,13 +146,13 @@ export function useResetPassword() {
     // A missing token is sent as-is; the API answers 401, which the screen
     // shows as "this link is no longer usable".
     mutationFn: (input: { token: string | null; password: string }) =>
-      api.post('/api/auth/password/reset', input),
+      api.post('/api/auth/password/reset', input, NO_REFRESH),
   });
 }
 
 export function useVerifyEmail() {
   return useMutation({
-    mutationFn: (token: string) => api.post('/api/auth/verify-email', { token }),
+    mutationFn: (token: string) => api.post('/api/auth/verify-email', { token }, NO_REFRESH),
   });
 }
 
@@ -170,7 +176,12 @@ export function useInvitationPreview(token: string) {
     enabled: token !== '',
     retry: false,
     queryFn: async () =>
-      (await api.get<InvitationPreview>('/api/public/invitations', { params: { token } })).data,
+      (
+        await api.get<InvitationPreview>('/api/public/invitations', {
+          params: { token },
+          ...NO_REFRESH,
+        })
+      ).data,
   });
 }
 
@@ -178,7 +189,7 @@ export function useInvitationPreview(token: string) {
 export function useAcceptInvitation() {
   return useMutation({
     mutationFn: (input: { token: string; fullName: string; password: string }) =>
-      api.post('/api/public/invitations/accept', input),
+      api.post('/api/public/invitations/accept', input, NO_REFRESH),
   });
 }
 
@@ -199,7 +210,11 @@ export function useRequestLoginCode() {
 export function useVerifyLoginCode() {
   return useMutation({
     mutationFn: (input: { email: string; subdomain: string | null; code: string }) =>
-      api.post<{ tenant?: { subdomain?: string } }>('/api/auth/customer/login-code/verify', input),
+      api.post<{ tenant?: { subdomain?: string } }>(
+        '/api/auth/customer/login-code/verify',
+        input,
+        NO_REFRESH
+      ),
   });
 }
 

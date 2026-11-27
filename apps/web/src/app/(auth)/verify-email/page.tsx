@@ -33,7 +33,10 @@ function VerifyEmailInner() {
     verify(token, {
       onSuccess: () => setStatus('success'),
       onError: (err) => {
-        setApiMessage(extractApiError(err, ''));
+        // 401 is an unknown, expired or already-used link: the screen's own
+        // translated message says that, the server's English one does not.
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        setApiMessage(status === 401 ? null : extractApiError(err, ''));
         setStatus('error');
       },
     });

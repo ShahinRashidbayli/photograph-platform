@@ -39,8 +39,12 @@ function InviteForm() {
   const previewQuery = useInvitationPreview(token);
   const preview = previewQuery.data ?? null;
   const checking = previewQuery.isLoading;
-  const invalid = !token || previewQuery.isError;
   const accept = useAcceptInvitation();
+  // Spent between opening the link and submitting (accepted in another tab,
+  // revoked, expired): the same dead link the preview would have reported.
+  const spent =
+    (accept.error as { response?: { status?: number } } | null)?.response?.status === 401;
+  const invalid = !token || previewQuery.isError || spent;
 
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');

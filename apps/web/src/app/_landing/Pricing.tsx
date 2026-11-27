@@ -31,10 +31,7 @@ export function Pricing() {
   };
 
   /** "€19" / "19 €" as one string, for figures inside a sentence. */
-  const eur = (euros: number) => {
-    const { symbol, value, symbolFirst } = format.eurParts(euros * 100);
-    return symbolFirst ? `${symbol}${value}` : `${value} ${symbol}`;
-  };
+  const eur = (euros: number) => format.eur(euros * 100);
 
   /**
    * The € on the side the locale puts it: "€19" in English, "19 €" in German.

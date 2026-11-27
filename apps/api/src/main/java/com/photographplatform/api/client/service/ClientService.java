@@ -3,7 +3,10 @@ package com.photographplatform.api.client.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
+import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.client.domain.ClientNote;
+import com.photographplatform.api.client.dto.ClientDetailResponse;
 import com.photographplatform.api.client.dto.ClientResponse;
 import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.repository.ClientNoteRepository;
@@ -14,7 +17,10 @@ import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.Normalize;
+import com.photographplatform.api.contract.service.ContractService;
+import com.photographplatform.api.gallery.service.GalleryService;
 import com.photographplatform.api.invoice.domain.BookingSettlement;
+import com.photographplatform.api.invoice.service.InvoiceService;
 import com.photographplatform.api.invoice.service.Settlement;
 import com.photographplatform.api.lead.service.LeadReportingService;
 import java.time.Clock;
@@ -44,6 +50,10 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link Settlement} counts them (ADR-004 §1); the phone is the newest one
  * the client gave on a lead, since bookings record none.
  *
+ * <p>The detail adds what hangs off the client's bookings — galleries,
+ * invoices, contracts — each asked of the module that owns it, by booking id,
+ * in one call per module.
+ *
  * <p>Notes are the one thing a photographer writes here, and the only thing
  * stored. Tenant scoping is RLS's job, so an id only ever resolves inside the
  * caller's own tenant.
@@ -57,14 +67,25 @@ public class ClientService {
     private final ClientNoteRepository clientNoteRepository;
     private final Settlement settlement;
     private final LeadReportingService leadReportingService;
+    private final BookingQueryService bookingQueryService;
+    private final GalleryService galleryService;
+    private final InvoiceService invoiceService;
+    private final ContractService contractService;
     private final AuditService auditService;
     private final Clock clock;
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public ClientService(ClientNoteRepository clientNoteRepository, Settlement settlement,
-                         LeadReportingService leadReportingService, AuditService auditService, Clock clock) {
+                         LeadReportingService leadReportingService, BookingQueryService bookingQueryService,
+                         GalleryService galleryService, InvoiceService invoiceService,
+                         ContractService contractService, AuditService auditService, Clock clock) {
         this.clientNoteRepository = clientNoteRepository;
         this.settlement = settlement;
         this.leadReportingService = leadReportingService;
+        this.bookingQueryService = bookingQueryService;
+        this.galleryService = galleryService;
+        this.invoiceService = invoiceService;
+        this.contractService = contractService;
         this.auditService = auditService;
         this.clock = clock;
     }
@@ -73,6 +94,28 @@ public class ClientService {
     public List<ClientResponse> list() {
         return toResponses(
             clientNoteRepository.findDirectory(today(), NOT_HAPPENING, ERASED_PATTERN, QueryLimits.LIST));
+    }
+
+    /**
+     * One client with their bookings in every status — Not happening ones
+     * included, unlike the counts — and the galleries, invoices and
+     * contracts on those bookings.
+     *
+     * <p>A fixed number of queries however much the client has: one per
+     * module, never one per booking. Reports 404 for an id no booking of this
+     * studio carries, so another studio's client does not resolve.
+     */
+    @Transactional(readOnly = true)
+    public ClientDetailResponse get(UUID id) {
+        ClientView client = find(id);
+        List<BookingResponse> bookings = bookingQueryService.listForClient(client.getEmail());
+        List<UUID> bookingIds = bookings.stream().map(BookingResponse::id).toList();
+        return new ClientDetailResponse(
+            toResponse(client),
+            bookings,
+            galleryService.listForBookings(bookingIds),
+            invoiceService.listForBookings(bookingIds),
+            contractService.listForBookings(bookingIds));
     }
 
     /**
@@ -105,7 +148,7 @@ public class ClientService {
         auditService.log("CLIENT_NOTES_UPDATED", "CLIENT", id,
             tenantId, SecurityUtils.requireCurrentUserId(), ipAddress);
 
-        return toResponses(List.of(find(id))).get(0);
+        return toResponse(find(id));
     }
 
     private ClientView find(UUID id) {
@@ -116,6 +159,10 @@ public class ClientService {
     /** "Upcoming" and "last session" are calendar days the studio reads in its own zone. */
     private LocalDate today() {
         return LocalDate.now(clock.withZone(BusinessZone.ID));
+    }
+
+    private ClientResponse toResponse(ClientView view) {
+        return toResponses(List.of(view)).get(0);
     }
 
     /**

@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -262,6 +263,15 @@ public class InvoiceService {
     @Transactional(readOnly = true)
     public List<InvoiceResponse> listForBooking(UUID bookingId) {
         return toResponses(invoiceRepository.findByBookingIdOrderByIssuedAtDesc(bookingId));
+    }
+
+    /** The invoices of these bookings with their line items, newest first. Empty for no bookings. */
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> listForBookings(Collection<UUID> bookingIds) {
+        if (bookingIds.isEmpty()) {
+            return List.of();
+        }
+        return toResponses(invoiceRepository.findByBookingIdInOrderByIssuedAtDesc(bookingIds));
     }
 
     /**

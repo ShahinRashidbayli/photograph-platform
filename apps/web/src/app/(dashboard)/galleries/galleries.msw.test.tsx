@@ -6,6 +6,15 @@ import { useAuthStore } from '@/store/authStore';
 import type { DeliveryPhoto, Gallery } from '@/hooks/useGalleries';
 import GalleriesPage from './page';
 
+// The client detail links here as `?id=<galleryId>`; each test sets the query.
+let searchParams = new URLSearchParams('');
+jest.mock('next/navigation', () => ({
+  usePathname: () => '/galleries',
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn() }),
+  useSearchParams: () => searchParams,
+  useParams: () => ({}),
+}));
+
 /**
  * The galleries screen against a faked API.
  *
@@ -96,11 +105,50 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  searchParams = new URLSearchParams('');
   jest.restoreAllMocks();
   useAuthStore.setState({ user: null });
 });
 
 describe('GalleriesPage', () => {
+  it('opens the gallery a link names in ?id=', async () => {
+    const photosAskedFor: string[] = [];
+    server.use(
+      http.get('/api/galleries', () =>
+        HttpResponse.json([GALLERY, { ...GALLERY, id: 'g2', bookingName: 'Jonas Berg' }])
+      ),
+      http.get('/api/galleries/:id/photos', ({ params }) => {
+        photosAskedFor.push(String(params.id));
+        return HttpResponse.json([]);
+      })
+    );
+    searchParams = new URLSearchParams('id=g2');
+    renderWithProviders(<GalleriesPage />, { lang: 'en' });
+
+    await waitFor(() => expect(photosAskedFor).toContain('g2'));
+    expect(photosAskedFor).not.toContain('g1');
+  });
+
+  it('unfolds the list when the linked gallery sits past the first page', async () => {
+    // Active galleries sort latest shoot first, so the oldest one is row 8 of
+    // 8 — behind "show more" unless the link unfolds the list.
+    const galleries = Array.from({ length: 8 }, (_, i) => ({
+      ...GALLERY,
+      id: `g${i}`,
+      bookingName: `Client ${i}`,
+      shootDate: `2026-09-${String(20 - i).padStart(2, '0')}`,
+    }));
+    server.use(
+      http.get('/api/galleries', () => HttpResponse.json(galleries)),
+      http.get('/api/galleries/:id/photos', () => HttpResponse.json([]))
+    );
+    searchParams = new URLSearchParams('id=g7');
+    renderWithProviders(<GalleriesPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: 'Show fewer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show \d+ more/ })).not.toBeInTheDocument();
+  });
+
   it('says so when deleting a gallery fails, instead of doing nothing', async () => {
     server.use(
       http.get('/api/galleries', () => HttpResponse.json([GALLERY])),

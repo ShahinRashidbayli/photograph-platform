@@ -54,5 +54,16 @@ export const clients: Record<keyof EnClients, string> = {
   'clientDetail.notesCancel': 'Abbrechen',
   'clientDetail.notesPlaceholder': 'Private Notiz zu diesem Kunden hinzufügen…',
   'clientDetail.notesError': 'Notiz konnte nicht gespeichert werden. Bitte erneut versuchen.',
+  'clientDetail.records.bookings': 'Buchungen',
+  'clientDetail.records.galleries': 'Galerien',
+  'clientDetail.records.invoices': 'Rechnungen',
+  'clientDetail.records.contracts': 'Verträge',
+  'clientDetail.records.noBookings': 'Keine Buchungen für diesen Kunden.',
+  'clientDetail.records.noGalleries': 'Noch keine Galerien für diesen Kunden.',
+  'clientDetail.records.noInvoices': 'Noch keine Rechnungen für diesen Kunden.',
+  'clientDetail.records.noContracts': 'Noch keine Verträge für diesen Kunden.',
+  'clientDetail.records.loading': 'Buchungen, Galerien, Rechnungen und Verträge werden geladen…',
+  'clientDetail.records.error':
+    'Buchungen und Dokumente dieses Kunden konnten nicht geladen werden.',
   'clients.backToList': 'Alle Kunden',
 };

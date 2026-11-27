@@ -3,14 +3,20 @@ package com.photographplatform.api.client;
 import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.booking.dto.BookingResponse;
+import com.photographplatform.api.client.dto.ClientDetailResponse;
 import com.photographplatform.api.client.dto.ClientResponse;
 import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.service.ClientService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.util.BusinessZone;
+import com.photographplatform.api.contract.dto.ContractResponse;
+import com.photographplatform.api.gallery.dto.GalleryResponse;
+import com.photographplatform.api.invoice.dto.InvoiceResponse;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import jakarta.persistence.EntityManagerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,6 +25,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,6 +56,7 @@ class ClientServiceIT extends IntegrationTestBase {
     @Autowired private UserRepository userRepository;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager txManager;
+    @Autowired private EntityManagerFactory entityManagerFactory;
 
     @Test
     void aBookingIsEnoughToMakeAClient() {
@@ -281,6 +290,104 @@ class ClientServiceIT extends IntegrationTestBase {
             .isZero();
     }
 
+    // ── detail ────────────────────────────────────────────────────────────
+
+    /**
+     * The detail lists every booking of the address however it was typed,
+     * Not happening ones included, and what hangs off them. Another client's
+     * records stay out.
+     */
+    @Test
+    void theDetailListsTheClientsBookingsGalleriesInvoicesAndContracts() {
+        Fixture fx = createTenant();
+        UUID done = booking(fx, "Maria", "maria@example.test", TODAY.minusDays(30), "COMPLETED");
+        UUID cancelled = booking(fx, "Maria", " MARIA@Example.test", TODAY.plusDays(10), "CANCELLED");
+        UUID jonas = booking(fx, "Jonas", "jonas@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID gallery = gallery(fx, done);
+        UUID invoice = invoice(fx, done, 1, 100_000);
+        UUID contract = contract(fx, cancelled);
+        gallery(fx, jonas);
+        invoice(fx, jonas, 2, 50_000);
+        contract(fx, jonas);
+        UUID clientId = idOf(fx, "maria@example.test");
+
+        ClientDetailResponse detail = asUser(fx, () -> clientService.get(clientId));
+
+        assertThat(detail.client().id()).isEqualTo(clientId);
+        assertThat(detail.client().totalBookings()).isEqualTo(1);
+        assertThat(detail.bookings()).extracting(BookingResponse::id).containsExactly(cancelled, done);
+        assertThat(detail.galleries()).extracting(GalleryResponse::id).containsExactly(gallery);
+        assertThat(detail.invoices()).extracting(InvoiceResponse::id).containsExactly(invoice);
+        assertThat(detail.contracts()).extracting(ContractResponse::id).containsExactly(contract);
+    }
+
+    @Test
+    void aClientWithOnlyABookingHasEmptySections() {
+        Fixture fx = createTenant();
+        UUID only = booking(fx, "Lea", "lea@example.test", TODAY.plusDays(5), "ENQUIRY");
+
+        UUID clientId = idOf(fx, "lea@example.test");
+
+        ClientDetailResponse detail = asUser(fx, () -> clientService.get(clientId));
+
+        assertThat(detail.bookings()).extracting(BookingResponse::id).containsExactly(only);
+        assertThat(detail.galleries()).isEmpty();
+        assertThat(detail.invoices()).isEmpty();
+        assertThat(detail.contracts()).isEmpty();
+    }
+
+    /**
+     * The same address is a different client in every studio. Another
+     * studio's bookings, galleries, invoices and contracts for it never show.
+     */
+    @Test
+    void anotherStudiosRecordsForTheSameAddressNeverAppear() {
+        Fixture a = createTenant();
+        Fixture b = createTenant();
+        UUID inA = booking(a, "Maria", "maria@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID inB = booking(b, "Maria", "maria@example.test", TODAY.plusDays(6), "CONFIRMED");
+        gallery(b, inB);
+        invoice(b, inB, 1, 70_000);
+        contract(b, inB);
+
+        UUID clientId = idOf(a, "maria@example.test");
+
+        ClientDetailResponse detail = asUser(a, () -> clientService.get(clientId));
+
+        assertThat(detail.bookings()).extracting(BookingResponse::id).containsExactly(inA);
+        assertThat(detail.galleries()).isEmpty();
+        assertThat(detail.invoices()).isEmpty();
+        assertThat(detail.contracts()).isEmpty();
+    }
+
+    @Test
+    void anotherStudiosClientDoesNotResolve() {
+        Fixture a = createTenant();
+        Fixture b = createTenant();
+        booking(b, "B Client", "b-client@example.test", TODAY.plusDays(5), "CONFIRMED");
+        UUID clientOfB = idOf(b, "b-client@example.test");
+
+        assertThatThrownBy(() -> asUser(a, () -> clientService.get(clientOfB)))
+            .isInstanceOf(NotFoundException.class);
+    }
+
+    /** One query per module, never one per booking: five bookings cost what one does. */
+    @Test
+    void theDetailCostsTheSameNumberOfQueriesHoweverMuchTheClientHas() {
+        Fixture fx = createTenant();
+        withLinkedRecords(fx, "one@example.test", 1);
+        withLinkedRecords(fx, "five@example.test", 5);
+        UUID one = idOf(fx, "one@example.test");
+        UUID five = idOf(fx, "five@example.test");
+
+        long forOne = statementsFor(() -> asUser(fx, () -> clientService.get(one)));
+        long forFive = statementsFor(() -> asUser(fx, () -> clientService.get(five)));
+
+        assertThat(asUser(fx, () -> clientService.get(five)).invoices()).hasSize(5);
+        assertThat(forOne).isPositive();
+        assertThat(forFive).isEqualTo(forOne);
+    }
+
     // ── fixtures ──────────────────────────────────────────────────────────
 
     private record Fixture(UUID tenantId, UUID userId) {
@@ -288,6 +395,52 @@ class ClientServiceIT extends IntegrationTestBase {
 
     private static ClientResponse byEmail(List<ClientResponse> clients, String email) {
         return clients.stream().filter(c -> c.email().equals(email)).findFirst().orElseThrow();
+    }
+
+    private UUID idOf(Fixture fx, String email) {
+        return byEmail(asUser(fx, () -> clientService.list()), email).id();
+    }
+
+    private int invoiceSequence;
+
+    private void withLinkedRecords(Fixture fx, String email, int bookings) {
+        for (int i = 0; i < bookings; i++) {
+            UUID booking = booking(fx, "Client", email, TODAY.plusDays(i + 1), "CONFIRMED");
+            gallery(fx, booking);
+            UUID invoice = invoice(fx, booking, ++invoiceSequence, 10_000);
+            payment(fx, invoice, "SUCCEEDED", 10_000);
+            contract(fx, booking);
+        }
+    }
+
+    private long statementsFor(Runnable action) {
+        Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        stats.setStatisticsEnabled(true);
+        stats.clear();
+        try {
+            action.run();
+            return stats.getPrepareStatementCount();
+        } finally {
+            stats.setStatisticsEnabled(false);
+        }
+    }
+
+    private UUID gallery(Fixture fx, UUID bookingId) {
+        UUID id = UUID.randomUUID();
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO galleries (id, tenant_id, booking_id, access_token)
+            VALUES (?, ?, ?, ?)
+            """, id, fx.tenantId(), bookingId, UUID.randomUUID().toString().replace("-", "")));
+        return id;
+    }
+
+    private UUID contract(Fixture fx, UUID bookingId) {
+        UUID id = UUID.randomUUID();
+        inTenant(fx, () -> jdbc.update("""
+            INSERT INTO contracts (id, tenant_id, booking_id, title, body, recipient_name, recipient_email)
+            VALUES (?, ?, ?, 'Vertrag', 'Text', 'Client', 'client@example.test')
+            """, id, fx.tenantId(), bookingId));
+        return id;
     }
 
     private UUID booking(Fixture fx, String name, String email, LocalDate eventDate, String status) {

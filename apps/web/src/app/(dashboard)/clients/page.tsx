@@ -12,6 +12,7 @@ import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { MobilePaneBack } from '@/components/MobilePaneBack';
 import { getClientsColors, getClientsStyles, type ClientsTheme } from './clients.styles';
+import { ClientRecords } from './ClientRecords';
 
 type ClientFilter = 'All' | 'Active' | 'Repeat';
 
@@ -262,6 +263,8 @@ function ClientDetail({
             </div>
           </div>
         </div>
+
+        <ClientRecords clientId={client.id} s={s} />
 
         <div style={s.section}>
           <span style={s.sectionTitle}>{t('clientDetail.notes')}</span>

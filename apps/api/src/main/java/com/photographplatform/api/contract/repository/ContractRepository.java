@@ -23,6 +23,8 @@ public interface ContractRepository extends JpaRepository<Contract, UUID> {
 
     List<Contract> findByBookingIdAndTenantIdOrderByCreatedAtDesc(UUID bookingId, UUID tenantId);
 
+    List<Contract> findByBookingIdInAndTenantIdOrderByCreatedAtDesc(Collection<UUID> bookingIds, UUID tenantId);
+
     /**
      * The customer's own contracts.
      *

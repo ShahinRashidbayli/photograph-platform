@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useThemeStore } from '@/store/themeStore';
 import { useIsPhotographer, useAuthStore } from '@/store/authStore';
 import { CustomerGalleries } from './CustomerGalleries';
@@ -1048,6 +1049,15 @@ function CreateGalleryModal({
 
 // ─── GalleriesPage ────────────────────────────────────────────────────────────
 export default function GalleriesPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense fallback={null}>
+      <Galleries />
+    </Suspense>
+  );
+}
+
+function Galleries() {
   const { t, tPlural } = useTranslation();
   const { theme } = useThemeStore();
   const styles = useMemo(() => getGalleriesStyles(theme), [theme]);
@@ -1058,7 +1068,9 @@ export default function GalleriesPage() {
   const galleriesQuery = useGalleries(isPhotographer);
   const galleries = galleriesQuery.data ?? NO_GALLERIES;
   const loading = galleriesQuery.isLoading;
-  const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(null);
+  // `?id=` opens one gallery straight away: the client detail links here.
+  const linkedGalleryId = useSearchParams().get('id');
+  const [selectedGalleryId, setSelectedGalleryId] = useState<string | null>(linkedGalleryId);
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Expired'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   // A failed action on a gallery. Kept apart from the load error: that one
@@ -1205,6 +1217,18 @@ export default function GalleriesPage() {
   // A new filter or query is a new list; carrying "expanded" across would drop
   // the photographer into an already-unfolded hundred rows.
   useEffect(() => setShowAll(false), [filterStatus, searchQuery]);
+
+  // A linked gallery past the first page would open in the panel with no row
+  // in the rail to say which one it is — the bug `selectedGallery` describes.
+  // Unfold once, when the list first holds it; a later "show less" sticks.
+  const linkRevealed = useRef(false);
+  useEffect(() => {
+    if (linkRevealed.current || !linkedGalleryId) return;
+    const index = orderedGalleries.findIndex((g) => g.id === linkedGalleryId);
+    if (index < 0) return;
+    linkRevealed.current = true;
+    if (index >= LIST_PAGE_SIZE) setShowAll(true);
+  }, [linkedGalleryId, orderedGalleries]);
 
   const statusCounts = useMemo(() => {
     const expired = galleries.filter((g) => {

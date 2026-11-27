@@ -4,6 +4,7 @@ import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.auth.dto.AuthResponse;
 import com.photographplatform.api.auth.dto.LoginRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
+import com.photographplatform.api.client.dto.ClientDetailResponse;
 import com.photographplatform.api.client.dto.ClientResponse;
 import java.time.LocalDate;
 import java.util.Map;
@@ -60,6 +61,39 @@ class ClientDirectoryIT extends IntegrationTestBase {
             assertThat(c.totalBookings()).isEqualTo(1);
             assertThat(c.upcomingBookings()).isEqualTo(1);
         });
+    }
+
+    @Test
+    void aClientsDetailListsTheirBookings() {
+        String token = registerStudio();
+        ResponseEntity<Map> created = rest.exchange("/api/bookings", HttpMethod.POST, new HttpEntity<>(Map.of(
+            "clientName", "Maria Kellner",
+            "clientEmail", "maria.kellner@example.test",
+            "eventDate", LocalDate.now().plusDays(30).toString()), headers(token, true)), Map.class);
+        assertThat(created.getStatusCode().is2xxSuccessful()).as(String.valueOf(created.getBody())).isTrue();
+        UUID clientId = rest.exchange("/api/clients", HttpMethod.GET, new HttpEntity<>(headers(token, false)),
+            ClientResponse[].class).getBody()[0].id();
+
+        ResponseEntity<ClientDetailResponse> detail = rest.exchange("/api/clients/" + clientId, HttpMethod.GET,
+            new HttpEntity<>(headers(token, false)), ClientDetailResponse.class);
+
+        assertThat(detail.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(detail.getBody().client().fullName()).isEqualTo("Maria Kellner");
+        assertThat(detail.getBody().bookings()).singleElement()
+            .satisfies(b -> assertThat(b.id().toString()).isEqualTo(created.getBody().get("id")));
+        assertThat(detail.getBody().galleries()).isEmpty();
+        assertThat(detail.getBody().invoices()).isEmpty();
+        assertThat(detail.getBody().contracts()).isEmpty();
+    }
+
+    @Test
+    void anUnknownClientIsNotFound() {
+        String token = registerStudio();
+
+        ResponseEntity<String> detail = rest.exchange("/api/clients/" + UUID.randomUUID(), HttpMethod.GET,
+            new HttpEntity<>(headers(token, false)), String.class);
+
+        assertThat(detail.getStatusCode().value()).isEqualTo(404);
     }
 
     @Test

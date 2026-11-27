@@ -1,6 +1,9 @@
 package com.photographplatform.api.inquiry.domain;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.common.domain.CustomerLanguageConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -60,6 +63,11 @@ public class InquiryRequest {
 
     @Column(nullable = false, length = 30)
     private String source = "BIO_LINK";
+
+    /** The language every Customer message about this record is written in (V40). */
+    @Convert(converter = CustomerLanguageConverter.class)
+    @Column(nullable = false, length = 2)
+    private CustomerLanguage language = CustomerLanguage.DEFAULT;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -143,5 +151,13 @@ public class InquiryRequest {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public CustomerLanguage getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(CustomerLanguage language) {
+        this.language = language;
     }
 }

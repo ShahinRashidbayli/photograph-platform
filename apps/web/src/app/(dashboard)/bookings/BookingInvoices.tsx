@@ -15,7 +15,7 @@ import {
   type CreateInvoiceLineItemInput,
 } from '@/hooks/useInvoices';
 import { calculateTotals, netFromGross, taxRateFor } from '@/lib/invoice-totals';
-import { INVOICE_STATUS, invoiceStatus } from '@/lib/invoice-status';
+import { INVOICE_STATUS, invoiceStatus, invoiceToneColors } from '@/lib/invoice-status';
 import type { Booking, Invoice, TaxCategory } from '@/types/api';
 import { BookingActionMenu } from './BookingActionMenu';
 import { dot, getDetailStyles, pill } from './bookingDetail.styles';
@@ -107,12 +107,7 @@ function InvoiceRow({
   // request per invoice. `invoiceStatus` only reads them.
   const { live, collectable } = invoice;
   const { labelKey, tone } = INVOICE_STATUS[invoiceStatus(invoice)];
-  const [fg, bg] = {
-    neutral: [c.neutralText, c.neutralBg],
-    danger: [c.dangerText, c.dangerBg],
-    warning: [c.warningText, c.warningBg],
-    success: [c.successText, c.successBg],
-  }[tone];
+  const { fg, bg } = invoiceToneColors(tone, c);
 
   const menuItems = [
     ...(collectable

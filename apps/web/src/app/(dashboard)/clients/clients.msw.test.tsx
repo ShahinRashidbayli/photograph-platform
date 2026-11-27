@@ -8,6 +8,7 @@ import { useSaveBooking, type BookingPayload } from '@/hooks/useBookings';
 import type { Booking, Client, Invoice } from '@/types/api';
 import type { Contract } from '@/hooks/useContracts';
 import type { Gallery } from '@/hooks/useGalleries';
+import { useAuthStore } from '@/store/authStore';
 import ClientsPage from './page';
 
 jest.mock('next/navigation', () => ({
@@ -180,7 +181,26 @@ const CONTRACT = {
   createdAt: '2026-09-01T00:00:00Z',
 } as Contract;
 
+function onPlan(capabilities: string[]) {
+  useAuthStore.setState({
+    user: {
+      id: 'u1',
+      email: 'anna@example.de',
+      fullName: 'Anna',
+      role: 'PHOTOGRAPHER',
+      emailVerified: true,
+      tenant: { subdomain: 'anna-foto', plan: 'STUDIO' },
+    },
+  });
+  server.use(
+    http.get('/api/entitlements', () => HttpResponse.json({ plan: 'STUDIO', capabilities }))
+  );
+}
+
 describe('the client detail', () => {
+  beforeEach(() => onPlan(['CONTRACTS']));
+  afterEach(() => useAuthStore.setState({ user: null }));
+
   it('lists the client’s bookings, galleries, invoices and contracts, each linking to its screen', async () => {
     server.use(
       http.get('/api/clients', () => HttpResponse.json([CLIENT])),
@@ -206,10 +226,51 @@ describe('the client detail', () => {
       'href',
       '/bookings?id=b1'
     );
-    expect(screen.getByRole('link', { name: /Wedding contract.*Signed/ })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /Wedding contract.*Signed/ })).toHaveAttribute(
       'href',
       '/bookings?id=b1'
     );
+  });
+
+  it('calls a purged gallery deleted, not expired', async () => {
+    server.use(
+      http.get('/api/clients', () => HttpResponse.json([CLIENT])),
+      http.get('/api/clients/c1', () =>
+        HttpResponse.json({
+          client: CLIENT,
+          bookings: [BOOKING],
+          galleries: [{ ...GALLERY, expiryState: 'PURGED' }],
+          invoices: [],
+          contracts: [],
+        })
+      )
+    );
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(
+      await screen.findByRole('link', { name: /Wedding gallery.*Deleted/ })
+    ).toBeInTheDocument();
+  });
+
+  it('leaves contracts out on a plan without them, as the bookings page does', async () => {
+    onPlan([]);
+    server.use(
+      http.get('/api/clients', () => HttpResponse.json([CLIENT])),
+      http.get('/api/clients/c1', () =>
+        HttpResponse.json({
+          client: CLIENT,
+          bookings: [BOOKING],
+          galleries: [],
+          invoices: [],
+          contracts: [CONTRACT],
+        })
+      )
+    );
+    renderWithProviders(<ClientsPage />, { lang: 'en' });
+
+    expect(await screen.findByText('No galleries for this client yet.')).toBeInTheDocument();
+    expect(screen.queryByText('Wedding contract')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Contracts' })).not.toBeInTheDocument();
   });
 
   it('says so for each section that is empty', async () => {
@@ -229,7 +290,7 @@ describe('the client detail', () => {
 
     expect(await screen.findByText('Noch keine Galerien für diesen Kunden.')).toBeInTheDocument();
     expect(screen.getByText('Noch keine Rechnungen für diesen Kunden.')).toBeInTheDocument();
-    expect(screen.getByText('Noch keine Verträge für diesen Kunden.')).toBeInTheDocument();
+    expect(await screen.findByText('Noch keine Verträge für diesen Kunden.')).toBeInTheDocument();
   });
 
   it('keeps the rest of the detail when the records cannot be loaded', async () => {

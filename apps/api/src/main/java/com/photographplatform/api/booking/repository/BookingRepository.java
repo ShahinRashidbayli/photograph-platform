@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -157,6 +158,24 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         @Param("bookingId") UUID bookingId,
         @Param("userId") UUID userId,
         @Param("email") String email);
+
+    /**
+     * Every booking of one client in the directory's sense — the address
+     * trimmed and lower-cased, as {@code ClientNoteRepository} groups it — in
+     * any status, latest shoot first.
+     *
+     * <p>The tenant is filtered on as well as RLS: the same address is a
+     * different client in every studio, and this is what a studio's client
+     * detail lists.
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenantId = :tenantId
+          AND lower(trim(b.clientEmail)) = :email
+        ORDER BY b.eventDate DESC, b.id
+        """)
+    List<Booking> findForClient(
+        @Param("tenantId") UUID tenantId, @Param("email") String normalizedEmail, Limit limit);
 
     /**
      * Every booking that belongs to one person, for Art. 17 erasure.

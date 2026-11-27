@@ -27,6 +27,7 @@ import com.photographplatform.api.tenant.repository.TenantRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -279,6 +280,17 @@ public class ContractService {
     public List<ContractResponse> listForBooking(UUID bookingId) {
         UUID tenantId = SecurityUtils.requireCurrentTenantId();
         return contractRepository.findByBookingIdAndTenantIdOrderByCreatedAtDesc(bookingId, tenantId)
+            .stream().map(ContractResponse::from).toList();
+    }
+
+    /** The contracts on these bookings, newest first. Empty for no bookings. */
+    @Transactional(readOnly = true)
+    public List<ContractResponse> listForBookings(Collection<UUID> bookingIds) {
+        if (bookingIds.isEmpty()) {
+            return List.of();
+        }
+        UUID tenantId = SecurityUtils.requireCurrentTenantId();
+        return contractRepository.findByBookingIdInAndTenantIdOrderByCreatedAtDesc(bookingIds, tenantId)
             .stream().map(ContractResponse::from).toList();
     }
 

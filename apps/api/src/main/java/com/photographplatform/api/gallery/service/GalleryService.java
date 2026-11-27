@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -120,6 +121,17 @@ public class GalleryService {
     @Transactional(readOnly = true)
     public List<GalleryResponse> listAll() {
         return galleryRepository.findAllWithStats(QueryLimits.LIST).stream()
+            .map(GalleryService::toResponse)
+            .toList();
+    }
+
+    /** The galleries of these bookings, newest first, in one query. Empty for no bookings. */
+    @Transactional(readOnly = true)
+    public List<GalleryResponse> listForBookings(Collection<UUID> bookingIds) {
+        if (bookingIds.isEmpty()) {
+            return List.of();
+        }
+        return galleryRepository.findWithStatsByBookingIdIn(bookingIds, QueryLimits.LIST).stream()
             .map(GalleryService::toResponse)
             .toList();
     }

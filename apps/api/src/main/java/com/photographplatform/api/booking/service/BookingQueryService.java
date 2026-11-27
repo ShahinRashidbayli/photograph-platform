@@ -13,6 +13,7 @@ import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
+import com.photographplatform.api.common.repository.QueryLimits;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.common.util.Paging;
@@ -92,6 +93,20 @@ public class BookingQueryService {
             ? bookingRepository.findByStatus(BookingStatus.parse(status), pageable).getContent()
             : bookingRepository.findAllBy(pageable).getContent();
 
+        PageLookups lookups = mapper.forPage(bookings);
+        return bookings.stream().map(b -> mapper.toResponse(b, lookups)).toList();
+    }
+
+    /**
+     * Every booking of one client of the current studio, in any status, latest
+     * shoot first — for the client detail. {@code normalizedEmail} is the
+     * directory's key ({@link Normalize#email}); bookings typed with other
+     * casing or spacing are the same client. A fixed number of queries
+     * however many bookings come back, as for a page of the list.
+     */
+    public List<BookingResponse> listForClient(String normalizedEmail) {
+        List<Booking> bookings = bookingRepository.findForClient(
+            SecurityUtils.requireCurrentTenantId(), normalizedEmail, QueryLimits.LIST);
         PageLookups lookups = mapper.forPage(bookings);
         return bookings.stream().map(b -> mapper.toResponse(b, lookups)).toList();
     }

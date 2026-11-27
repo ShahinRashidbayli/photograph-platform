@@ -1,5 +1,6 @@
 package com.photographplatform.api.client.controller;
 
+import com.photographplatform.api.client.dto.ClientDetailResponse;
 import com.photographplatform.api.client.dto.ClientResponse;
 import com.photographplatform.api.client.dto.UpdateClientNotesRequest;
 import com.photographplatform.api.client.service.ClientService;
@@ -29,6 +30,12 @@ public class ClientController {
     @GetMapping("/clients")
     public ResponseEntity<List<ClientResponse>> listClients() {
         return ResponseEntity.ok(clientService.list());
+    }
+
+    /** One client with their bookings, galleries, invoices and contracts. */
+    @GetMapping("/clients/{id}")
+    public ResponseEntity<ClientDetailResponse> getClient(@PathVariable UUID id) {
+        return ResponseEntity.ok(clientService.get(id));
     }
 
     /**

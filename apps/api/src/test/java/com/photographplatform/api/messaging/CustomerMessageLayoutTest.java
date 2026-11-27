@@ -90,4 +90,16 @@ class CustomerMessageLayoutTest {
         assertThat(render(studio, CustomerLanguage.DE, "")).contains("Foto &lt;b&gt;&amp;&lt;/b&gt; Co")
             .doesNotContain("<b>");
     }
+
+    @Test
+    void neverReadsAValueAsAPlaceholder() {
+        StudioIdentity studio = new StudioIdentity("{{FOOTER}} Studio", null, false, null, null);
+
+        String html = CustomerMessageLayout.document(studio, CustomerLanguage.DE, "{{BODY}}", "<p>{{TITLE}}</p>");
+
+        assertThat(html)
+            .contains("<title>{{FOOTER}} Studio</title>", "<p>{{TITLE}}</p>")
+            .containsOnlyOnce("Versendet über Fotolio")
+            .containsOnlyOnce("<p>{{TITLE}}</p>");
+    }
 }

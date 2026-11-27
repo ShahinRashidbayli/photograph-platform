@@ -9,6 +9,7 @@ import { extractApiError, httpStatus } from '@/lib/helpers';
 import { isRateLimited, retryAfterSeconds } from '@/lib/rate-limit';
 import { useRetryWait, useWaitText } from '@/lib/useRetryWait';
 import { PHOTOGRAPHER_LOGIN, withPreservedNext } from '@/lib/login-redirect';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/lib/i18n';
 import { useSearchParams } from 'next/navigation';
@@ -96,7 +97,9 @@ function CustomerLoginInner() {
   const retryWait = useRetryWait();
   const waitText = useWaitText();
 
-  const [email, setEmail] = useState('');
+  // A Customer message links here with `?email=` (and `?next=` to the thing it
+  // is about), so the Customer has only the code left to enter.
+  const [email, setEmail] = useState((searchParams.get('email') ?? '').trim());
   const [subdomain, setSubdomain] = useState(initialSubdomain);
   const [subdomainLocked, setSubdomainLocked] = useState(false);
   // A link from the studio (`?subdomain=`), the studio's own host, or this
@@ -261,7 +264,10 @@ function CustomerLoginInner() {
           if (opened) rememberStudio(opened);
           // The session lands as cookies on this response. A full navigation (not a
           // router push) so the app shell boots with the cookies already attached.
-          window.location.href = '/bookings';
+          // `?next=` is attacker-controllable, so only a same-origin path is
+          // followed — the same check as the photographer sign-in.
+          window.location.href =
+            safeRedirectPath(window.location.search, window.location.origin) ?? '/bookings';
         },
         onError: (err) => {
           // A wrong, spent or expired code is a 401. Ours, not the server's

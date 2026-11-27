@@ -507,11 +507,15 @@ function GalleryPhotos({
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Mirrors `Gallery.extend` on the API: a live gallery that already runs past
  * a full plan window from today (or never expires) is left as it is. Offering
  * the button there is the "did nothing visible" bug of #108 — after a
  * downgrade it would read "Extend to 60 days" on a gallery with two years left.
+ * A gain under a day is treated the same: the expiry is shown as a date, so a
+ * gallery delivered this morning would "extend" without the date changing.
  * An expired gallery is always worth extending; so is one whose plan window
  * is not known yet, since the server decides.
  */
@@ -519,8 +523,8 @@ function extendWouldChangeAnything(gallery: Gallery, planRetentionDays: number |
   if (gallery.expiryState !== 'ACTIVE') return true;
   if (gallery.expiresAt === null) return false;
   if (planRetentionDays === null) return true;
-  const renewed = Date.now() + planRetentionDays * 24 * 60 * 60 * 1000;
-  return renewed > new Date(gallery.expiresAt).getTime();
+  const renewed = Date.now() + planRetentionDays * DAY_MS;
+  return renewed - new Date(gallery.expiresAt).getTime() >= DAY_MS;
 }
 
 function GalleryDetail({

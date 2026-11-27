@@ -209,6 +209,20 @@ describe('GalleriesPage', () => {
     expect(screen.queryByRole('button', { name: /^Extend/ })).not.toBeInTheDocument();
   });
 
+  /** STUDIO, delivered today: "extending" would not change the date shown. */
+  it('offers no extension when it would not move the expiry date', async () => {
+    const freshlyDelivered = { ...GALLERY, expiresAt: daysFromNow(730), retentionDays: 730 };
+    server.use(
+      entitlementsWithRetention(730),
+      http.get('/api/galleries', () => HttpResponse.json([freshlyDelivered])),
+      http.get('/api/galleries/g1/photos', () => HttpResponse.json(PHOTOS))
+    );
+    renderWithProviders(<GalleriesPage />, { lang: 'en' });
+
+    expect(await screen.findByRole('button', { name: 'Delete first.jpg' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Extend/ })).not.toBeInTheDocument();
+  });
+
   it('offers a retry when the list cannot be loaded', async () => {
     let fail = true;
     server.use(

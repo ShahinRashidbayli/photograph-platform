@@ -599,7 +599,10 @@ export function SubscriptionSection() {
   const devPlan = useDevSetPlan();
   const status = statusQuery.data ?? null;
   const loading = statusQuery.isLoading;
-  const [yearly, setYearly] = useState(false);
+  // Monthly is the low-commitment default for the screen that takes money; a
+  // period carried from the landing page's plan card (`?period=yearly`) wins,
+  // so the visitor does not meet a different choice from the one they made.
+  const [yearly, setYearly] = useState(searchParams.get('period') === 'yearly');
   // Held through success: each of these ends in a page navigation.
   const busy = [checkout, portal, devPlan].some((m) => m.isPending || m.isSuccess);
   const [actionError, setActionError] = useState<AsyncError | null>(null);

@@ -184,4 +184,31 @@ describe('SubscriptionSection', () => {
       await screen.findByText('Could not open the checkout. Please try again.')
     ).toBeInTheDocument();
   });
+
+  /** The landing page opens on yearly; its plan card carries that choice here. */
+  async function checkoutInterval() {
+    let interval: unknown = null;
+    server.use(
+      http.get('/api/billing', () => HttpResponse.json(billing('TRIALING'))),
+      http.post('/api/billing/checkout', async ({ request }) => {
+        interval = ((await request.json()) as { interval: string }).interval;
+        return HttpResponse.json({}, { status: 500 });
+      })
+    );
+    const user = setupUser();
+    renderWithProviders(<SubscriptionSection />, { lang: 'en' });
+    const toggle = await screen.findByRole('checkbox', { name: 'Pay yearly' });
+    await user.click(screen.getByRole('button', { name: 'Choose STUDIO' }));
+    await screen.findByText('Could not open the checkout. Please try again.');
+    return { checked: (toggle as HTMLInputElement).checked, interval };
+  }
+
+  it('preselects the yearly period carried from the landing page', async () => {
+    params = new URLSearchParams('period=yearly');
+    expect(await checkoutInterval()).toEqual({ checked: true, interval: 'YEARLY' });
+  });
+
+  it('stays monthly when no period is carried', async () => {
+    expect(await checkoutInterval()).toEqual({ checked: false, interval: 'MONTHLY' });
+  });
 });

@@ -13,7 +13,11 @@ import { PLAN_TIERS } from '@/lib/plans';
  */
 export function Pricing() {
   const { t, format } = useTranslation();
-  const [yearly, setYearly] = useState(false);
+  // Yearly first: it is the lower monthly figure, and each card shows what it
+  // saves (the monthly price struck through) and what is charged (the total).
+  // The in-app checkout keeps monthly as its default; the period picked here
+  // travels with the card's link (`?period=`) so the two do not disagree.
+  const [yearly, setYearly] = useState(true);
   const monthlyRef = useRef<HTMLButtonElement>(null);
   const yearlyRef = useRef<HTMLButtonElement>(null);
 
@@ -26,8 +30,14 @@ export function Pricing() {
     (next ? yearlyRef : monthlyRef).current?.focus();
   };
 
-  /** The € on the side the locale puts it: "€19" in English, "19 €" in German. */
-  const price = (euros: string) => {
+  /** "€19" / "19 €" as one string, for figures inside a sentence. */
+  const eur = (euros: number) => format.eur(euros * 100);
+
+  /**
+   * The € on the side the locale puts it: "€19" in English, "19 €" in German.
+   * `insteadOf` is the monthly price, struck through beside a yearly figure.
+   */
+  const price = (euros: string, insteadOf?: string) => {
     const { symbol, value, symbolFirst } = format.eurParts(Number(euros) * 100);
     return (
       <div className="lp-price">
@@ -37,6 +47,12 @@ export function Pricing() {
             reads as "19€", which German typesetting does not write. */}
         {!symbolFirst && <b style={{ marginLeft: '0.12em' }}>{symbol}</b>}
         <span>{t('landing.pricing.perMonth')}</span>
+        {/* Only the figure is struck: "statt" crossed out reads as a typo. */}
+        {insteadOf && (
+          <span className="lp-instead">
+            {t('landing.pricing.insteadOf')} <s>{eur(Number(insteadOf))}</s>
+          </span>
+        )}
       </div>
     );
   };
@@ -103,13 +119,20 @@ export function Pricing() {
                   <span className="lp-plan-flag">{t('landing.pricing.recommended')}</span>
                 )}
               </div>
-              {price(yearly ? plan.yearly : plan.monthly)}
+              {yearly ? price(plan.yearly, plan.monthly) : price(plan.monthly)}
+              {/* PAngV: once yearly is the default, the amount actually charged
+                  (the year's total) sits under the per-month figure. */}
               <div className="lp-billed">
-                {yearly ? t('landing.pricing.billedYearly') : t('landing.pricing.billedMonthly')}
+                {yearly
+                  ? t('landing.pricing.billedYearlyTotal', {
+                      total: eur(Number(plan.yearly) * 12),
+                    })
+                  : t('landing.pricing.billedMonthly')}
               </div>
-              {/* Carries the plan to registration, so the signup is the one picked. */}
+              {/* Carries the plan and period to registration, so the signup is
+                  the one picked and checkout preselects the same period. */}
               <Link
-                href={`/register?plan=${plan.id}`}
+                href={`/register?plan=${plan.id}&period=${yearly ? 'yearly' : 'monthly'}`}
                 className={`lp-btn lp-btn-block ${plan.highlighted ? 'lp-btn-ink' : 'lp-btn-line'}`}
               >
                 {t('landing.pricing.choose', { plan: plan.tier })}

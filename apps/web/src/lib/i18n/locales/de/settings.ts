@@ -51,7 +51,7 @@ export const settings: Record<keyof EnSettings, string> = {
   'settings.subscription.manage': 'Abo verwalten',
   'settings.subscription.choose': '{plan} wählen',
   'settings.subscription.currentPlan': '{plan} (aktuell)',
-  'settings.subscription.yearly': 'Jährlich zahlen (2 Monate gratis)',
+  'settings.subscription.yearly': 'Jährlich zahlen',
   'settings.subscription.switchTo': 'Zu {plan} wechseln',
   'settings.subscription.devSwitchWarning':
     'Für diese Installation ist keine Stripe-Abrechnung eingerichtet, und Tarifwechsel ohne Zahlung sind erlaubt. Es wird nichts berechnet und kein Abonnement angelegt — eine Entwicklungseinstellung.',

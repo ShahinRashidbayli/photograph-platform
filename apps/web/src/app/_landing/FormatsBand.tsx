@@ -4,7 +4,11 @@ import Image from 'next/image';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { STOCK, type StockPhoto } from './stock';
 
-/** `focus` is the crop's anchor where the subject is off-centre in a square tile. */
+/**
+ * `focus` is the crop's anchor where the subject is off-centre in a 3:4 portrait
+ * tile — most sources are 3:2 landscape, so the sides are what gets cut. If one
+ * still crops badly, the whole row moves to 4:5 rather than that tile alone.
+ */
 const FORMATS: { labelKey: TranslationKey; photo: StockPhoto; focus?: string }[] = [
   { labelKey: 'landing.formats.wedding', photo: STOCK.wedding },
   { labelKey: 'landing.formats.portrait', photo: STOCK.portrait },
@@ -56,7 +60,9 @@ export function FormatsBand() {
                   src={photo.src}
                   alt=""
                   fill
-                  sizes="(max-width: 860px) 50vw, 320px"
+                  // Mirrors the .lp-formats-grid breakpoints in globals.css
+                  // (520px snap row at 38vw, 960px four across); change both.
+                  sizes="(max-width: 520px) 38vw, (max-width: 960px) 25vw, 160px"
                   style={focus ? { objectPosition: focus } : undefined}
                 />
               </div>

@@ -80,14 +80,14 @@ describe('pricing advertises only what is built', () => {
     expect(within(rowOf('Auto-reply to Instagram DMs')).queryByText(SOON)).not.toBeNull();
   });
 
-  it('carries the picked plan to registration', () => {
+  it('carries the picked plan and the period on screen to registration', () => {
     const hrefs = PLAN_TIERS.map((plan) =>
       screen.getByRole('link', { name: `Choose ${plan.tier}` }).getAttribute('href')
     );
     expect(hrefs).toEqual([
-      '/register?plan=starter',
-      '/register?plan=pro',
-      '/register?plan=studio',
+      '/register?plan=starter&period=yearly',
+      '/register?plan=pro&period=yearly',
+      '/register?plan=studio&period=yearly',
     ]);
   });
 });
@@ -153,7 +153,8 @@ describe('money follows the locale', () => {
   it('writes the symbol before the digits in English', () => {
     asLocale('en');
     const { container } = render(<LandingPage />);
-    expect(screen.getAllByText('€')[0].nextSibling).toHaveTextContent('19');
+    // Yearly is the default, so the first figure is Starter's yearly price.
+    expect(screen.getAllByText('€')[0].nextSibling).toHaveTextContent(PLAN_TIERS[0].yearly);
     // "€1.240" in English is €1.24 — the bug hand-typed amounts produced.
     expect(container.textContent).not.toMatch(/€\d+\.\d{3}/);
   });
@@ -161,20 +162,62 @@ describe('money follows the locale', () => {
   it('writes the symbol after the digits in German, with the VAT basis beside it', () => {
     asLocale('de');
     render(<LandingPage />);
-    expect(screen.getAllByText('€')[0].previousSibling).toHaveTextContent('19');
+    expect(screen.getAllByText('€')[0].previousSibling).toHaveTextContent(PLAN_TIERS[0].yearly);
     expect(screen.getByText('Alle Preise zzgl. gesetzlicher MwSt.')).toBeInTheDocument();
   });
 
-  it('switches every plan to its yearly price', async () => {
+  it('opens on yearly, with the monthly price struck through and the yearly total', () => {
     asLocale('en');
-    render(<LandingPage />);
-    await userEvent.click(screen.getByRole('radio', { name: /yearly/i }));
+    const { container } = render(<LandingPage />);
 
-    expect(screen.getByRole('radio', { name: /yearly/i })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Yearly' })).toHaveAttribute('aria-checked', 'true');
     for (const plan of PLAN_TIERS) {
       expect(screen.getByText(plan.yearly)).toBeInTheDocument();
+      expect(screen.getByText(`€${plan.monthly}`).tagName).toBe('S');
+      expect(screen.getByText(`Billed yearly · €${Number(plan.yearly) * 12}`)).toBeInTheDocument();
     }
-    expect(screen.getAllByText('Billed yearly')).toHaveLength(PLAN_TIERS.length);
+    expect(container.querySelectorAll('#pricing s')).toHaveLength(PLAN_TIERS.length);
+  });
+
+  it('writes the German saving and total with the symbol after the digits', () => {
+    asLocale('de');
+    render(<LandingPage />);
+    expect(screen.getByText('19 €').tagName).toBe('S');
+    expect(screen.getAllByText('19 €')[0].parentElement).toHaveTextContent('statt 19 €');
+    expect(screen.getByText('Jährlich abgerechnet · 192 €')).toBeInTheDocument();
+  });
+
+  it('switches every plan to its monthly price, with no saving or total', async () => {
+    asLocale('en');
+    const { container } = render(<LandingPage />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Monthly' }));
+
+    for (const plan of PLAN_TIERS) {
+      expect(screen.getByText(plan.monthly)).toBeInTheDocument();
+    }
+    expect(screen.getAllByText('Billed monthly')).toHaveLength(PLAN_TIERS.length);
+    expect(container.querySelectorAll('#pricing s')).toHaveLength(0);
+    expect(screen.queryByText(/^Billed yearly/)).not.toBeInTheDocument();
+  });
+
+  /** Starter's yearly total is more than ten monthly payments, so the claim was false (UWG). */
+  it('makes no "months free" claim', () => {
+    for (const lang of ['en', 'de'] as const) {
+      asLocale(lang);
+      const { container, unmount } = render(<LandingPage />);
+      expect(container.textContent).not.toMatch(/months free|Monate gratis/i);
+      unmount();
+    }
+  });
+
+  it('carries monthly to registration once monthly is picked', async () => {
+    asLocale('en');
+    render(<LandingPage />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Monthly' }));
+    expect(screen.getByRole('link', { name: 'Choose Pro' })).toHaveAttribute(
+      'href',
+      '/register?plan=pro&period=monthly'
+    );
   });
 
   it('switches the period with the arrow keys and keeps one tab stop', async () => {
@@ -182,17 +225,17 @@ describe('money follows the locale', () => {
     render(<LandingPage />);
     const monthly = screen.getByRole('radio', { name: /monthly/i });
     const yearly = screen.getByRole('radio', { name: /yearly/i });
-    expect([monthly.tabIndex, yearly.tabIndex]).toEqual([0, -1]);
-
-    monthly.focus();
-    await userEvent.keyboard('{ArrowRight}');
-    expect(yearly).toHaveFocus();
-    expect(yearly).toHaveAttribute('aria-checked', 'true');
     expect([monthly.tabIndex, yearly.tabIndex]).toEqual([-1, 0]);
 
+    yearly.focus();
     await userEvent.keyboard('{ArrowLeft}');
     expect(monthly).toHaveFocus();
     expect(monthly).toHaveAttribute('aria-checked', 'true');
+    expect([monthly.tabIndex, yearly.tabIndex]).toEqual([0, -1]);
+
+    await userEvent.keyboard('{ArrowRight}');
+    expect(yearly).toHaveFocus();
+    expect(yearly).toHaveAttribute('aria-checked', 'true');
   });
 });
 

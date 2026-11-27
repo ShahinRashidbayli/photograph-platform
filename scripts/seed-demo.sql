@@ -148,61 +148,61 @@ SELECT b.id, s.tenant_id, b.name, b.email, b.event_date, b.event_time,
        now() - b.age, now() - b.age
 FROM seed_target s, (VALUES
     -- Upcoming, confirmed and paid up
-    ('33333333-0000-4000-a000-000000000001'::uuid, '22222222-0000-4000-a000-000000000001'::uuid,
+    ('33333333-0000-4000-a000-000000000001'::uuid,
      'Maria Kellner', 'maria.kellner@web.de', CURRENT_DATE + 21, TIME '11:00',
      'Hochzeit', 'Schloss Broich, Mülheim an der Ruhr', '11111111-0000-4000-a000-000000000003'::uuid,
      239000, 60000, 'CONFIRMED', 'Trauung 11:00, Sektempfang im Innenhof. Zweitfotograf gebucht.', INTERVAL '60 days'),
     -- Upcoming, confirmed, deposit only
-    ('33333333-0000-4000-a000-000000000002'::uuid, '22222222-0000-4000-a000-000000000002'::uuid,
+    ('33333333-0000-4000-a000-000000000002'::uuid,
      'Julia Hoffmann', 'j.hoffmann@gmx.de', CURRENT_DATE + 62, TIME '14:30',
      'Hochzeit', 'St. Mariä Himmelfahrt, Köln', '11111111-0000-4000-a000-000000000002'::uuid,
      149000, 40000, 'CONFIRMED', 'Kirche erlaubt keinen Blitz — 35mm f/1.4 einpacken.', INTERVAL '30 days'),
     -- Upcoming, still an enquiry
-    ('33333333-0000-4000-a000-000000000003'::uuid, '22222222-0000-4000-a000-000000000006'::uuid,
+    ('33333333-0000-4000-a000-000000000003'::uuid,
      'Paul Neumann', 'p.neumann@mail.de', CURRENT_DATE + 40, TIME '10:00',
      'Portrait', 'Studio', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'ENQUIRY', 'Bewerbungsfotos, fragt nach Express-Bearbeitung.', INTERVAL '6 days'),
     -- Upcoming, business shoot in a week
-    ('33333333-0000-4000-a000-000000000004'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+    ('33333333-0000-4000-a000-000000000004'::uuid,
      'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE + 7, TIME '09:00',
      'Business', 'Bürogebäude Ruhrallee, Essen', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 29000, 'CONFIRMED', 'Ganzes Team, ca. 14 Personen. Grauer Hintergrund mitbringen.', INTERVAL '20 days'),
     -- Postponed to next year
-    ('33333333-0000-4000-a000-000000000005'::uuid, '22222222-0000-4000-a000-000000000007'::uuid,
+    ('33333333-0000-4000-a000-000000000005'::uuid,
      'Sandra Klein', 'sandra.klein@web.de', CURRENT_DATE + 200, TIME '13:00',
      'Hochzeit', 'Gut Höhne, Mettmann', '11111111-0000-4000-a000-000000000002'::uuid,
      149000, 30000, 'POSTPONED', 'Location-Umbau verzögert sich. Neuer Termin bestätigt.', INTERVAL '210 days'),
     -- Completed, delivered, fully paid
-    ('33333333-0000-4000-a000-000000000006'::uuid, '22222222-0000-4000-a000-000000000001'::uuid,
+    ('33333333-0000-4000-a000-000000000006'::uuid,
      'Maria Kellner', 'maria.kellner@web.de', CURRENT_DATE - 90, TIME '15:00',
      'Hochzeit', 'Villa Vue, Düsseldorf', '11111111-0000-4000-a000-000000000002'::uuid,
      149000, 40000, 'COMPLETED', 'Galerie geliefert, Kundin sehr zufrieden.', INTERVAL '300 days'),
     -- Completed family session
-    ('33333333-0000-4000-a000-000000000007'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+    ('33333333-0000-4000-a000-000000000007'::uuid,
      'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 30, TIME '16:00',
      'Familie', 'Stadtwald, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
      39000, 0, 'COMPLETED', 'Herbstlicht, goldene Stunde. Wie jedes Jahr.', INTERVAL '60 days'),
     -- Completed business portrait, invoice still open
-    ('33333333-0000-4000-a000-000000000008'::uuid, '22222222-0000-4000-a000-000000000004'::uuid,
+    ('33333333-0000-4000-a000-000000000008'::uuid,
      'Thomas Wagner', 'thomas.wagner@outlook.de', CURRENT_DATE - 120, TIME '11:30',
      'Business', 'Coworking Space, Bochum', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'COMPLETED', 'Rechnung offen — zweite Erinnerung raus.', INTERVAL '140 days'),
     -- Cancelled by the client
-    ('33333333-0000-4000-a000-000000000009'::uuid, '22222222-0000-4000-a000-000000000005'::uuid,
+    ('33333333-0000-4000-a000-000000000009'::uuid,
      'Lena Schulz', 'lena.schulz@posteo.de', CURRENT_DATE - 45, TIME '12:00',
      'Hochzeit', 'Standesamt Mülheim', '11111111-0000-4000-a000-000000000001'::uuid,
      49000, 0, 'CANCELLED', 'Kurzfristig abgesagt, Anzahlung war noch nicht fällig.', INTERVAL '80 days'),
     -- Declined enquiry — date was already taken
-    ('33333333-0000-4000-a00a-00000000000a'::uuid, NULL,
+    ('33333333-0000-4000-a00a-00000000000a'::uuid,
      'Nina Vogel', 'nina.vogel@web.de', CURRENT_DATE + 21, TIME '12:00',
      'Hochzeit', 'Zeche Zollverein, Essen', NULL,
      0, 0, 'DECLINED', 'Termin doppelt angefragt — Maria Kellner war zuerst.', INTERVAL '55 days'),
     -- Older completed sessions, so the repeat clients have history behind them
-    ('33333333-0000-4000-a00b-00000000000b'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+    ('33333333-0000-4000-a00b-00000000000b'::uuid,
      'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 400, TIME '16:00',
      'Familie', 'Stadtwald, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
      39000, 0, 'COMPLETED', NULL, INTERVAL '430 days'),
-    ('33333333-0000-4000-a00c-00000000000c'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+    ('33333333-0000-4000-a00c-00000000000c'::uuid,
      'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 240, TIME '09:30',
      'Business', 'Bürogebäude Ruhrallee, Essen', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'COMPLETED', NULL, INTERVAL '260 days')
@@ -210,27 +210,27 @@ FROM seed_target s, (VALUES
     -- Deeper history, so the repeat clients genuinely have the totals the
     -- directory shows them with. Without these, every client topped out at two
     -- bookings and "Repeat" was a filter with nothing distinctive behind it.
-    ('33333333-0000-4000-a00d-00000000000d'::uuid, '22222222-0000-4000-a000-000000000001'::uuid,
+    ('33333333-0000-4000-a00d-00000000000d'::uuid,
      'Maria Kellner', 'maria.kellner@web.de', CURRENT_DATE - 620, TIME '14:00',
      'Verlobung', 'Baldeneysee, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
      39000, 0, 'COMPLETED', 'Verlobungsshooting — daraus wurde die Hochzeit.', INTERVAL '650 days'),
-    ('33333333-0000-4000-a00e-00000000000e'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+    ('33333333-0000-4000-a00e-00000000000e'::uuid,
      'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 760, TIME '15:30',
      'Familie', 'Stadtwald, Essen', '11111111-0000-4000-a000-000000000004'::uuid,
      39000, 0, 'COMPLETED', NULL, INTERVAL '790 days'),
-    ('33333333-0000-4000-a00f-00000000000f'::uuid, '22222222-0000-4000-a000-000000000003'::uuid,
+    ('33333333-0000-4000-a00f-00000000000f'::uuid,
      'Familie Bauer', 'familie.bauer@t-online.de', CURRENT_DATE - 1120, TIME '15:30',
      'Familie', 'Botanischer Garten, Bochum', '11111111-0000-4000-a000-000000000004'::uuid,
      39000, 0, 'COMPLETED', 'Erstes Shooting — seitdem jedes Jahr.', INTERVAL '1150 days'),
-    ('33333333-0000-4000-a010-000000000010'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+    ('33333333-0000-4000-a010-000000000010'::uuid,
      'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 480, TIME '10:00',
      'Business', 'Messe Essen', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'COMPLETED', 'Messestand, zwei Tage.', INTERVAL '500 days'),
-    ('33333333-0000-4000-a011-000000000011'::uuid, '22222222-0000-4000-a000-000000000008'::uuid,
+    ('33333333-0000-4000-a011-000000000011'::uuid,
      'Michael Fischer', 'm.fischer@gmail.com', CURRENT_DATE - 700, TIME '09:00',
      'Business', 'Bürogebäude Ruhrallee, Essen', '11111111-0000-4000-a000-000000000005'::uuid,
      29000, 0, 'COMPLETED', NULL, INTERVAL '720 days')
-) AS b(id, client_id, name, email, event_date, event_time, event_type, location,
+) AS b(id, name, email, event_date, event_time, event_type, location,
        package_id, total, deposit, status, notes, age);
 
 -- ── Leads ───────────────────────────────────────────────────────────────────

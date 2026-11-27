@@ -45,6 +45,7 @@ public class LeadResponseMapper {
             lead.getSource(),
             lead.getIgMessageId(),
             lead.getIgUsername(),
+            lead.getLanguage().code(),
             lead.getCreatedAt()
         );
     }

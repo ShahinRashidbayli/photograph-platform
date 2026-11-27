@@ -40,6 +40,12 @@ public class LeadNotificationService implements EmailRenderer<LeadNotificationSe
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = true)
     public void onLeadCreated(LeadCreatedEvent event) {
+        // Deny-list, unlike AutoReplyService: alerting the studio is the default,
+        // so an origin added later still alerts. The one exception is a lead the
+        // studio typed in, which went to the very person who typed it (#103).
+        if (event.getOrigin() == LeadCreatedEvent.Origin.ENTERED_BY_STUDIO) {
+            return;
+        }
         emailService.queue(new OutgoingEmail(
             template(),
             event.getPhotographerEmail(),

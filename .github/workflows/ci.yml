@@ -312,7 +312,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Build API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/api/Dockerfile
@@ -327,7 +327,7 @@ jobs:
       # refuses to build without it, so passing a placeholder here also proves
       # that guard still works.
       - name: Build web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/web/Dockerfile

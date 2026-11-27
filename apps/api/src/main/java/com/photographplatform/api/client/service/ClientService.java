@@ -111,7 +111,7 @@ public class ClientService {
         List<BookingResponse> bookings = bookingQueryService.listForClient(client.getEmail());
         List<UUID> bookingIds = bookings.stream().map(BookingResponse::id).toList();
         return new ClientDetailResponse(
-            toResponses(List.of(client)).get(0),
+            toResponse(client),
             bookings,
             galleryService.listForBookings(bookingIds),
             invoiceService.listForBookings(bookingIds),
@@ -148,7 +148,7 @@ public class ClientService {
         auditService.log("CLIENT_NOTES_UPDATED", "CLIENT", id,
             tenantId, SecurityUtils.requireCurrentUserId(), ipAddress);
 
-        return toResponses(List.of(find(id))).get(0);
+        return toResponse(find(id));
     }
 
     private ClientView find(UUID id) {
@@ -159,6 +159,10 @@ public class ClientService {
     /** "Upcoming" and "last session" are calendar days the studio reads in its own zone. */
     private LocalDate today() {
         return LocalDate.now(clock.withZone(BusinessZone.ID));
+    }
+
+    private ClientResponse toResponse(ClientView view) {
+        return toResponses(List.of(view)).get(0);
     }
 
     /**

@@ -522,8 +522,9 @@ public class Tenant {
      * The name a Customer knows the studio by: its business name, else its legal
      * name, else null. Never the subdomain, which is an address, not a name: the
      * lead acknowledgement once signed "Qa Pipe 11251358" for qa-pipe-11251358
-     * (#103). Used by the lead acknowledgement and the sign-in email; the
-     * gallery-expiry email and the watermark still name the studio their own way.
+     * (#103). Used by every Customer message (messaging's StudioIdentity) and the
+     * sign-in email; the gallery-expiry email and the watermark still name the
+     * studio their own way.
      */
     public String customerFacingName() {
         String business = Normalize.trimToNull(businessName);

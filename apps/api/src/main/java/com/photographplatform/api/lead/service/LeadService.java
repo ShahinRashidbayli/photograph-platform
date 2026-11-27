@@ -304,7 +304,7 @@ public class LeadService {
         // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
             LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                actor.getEmail())
+                saved.getLanguage(), actor.getEmail())
         );
 
         return mapper.toResponse(saved);
@@ -335,7 +335,7 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                tenant.customerFacingName(), tenant.getOwnerEmail())
+                saved.getLanguage(), tenant.getOwnerEmail())
         );
 
         return mapper.toResponse(saved);

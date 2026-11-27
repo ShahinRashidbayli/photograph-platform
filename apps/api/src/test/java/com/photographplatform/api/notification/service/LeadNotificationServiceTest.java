@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.lead.event.LeadCreatedEvent;
 import com.photographplatform.api.lead.event.LeadCreatedEvent.Origin;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -21,9 +22,9 @@ class LeadNotificationServiceTest {
     private static LeadCreatedEvent lead(Origin origin) {
         return origin == Origin.PUBLIC_FORM
             ? LeadCreatedEvent.fromPublicForm(new Object(), UUID.randomUUID(), UUID.randomUUID(), "Maria",
-                "maria@example.test", "MED", "Studio Lichtblick", "anna@example.test")
+                "maria@example.test", "MED", CustomerLanguage.DE, "anna@example.test")
             : LeadCreatedEvent.enteredByStudio(new Object(), UUID.randomUUID(), UUID.randomUUID(), "Maria",
-                "maria@example.test", "MED", "anna@example.test");
+                "maria@example.test", "MED", CustomerLanguage.DE, "anna@example.test");
     }
 
     @Test

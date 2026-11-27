@@ -177,6 +177,11 @@ export const bookings = {
   'bookings.gallery.viewAsClient': 'View as client',
   'bookings.gallery.manage': 'Open galleries',
 
+  'bookings.language.label': 'Language of your emails',
+  'bookings.language.hint': 'Emails from your studio to this customer are written in it.',
+  'bookings.language.de': 'Deutsch',
+  'bookings.language.en': 'English',
+  'bookings.language.error': 'Could not change the language.',
   'bookings.notes.title': 'Private note',
   'bookings.notes.hint': 'Only you and your team see this',
   'bookings.notes.placeholder': 'Add a note for this shoot…',

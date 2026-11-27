@@ -6,6 +6,7 @@ import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.tenant.domain.Tenant;
 import com.photographplatform.api.tenant.repository.TenantRepository;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,15 @@ public class PublicTenantResolver {
     public Tenant requireBySubdomain(String subdomain) {
         return tenantRepository.findBySubdomain(subdomain)
             .orElseThrow(() -> new NotFoundException("Photographer not found: " + subdomain));
+    }
+
+    /**
+     * The studio as its Customers see it, by id: for a Customer message, which
+     * is queued from an event that carries the tenant id, not a subdomain.
+     */
+    @Transactional(readOnly = true)
+    public Tenant requireById(UUID tenantId) {
+        return tenantRepository.require(tenantId);
     }
 
     /**

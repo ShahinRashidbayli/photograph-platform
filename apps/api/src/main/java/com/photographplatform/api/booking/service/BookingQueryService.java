@@ -5,10 +5,13 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.domain.BookingStatus;
 import com.photographplatform.api.booking.dto.BookingConflictResponse;
+import com.photographplatform.api.booking.dto.BookingCustomer;
 import com.photographplatform.api.booking.dto.BookingResponse;
 import com.photographplatform.api.booking.dto.CustomerBookingResponse;
 import com.photographplatform.api.booking.repository.BookingRepository;
 import com.photographplatform.api.booking.service.BookingMapper.PageLookups;
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.util.Normalize;
@@ -21,6 +24,7 @@ import java.time.Month;
 import java.time.Year;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -102,6 +106,26 @@ public class BookingQueryService {
     }
 
     /**
+     * The Customer behind a booking, for a Customer message about something
+     * hung off it. Tenant-scoped by RLS, so another studio's id resolves to
+     * nothing.
+     */
+    public BookingCustomer customer(UUID bookingId) {
+        return findCustomer(bookingId)
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
+    }
+
+    /**
+     * {@link #customer} for a caller that must carry on without one: throwing
+     * out of this transactional bean would mark the caller's transaction
+     * rollback-only (the retention sweep records reminders in it).
+     */
+    public Optional<BookingCustomer> findCustomer(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(b -> new BookingCustomer(b.getClientEmail(), b.getClientName(), b.getLanguage()));
+    }
+
+    /**
      * Booked (GLOSSARY.md): the quoted value of the tenant's Billable bookings
      * with an event in {@code year}. Booking owns this figure because it owns
      * which statuses are Billable (ADR-004 §4); the dashboard used to add it
@@ -111,6 +135,20 @@ public class BookingQueryService {
         Year y = Year.of(year);
         return bookingRepository.sumTotalAmountCents(
             tenantId, BookingStatus.BILLABLE, y.atDay(1), y.atMonth(Month.DECEMBER).atEndOfMonth());
+    }
+
+    /**
+     * The language every Customer message about this booking is written in.
+     *
+     * <p>For modules that write to the Customer about something hung off a
+     * booking (a contract, a gallery): they ask here rather than reading the
+     * booking row themselves. Tenant-scoped by RLS, so another studio's id
+     * resolves to nothing.
+     */
+    public CustomerLanguage customerLanguage(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+            .map(Booking::getLanguage)
+            .orElseThrow(() -> new NotFoundException("Booking not found: " + bookingId));
     }
 
     /**

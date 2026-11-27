@@ -5,16 +5,18 @@ import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.booking.domain.Booking;
 import com.photographplatform.api.booking.repository.BookingRepository;
+import com.photographplatform.api.booking.service.BookingQueryService;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.gallery.config.RetentionProperties;
 import com.photographplatform.api.gallery.domain.DeliveryPhoto;
 import com.photographplatform.api.gallery.domain.Gallery;
 import com.photographplatform.api.gallery.domain.GalleryExpiryState;
+import com.photographplatform.api.gallery.event.GalleryExpiringEvent;
 import com.photographplatform.api.gallery.repository.DeliveryPhotoRepository;
 import com.photographplatform.api.gallery.repository.GalleryExpiryReminderRepository;
 import com.photographplatform.api.gallery.repository.GalleryRepository;
 import com.photographplatform.api.gallery.service.GalleryRetentionService;
-import com.photographplatform.api.notification.service.GalleryExpiryNotificationService;
 import com.photographplatform.api.portfolio.service.R2StorageService;
 import com.photographplatform.api.tenant.domain.Plan;
 import com.photographplatform.api.tenant.domain.Tenant;
@@ -24,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,15 +34,13 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -64,16 +65,23 @@ class GalleryRetentionIT extends IntegrationTestBase {
     @Autowired private GalleryExpiryReminderRepository reminderRepository;
     @Autowired private DeliveryPhotoRepository deliveryPhotoRepository;
     @Autowired private BookingRepository bookingRepository;
+    @Autowired private BookingQueryService bookingQueryService;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private AuditService auditService;
     @Autowired private PlatformTransactionManager txManager;
 
-    private GalleryExpiryNotificationService notifications;
+    /** What the sweep published; messaging's side is GalleryExpiringMessageIT. */
+    private final List<GalleryExpiringEvent> warnings = new ArrayList<>();
+    private final ApplicationEventPublisher events = event -> {
+        if (event instanceof GalleryExpiringEvent warning) {
+            warnings.add(warning);
+        }
+    };
     private R2StorageService storage;
 
     @BeforeEach
     void stubCollaborators() {
-        notifications = mock(GalleryExpiryNotificationService.class);
+        warnings.clear();
         storage = mock(R2StorageService.class);
     }
 
@@ -88,9 +96,60 @@ class GalleryRetentionIT extends IntegrationTestBase {
         int warned = asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
 
         assertThat(warned).isEqualTo(1);
-        verify(notifications).sendExpiryWarning(
-            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
+        assertThat(warnings).singleElement().satisfies(warning -> {
+            assertThat(warning.getGalleryId()).isEqualTo(galleryId);
+            assertThat(warning.getTenantId()).isEqualTo(fx.tenantId());
+            assertThat(warning.getRecipientEmail()).isEqualTo("maria@example.test");
+            assertThat(warning.getRecipientName()).isEqualTo("Maria Kellner");
+            assertThat(warning.getLanguage()).isEqualTo(CustomerLanguage.DE);
+            assertThat(warning.getSubdomain()).isEqualTo(fx.tenant().getSubdomain());
+            assertThat(warning.getAccessToken()).isEqualTo(load(fx, galleryId).getAccessToken());
+            assertThat(warning.getExpiresAt()).isEqualTo(load(fx, galleryId).getExpiresAt());
+            assertThat(warning.getDaysLeft()).isEqualTo(4);
+        });
         assertThat(sentThresholds(fx, galleryId)).containsExactlyInAnyOrder(5, 15);
+    }
+
+    /**
+     * The schedule the Customer is promised: one warning 15 days out, one at
+     * 5, one the day before. A gallery walked through its last weeks one day
+     * at a time is warned on exactly those three days, and on no other.
+     */
+    @Test
+    void theCustomerIsWarnedFifteenFiveAndOneDayBeforeExpiry() {
+        Fixture fx = tenantOn(Plan.STARTER);
+        UUID galleryId = gallery(fx, NOW_AT.minusDays(30), 60);
+        OffsetDateTime expiresAt = load(fx, galleryId).getExpiresAt();
+
+        List<Long> warnedOn = new ArrayList<>();
+        for (long daysLeft = 20; daysLeft >= 1; daysLeft--) {
+            Instant at = expiresAt.minusDays(daysLeft).toInstant();
+            int warned = inTenantTx(fx, () -> service(at).sendDueReminders(fx.tenant()));
+            if (warned > 0) {
+                warnedOn.add(daysLeft);
+            }
+        }
+
+        assertThat(warnedOn).containsExactly(15L, 5L, 1L);
+        assertThat(warnings).extracting(GalleryExpiringEvent::getDaysLeft).containsExactly(15, 5, 1);
+        assertThat(sentThresholds(fx, galleryId)).containsExactlyInAnyOrder(1, 5, 15);
+    }
+
+    /** The Customer's language travels from the booking, so the warning is in it. */
+    @Test
+    void theWarningCarriesTheCustomersLanguage() {
+        Fixture fx = tenantOn(Plan.STARTER);
+        UUID galleryId = gallery(fx, NOW_AT.minusDays(56), 60);
+        inTenantTx(fx, () -> {
+            Booking booking = bookingRepository.findById(load(fx, galleryId).getBookingId()).orElseThrow();
+            booking.setLanguage(CustomerLanguage.EN);
+            return bookingRepository.save(booking);
+        });
+
+        asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
+
+        assertThat(warnings).singleElement()
+            .extracting(GalleryExpiringEvent::getLanguage).isEqualTo(CustomerLanguage.EN);
     }
 
     /**
@@ -107,8 +166,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         int secondRun = asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
 
         assertThat(secondRun).isZero();
-        verify(notifications, times(1)).sendExpiryWarning(
-            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyInt());
+        assertThat(warnings).hasSize(1);
     }
 
     /**
@@ -124,9 +182,8 @@ class GalleryRetentionIT extends IntegrationTestBase {
 
         asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
 
-        verify(notifications, times(1)).sendExpiryWarning(
-            any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(),
-            org.mockito.ArgumentMatchers.eq(3));
+        assertThat(warnings).singleElement()
+            .extracting(GalleryExpiringEvent::getDaysLeft).isEqualTo(3);
         // Both are recorded, so the stale 15-day warning can never fire later.
         assertThat(sentThresholds(fx, galleryId)).containsExactlyInAnyOrder(5, 15);
     }
@@ -139,7 +196,7 @@ class GalleryRetentionIT extends IntegrationTestBase {
         int warned = asTenant(fx, () -> service(NOW).sendDueReminders(fx.tenant()));
 
         assertThat(warned).isZero();
-        verifyNoInteractions(notifications);
+        assertThat(warnings).isEmpty();
     }
 
     // ── phase 2: access is revoked, bytes stay (ADR-001 §4.3) ───────────
@@ -327,8 +384,8 @@ class GalleryRetentionIT extends IntegrationTestBase {
     private GalleryRetentionService buildService(Instant at, RetentionProperties props) {
         props.validate();
         return new GalleryRetentionService(
-            galleryRepository, reminderRepository, deliveryPhotoRepository, bookingRepository,
-            notifications, Optional.of(storage), auditService, props,
+            galleryRepository, reminderRepository, deliveryPhotoRepository, bookingQueryService,
+            events, Optional.of(storage), auditService, props,
             Clock.fixed(at, ZoneOffset.UTC));
     }
 

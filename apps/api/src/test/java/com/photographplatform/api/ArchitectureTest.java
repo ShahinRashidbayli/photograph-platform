@@ -209,6 +209,25 @@ class ArchitectureTest {
         rule.check(classes);
     }
 
+    /**
+     * {@code gallery} says what happened to a gallery and stops there: the
+     * expiry warning used to be queued from the retention job by calling
+     * {@code notification} directly, in German only. It now publishes
+     * {@code GalleryExpiringEvent}, like the send publishes
+     * {@code GalleryDeliveredEvent}, and the dependency is gone. This keeps it
+     * gone rather than freezing a baseline it could creep back into.
+     */
+    @Test
+    @DisplayName("gallery does not depend on notification")
+    void galleryPublishesInsteadOfQueueingEmail() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .noClasses().that().resideInAPackage("..api.gallery..")
+            .should().dependOnClassesThat().resideInAPackage("..api.notification..")
+            .because("gallery publishes domain events; messaging writes to the Customer");
+
+        rule.check(classes);
+    }
+
     // ── Settlement ownership (ADR-004 §1) ────────────────────────────────────
 
     /**

@@ -280,7 +280,7 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     private CreateBookingRequest request(List<UUID> resourceIds) {
         return new CreateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
-            null, "WEDDING", "Berlin", null, null, 50_000, null, null, null, resourceIds);
+            null, "WEDDING", "Berlin", null, null, 50_000, null, null, null, resourceIds, null);
     }
 
     private Integer storedTotalCents(Fixture fx, UUID bookingId) {
@@ -292,19 +292,19 @@ class BookingConcurrencyIT extends IntegrationTestBase {
     private UpdateBookingRequest updateWithoutPrice() {
         return new UpdateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
-            null, "WEDDING", "Hamburg", null, null, null, null, null, null);
+            null, "WEDDING", "Hamburg", null, null, null, null, null, null, null);
     }
 
     private UpdateBookingRequest updateWithTotal(Integer totalCents) {
         return new UpdateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
-            null, "WEDDING", "Berlin", null, totalCents, null, null, null, null);
+            null, "WEDDING", "Berlin", null, totalCents, null, null, null, null, null);
     }
 
     private UpdateBookingRequest update(List<UUID> resourceIds) {
         return new UpdateBookingRequest(
             "Maria Kellner", "maria@example.test", EVENT_DATE,
-            null, "WEDDING", "Berlin", null, 50_000, null, null, null, resourceIds);
+            null, "WEDDING", "Berlin", null, 50_000, null, null, null, resourceIds, null);
     }
 
     private Fixture createTenant() {

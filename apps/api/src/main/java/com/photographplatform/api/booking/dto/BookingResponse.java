@@ -46,5 +46,7 @@ public record BookingResponse(
      * silently drop every resource it had.
      */
     List<UUID> resourceIds,
+    /** The Customer's language as its ISO 639-1 code, {@code de} or {@code en}. */
+    String language,
     OffsetDateTime createdAt
 ) {}

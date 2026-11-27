@@ -16,6 +16,7 @@ import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
 import com.photographplatform.api.client.repository.ClientRepository;
 import com.photographplatform.api.common.config.TenantContext;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.invoice.domain.BookingSettlement;
@@ -97,7 +98,7 @@ class BookingCommandServiceTest {
         return new CreateBookingRequest(
             "Maria Kellner", "Maria@Example.com", LocalDate.now().plusDays(30),
             null, "WEDDING", "Berlin", clientId, packageId, totalCents, null, "  notes  ",
-            null, null);
+            null, null, null);
     }
 
     @Test
@@ -117,6 +118,48 @@ class BookingCommandServiceTest {
 
         verify(auditService).log(
             eq("BOOKING_CREATED"), eq("BOOKING"), any(), eq(TENANT_ID), eq(ACTOR_ID), eq(IP));
+    }
+
+    @Test
+    void manualBookingDefaultsToGermanWhenNoLanguageIsGiven() {
+        // The studios are German, and a booking typed in by hand has no
+        // Customer-written form to take a language from.
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        BookingResponse response = commandService.createBooking(request(null, null, 50_000), IP);
+
+        assertThat(response.language()).isEqualTo("de");
+        ArgumentCaptor<Booking> saved = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(saved.capture());
+        assertThat(saved.getValue().getLanguage()).isEqualTo(CustomerLanguage.DE);
+    }
+
+    @Test
+    void updateChangesTheLanguage() {
+        UUID id = UUID.randomUUID();
+        Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
+        booking.setTenantId(TENANT_ID);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+
+        BookingResponse response = commandService.updateBooking(id, updateRequest(null, "en"), IP);
+
+        assertThat(response.language()).isEqualTo("en");
+        assertThat(booking.getLanguage()).isEqualTo(CustomerLanguage.EN);
+    }
+
+    @Test
+    void updateWithoutALanguageLeavesItAlone() {
+        // The edit form does not show the field yet. Sending nothing must not
+        // put a Customer who wrote in English back to German.
+        UUID id = UUID.randomUUID();
+        Booking booking = new Booking("Maria", "maria@example.com", LocalDate.now().plusDays(30));
+        booking.setTenantId(TENANT_ID);
+        booking.setLanguage(CustomerLanguage.EN);
+        when(bookingRepository.findByIdAndTenantId(id, TENANT_ID)).thenReturn(Optional.of(booking));
+
+        commandService.updateBooking(id, updateRequest(null), IP);
+
+        assertThat(booking.getLanguage()).isEqualTo(CustomerLanguage.EN);
     }
 
     @Test
@@ -236,8 +279,12 @@ class BookingCommandServiceTest {
     }
 
     private static UpdateBookingRequest updateRequest(List<UUID> resourceIds) {
+        return updateRequest(resourceIds, null);
+    }
+
+    private static UpdateBookingRequest updateRequest(List<UUID> resourceIds, String language) {
         return new UpdateBookingRequest(
             "Maria Kellner", "maria@example.com", LocalDate.now().plusDays(30),
-            null, "WEDDING", "Berlin", null, 50_000, null, null, null, resourceIds);
+            null, "WEDDING", "Berlin", null, 50_000, null, null, null, resourceIds, language);
     }
 }

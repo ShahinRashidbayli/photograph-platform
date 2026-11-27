@@ -4,6 +4,7 @@ import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.service.BookingConversionService;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -145,6 +146,7 @@ public class InquiryRequestService {
             "BIO_LINK"
         );
         inquiry.setTenantId(tenantId);
+        inquiry.setLanguage(CustomerLanguage.fromCodeOrDefault(req.language()));
         InquiryRequest saved = inquiryRepository.save(inquiry);
 
         auditService.log("INQUIRY_CREATED", "INQUIRY_REQUEST", saved.getId(),
@@ -368,6 +370,7 @@ public class InquiryRequestService {
             inquiry.getScore(),
             inquiry.getStatus(),
             inquiry.getSource(),
+            inquiry.getLanguage().code(),
             inquiry.getCreatedAt()
         );
     }

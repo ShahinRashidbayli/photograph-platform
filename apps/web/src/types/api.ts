@@ -63,6 +63,9 @@ export interface Package {
   sortOrder: number;
 }
 
+/** The language a Customer reads — `CustomerLanguage` on the API, as its ISO 639-1 code. */
+export type CustomerLanguage = 'de' | 'en';
+
 export interface Booking {
   id: string;
   clientName: string;
@@ -101,6 +104,8 @@ export interface Booking {
   assignedUserName?: string | null;
   /** Rooms and kit this shoot holds, so the edit form can restore the selection. */
   resourceIds?: string[];
+  /** The language the studio's Customer messages for this booking are written in. */
+  language?: CustomerLanguage;
   createdAt: string;
 }
 

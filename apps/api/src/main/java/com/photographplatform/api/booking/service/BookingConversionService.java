@@ -80,6 +80,9 @@ public class BookingConversionService {
         );
         booking.setTenantId(tenantId);
         booking.setLeadId(lead.getId());
+        // The Customer wrote in this language; every message about the
+        // booking should be in it too.
+        booking.setLanguage(lead.getLanguage());
         booking.setEventType(Normalize.trimToNull(lead.getEventType()));
         booking.setEventTime(overrides.eventTime());
         booking.setLocation(Normalize.trimToNull(overrides.location()));
@@ -118,6 +121,7 @@ public class BookingConversionService {
         );
         booking.setTenantId(tenantId);
         booking.setInquiryId(inquiry.getId());
+        booking.setLanguage(inquiry.getLanguage());
         // The one path that knows the account for certain: the inquiry was
         // submitted by a signed-in customer, and this is that customer.
         booking.linkCustomer(customer.getId());

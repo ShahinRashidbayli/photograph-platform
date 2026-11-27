@@ -1,5 +1,6 @@
 package com.photographplatform.api.common.exception;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.photographplatform.api.common.logging.RequestRoute;
 import jakarta.servlet.http.HttpServletRequest;
 import java.sql.SQLException;
@@ -18,10 +19,14 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -42,9 +47,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  * <p>422 rather than 400 because that is the answer this API already gave, in
  * six tested places: the body parsed fine and was well-formed, it just asked
  * for something the rules do not allow. 400 stays what it should be — a request
- * the server could not parse at all, which Spring answers before reaching here.
- * The two validation sources are told apart by {@code VALIDATION_FAILED} vs
- * {@code INVALID_REQUEST}, which is what a client should branch on anyway.
+ * the server could not parse at all ({@code MALFORMED_REQUEST}, see
+ * {@link #handleUnreadableBody}). The two validation sources are told apart by
+ * {@code VALIDATION_FAILED} vs {@code INVALID_REQUEST}, which is what a client
+ * should branch on anyway.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -162,6 +168,53 @@ public class GlobalExceptionHandler {
         return respond(
             HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.VALIDATION_FAILED, message, request,
             details.isEmpty() ? null : details);
+    }
+
+    /**
+     * The body could not be read: not JSON at all, or a value Jackson cannot
+     * turn into its field's type (a date that is not a date, an unknown enum
+     * constant).
+     *
+     * <p>Spring answers this and the three below with a 4xx on its own, but
+     * only when no {@code @ExceptionHandler} claims them first, and the
+     * catch-all at the bottom of this class does. Until these handlers existed,
+     * every malformed request was a 500 and an ERROR line (QA pass #124, F-23).
+     *
+     * <p>The field is named, the value never: it is whatever the caller typed,
+     * and Jackson's own message quotes it.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+        HttpMessageNotReadableException ex, HttpServletRequest request) {
+        String field = ex.getCause() instanceof JsonMappingException mapping
+            ? jsonPath(mapping)
+            : null;
+        return field == null
+            ? malformed(null, "The request body could not be read.", request)
+            : malformed(field, field + ": not a valid value.", request);
+    }
+
+    /** A path or query parameter of the wrong type: a non-UUID id, a date that is not a date. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+        MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        return malformed(ex.getName(), ex.getName() + ": not a valid value.", request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(
+        MissingServletRequestParameterException ex, HttpServletRequest request) {
+        return malformed(ex.getParameterName(), ex.getParameterName() + ": is required.", request);
+    }
+
+    /** With {@code Accept} listing what the endpoint does read, as Spring's own 415 does. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(
+        HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        return respond(
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.MALFORMED_REQUEST,
+            "This endpoint does not accept that content type.", request, null,
+            headers -> headers.setAccept(ex.getSupportedMediaTypes()));
     }
 
     /**
@@ -288,6 +341,28 @@ public class GlobalExceptionHandler {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private ResponseEntity<ErrorResponse> malformed(
+        String field, String message, HttpServletRequest request) {
+        return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, message, request,
+            field == null ? null : Map.of("field", field));
+    }
+
+    /** In bean validation's property-path form ({@code items[0].price}), so a form treats both alike. */
+    private static String jsonPath(JsonMappingException ex) {
+        StringBuilder path = new StringBuilder();
+        for (JsonMappingException.Reference ref : ex.getPath()) {
+            if (ref.getFieldName() != null) {
+                if (!path.isEmpty()) {
+                    path.append('.');
+                }
+                path.append(ref.getFieldName());
+            } else if (ref.getIndex() >= 0) {
+                path.append('[').append(ref.getIndex()).append(']');
+            }
+        }
+        return path.isEmpty() ? null : path.toString();
+    }
 
     private static String constraintName(Throwable cause) {
         String message = cause.getMessage();

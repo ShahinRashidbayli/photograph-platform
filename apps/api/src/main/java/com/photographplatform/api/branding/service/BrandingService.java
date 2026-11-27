@@ -90,19 +90,13 @@ public class BrandingService {
         Tenant tenant = publicTenantResolver.requireBySubdomain(subdomain);
         String key = tenant.getLogoKey();
         String url = entitlementService.forTenant(tenant).has(Capability.WHITE_LABEL_BRANDING)
-            && isOwnLogoObject(tenant, key)
+            && tenant.hasOwnLogoObject()
             ? urlResolver.resolve(key)
             : null;
         if (url == null) {
             throw new NotFoundException("Logo not found");
         }
         return url;
-    }
-
-    /** The shape {@code AvatarService.presign(…, "logos")} gives a key. */
-    private static boolean isOwnLogoObject(Tenant tenant, String key) {
-        return key != null
-            && key.matches("logos/" + tenant.getId() + "/[0-9a-f-]{36}\\.[a-z0-9]+");
     }
 
     /**

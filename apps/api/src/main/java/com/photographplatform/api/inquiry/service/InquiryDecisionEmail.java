@@ -7,7 +7,13 @@ import com.photographplatform.api.notification.email.EmailTemplate;
 import com.photographplatform.api.notification.email.RenderedEmail;
 import org.springframework.stereotype.Component;
 
-/** Tells the customer what the photographer decided, queued by {@link InquiryRequestService}. */
+/**
+ * The old English request decision. Nothing queues it any more: the Customer
+ * message {@code messaging.request-decision} replaced it.
+ *
+ * <p>Still registered for one release, so rows already in the outbox under
+ * {@link #TEMPLATE} still render instead of failing; remove it after that.
+ */
 @Component
 public class InquiryDecisionEmail implements EmailRenderer<InquiryDecisionEmail.Params> {
 

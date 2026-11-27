@@ -102,6 +102,9 @@ class PersonalDataErasureIT extends IntegrationTestBase {
         // Gone.
         assertThat(count("SELECT count(*) FROM users WHERE id = ?", maria.userId)).isZero();
         assertThat(count("SELECT count(*) FROM clients WHERE id = ?", maria.clientId)).isZero();
+        assertThat(count("SELECT count(*) FROM client_notes WHERE tenant_id = ? AND email = ?",
+            studio.tenantId, MARIA)).isZero();
+        assertThat(report.get("client_notes").deleted()).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM leads WHERE tenant_id = ? AND lower(email) = ?",
             studio.tenantId, MARIA)).isZero();
         assertThat(count("SELECT count(*) FROM inquiry_requests WHERE customer_id = ?", maria.userId)).isZero();
@@ -150,6 +153,7 @@ class PersonalDataErasureIT extends IntegrationTestBase {
         assertThat(count("SELECT count(*) FROM users WHERE email = 'jonas@example.test'")).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM leads WHERE email = 'jonas@example.test'")).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM clients WHERE email = 'jonas@example.test'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM client_notes WHERE email = 'jonas@example.test'")).isEqualTo(1);
         // Typed with Maria's address, but linked to Jonas's account — his booking.
         assertThat(count("SELECT count(*) FROM bookings WHERE client_name = 'Jonas' AND client_email = ?", MARIA))
             .isEqualTo(1);
@@ -157,6 +161,8 @@ class PersonalDataErasureIT extends IntegrationTestBase {
         assertThat(count("SELECT count(*) FROM leads WHERE tenant_id = ? AND email = ?",
             otherStudio.tenantId, MARIA)).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM clients WHERE tenant_id = ? AND email = ?",
+            otherStudio.tenantId, MARIA)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM client_notes WHERE tenant_id = ? AND email = ?",
             otherStudio.tenantId, MARIA)).isEqualTo(1);
     }
 
@@ -204,6 +210,8 @@ class PersonalDataErasureIT extends IntegrationTestBase {
             UUID linked = insertBooking(s, "Maria", MARIA, userId, null);
             UUID addressOnly = insertBooking(s, "Maria", "MARIA@example.test", null, clientId);
 
+            insertClientNote(s, MARIA, "mag Schwarzweiß");
+
             UUID galleryId = UUID.randomUUID();
             jdbc.update("INSERT INTO galleries (id, tenant_id, booking_id, access_token) VALUES (?, ?, ?, ?)",
                 galleryId, s.tenantId, linked, "tok-" + galleryId);
@@ -246,12 +254,14 @@ class PersonalDataErasureIT extends IntegrationTestBase {
         UUID jonas = customer(studio, "jonas@example.test");
         inTenant(studio, () -> {
             insertClient(studio, "jonas@example.test", "Jonas");
+            insertClientNote(studio, "jonas@example.test", "Stammkunde");
             insertLead(studio, "Jonas", "jonas@example.test");
             insertBooking(studio, "Jonas", MARIA, jonas, null);
             return null;
         });
         inTenant(otherStudio, () -> {
             insertClient(otherStudio, MARIA, "Maria");
+            insertClientNote(otherStudio, MARIA, "Hochzeit 2025");
             insertLead(otherStudio, "Maria", MARIA);
             return null;
         });
@@ -262,6 +272,10 @@ class PersonalDataErasureIT extends IntegrationTestBase {
         jdbc.update("INSERT INTO clients (id, tenant_id, email, full_name) VALUES (?, ?, ?, ?)",
             id, s.tenantId, email, name);
         return id;
+    }
+
+    private void insertClientNote(Studio s, String email, String notes) {
+        jdbc.update("INSERT INTO client_notes (tenant_id, email, notes) VALUES (?, ?, ?)", s.tenantId, email, notes);
     }
 
     private void insertLead(Studio s, String name, String email) {

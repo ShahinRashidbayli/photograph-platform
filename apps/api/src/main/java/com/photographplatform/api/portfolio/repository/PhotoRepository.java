@@ -29,5 +29,7 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
 
     List<Photo> findByIsPublishedTrueOrderBySortOrderAsc(Limit limit);
 
+    boolean existsByIsPublishedTrue();
+
     List<Photo> findAllByOrderBySortOrderAsc(Limit limit);
 }

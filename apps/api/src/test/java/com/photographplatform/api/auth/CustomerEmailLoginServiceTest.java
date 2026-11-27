@@ -132,6 +132,19 @@ class CustomerEmailLoginServiceTest {
         assertThat(codesIn(mail)).hasSize(1);
     }
 
+    /** Same name as in the studio's other emails to the client, e.g. the lead acknowledgement (#103). */
+    @Test
+    @DisplayName("the studio is named by its business name before its legal name")
+    void theStudioIsNamedByItsBusinessName() {
+        studioA.setBusinessName("Lichtblick Fotografie");
+        when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of(clientOfA));
+        when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of(studioA.getId()));
+
+        service.requestLoginCodeByEmail(EMAIL, null, IP);
+
+        assertThat(sentMail().htmlBody()).contains("Lichtblick Fotografie").doesNotContain("Studio Alpha");
+    }
+
     /**
      * A studio that has booked the client but never seen them sign in is the
      * case this exists for — the first visit. The account is created then, as

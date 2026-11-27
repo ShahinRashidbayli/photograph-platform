@@ -80,8 +80,10 @@ public class ContractNotificationService implements EmailRenderer<ContractNotifi
                 + EmailTemplate.infoTable(List.of(
                     new EmailTemplate.Row("Contract", event.title()),
                     new EmailTemplate.Row("Signed by", event.signerName())))
+                // The booking detail is the list with ?id=; there is no
+                // /bookings/{id} page, and that link landed on a 404 (#104).
                 + EmailTemplate.button("Open the booking",
-                    webBaseUrl + "/bookings/" + event.bookingId())
+                    webBaseUrl.replaceAll("/+$", "") + "/bookings?id=" + event.bookingId())
                 + EmailTemplate.note("Contract ID: " + event.contractId()));
     }
 }

@@ -6,13 +6,17 @@ import { Icon } from '@/components/Icon';
 import { useTranslation } from '@/lib/i18n';
 import { SECTIONS } from './Nav';
 
-/** The close and the footer as one dark block: the last ask, then the links. */
+/**
+ * The close and the footer as one dark block, in both themes: the last ask,
+ * then the links. The long light page ends on a dark anchor, and the last call
+ * to action stands out on it.
+ */
 export function Closing() {
   const { t } = useTranslation();
   const year = new Date().getFullYear();
 
   return (
-    <footer className="lp-dark lp-footer">
+    <footer className="lp-dark lp-footer" data-tone="dark">
       <div className="lp-wrap">
         <div className="lp-head-row">
           <div style={{ maxWidth: 720 }}>

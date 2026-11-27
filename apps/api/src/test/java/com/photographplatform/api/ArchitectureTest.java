@@ -2,6 +2,8 @@ package com.photographplatform.api;
 
 import com.photographplatform.api.invoice.repository.InvoiceRepository;
 import com.photographplatform.api.payment.repository.PaymentRepository;
+import com.photographplatform.api.portfolio.service.PortfolioPublication;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -153,6 +155,56 @@ class ArchitectureTest {
                     "..api.payment..", "..api.portfolio..", "..api.pricing..", "..api.tenant..")
                 .because("common is what every feature may depend on; depending back "
                     + "turns it into a second home for business rules"));
+
+        rule.check(classes);
+    }
+
+    // ── Customer messages ────────────────────────────────────────────────────
+
+    /**
+     * {@code messaging} is a leaf: modules publish events, and it listens.
+     *
+     * <p>A feature module that called it directly would be back to deciding,
+     * on its own terms, who speaks to a Customer and how, which is the
+     * scattering this module exists to end.
+     */
+    @Test
+    @DisplayName("no module depends on messaging")
+    void nothingDependsOnMessaging() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .noClasses().that().resideOutsideOfPackage("..api.messaging..")
+            .should().dependOnClassesThat().resideInAPackage("..api.messaging..")
+            .because("feature modules publish domain events; messaging listens to them");
+
+        rule.check(classes);
+    }
+
+    /**
+     * {@code messaging} reads the publishing modules' events, the studio's
+     * identity ({@code tenant}, and {@code entitlement} for the white-label
+     * check) and queues through {@code notification}. Nothing else: not a
+     * feature module's services, and so never its rows.
+     *
+     * <p>One named exception: {@link PortfolioPublication}, whether the
+     * portfolio shows anything, which decides if Enquiry received links to it.
+     * The class, not the package: the question is the only thing allowed (#127).
+     */
+    @Test
+    @DisplayName("messaging depends only on events, tenant, entitlement, notification, common "
+        + "and whether the portfolio is published")
+    void messagingDependsOnlyOnItsInputs() {
+        ArchRule rule = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+            .classes().that().resideInAPackage("..api.messaging..")
+            .should().onlyDependOnClassesThat(
+                JavaClass.Predicates.resideOutsideOfPackage("com.photographplatform.api..")
+                    .or(JavaClass.Predicates.resideInAnyPackage(
+                        "..api.messaging..", "..api.common..", "..api.tenant..", "..api.entitlement..",
+                        "..api.notification..", "..api.*.event.."))
+                    .or(JavaClass.Predicates.equivalentTo(PortfolioPublication.class))
+                    .as("events, tenant, entitlement, notification, common, PortfolioPublication "
+                        + "or outside the application"))
+            .because("messaging composes Customer messages from events; it must not reach into "
+                + "the modules that publish them");
 
         rule.check(classes);
     }

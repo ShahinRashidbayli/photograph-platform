@@ -15,6 +15,7 @@ import com.photographplatform.api.payment.dto.StripeOnboardingLinkResponse;
 import com.photographplatform.api.payment.service.StripeConnectService;
 import com.photographplatform.api.tenant.dto.BillingProfileRequest;
 import com.photographplatform.api.tenant.dto.BillingProfileResponse;
+import com.photographplatform.api.tenant.dto.EnquiryAcknowledgementSetting;
 import com.photographplatform.api.tenant.service.TenantSettingsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -77,6 +78,24 @@ public class TenantSettingsController {
     ) {
         ownershipGuard.requireOwner();
         return ResponseEntity.ok(settingsService.updateBillingProfile(request, ClientIp.from(http)));
+    }
+
+    @GetMapping("/enquiry-acknowledgement")
+    public ResponseEntity<EnquiryAcknowledgementSetting> getEnquiryAcknowledgement() {
+        return ResponseEntity.ok(settingsService.getEnquiryAcknowledgement());
+    }
+
+    /**
+     * Owner only, like branding: it decides whether the studio's Customers
+     * hear from it automatically, in its name, after every enquiry.
+     */
+    @PutMapping("/enquiry-acknowledgement")
+    public ResponseEntity<EnquiryAcknowledgementSetting> updateEnquiryAcknowledgement(
+        @Valid @RequestBody EnquiryAcknowledgementSetting request,
+        HttpServletRequest http
+    ) {
+        ownershipGuard.requireOwner();
+        return ResponseEntity.ok(settingsService.updateEnquiryAcknowledgement(request, ClientIp.from(http)));
     }
 
     /**

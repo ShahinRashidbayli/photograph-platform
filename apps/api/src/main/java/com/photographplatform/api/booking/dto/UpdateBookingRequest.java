@@ -3,6 +3,7 @@ package com.photographplatform.api.booking.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -66,5 +67,13 @@ public record UpdateBookingRequest(
      * list clears them — the form always sends its whole selection, so those
      * have to mean different things or removing the last one is impossible.
      */
-    List<UUID> resourceIds
+    List<UUID> resourceIds,
+
+    /**
+     * The language the Customer reads. Absent leaves it untouched, like
+     * {@code resourceIds}: a form that does not show the field must not reset
+     * a Customer who wrote in English back to German.
+     */
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {}

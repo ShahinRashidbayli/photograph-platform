@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.dto;
 
+import com.photographplatform.api.common.util.Normalize;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -17,6 +18,11 @@ import java.util.UUID;
  *                        every request is new work (each sign-in code)
  * @param expiresAt       dropped instead of sent past this instant: the moment
  *                        the code or link inside stops working; null for never
+ * @param fromName        the sender's display name for this message, or null
+ *                        for the global {@code app.email.from-name}; the
+ *                        address itself always stays {@code app.email.from}
+ * @param replyTo         where the recipient's reply goes, or null for none;
+ *                        never logged
  */
 public record OutgoingEmail(
     String template,
@@ -24,12 +30,23 @@ public record OutgoingEmail(
     UUID tenantId,
     Object params,
     String idempotencyKey,
-    OffsetDateTime expiresAt
+    OffsetDateTime expiresAt,
+    String fromName,
+    String replyTo
 ) {
 
     public OutgoingEmail {
         Objects.requireNonNull(template, "template");
         Objects.requireNonNull(to, "to");
         Objects.requireNonNull(params, "params");
+        // A studio with an empty reply address set must not get "" queued: every
+        // provider rejects it, and the outbox would retry it until DEAD.
+        replyTo = Normalize.trimToNull(replyTo);
+    }
+
+    /** Sent as Fotolio: the global sender name, and no Reply-To. */
+    public OutgoingEmail(String template, String to, UUID tenantId, Object params,
+                         String idempotencyKey, OffsetDateTime expiresAt) {
+        this(template, to, tenantId, params, idempotencyKey, expiresAt, null, null);
     }
 }

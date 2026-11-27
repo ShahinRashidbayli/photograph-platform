@@ -103,6 +103,23 @@ describe('api response interceptor', () => {
   );
 
   /**
+   * A request marked at its call site as "my 401 means a wrong code or token".
+   * Refreshing there swapped the real error for the refresh's, and a
+   * successful refresh replayed the guess against the attempt limit.
+   */
+  it('passes a marked request’s 401 through without refreshing or redirecting', async () => {
+    mock.onPost('/api/auth/customer/login-code/verify').reply(401, { error: 'Wrong code' });
+
+    const failure = api.post('/api/auth/customer/login-code/verify', {}, { skipAuthRefresh: true });
+
+    await expect(failure).rejects.toMatchObject({
+      response: { status: 401, data: { error: 'Wrong code' } },
+    });
+    expect(mock.history.post.map((r) => r.url)).toEqual(['/api/auth/customer/login-code/verify']);
+    expect(globalThis.location.href).toBe('');
+  });
+
+  /**
    * The refresh endpoint gets its own case: counting refresh calls would count
    * the request under test. What matters here is that a failed refresh is not
    * itself retried — that is the infinite loop the exclusion list prevents.

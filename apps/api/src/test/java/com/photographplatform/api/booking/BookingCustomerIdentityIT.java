@@ -150,13 +150,13 @@ class BookingCustomerIdentityIT extends IntegrationTestBase {
     private CreateBookingRequest request(String clientEmail) {
         return new CreateBookingRequest(
             "Client", clientEmail, EVENT_DATE,
-            null, "WEDDING", "Berlin", null, null, 50_000, null, null, null, null);
+            null, "WEDDING", "Berlin", null, null, 50_000, null, null, null, null, null);
     }
 
     private UpdateBookingRequest update(String clientEmail) {
         return new UpdateBookingRequest(
             "Client", clientEmail, EVENT_DATE,
-            null, "WEDDING", "Berlin", null, 50_000, null, null, null, null);
+            null, "WEDDING", "Berlin", null, 50_000, null, null, null, null, null);
     }
 
     private Fixture createTenant() {

@@ -8,6 +8,8 @@ export interface AuthUser {
   emailVerified: boolean;
   tenant: { subdomain: string; plan: string };
   avatarUrl?: string | null;
+  /** The UI language the emails Fotolio sends this user are written in. */
+  language?: 'de' | 'en';
 }
 
 interface AuthState {

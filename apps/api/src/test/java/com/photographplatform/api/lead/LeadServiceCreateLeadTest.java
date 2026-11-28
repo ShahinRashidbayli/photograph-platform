@@ -3,6 +3,7 @@ package com.photographplatform.api.lead;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
@@ -48,7 +49,8 @@ class LeadServiceCreateLeadTest {
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final LeadService service = new LeadService(leadRepository, events, mock(AuditService.class),
-        userRepository, mock(LeadScoringService.class), mock(LeadResponseMapper.class));
+        userRepository, mock(LeadScoringService.class), mock(LeadResponseMapper.class),
+        new StudioOwnerLanguage(userRepository));
 
     LeadServiceCreateLeadTest() {
         when(leadRepository.save(any(Lead.class))).thenAnswer(i -> i.getArgument(0));

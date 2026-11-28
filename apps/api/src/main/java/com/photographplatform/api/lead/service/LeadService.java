@@ -3,6 +3,7 @@ package com.photographplatform.api.lead.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.exception.ConflictException;
@@ -61,16 +62,19 @@ public class LeadService {
     private final UserRepository userRepository;
     private final LeadScoringService leadScoringService;
     private final LeadResponseMapper mapper;
+    private final StudioOwnerLanguage studioOwnerLanguage;
 
     public LeadService(LeadRepository leadRepository, ApplicationEventPublisher eventPublisher,
                        AuditService auditService, UserRepository userRepository,
-                       LeadScoringService leadScoringService, LeadResponseMapper mapper) {
+                       LeadScoringService leadScoringService, LeadResponseMapper mapper,
+                       StudioOwnerLanguage studioOwnerLanguage) {
         this.leadRepository = leadRepository;
         this.eventPublisher = eventPublisher;
         this.auditService = auditService;
         this.userRepository = userRepository;
         this.leadScoringService = leadScoringService;
         this.mapper = mapper;
+        this.studioOwnerLanguage = studioOwnerLanguage;
     }
 
     /**
@@ -335,7 +339,7 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                details(saved), saved.getLanguage(), tenant.getOwnerEmail(), recipientLanguage(tenant))
+                details(saved), saved.getLanguage(), tenant.getOwnerEmail(), studioOwnerLanguage.of(tenant))
         );
 
         return mapper.toResponse(saved);
@@ -345,16 +349,6 @@ public class LeadService {
         return new LeadCreatedEvent.Details(lead.getEventDate(), lead.getEventType(), lead.getMessage());
     }
 
-    /**
-     * The language of whoever the "New lead" Notification goes to: the account behind
-     * the studio's owner address. A studio whose owner address has no account
-     * (none should) gets German.
-     */
-    private CustomerLanguage recipientLanguage(Tenant tenant) {
-        return userRepository.findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
-            .map(User::getLanguage)
-            .orElse(CustomerLanguage.DEFAULT);
-    }
 
     /**
      * The photographer's lead list, optionally filtered by score and status.

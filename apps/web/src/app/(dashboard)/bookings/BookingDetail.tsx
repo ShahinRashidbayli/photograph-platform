@@ -15,6 +15,7 @@ import {
 import type { Theme } from '@/lib/design-tokens';
 import { Alert, Button } from '@/components/ui';
 import { useBookingInvoices } from '@/hooks/useInvoices';
+import { useResources } from '@/hooks/useResources';
 import type { Booking } from '@/types/api';
 import { BookingActionMenu, type MenuItem } from './BookingActionMenu';
 import { BookingContracts } from './BookingContracts';
@@ -112,6 +113,16 @@ export function BookingDetail({
     [invoices]
   );
 
+  // Retired ones too: a room retired after it was booked is still the room
+  // this shoot uses. Only fetched when the booking has any.
+  const hasResources = (booking.resourceIds ?? []).length > 0;
+  const resources = useResources({ includeRetired: true, enabled: hasResources }).data;
+  const resourceNames = useMemo(() => {
+    if (!resources) return null;
+    const byId = new Map(resources.map((r) => [r.id, r.name]));
+    return (booking.resourceIds ?? []).flatMap((id) => byId.get(id) ?? []);
+  }, [resources, booking.resourceIds]);
+
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -151,8 +162,11 @@ export function BookingDetail({
   // Every other legal move, cancelling last — destructive and rare, so never a
   // button competing with the lead action.
   const shown = new Set([primary, secondary].map((a) => (a ? ACTION_TRANSITION[a] : undefined)));
+  // A shoot cannot be completed before its date (the API refuses it); a shoot
+  // that really happened early gets its date moved first.
   const menuItems: MenuItem[] = getAllowedTransitions(booking.status)
     .filter((target) => !shown.has(target))
+    .filter((target) => target !== 'COMPLETED' || days <= 0)
     .sort((a, b) => Number(a === 'CANCELLED') - Number(b === 'CANCELLED'))
     .map((target) => ({
       key: target,
@@ -286,8 +300,16 @@ export function BookingDetail({
             <Fact label={t('bookings.detail.package')} s={s}>
               {packageName ?? '—'}
             </Fact>
+            {/* The agreed deposit, not what has been paid — that is under Payment. */}
+            <Fact label={t('bookings.detail.deposit')} s={s}>
+              {booking.depositAmountCents > 0 ? format.eur(booking.depositAmountCents) : '—'}
+            </Fact>
             <Fact label={t('bookings.detail.assignedTo')} s={s} muted={!booking.assignedUserName}>
               {booking.assignedUserName || t('bookings.detail.unassigned')}
+            </Fact>
+            <Fact label={t('bookings.detail.resources')} s={s}>
+              {/* Not "—" while the names load: that would read as "none booked". */}
+              {!hasResources ? '—' : resourceNames ? resourceNames.join(', ') || '—' : '…'}
             </Fact>
           </dl>
         </section>

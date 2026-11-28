@@ -30,6 +30,8 @@ export const contracts: Record<keyof EnContracts, string> = {
   'contracts.field.title': 'Titel',
   'contracts.field.body': 'Vertragstext',
 
+  'contracts.draftFor': 'Entwurf für {name}',
+  'contracts.withdrawnFor': 'Zurückgezogen, war für {name}',
   'contracts.sentTo': 'Gesendet an {name}',
   'contracts.signedOn': 'Unterzeichnet am {date}',
 

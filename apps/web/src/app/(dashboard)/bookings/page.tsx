@@ -19,7 +19,7 @@ import {
   getBookingStatusMeta,
   type BookingStatusKey,
 } from '@/lib/booking-status';
-import { useTranslation } from '@/lib/i18n';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import { fontSize, space } from '@/lib/design-tokens';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui';
@@ -77,6 +77,29 @@ function CalendarLoading() {
   const { t } = useTranslation();
   return <>{t('bookings.loadingCalendar')}</>;
 }
+
+/** The moves that cannot be undone, and so ask first. */
+type ConfirmedMove = Extract<BookingStatusKey, 'CANCELLED' | 'DECLINED'>;
+
+const CONFIRM_COPY: Record<
+  ConfirmedMove,
+  Record<'title' | 'message' | 'messageFallback' | 'confirm' | 'keep', TranslationKey>
+> = {
+  CANCELLED: {
+    title: 'bookings.cancel.title',
+    message: 'bookings.cancel.message',
+    messageFallback: 'bookings.cancel.messageFallback',
+    confirm: 'bookings.cancel.confirm',
+    keep: 'bookings.cancel.keep',
+  },
+  DECLINED: {
+    title: 'bookings.decline.title',
+    message: 'bookings.decline.message',
+    messageFallback: 'bookings.decline.messageFallback',
+    confirm: 'bookings.decline.confirm',
+    keep: 'bookings.decline.keep',
+  },
+};
 
 type ToastState = {
   message: string;
@@ -184,7 +207,8 @@ function BookingsView() {
   // Date pre-filled into the create modal when it's opened from a calendar day.
   const [createDate, setCreateDate] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  // The one-way move waiting for a yes: cancelling or declining.
+  const [confirmMove, setConfirmMove] = useState<ConfirmedMove | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   // Below this width the master-detail split stops working: both panes stack,
@@ -366,10 +390,10 @@ function BookingsView() {
 
   function handleTransition(target: BookingStatusKey) {
     if (!selected) return;
-    // Cancelling is terminal and has no legal way back, so it is the one move
-    // that still asks first — an undo toast would be a promise we can't keep.
-    if (target === 'CANCELLED') {
-      setConfirmCancel(true);
+    // Cancelling and declining are terminal and have no legal way back, so
+    // they ask first — an undo toast would be a promise we can't keep.
+    if (target in CONFIRM_COPY) {
+      setConfirmMove(target as ConfirmedMove);
       return;
     }
     applyTransition(selected.id, selected.status as BookingStatusKey, target);
@@ -417,6 +441,8 @@ function BookingsView() {
       </div>
     );
   }
+
+  const confirmCopy = CONFIRM_COPY[confirmMove ?? 'CANCELLED'];
 
   return (
     <div className="bk-page" style={styles.pageWrapper}>
@@ -832,24 +858,25 @@ function BookingsView() {
       )}
 
       <ConfirmDialog
-        open={confirmCancel}
+        open={confirmMove !== null}
         theme={theme}
         tone="danger"
-        title={t('bookings.cancel.title')}
+        title={t(confirmCopy.title)}
         message={
           selected
-            ? t('bookings.cancel.message', { name: selected.clientName })
-            : t('bookings.cancel.messageFallback')
+            ? t(confirmCopy.message, { name: selected.clientName })
+            : t(confirmCopy.messageFallback)
         }
-        confirmLabel={t('bookings.cancel.confirm')}
-        cancelLabel={t('bookings.cancel.keep')}
+        confirmLabel={t(confirmCopy.confirm)}
+        cancelLabel={t(confirmCopy.keep)}
         onConfirm={() => {
-          setConfirmCancel(false);
-          if (selected) {
-            applyTransition(selected.id, selected.status as BookingStatusKey, 'CANCELLED');
+          const target = confirmMove;
+          setConfirmMove(null);
+          if (selected && target) {
+            applyTransition(selected.id, selected.status as BookingStatusKey, target);
           }
         }}
-        onCancel={() => setConfirmCancel(false)}
+        onCancel={() => setConfirmMove(null)}
       />
 
       {toast && (

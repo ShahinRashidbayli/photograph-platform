@@ -91,7 +91,7 @@ class BookingConcurrencyIT extends IntegrationTestBase {
 
         // The first writer now writes the decision it made against the old row.
         // Legal from the ENQUIRY this copy still believes it holds.
-        stale.changeStatus(BookingStatus.CANCELLED);
+        stale.changeStatus(BookingStatus.CANCELLED, LocalDate.now());
         assertThatThrownBy(() -> asTenant(fx.tenantId(), () -> new TransactionTemplate(txManager)
             .execute(status -> bookingRepository.saveAndFlush(stale))))
             .isInstanceOf(OptimisticLockingFailureException.class);

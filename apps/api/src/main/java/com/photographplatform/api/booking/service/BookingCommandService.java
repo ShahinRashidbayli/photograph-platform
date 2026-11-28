@@ -14,10 +14,13 @@ import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.NotFoundException;
 import com.photographplatform.api.common.security.SecurityUtils;
+import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.Normalize;
 import com.photographplatform.api.resource.domain.BookingResource;
 import com.photographplatform.api.resource.repository.BookingResourceRepository;
 import com.photographplatform.api.resource.repository.StudioResourceRepository;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +51,7 @@ public class BookingCommandService {
     private final CustomerAccountResolver customerAccounts;
     private final AuditService auditService;
     private final BookingMapper mapper;
+    private final Clock clock;
 
     public BookingCommandService(
         BookingRepository bookingRepository,
@@ -58,7 +62,8 @@ public class BookingCommandService {
         BookingPricingResolver pricingResolver,
         CustomerAccountResolver customerAccounts,
         AuditService auditService,
-        BookingMapper mapper
+        BookingMapper mapper,
+        Clock clock
     ) {
         this.bookingRepository = bookingRepository;
         this.clientRepository = clientRepository;
@@ -69,6 +74,7 @@ public class BookingCommandService {
         this.customerAccounts = customerAccounts;
         this.auditService = auditService;
         this.mapper = mapper;
+        this.clock = clock;
     }
 
     /**
@@ -143,7 +149,7 @@ public class BookingCommandService {
         // row actually holds afterwards, and what it still holds when the
         // transition is refused, which is what those assertions were reaching
         // for.
-        booking.changeStatus(next);
+        booking.changeStatus(next, LocalDate.ofInstant(clock.instant(), BusinessZone.ID));
 
         auditService.logChange(
             "BOOKING_STATUS_CHANGED",

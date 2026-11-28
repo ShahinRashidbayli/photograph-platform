@@ -2,6 +2,7 @@ package com.photographplatform.api.booking.domain;
 
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.domain.CustomerLanguageConverter;
+import com.photographplatform.api.common.exception.ConflictException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -159,11 +160,23 @@ public class Booking {
      * <em>who</em> may ask and what gets audited; it no longer owns whether the
      * move is legal.
      *
+     * <p>A shoot cannot be completed before its date. A booking dated
+     * 31.12. used to be markable as delivered in November; when a shoot
+     * really happens earlier, the photographer moves its date first, so the
+     * record says when it took place.
+     *
+     * @param today the current date in {@code BusinessZone}, from the caller's
+     *     clock — the entity has no clock of its own
      * @throws com.photographplatform.api.common.exception.ConflictException on
-     *     an illegal transition, or on re-entering the current state
+     *     an illegal transition, on re-entering the current state, or on
+     *     completing a shoot dated after {@code today}
      */
-    public void changeStatus(BookingStatus next) {
+    public void changeStatus(BookingStatus next, LocalDate today) {
         status.assertCanTransitionTo(next);
+        if (next == BookingStatus.COMPLETED && eventDate.isAfter(today)) {
+            throw new ConflictException(
+                "Cannot complete a booking before its date — change the date first.");
+        }
         this.status = next;
     }
 

@@ -1,12 +1,9 @@
 package com.photographplatform.api.roadmap.service;
 
 import com.photographplatform.api.common.security.SecurityUtils;
-import com.photographplatform.api.roadmap.domain.FeatureInterest;
 import com.photographplatform.api.roadmap.domain.RoadmapFeature;
 import com.photographplatform.api.roadmap.repository.FeatureInterestRepository;
 import java.util.List;
-import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,13 +34,7 @@ public class FeatureInterestService {
 
     @Transactional
     public void register(RoadmapFeature feature) {
-        UUID tenantId = SecurityUtils.requireCurrentTenantId();
-        try {
-            repository.save(new FeatureInterest(tenantId, feature));
-        } catch (DataIntegrityViolationException alreadyRegistered) {
-            // The primary key did its job under a concurrent double-submit.
-            // Nothing to repair: the desired state is exactly what is stored.
-        }
+        repository.registerInterest(SecurityUtils.requireCurrentTenantId(), feature.name());
     }
 
     @Transactional

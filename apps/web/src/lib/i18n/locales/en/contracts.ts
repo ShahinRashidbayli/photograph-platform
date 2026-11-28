@@ -37,6 +37,8 @@ export const contracts = {
   'contracts.field.title': 'Title',
   'contracts.field.body': 'Contract text',
 
+  'contracts.draftFor': 'Draft for {name}',
+  'contracts.withdrawnFor': 'Withdrawn, was for {name}',
   'contracts.sentTo': 'Sent to {name}',
   'contracts.signedOn': 'Signed {date}',
 

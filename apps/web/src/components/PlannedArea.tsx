@@ -26,7 +26,8 @@ export function RoadmapIdeaCard({
   idea: RoadmapIdea;
   wanted: boolean;
   disabled: boolean;
-  onChange: (_wanted: boolean) => void;
+  /** No argument: the hook decides the direction — see `useToggleRoadmapInterest`. */
+  onChange: () => void;
 }) {
   const { t } = useTranslation();
   const { theme } = useThemeStore();
@@ -69,12 +70,7 @@ export function RoadmapIdeaCard({
           cursor: disabled ? 'wait' : 'pointer',
         }}
       >
-        <input
-          type="checkbox"
-          checked={wanted}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.checked)}
-        />
+        <input type="checkbox" checked={wanted} disabled={disabled} onChange={() => onChange()} />
         {wanted ? t('roadmap.wanted') : t('roadmap.want')}
       </label>
     </Card>
@@ -155,7 +151,7 @@ export function PlannedArea({
             idea={idea}
             wanted={wanted.has(idea.key)}
             disabled={isLoading}
-            onChange={(next) => toggle.mutate({ feature: idea.key, wanted: next })}
+            onChange={() => toggle(idea.key)}
           />
         ))}
       </div>

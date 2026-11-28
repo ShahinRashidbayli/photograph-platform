@@ -78,7 +78,8 @@ class BookingAutoPricingTest {
             bookingRepository, clientRepository, userRepository, studioResourceRepository,
             bookingResourceRepository, new BookingPricingResolver(packageRepository),
             new CustomerAccountResolver(userRepository), auditService,
-            new BookingMapper(userRepository, bookingResourceRepository, settlement));
+            new BookingMapper(userRepository, bookingResourceRepository, settlement),
+            java.time.Clock.system(com.photographplatform.api.common.util.BusinessZone.ID));
 
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(ACTOR_ID.toString(), null)

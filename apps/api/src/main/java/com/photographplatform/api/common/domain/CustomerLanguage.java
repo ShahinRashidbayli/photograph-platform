@@ -16,6 +16,10 @@ import java.util.Locale;
  * messaging all read it; any feature module as its owner would make the others
  * depend on that module for a two-value type.
  *
+ * <p>A studio user's language ({@code users.language}, V42) is the same
+ * closed set, so it uses this type too rather than a twin: the Notifications
+ * and sign-in emails Fotolio sends them are written in it (#126).
+ *
  * <p>Stored as the lowercase ISO 639-1 code ({@code de}, {@code en}) through
  * {@link CustomerLanguageConverter}, the same code the web app's locales use.
  */

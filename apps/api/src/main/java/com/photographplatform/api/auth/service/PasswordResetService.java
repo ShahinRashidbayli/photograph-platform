@@ -209,13 +209,11 @@ public class PasswordResetService {
     }
 
     private void sendResetEmail(User user, String rawToken) {
-        String greeting = user.getFullName() == null || user.getFullName().isBlank()
-            ? "there" : user.getFullName();
         // Expires with the token: a link that arrives dead is worse than a
         // late one. No idempotency key — every request is a new token.
         emailService.queue(new OutgoingEmail(
             PasswordResetEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
-            new PasswordResetEmail.Params(greeting, rawToken),
+            new PasswordResetEmail.Params(user.getFullName(), rawToken, user.getLanguage()),
             null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
 

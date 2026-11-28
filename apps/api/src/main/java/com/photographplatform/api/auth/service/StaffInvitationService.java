@@ -432,7 +432,7 @@ public class StaffInvitationService {
             ? inviter.getFullName() : inviter.getEmail();
         emailService.queue(new OutgoingEmail(
             StaffInvitationEmail.TEMPLATE, email, tenant.getId(),
-            new StaffInvitationEmail.Params(studio, from, rawToken),
+            new StaffInvitationEmail.Params(studio, from, rawToken, inviter.getLanguage()),
             null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
 

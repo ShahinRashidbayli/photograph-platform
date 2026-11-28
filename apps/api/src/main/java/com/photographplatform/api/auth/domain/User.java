@@ -1,6 +1,9 @@
 package com.photographplatform.api.auth.domain;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
+import com.photographplatform.api.common.domain.CustomerLanguageConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -65,6 +68,15 @@ public class User {
      */
     @Column(name = "tokens_valid_after")
     private OffsetDateTime tokensValidAfter;
+
+    /**
+     * The language this person uses Fotolio in, and so the language of every
+     * email Fotolio sends them: Notifications, verification, password reset
+     * (V42). The web app saves it whenever they switch language.
+     */
+    @Convert(converter = CustomerLanguageConverter.class)
+    @Column(nullable = false, length = 2)
+    private CustomerLanguage language = CustomerLanguage.DEFAULT;
 
     protected User() {
     }
@@ -167,5 +179,13 @@ public class User {
 
     public boolean isEmailVerified() {
         return emailVerifiedAt != null;
+    }
+
+    public CustomerLanguage getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(CustomerLanguage language) {
+        this.language = language;
     }
 }

@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.util.BusinessZone;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.notification.dto.EmailType;
@@ -87,7 +88,7 @@ public class GalleryExpiryNotificationService
                     + " — die Galerie kann verlängert werden.");
 
         return new RenderedEmail(
-            subject(daysLeft, expiryDate), EmailTemplate.document(preheader(daysLeft), body));
+            subject(daysLeft, expiryDate), EmailTemplate.document(preheader(daysLeft), body, CustomerLanguage.DE));
     }
 
     private String headline(int daysLeft) {

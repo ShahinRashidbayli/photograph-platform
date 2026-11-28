@@ -108,7 +108,7 @@ class PortfolioAuthorizationIT extends IntegrationTestBase {
     /** Registers a photographer and returns the tenant UUID carried in its JWT. */
     private UUID registerPhotographerAndGetTenantId() {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a", "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a", "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         ResponseEntity<AuthResponse> login = rest.postForEntity("/api/auth/login",
             new LoginRequest("alice@a.com", TEST_PASSWORD), AuthResponse.class);

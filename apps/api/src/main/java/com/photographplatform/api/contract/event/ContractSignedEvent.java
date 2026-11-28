@@ -1,5 +1,6 @@
 package com.photographplatform.api.contract.event;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import java.util.UUID;
 import org.springframework.context.ApplicationEvent;
 
@@ -24,9 +25,11 @@ public class ContractSignedEvent extends ApplicationEvent {
     private final String title;
     private final String signerName;
     private final String photographerEmail;
+    private final CustomerLanguage photographerLanguage;
 
     public ContractSignedEvent(Object source, UUID contractId, UUID tenantId, UUID bookingId,
-                               String title, String signerName, String photographerEmail) {
+                               String title, String signerName, String photographerEmail,
+                               CustomerLanguage photographerLanguage) {
         super(source);
         this.contractId = contractId;
         this.tenantId = tenantId;
@@ -34,6 +37,7 @@ public class ContractSignedEvent extends ApplicationEvent {
         this.title = title;
         this.signerName = signerName;
         this.photographerEmail = photographerEmail;
+        this.photographerLanguage = photographerLanguage;
     }
 
     public UUID getContractId() {
@@ -58,5 +62,10 @@ public class ContractSignedEvent extends ApplicationEvent {
 
     public String getPhotographerEmail() {
         return photographerEmail;
+    }
+
+    /** The language of whoever {@link #getPhotographerEmail()} is: the Notification is written in it. */
+    public CustomerLanguage getPhotographerLanguage() {
+        return photographerLanguage;
     }
 }

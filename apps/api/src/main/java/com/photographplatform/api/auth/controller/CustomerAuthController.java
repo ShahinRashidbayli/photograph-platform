@@ -7,6 +7,7 @@ import com.photographplatform.api.auth.dto.CustomerLoginCodeVerifyRequest;
 import com.photographplatform.api.auth.dto.CustomerMagicLinkRequest;
 import com.photographplatform.api.auth.service.AuthCookieWriter;
 import com.photographplatform.api.auth.service.CustomerAuthService;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.security.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -54,14 +55,18 @@ public class CustomerAuthController {
         @Valid @RequestBody CustomerMagicLinkRequest request,
         HttpServletRequest httpRequest
     ) {
+        // The page's language: the code email is read right after asking for it.
+        CustomerLanguage language = CustomerLanguage.fromCodeOrDefault(request.language());
         if (request.subdomain() == null || request.subdomain().isBlank()) {
-            service.requestLoginCodeByEmail(request.email(), request.fullName(), ClientIp.from(httpRequest));
+            service.requestLoginCodeByEmail(request.email(), request.fullName(), language,
+                ClientIp.from(httpRequest));
             return;
         }
         service.requestLoginCode(
             request.subdomain(),
             request.email(),
             request.fullName(),
+            language,
             ClientIp.from(httpRequest)
         );
     }

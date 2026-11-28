@@ -22,6 +22,7 @@ import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.auth.service.AvatarUrlResolver;
 import com.photographplatform.api.auth.service.CustomerAuthService;
 import com.photographplatform.api.booking.service.BookingQueryService;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.security.JwtService;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -123,7 +124,7 @@ class CustomerEmailLoginServiceTest {
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of(clientOfA));
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of(studioA.getId()));
 
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
 
         EmailMessage mail = sentMail();
         assertThat(mail.to()).isEqualTo(EMAIL);
@@ -140,7 +141,7 @@ class CustomerEmailLoginServiceTest {
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of(clientOfA));
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of(studioA.getId()));
 
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
 
         assertThat(sentMail().htmlBody()).contains("Lichtblick Fotografie").doesNotContain("Studio Alpha");
     }
@@ -158,7 +159,7 @@ class CustomerEmailLoginServiceTest {
             .thenReturn(List.of(studioA.getId(), studioB.getId()));
         when(userRepository.findByTenantIdAndEmail(studioB.getId(), EMAIL)).thenReturn(Optional.empty());
 
-        service.requestLoginCodeByEmail(EMAIL, "Maria Klein", IP);
+        service.requestLoginCodeByEmail(EMAIL, "Maria Klein", CustomerLanguage.EN, IP);
 
         EmailMessage mail = sentMail();
         assertThat(mail.subject()).isEqualTo("Your sign-in codes");
@@ -181,7 +182,7 @@ class CustomerEmailLoginServiceTest {
         staff.setRole("PHOTOGRAPHER");
         when(userRepository.findByTenantIdAndEmail(studioB.getId(), EMAIL)).thenReturn(Optional.of(staff));
 
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
 
         verify(tokenRepository, never()).save(any(LoginCode.class));
         assertThat(sentMail().subject()).isEqualTo("Signing in to Fotolio");
@@ -197,7 +198,7 @@ class CustomerEmailLoginServiceTest {
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of());
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of());
 
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
 
         verify(tokenRepository, never()).save(any(LoginCode.class));
         EmailMessage mail = sentMail();
@@ -212,7 +213,7 @@ class CustomerEmailLoginServiceTest {
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of());
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of());
 
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
 
         verify(rateLimiter).check(eq("login:req:email:any:" + EMAIL), anyInt(), any(), anyString());
         verify(rateLimiter).check(startsWith("login:req:ip:"), anyInt(), any(), anyString());
@@ -226,7 +227,7 @@ class CustomerEmailLoginServiceTest {
         User clientOfB = customer(studioB);
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of(clientOfA, clientOfB));
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of());
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
         String codeForB = codeFor(sentMail(), "Studio Beta");
 
         var result = service.verifyLoginCodeByEmail(EMAIL, codeForB, IP);
@@ -242,7 +243,7 @@ class CustomerEmailLoginServiceTest {
         User clientOfB = customer(studioB);
         when(userRepository.findCustomersByEmail(EMAIL)).thenReturn(List.of(clientOfA, clientOfB));
         when(bookingQueryService.tenantsWithClientEmail(EMAIL)).thenReturn(List.of());
-        service.requestLoginCodeByEmail(EMAIL, null, IP);
+        service.requestLoginCodeByEmail(EMAIL, null, CustomerLanguage.EN, IP);
         List<String> issued = codesIn(sentMail());
         String wrong = "000000";
         while (issued.contains(wrong)) {

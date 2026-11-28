@@ -160,7 +160,8 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
 
     private ResponseEntity<Void> request(String email) {
         return rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest(email, null, null), Void.class);
+            // An English sign-in page: the email follows its language.
+            new CustomerMagicLinkRequest(email, null, null, "en"), Void.class);
     }
 
     private ResponseEntity<AuthResponse> signIn(String email, String code) {
@@ -170,7 +171,7 @@ class CustomerEmailLoginIT extends IntegrationTestBase {
 
     private UUID registerPhotographer(String email, String subdomain) {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         // Registration queues a verification email; start each test's capture
         // clean. It can still land after this reset (EmailService#send is

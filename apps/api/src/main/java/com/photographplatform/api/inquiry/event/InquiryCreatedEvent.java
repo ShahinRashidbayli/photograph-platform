@@ -1,5 +1,6 @@
 package com.photographplatform.api.inquiry.event;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.context.ApplicationEvent;
@@ -25,12 +26,13 @@ public class InquiryCreatedEvent extends ApplicationEvent {
     private final String location;
     private final String score;
     private final String photographerEmail;
+    private final CustomerLanguage photographerLanguage;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public InquiryCreatedEvent(Object source, UUID inquiryId, UUID tenantId, String customerName,
                                String customerEmail, String eventType, String budgetRange,
                                LocalDate proposedDate, String location, String score,
-                               String photographerEmail) {
+                               String photographerEmail, CustomerLanguage photographerLanguage) {
         super(source);
         this.inquiryId = inquiryId;
         this.tenantId = tenantId;
@@ -42,6 +44,7 @@ public class InquiryCreatedEvent extends ApplicationEvent {
         this.location = location;
         this.score = score;
         this.photographerEmail = photographerEmail;
+        this.photographerLanguage = photographerLanguage;
     }
 
     public UUID getInquiryId() {
@@ -82,5 +85,10 @@ public class InquiryCreatedEvent extends ApplicationEvent {
 
     public String getPhotographerEmail() {
         return photographerEmail;
+    }
+
+    /** The language of whoever {@link #getPhotographerEmail()} is: the Notification is written in it. */
+    public CustomerLanguage getPhotographerLanguage() {
+        return photographerLanguage;
     }
 }

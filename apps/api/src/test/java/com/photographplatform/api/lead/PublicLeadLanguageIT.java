@@ -41,7 +41,7 @@ class PublicLeadLanguageIT extends IntegrationTestBase {
         mockRedisNoLock();
         ResponseEntity<AuthResponse> registered = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Owner", "owner@language-studio.test", TEST_PASSWORD, SUBDOMAIN,
-                "PHOTOGRAPHER", "STARTER"),
+                "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         assertThat(registered.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }

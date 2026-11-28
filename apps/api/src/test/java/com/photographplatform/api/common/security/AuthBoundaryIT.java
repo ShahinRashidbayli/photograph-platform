@@ -166,7 +166,7 @@ class AuthBoundaryIT extends IntegrationTestBase {
     private UUID registerPhotographerAndReadTenantId() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Alice", "alice@a.com", TEST_PASSWORD, "tenant-a",
-                "PHOTOGRAPHER", "STARTER"),
+                "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         ResponseEntity<AuthResponse> login = rest.postForEntity("/api/auth/login",
             new LoginRequest("alice@a.com", TEST_PASSWORD), AuthResponse.class);

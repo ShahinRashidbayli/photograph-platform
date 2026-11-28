@@ -2,6 +2,7 @@ package com.photographplatform.api.notification;
 
 import com.photographplatform.api.IntegrationTestBase;
 import com.photographplatform.api.auth.service.SignInCodeEmail;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.notification.dto.EmailMessage;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -53,7 +54,7 @@ class EmailOutboxIT extends IntegrationTestBase {
 
     private static OutgoingEmail signInCode(String to, OffsetDateTime expiresAt) {
         return new OutgoingEmail(SignInCodeEmail.TEMPLATE, to, TENANT,
-            new SignInCodeEmail.Params("Maria", "123456", 10), null, expiresAt);
+            new SignInCodeEmail.Params("Maria", "123456", 10, CustomerLanguage.EN), null, expiresAt);
     }
 
     private void queueCommitted(OutgoingEmail email) {
@@ -141,7 +142,7 @@ class EmailOutboxIT extends IntegrationTestBase {
     void theSameEmailQueuedTwiceIsDeliveredOnce() {
         doNothing().when(sender).send(any());
         OutgoingEmail alert = new OutgoingEmail(SignInCodeEmail.TEMPLATE, "owner@studio.test", TENANT,
-            new SignInCodeEmail.Params("Owner", "654321", 10), "LEAD_NOTIFICATION:42", null);
+            new SignInCodeEmail.Params("Owner", "654321", 10, CustomerLanguage.DE), "LEAD_NOTIFICATION:42", null);
         new TransactionTemplate(txManager).executeWithoutResult(status -> {
             emailService.queue(alert);
             emailService.queue(alert);

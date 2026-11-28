@@ -7,6 +7,7 @@ import com.photographplatform.api.auth.dto.MeResponse;
 import com.photographplatform.api.auth.dto.RefreshRequest;
 import com.photographplatform.api.auth.dto.RegisterRequest;
 import com.photographplatform.api.auth.dto.SubdomainAvailabilityResponse;
+import com.photographplatform.api.auth.dto.UpdateProfileRequest;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void registerLoginMeRefreshFlow() {
         // Register
         RegisterRequest reg = new RegisterRequest(
-            "Anna Foto", "anna@test.com", TEST_PASSWORD, "anna-foto", "PHOTOGRAPHER", "STARTER");
+            "Anna Foto", "anna@test.com", TEST_PASSWORD, "anna-foto", "PHOTOGRAPHER", "STARTER", null);
         ResponseEntity<AuthResponse> regResp = rest.postForEntity("/api/auth/register", reg, AuthResponse.class);
         assertThat(regResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(regResp.getBody()).isNotNull();
@@ -78,9 +79,46 @@ class AuthControllerIT extends IntegrationTestBase {
     }
 
     @Test
+    void theUiLanguageIsStoredAndFollowsEverySwitch() {
+        // Sign-up from an English page: the verification email goes out at
+        // once, so the language is stored with the account.
+        ResponseEntity<AuthResponse> regResp = rest.postForEntity("/api/auth/register",
+            new RegisterRequest("Lena", "lena@test.com", TEST_PASSWORD, "lena-foto", "PHOTOGRAPHER", null, "en"),
+            AuthResponse.class);
+        assertThat(regResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(regResp.getBody().language()).isEqualTo("en");
+        String accessToken = extractCookie(regResp, "access_token");
+
+        ResponseEntity<MeResponse> switched = rest.exchange("/api/auth/me", HttpMethod.PATCH,
+            new HttpEntity<>(new UpdateProfileRequest(null, null, null, "de"), writeHeaders(accessToken)),
+            MeResponse.class);
+        assertThat(switched.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(switched.getBody().language()).isEqualTo("de");
+
+        ResponseEntity<MeResponse> me = rest.exchange("/api/auth/me", HttpMethod.GET,
+            new HttpEntity<>(bearerHeaders(accessToken)), MeResponse.class);
+        assertThat(me.getBody().language()).isEqualTo("de");
+        assertThat(me.getBody().fullName()).isEqualTo("Lena");
+    }
+
+    @Test
+    void aSignUpWithoutALanguageIsGermanAndAnUnknownOneIsRefused() {
+        ResponseEntity<AuthResponse> regResp = rest.postForEntity("/api/auth/register",
+            new RegisterRequest("Jan", "jan@test.com", TEST_PASSWORD, "jan-foto", "PHOTOGRAPHER", null, null),
+            AuthResponse.class);
+        assertThat(regResp.getBody().language()).isEqualTo("de");
+
+        ResponseEntity<String> refused = rest.exchange("/api/auth/me", HttpMethod.PATCH,
+            new HttpEntity<>(new UpdateProfileRequest(null, null, null, "fr"),
+                writeHeaders(extractCookie(regResp, "access_token"))),
+            String.class);
+        assertThat(refused.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test
     void logoutInvalidatesRefreshToken() {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Bob", "bob@test.com", TEST_PASSWORD, "bob-foto", "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Bob", "bob@test.com", TEST_PASSWORD, "bob-foto", "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         ResponseEntity<AuthResponse> loginResp = rest.postForEntity("/api/auth/login",
             new LoginRequest("bob@test.com", TEST_PASSWORD), AuthResponse.class);
@@ -111,11 +149,11 @@ class AuthControllerIT extends IntegrationTestBase {
     void duplicateSubdomainReturns409() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("User One", "one@test.com", TEST_PASSWORD,
-                "my-studio", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
+                "my-studio", "PHOTOGRAPHER", "STARTER", null), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("User Two", "two@test.com", TEST_PASSWORD,
-                "my-studio", "PHOTOGRAPHER", "STARTER"), String.class);
+                "my-studio", "PHOTOGRAPHER", "STARTER", null), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -123,11 +161,11 @@ class AuthControllerIT extends IntegrationTestBase {
     void duplicateEmailReturns409() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Eve One", "eve@test.com", TEST_PASSWORD,
-                "eve-one", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
+                "eve-one", "PHOTOGRAPHER", "STARTER", null), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Eve Two", "eve@test.com", TEST_PASSWORD,
-                "eve-two", "PHOTOGRAPHER", "STARTER"), String.class);
+                "eve-two", "PHOTOGRAPHER", "STARTER", null), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -142,7 +180,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void reservedSubdomainIsRejectedAsUnprocessable() {
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Sneaky", "sneaky@test.com", TEST_PASSWORD,
-                "admin", "PHOTOGRAPHER", "STARTER"), String.class);
+                "admin", "PHOTOGRAPHER", "STARTER", null), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
@@ -156,7 +194,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void wrongPasswordReturns401() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Carol", "carol@test.com", TEST_PASSWORD,
-                "carol-foto", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
+                "carol-foto", "PHOTOGRAPHER", "STARTER", null), AuthResponse.class);
 
         ResponseEntity<String> resp = rest.postForEntity("/api/auth/login",
             new LoginRequest("carol@test.com", "wrongpassword"), String.class);
@@ -176,7 +214,7 @@ class AuthControllerIT extends IntegrationTestBase {
     void lockedOutLoginIsAnsweredAsRateLimitedWithTheRemainingWait() {
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Lock Ed", "locked@test.com", TEST_PASSWORD,
-                "locked-foto", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
+                "locked-foto", "PHOTOGRAPHER", "STARTER", null), AuthResponse.class);
 
         lockEmail("locked@test.com", 300L);
 
@@ -247,7 +285,7 @@ class AuthControllerIT extends IntegrationTestBase {
 
         rest.postForEntity("/api/auth/register",
             new RegisterRequest("Anna Foto", "avail@test.com", TEST_PASSWORD,
-                "anna-foto", "PHOTOGRAPHER", "STARTER"), AuthResponse.class);
+                "anna-foto", "PHOTOGRAPHER", "STARTER", null), AuthResponse.class);
 
         ResponseEntity<SubdomainAvailabilityResponse> taken = rest.getForEntity(
             "/api/auth/subdomain-available?subdomain=anna-foto",
@@ -318,6 +356,14 @@ class AuthControllerIT extends IntegrationTestBase {
         String lockKey = "login:lock:email:" + email;
         when(redisTemplate.hasKey(lockKey)).thenReturn(true);
         when(redisTemplate.getExpire(lockKey, TimeUnit.SECONDS)).thenReturn(remainingSeconds);
+    }
+
+    /** A write needs the CSRF double-submit pair as well as the token. */
+    private HttpHeaders writeHeaders(String token) {
+        HttpHeaders h = bearerHeaders(token);
+        h.add(HttpHeaders.COOKIE, "XSRF-TOKEN=test-csrf-token");
+        h.add("X-XSRF-TOKEN", "test-csrf-token");
+        return h;
     }
 
     private HttpHeaders bearerHeaders(String token) {

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { TranslationKey } from '@/lib/i18n';
 import { useAuthStore, type AuthUser } from '@/store/authStore';
+import { useLangStore, type Lang } from '@/store/langStore';
 
 /**
  * Sessions, sign-up and the signed-in account.
@@ -74,11 +75,20 @@ export interface RegisterInput {
   plan: string | null;
 }
 
+/**
+ * Sends the page's language with the sign-up: the verification email goes out
+ * straight away, written in it.
+ */
 export function useRegister() {
   const signedIn = useSignedIn();
   return useMutation({
     mutationFn: async (input: RegisterInput) =>
-      (await api.post<AuthUser>('/api/auth/register', input)).data,
+      (
+        await api.post<AuthUser>('/api/auth/register', {
+          ...input,
+          language: useLangStore.getState().lang,
+        })
+      ).data,
     onSuccess: signedIn,
   });
 }
@@ -193,13 +203,19 @@ export function useAcceptInvitation() {
   });
 }
 
-/** A client's sign-in code, mailed. Used for the first request and every resend. */
+/**
+ * A client's sign-in code, mailed. Used for the first request and every resend.
+ * The email is written in the page's language, sent along.
+ */
 export function useRequestLoginCode() {
   return useMutation({
     // Without a subdomain the server finds the studios that know the address
     // and emails a code for each (sign-in by email).
     mutationFn: (input: { email: string; subdomain: string | null; fullName: string | null }) =>
-      api.post('/api/auth/customer/login-code/request', input),
+      api.post('/api/auth/customer/login-code/request', {
+        ...input,
+        language: useLangStore.getState().lang,
+      }),
   });
 }
 
@@ -222,8 +238,12 @@ export function useUpdateProfile() {
   const qc = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
   return useMutation({
-    mutationFn: async (input: { fullName?: string; subdomain?: string; avatarUrl?: string }) =>
-      (await api.patch<AuthUser>('/api/auth/me', input)).data,
+    mutationFn: async (input: {
+      fullName?: string;
+      subdomain?: string;
+      avatarUrl?: string;
+      language?: Lang;
+    }) => (await api.patch<AuthUser>('/api/auth/me', input)).data,
     onSuccess: (user) => {
       setUser(user);
       qc.setQueryData(sessionUserKey(), user);

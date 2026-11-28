@@ -1,8 +1,12 @@
 package com.photographplatform.api.notification.email;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.util.HtmlEscape;
 import java.time.Year;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The single source of truth for what a Fotolio email looks like. Produces
@@ -13,7 +17,7 @@ import java.util.List;
  *
  * <p>Callers compose a body from the block helpers ({@link #heading},
  * {@link #paragraph}, {@link #button}, {@link #infoTable}, {@link #badge},
- * {@link #note}) and wrap it once with {@link #document(String, String)}. The
+ * {@link #note}) and wrap it once with {@link #document}. The
  * block helpers escape plain-text arguments; the ones documented as accepting
  * inline HTML ({@code paragraph}, {@code note}) leave markup intact, so the
  * caller must escape any user-supplied value it interpolates.
@@ -155,28 +159,53 @@ public final class EmailTemplate {
     // ── document shell ──────────────────────────────────────────────────────
 
     /**
-     * Wraps a composed body in the full branded, client-safe document. The
-     * {@code preheader} is the inbox preview snippet (kept out of the visible
-     * body).
+     * "Hallo Anna," / "Hi Anna,", or a neutral "Hallo," / "Hi," when there is
+     * no name to use.
+     *
+     * <p>A name that is an email address counts as none: some accounts carry
+     * their address as the name, and "Hi kunde.anna@…" reads like a machine
+     * wrote it (#126).
      */
-    public static String document(String preheader, String bodyHtml) {
-        return document(preheader, bodyHtml, "en");
+    public static String greeting(CustomerLanguage language, String name) {
+        String hello = language == CustomerLanguage.EN ? "Hi" : "Hallo";
+        String person = name == null ? "" : name.strip();
+        if (person.isEmpty() || person.contains("@")) {
+            return paragraph(hello + ",");
+        }
+        return paragraph(hello + " " + esc(person) + ",");
     }
 
-    /** As {@link #document(String, String)} with an explicit content language (e.g. {@code "de"}). */
-    public static String document(String preheader, String bodyHtml, String lang) {
-        return SHELL
-            .replace("{{LANG}}", esc(lang))
-            .replace("{{PREHEADER}}", esc(preheader))
-            .replace("{{YEAR}}", String.valueOf(Year.now().getValue()))
-            .replace("{{BODY}}", bodyHtml);
+    /**
+     * Wraps a composed body in the full branded, client-safe document.
+     *
+     * @param preheader the inbox preview snippet, kept out of the visible body
+     * @param language  the reader's; sets {@code <html lang>} and the footer.
+     *                  Null is {@link CustomerLanguage#DEFAULT}: a job queued
+     *                  before the email had a language carries none.
+     */
+    public static String document(String preheader, String bodyHtml, CustomerLanguage language) {
+        CustomerLanguage lang = language == null ? CustomerLanguage.DEFAULT : language;
+        Map<String, String> values = Map.of(
+            "LANG", lang.code(),
+            "PREHEADER", esc(preheader),
+            "FOOTER", lang == CustomerLanguage.EN
+                ? "Sent by Fotolio because you have an account or contacted a photographer here."
+                : "Von Fotolio gesendet, weil Sie hier ein Konto haben oder ein Fotostudio kontaktiert haben.",
+            "YEAR", String.valueOf(Year.now().getValue()),
+            "BODY", bodyHtml);
+        // One pass over the shell, as in CustomerMessageLayout: a value is never
+        // scanned for placeholders, so a preheader naming "{{BODY}}" stays text.
+        return PLACEHOLDER.matcher(SHELL)
+            .replaceAll(m -> Matcher.quoteReplacement(values.get(m.group(1))));
     }
 
     private static String esc(String value) {
         return value == null ? "" : HtmlEscape.escape(value);
     }
 
-    // Placeholders are replaced literally (String.replace), so the body may
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(LANG|PREHEADER|FOOTER|YEAR|BODY)}}");
+
+    // Placeholders are filled in one pass (see document), so the body may
     // contain any characters without format-specifier hazards.
     private static final String SHELL = """
         <!DOCTYPE html>
@@ -239,7 +268,7 @@ public final class EmailTemplate {
                       <td style="padding:22px 16px 8px;text-align:center;">
                         <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;\
         font-size:12px;line-height:1.6;color:#94A3B8;">
-                          Sent by Fotolio because you have an account or contacted a photographer here.
+                          {{FOOTER}}
                         </p>
                         <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;\
         font-size:12px;line-height:1.6;color:#CBD5E1;">

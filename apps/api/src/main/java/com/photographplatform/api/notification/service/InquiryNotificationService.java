@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.inquiry.event.InquiryCreatedEvent;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -26,12 +27,17 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * actually pulls them back into the app.
  *
  * <p>Sibling of {@link LeadNotificationService} — same shape, different intake
- * path (authenticated customer rather than anonymous form).
+ * path (authenticated customer rather than anonymous form). Written in the
+ * recipient's language (#126).
  */
 @Service
 public class InquiryNotificationService implements EmailRenderer<InquiryNotificationService.Params> {
 
-    /** The inquiry as the alert shows it; everything is on the event already. */
+    /**
+     * The inquiry as the Notification shows it; everything is on the event.
+     *
+     * @param language the recipient's; null (a job queued before it existed) is German
+     */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public record Params(
         UUID inquiryId,
@@ -41,10 +47,8 @@ public class InquiryNotificationService implements EmailRenderer<InquiryNotifica
         String eventType,
         String budgetRange,
         LocalDate proposedDate,
-        String location) {}
-
-    private static final DateTimeFormatter DATE_FORMAT =
-        DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+        String location,
+        CustomerLanguage language) {}
 
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
@@ -64,7 +68,7 @@ public class InquiryNotificationService implements EmailRenderer<InquiryNotifica
             event.getTenantId(),
             new Params(event.getInquiryId(), event.getScore(), event.getCustomerName(),
                 event.getCustomerEmail(), event.getEventType(), event.getBudgetRange(),
-                event.getProposedDate(), event.getLocation()),
+                event.getProposedDate(), event.getLocation(), event.getPhotographerLanguage()),
             EmailType.INQUIRY_NOTIFICATION + ":" + event.getInquiryId(),
             null));
     }
@@ -86,37 +90,39 @@ public class InquiryNotificationService implements EmailRenderer<InquiryNotifica
 
     @Override
     public RenderedEmail render(Params params) {
-        return new RenderedEmail(buildSubject(params), buildBody(params));
+        Copy copy = params.language() == CustomerLanguage.EN ? Copy.EN : Copy.DE;
+        return new RenderedEmail(buildSubject(copy, params), buildBody(copy, params));
     }
 
-    private String buildSubject(Params event) {
+    private static String buildSubject(Copy copy, Params event) {
         String prefix = switch (event.score()) {
-            case "HIGH" -> "🟢 New high-value request";
-            case "MED" -> "🟡 New request";
-            default -> "New request";
+            case "HIGH" -> "🟢 " + copy.subjectHigh;
+            case "MED" -> "🟡 " + copy.subject;
+            default -> copy.subject;
         };
         return prefix + " — " + event.customerName();
     }
 
-    private String buildBody(Params event) {
+    private String buildBody(Copy copy, Params event) {
         // EmailTemplate escapes every value it renders, so the customer-supplied
         // fields are passed through raw here rather than double-escaped.
         String email = event.customerEmail();
         return EmailTemplate.document(
-            "New " + event.score() + " request — " + event.customerName(),
-            EmailTemplate.badge(event.score(), toneFor(event.score()))
-                + EmailTemplate.heading("New session request")
+            copy.subject + " — " + event.customerName(),
+            EmailTemplate.badge(scoreLabel(copy, event.score()), toneFor(event.score()))
+                + EmailTemplate.heading(copy.heading)
                 + EmailTemplate.infoTable(List.of(
-                    new EmailTemplate.Row("From", event.customerName()),
-                    new EmailTemplate.Row("Email", email, "mailto:" + email),
-                    new EmailTemplate.Row("Session", prettyEventType(event.eventType())),
-                    new EmailTemplate.Row("Budget", prettyBudget(event.budgetRange())),
-                    new EmailTemplate.Row("Preferred date",
-                        event.proposedDate() == null ? "—" : DATE_FORMAT.format(event.proposedDate())),
-                    new EmailTemplate.Row("Location",
+                    new EmailTemplate.Row(copy.from, event.customerName()),
+                    new EmailTemplate.Row(copy.email, email, "mailto:" + email),
+                    new EmailTemplate.Row(copy.session, eventTypeLabel(copy, event.eventType())),
+                    new EmailTemplate.Row(copy.budget, prettyBudget(event.budgetRange())),
+                    new EmailTemplate.Row(copy.preferredDate,
+                        event.proposedDate() == null ? "—" : copy.dateFormat.format(event.proposedDate())),
+                    new EmailTemplate.Row(copy.location,
                         event.location() == null ? "—" : event.location())))
-                + EmailTemplate.button("Open in dashboard", webBaseUrl + "/leads")
-                + EmailTemplate.note("Request ID: " + event.inquiryId()));
+                + EmailTemplate.button(copy.button, webBaseUrl + "/leads")
+                + EmailTemplate.note(copy.requestId + event.inquiryId()),
+            event.language());
     }
 
     private static Tone toneFor(String score) {
@@ -127,18 +133,28 @@ public class InquiryNotificationService implements EmailRenderer<InquiryNotifica
         };
     }
 
+    private static String scoreLabel(Copy copy, String score) {
+        return switch (score) {
+            case "HIGH" -> copy.high;
+            case "MED" -> copy.medium;
+            case "LOW" -> copy.low;
+            default -> score;
+        };
+    }
+
     /**
-     * The wire enums are the roadmap's German-facing values; the photographer
-     * reads an English dashboard, so the email speaks the dashboard's language.
+     * The wire values are the roadmap's German ones; the web app names them
+     * per language ({@code requestSession.type.*}), and so does the email.
      * Unmapped values fall through raw (EmailTemplate escapes on render).
      */
-    private static String prettyEventType(String eventType) {
+    private static String eventTypeLabel(Copy copy, String eventType) {
+        boolean en = copy == Copy.EN;
         return switch (eventType == null ? "" : eventType) {
-            case "HOCHZEIT" -> "Wedding";
+            case "HOCHZEIT" -> en ? "Wedding" : "Hochzeit";
             case "PORTRAIT" -> "Portrait";
-            case "FAMILIE" -> "Family";
+            case "FAMILIE" -> en ? "Family" : "Familie";
             case "EVENT" -> "Event";
-            case "ANDERES" -> "Other";
+            case "ANDERES" -> en ? "Other" : "Sonstiges";
             default -> eventType == null ? "" : eventType;
         };
     }
@@ -151,5 +167,53 @@ public class InquiryNotificationService implements EmailRenderer<InquiryNotifica
             case "OVER_2000" -> "€2000+";
             default -> budgetRange == null ? "" : budgetRange;
         };
+    }
+
+    private enum Copy {
+        DE(DateTimeFormatter.ofPattern("d. MMMM yyyy", Locale.GERMAN),
+            "Neue Anfrage", "Neue Anfrage mit hoher Priorität", "Neue Shooting-Anfrage",
+            "Von", "E-Mail", "Shooting", "Budget", "Wunschtermin", "Ort", "Im Dashboard öffnen",
+            "Anfrage-ID: ", "Hohe Priorität", "Mittlere Priorität", "Niedrige Priorität"),
+        EN(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH),
+            "New request", "New high-value request", "New session request",
+            "From", "Email", "Session", "Budget", "Preferred date", "Location", "Open in dashboard",
+            "Request ID: ", "High priority", "Medium priority", "Low priority");
+
+        private final DateTimeFormatter dateFormat;
+        private final String subject;
+        private final String subjectHigh;
+        private final String heading;
+        private final String from;
+        private final String email;
+        private final String session;
+        private final String budget;
+        private final String preferredDate;
+        private final String location;
+        private final String button;
+        private final String requestId;
+        private final String high;
+        private final String medium;
+        private final String low;
+
+        @SuppressWarnings("checkstyle:ParameterNumber")
+        Copy(DateTimeFormatter dateFormat, String subject, String subjectHigh, String heading, String from,
+             String email, String session, String budget, String preferredDate, String location, String button,
+             String requestId, String high, String medium, String low) {
+            this.dateFormat = dateFormat;
+            this.subject = subject;
+            this.subjectHigh = subjectHigh;
+            this.heading = heading;
+            this.from = from;
+            this.email = email;
+            this.session = session;
+            this.budget = budget;
+            this.preferredDate = preferredDate;
+            this.location = location;
+            this.button = button;
+            this.requestId = requestId;
+            this.high = high;
+            this.medium = medium;
+            this.low = low;
+        }
     }
 }

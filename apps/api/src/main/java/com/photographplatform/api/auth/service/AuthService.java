@@ -15,6 +15,7 @@ import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.billing.config.BillingProperties;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.exception.UnauthorizedException;
@@ -192,6 +193,8 @@ public class AuthService {
         // way a staff row appears is accepting an invitation, which joins an
         // existing studio as a MEMBER — see StaffInvitationService.
         user.setStaffRole(StaffRole.OWNER);
+        // Before the verification email below, which is written in it.
+        user.setLanguage(CustomerLanguage.fromCodeOrDefault(req.language()));
         userRepository.save(user);
 
         // Best-effort: issue + send verification email. Persistence failures
@@ -462,6 +465,11 @@ public class AuthService {
             userRepository.save(user);
         }
 
+        if (req.language() != null) {
+            user.setLanguage(CustomerLanguage.fromCode(req.language()));
+            userRepository.save(user);
+        }
+
         return toMeResponse(user, tenant);
     }
 
@@ -470,7 +478,8 @@ public class AuthService {
             user.getId(), user.getEmail(), user.getFullName(), user.getRole(),
             user.isEmailVerified(),
             new MeResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
-            avatarUrlResolver.resolve(user.getAvatarUrl())
+            avatarUrlResolver.resolve(user.getAvatarUrl()),
+            user.getLanguage().code()
         );
     }
 
@@ -495,7 +504,8 @@ public class AuthService {
             user.getRole(),
             user.isEmailVerified(),
             new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
-            avatarUrlResolver.resolve(user.getAvatarUrl())
+            avatarUrlResolver.resolve(user.getAvatarUrl()),
+            user.getLanguage().code()
         );
         return new AuthResult(response, accessToken, rawRefresh);
     }

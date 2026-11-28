@@ -3,6 +3,7 @@ package com.photographplatform.api.inquiry;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.config.TenantContext;
 import com.photographplatform.api.common.exception.ConflictException;
@@ -70,7 +71,7 @@ class InquiryTriageServiceTest {
 
         service = new InquiryRequestService(inquiryRepository, userRepository, tenantRepository,
             auditService, eventPublisher, rateLimiter, bookingConversionService,
-            java.time.Clock.systemUTC());
+            java.time.Clock.systemUTC(), new StudioOwnerLanguage(userRepository));
 
         customer = mock(User.class);
         when(customer.getFullName()).thenReturn("Maria Kellner");

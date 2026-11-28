@@ -3,6 +3,7 @@ package com.photographplatform.api.lead.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.security.SecurityUtils;
 import com.photographplatform.api.common.exception.ConflictException;
@@ -61,16 +62,19 @@ public class LeadService {
     private final UserRepository userRepository;
     private final LeadScoringService leadScoringService;
     private final LeadResponseMapper mapper;
+    private final StudioOwnerLanguage studioOwnerLanguage;
 
     public LeadService(LeadRepository leadRepository, ApplicationEventPublisher eventPublisher,
                        AuditService auditService, UserRepository userRepository,
-                       LeadScoringService leadScoringService, LeadResponseMapper mapper) {
+                       LeadScoringService leadScoringService, LeadResponseMapper mapper,
+                       StudioOwnerLanguage studioOwnerLanguage) {
         this.leadRepository = leadRepository;
         this.eventPublisher = eventPublisher;
         this.auditService = auditService;
         this.userRepository = userRepository;
         this.leadScoringService = leadScoringService;
         this.mapper = mapper;
+        this.studioOwnerLanguage = studioOwnerLanguage;
     }
 
     /**
@@ -304,7 +308,7 @@ public class LeadService {
         // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
             LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                saved.getLanguage(), actor.getEmail())
+                details(saved), saved.getLanguage(), actor.getEmail(), actor.getLanguage())
         );
 
         return mapper.toResponse(saved);
@@ -335,11 +339,16 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                saved.getLanguage(), tenant.getOwnerEmail())
+                details(saved), saved.getLanguage(), tenant.getOwnerEmail(), studioOwnerLanguage.of(tenant))
         );
 
         return mapper.toResponse(saved);
     }
+
+    private static LeadCreatedEvent.Details details(Lead lead) {
+        return new LeadCreatedEvent.Details(lead.getEventDate(), lead.getEventType(), lead.getMessage());
+    }
+
 
     /**
      * The photographer's lead list, optionally filtered by score and status.

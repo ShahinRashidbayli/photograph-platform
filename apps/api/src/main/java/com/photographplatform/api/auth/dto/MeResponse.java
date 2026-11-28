@@ -10,7 +10,9 @@ public record MeResponse(
     String role,
     boolean emailVerified,
     TenantInfo tenant,
-    String avatarUrl
+    String avatarUrl,
+    /** The UI language emails to this user are written in: {@code de} or {@code en}. */
+    String language
 ) {
     public record TenantInfo(String subdomain, String plan) {
     }

@@ -3,6 +3,7 @@ package com.photographplatform.api.lead;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.lead.domain.Lead;
 import com.photographplatform.api.lead.dto.CreateLeadRequest;
@@ -48,7 +49,8 @@ class LeadServiceCreateLeadTest {
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final LeadService service = new LeadService(leadRepository, events, mock(AuditService.class),
-        userRepository, mock(LeadScoringService.class), mock(LeadResponseMapper.class));
+        userRepository, mock(LeadScoringService.class), mock(LeadResponseMapper.class),
+        new StudioOwnerLanguage(userRepository));
 
     LeadServiceCreateLeadTest() {
         when(leadRepository.save(any(Lead.class))).thenAnswer(i -> i.getArgument(0));
@@ -78,6 +80,30 @@ class LeadServiceCreateLeadTest {
         assertThat(event.getOrigin()).isEqualTo(LeadCreatedEvent.Origin.PUBLIC_FORM);
         assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.EN);
         assertThat(event.getPhotographerEmail()).isEqualTo("anna@example.test");
+    }
+
+    @Test
+    void aPublicLeadsAlertIsInTheOwnersLanguageAndCarriesTheDetails() {
+        Tenant tenant = new Tenant("anna-foto", "anna@example.test");
+        User owner = mock(User.class);
+        when(owner.getLanguage()).thenReturn(CustomerLanguage.EN);
+        when(userRepository.findByTenantIdAndEmail(tenant.getId(), "anna@example.test"))
+            .thenReturn(Optional.of(owner));
+
+        service.createLead(withLanguage("de"), tenant, "203.0.113.7");
+
+        LeadCreatedEvent event = published();
+        assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.DE);
+        assertThat(event.getPhotographerLanguage()).isEqualTo(CustomerLanguage.EN);
+        assertThat(event.getEventDate()).isEqualTo(LocalDate.of(2027, 6, 12));
+        assertThat(event.getEventType()).isEqualTo("FAMILY");
+    }
+
+    @Test
+    void anOwnerAddressWithoutAnAccountGetsTheAlertInGerman() {
+        service.createLead(REQUEST, new Tenant("anna-foto", "anna@example.test"), "203.0.113.7");
+
+        assertThat(published().getPhotographerLanguage()).isEqualTo(CustomerLanguage.DE);
     }
 
     @Test
@@ -121,6 +147,7 @@ class LeadServiceCreateLeadTest {
         User actor = mock(User.class);
         when(actor.getTenantId()).thenReturn(UUID.randomUUID());
         when(actor.getEmail()).thenReturn("anna@example.test");
+        when(actor.getLanguage()).thenReturn(CustomerLanguage.EN);
         when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(actorId.toString(), null));

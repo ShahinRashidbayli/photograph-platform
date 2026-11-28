@@ -134,7 +134,7 @@ class ClientDirectoryIT extends IntegrationTestBase {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String email = "owner-" + suffix + "@example.test";
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Anna", email, TEST_PASSWORD, "studio-" + suffix, "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Anna", email, TEST_PASSWORD, "studio-" + suffix, "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         ResponseEntity<AuthResponse> login = rest.postForEntity("/api/auth/login",
             new LoginRequest(email, TEST_PASSWORD), AuthResponse.class);

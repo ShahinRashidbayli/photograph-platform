@@ -3,6 +3,7 @@ package com.photographplatform.api.inquiry.service;
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.UserRepository;
+import com.photographplatform.api.auth.service.StudioOwnerLanguage;
 import com.photographplatform.api.booking.service.BookingConversionService;
 import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.ConflictException;
@@ -91,6 +92,7 @@ public class InquiryRequestService {
     private final RateLimiter rateLimiter;
     private final BookingConversionService bookingConversionService;
     private final Clock clock;
+    private final StudioOwnerLanguage studioOwnerLanguage;
 
     public InquiryRequestService(InquiryRequestRepository inquiryRepository,
                                  UserRepository userRepository,
@@ -99,7 +101,8 @@ public class InquiryRequestService {
                                  ApplicationEventPublisher eventPublisher,
                                  RateLimiter rateLimiter,
                                  BookingConversionService bookingConversionService,
-                                 Clock clock) {
+                                 Clock clock,
+                                 StudioOwnerLanguage studioOwnerLanguage) {
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
@@ -108,6 +111,7 @@ public class InquiryRequestService {
         this.rateLimiter = rateLimiter;
         this.bookingConversionService = bookingConversionService;
         this.clock = clock;
+        this.studioOwnerLanguage = studioOwnerLanguage;
     }
 
     /**
@@ -163,7 +167,9 @@ public class InquiryRequestService {
             saved.getProposedDate(),
             saved.getLocation(),
             score,
-            tenant.getOwnerEmail()
+            tenant.getOwnerEmail(),
+            // The Notification's recipient is the owner address; its account's language.
+            studioOwnerLanguage.of(tenant)
         ));
 
         return toResponse(saved, customer);

@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { PaymentReturnNotice } from '@/components/PaymentReturnNotice';
+import { LanguageSync } from '@/components/LanguageSync';
 import { UserAvatar } from '@/components/UserAvatar';
 import { FotolioLogo } from '@/components/FotolioLogo';
 import { AccountLockNotice } from '@/components/AccountLockNotice';
@@ -539,6 +540,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
       )}
 
       <EmailVerifyToast />
+      <LanguageSync />
     </div>
   );
 }

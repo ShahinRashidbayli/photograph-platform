@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Lang } from '@/store/langStore';
 
 export interface AuthUser {
   id: string;
@@ -8,6 +9,8 @@ export interface AuthUser {
   emailVerified: boolean;
   tenant: { subdomain: string; plan: string };
   avatarUrl?: string | null;
+  /** The UI language the emails Fotolio sends this user are written in. */
+  language?: Lang;
 }
 
 interface AuthState {

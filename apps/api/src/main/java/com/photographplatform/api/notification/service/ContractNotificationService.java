@@ -1,5 +1,6 @@
 package com.photographplatform.api.notification.service;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.contract.event.ContractSignedEvent;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.dto.OutgoingEmail;
@@ -26,7 +27,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Service
 public class ContractNotificationService implements EmailRenderer<ContractNotificationService.Params> {
 
-    public record Params(UUID contractId, UUID bookingId, String title, String signerName) {}
+    /** @param language the recipient's; null (a job queued before it existed) is German */
+    public record Params(UUID contractId, UUID bookingId, String title, String signerName,
+                         CustomerLanguage language) {}
 
     @Value("${app.web.base-url:http://localhost:3000}")
     private String webBaseUrl;
@@ -44,7 +47,8 @@ public class ContractNotificationService implements EmailRenderer<ContractNotifi
             template(),
             event.getPhotographerEmail(),
             event.getTenantId(),
-            new Params(event.getContractId(), event.getBookingId(), event.getTitle(), event.getSignerName()),
+            new Params(event.getContractId(), event.getBookingId(), event.getTitle(), event.getSignerName(),
+                event.getPhotographerLanguage()),
             EmailType.CONTRACT_SIGNED + ":" + event.getContractId(),
             null));
     }
@@ -66,24 +70,52 @@ public class ContractNotificationService implements EmailRenderer<ContractNotifi
 
     @Override
     public RenderedEmail render(Params params) {
-        return new RenderedEmail("✍️ Contract signed — " + params.title(), buildBody(params));
+        Copy copy = params.language() == CustomerLanguage.EN ? Copy.EN : Copy.DE;
+        return new RenderedEmail("✍️ " + copy.subject + " — " + params.title(), buildBody(copy, params));
     }
 
-    private String buildBody(Params event) {
+    private String buildBody(Copy copy, Params event) {
         // The signer's typed name is customer input; EmailTemplate escapes
         // everything it renders, so it is passed through raw rather than
         // double-escaped — same as the lead notifier.
         return EmailTemplate.document(
-            "Contract signed — " + event.title(),
-            EmailTemplate.badge("SIGNED", Tone.SUCCESS)
-                + EmailTemplate.heading("Your contract was signed")
+            copy.subject + " — " + event.title(),
+            EmailTemplate.badge(copy.badge, Tone.SUCCESS)
+                + EmailTemplate.heading(copy.heading)
                 + EmailTemplate.infoTable(List.of(
-                    new EmailTemplate.Row("Contract", event.title()),
-                    new EmailTemplate.Row("Signed by", event.signerName())))
+                    new EmailTemplate.Row(copy.contract, event.title()),
+                    new EmailTemplate.Row(copy.signedBy, event.signerName())))
                 // The booking detail is the list with ?id=; there is no
                 // /bookings/{id} page, and that link landed on a 404 (#104).
-                + EmailTemplate.button("Open the booking",
+                + EmailTemplate.button(copy.button,
                     webBaseUrl.replaceAll("/+$", "") + "/bookings?id=" + event.bookingId())
-                + EmailTemplate.note("Contract ID: " + event.contractId()));
+                + EmailTemplate.note(copy.contractId + event.contractId()),
+            event.language());
+    }
+
+    private enum Copy {
+        DE("Vertrag unterschrieben", "Unterzeichnet", "Ihr Vertrag wurde unterschrieben", "Vertrag",
+            "Unterschrieben von", "Buchung öffnen", "Vertrags-ID: "),
+        EN("Contract signed", "Signed", "Your contract was signed", "Contract", "Signed by",
+            "Open the booking", "Contract ID: ");
+
+        private final String subject;
+        private final String badge;
+        private final String heading;
+        private final String contract;
+        private final String signedBy;
+        private final String button;
+        private final String contractId;
+
+        Copy(String subject, String badge, String heading, String contract, String signedBy, String button,
+             String contractId) {
+            this.subject = subject;
+            this.badge = badge;
+            this.heading = heading;
+            this.contract = contract;
+            this.signedBy = signedBy;
+            this.button = button;
+            this.contractId = contractId;
+        }
     }
 }

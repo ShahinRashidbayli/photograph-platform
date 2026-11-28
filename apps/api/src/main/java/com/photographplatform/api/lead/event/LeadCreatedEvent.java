@@ -42,10 +42,10 @@ public final class LeadCreatedEvent extends ApplicationEvent {
      * <p>No studio name: {@code messaging} resolves who is speaking itself, at
      * queue time, the same way for every Customer message.
      *
-     * @param details       what the Customer asked for, shown in the "New lead" alert
+     * @param details       what the Customer asked for, shown in the "New lead" Notification
      * @param language      the form's UI language, which the Customer reads
-     * @param ownerEmail    where the "New lead" alert goes
-     * @param ownerLanguage the owner's UI language, which the alert is written in
+     * @param ownerEmail    where the "New lead" Notification goes
+     * @param ownerLanguage the owner's UI language, which the Notification is written in
      */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public static LeadCreatedEvent fromPublicForm(Object source, UUID leadId, UUID tenantId, String clientName,
@@ -142,7 +142,7 @@ public final class LeadCreatedEvent extends ApplicationEvent {
         return photographerEmail;
     }
 
-    /** The language of whoever {@link #getPhotographerEmail()} is: the alert is written in it. */
+    /** The language of whoever {@link #getPhotographerEmail()} is: the Notification is written in it. */
     public CustomerLanguage getPhotographerLanguage() {
         return photographerLanguage;
     }

@@ -346,7 +346,7 @@ public class LeadService {
     }
 
     /**
-     * The language of whoever the "New lead" alert goes to: the account behind
+     * The language of whoever the "New lead" Notification goes to: the account behind
      * the studio's owner address. A studio whose owner address has no account
      * (none should) gets German.
      */

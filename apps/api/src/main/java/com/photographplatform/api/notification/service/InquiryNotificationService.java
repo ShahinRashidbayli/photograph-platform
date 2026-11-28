@@ -34,7 +34,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class InquiryNotificationService implements EmailRenderer<InquiryNotificationService.Params> {
 
     /**
-     * The inquiry as the alert shows it; everything is on the event.
+     * The inquiry as the Notification shows it; everything is on the event.
      *
      * @param language the recipient's; null (a job queued before it existed) is German
      */

@@ -36,7 +36,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class LeadNotificationService implements EmailRenderer<LeadNotificationService.Params> {
 
     /**
-     * What the alert needs; all of it is on the event.
+     * What the Notification needs; all of it is on the event.
      *
      * @param eventType the form's value ({@code WEDDING}…); an unknown one is shown as is
      * @param message   the Customer's free text, may be null

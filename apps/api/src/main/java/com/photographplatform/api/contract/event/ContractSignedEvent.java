@@ -64,7 +64,7 @@ public class ContractSignedEvent extends ApplicationEvent {
         return photographerEmail;
     }
 
-    /** The language of whoever {@link #getPhotographerEmail()} is: the alert is written in it. */
+    /** The language of whoever {@link #getPhotographerEmail()} is: the Notification is written in it. */
     public CustomerLanguage getPhotographerLanguage() {
         return photographerLanguage;
     }

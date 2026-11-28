@@ -164,7 +164,7 @@ public class InquiryRequestService {
             saved.getLocation(),
             score,
             tenant.getOwnerEmail(),
-            // The alert's recipient is the owner address; its account's language.
+            // The Notification's recipient is the owner address; its account's language.
             userRepository.findByTenantIdAndEmail(tenantId, tenant.getOwnerEmail())
                 .map(User::getLanguage)
                 .orElse(CustomerLanguage.DEFAULT)

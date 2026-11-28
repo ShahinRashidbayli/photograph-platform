@@ -1,7 +1,7 @@
 package com.photographplatform.api.notification.service;
 
-import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailRenderer;

@@ -36,6 +36,15 @@ public final class ErrorCode {
     /** Hand-rolled input validation in a service rejected the request. */
     public static final String INVALID_REQUEST = "INVALID_REQUEST";
 
+    /**
+     * The request could not be read: a body that is not JSON or not in a
+     * content type the endpoint reads, a value of the wrong type for its field
+     * or parameter, a missing required parameter. 400 (415 for the content
+     * type), where {@link #VALIDATION_FAILED} and {@link #INVALID_REQUEST} are
+     * 422: those requests were read and broke a rule.
+     */
+    public static final String MALFORMED_REQUEST = "MALFORMED_REQUEST";
+
     /** The request is valid but conflicts with current state. */
     public static final String CONFLICT = "CONFLICT";
 

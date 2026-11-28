@@ -163,7 +163,11 @@ public class InquiryRequestService {
             saved.getProposedDate(),
             saved.getLocation(),
             score,
-            tenant.getOwnerEmail()
+            tenant.getOwnerEmail(),
+            // The alert's recipient is the owner address; its account's language.
+            userRepository.findByTenantIdAndEmail(tenantId, tenant.getOwnerEmail())
+                .map(User::getLanguage)
+                .orElse(CustomerLanguage.DEFAULT)
         ));
 
         return toResponse(saved, customer);

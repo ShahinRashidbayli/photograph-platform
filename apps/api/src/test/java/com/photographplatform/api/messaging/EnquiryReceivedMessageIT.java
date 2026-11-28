@@ -185,13 +185,16 @@ class EnquiryReceivedMessageIT extends IntegrationTestBase {
             tenant.getId());
     }
 
+    private static final LeadCreatedEvent.Details DETAILS =
+        new LeadCreatedEvent.Details(java.time.LocalDate.of(2027, 6, 12), "WEDDING", null);
+
     private void publishLead(Tenant tenant, LeadCreatedEvent.Origin origin, CustomerLanguage language) {
         UUID leadId = UUID.randomUUID();
         LeadCreatedEvent event = origin == LeadCreatedEvent.Origin.PUBLIC_FORM
             ? LeadCreatedEvent.fromPublicForm(this, leadId, tenant.getId(), "Emma Clarke", CUSTOMER, "MED",
-                language, tenant.getOwnerEmail())
+                DETAILS, language, tenant.getOwnerEmail(), CustomerLanguage.DE)
             : LeadCreatedEvent.enteredByStudio(this, leadId, tenant.getId(), "Emma Clarke", CUSTOMER, "MED",
-                language, tenant.getOwnerEmail());
+                DETAILS, language, tenant.getOwnerEmail(), CustomerLanguage.DE);
         TenantContext.setTenant(tenant.getId().toString());
         try {
             new TransactionTemplate(txManager).executeWithoutResult(status -> events.publishEvent(event));

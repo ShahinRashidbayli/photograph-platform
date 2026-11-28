@@ -110,7 +110,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
 
         ResponseEntity<String> registration = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Shared Client", SHARED_CLIENT, TEST_PASSWORD,
-                "shared-studio", "PHOTOGRAPHER", "STARTER"),
+                "shared-studio", "PHOTOGRAPHER", "STARTER", null),
             String.class);
 
         assertThat(registration.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -124,7 +124,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
 
         ResponseEntity<String> second = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Impostor", "anna@example.test", TEST_PASSWORD,
-                "other-studio", "PHOTOGRAPHER", "STARTER"),
+                "other-studio", "PHOTOGRAPHER", "STARTER", null),
             String.class);
 
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -135,7 +135,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
     private void registerPhotographer(String email, String subdomain) {
         ResponseEntity<AuthResponse> resp = rest.postForEntity("/api/auth/register",
             new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain,
-                "PHOTOGRAPHER", "STARTER"),
+                "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
@@ -158,7 +158,7 @@ class SharedEmailAcrossTenantsIT extends IntegrationTestBase {
     private void requestLoginCode(String email, String subdomain) {
         ResponseEntity<Void> resp = rest.postForEntity(
             "/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest(email, subdomain, "Client"),
+            new CustomerMagicLinkRequest(email, subdomain, "Client", null),
             Void.class);
         assertThat(resp.getStatusCode())
             .as("requesting a sign-in code should create the customer account")

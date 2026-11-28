@@ -346,7 +346,8 @@ public class ContractService {
                 contract.getBookingId(),
                 contract.getTitle(),
                 contract.getSignerName(),
-                owner.getEmail()
+                owner.getEmail(),
+                owner.getLanguage()
             )));
 
         return ContractResponse.from(contract);

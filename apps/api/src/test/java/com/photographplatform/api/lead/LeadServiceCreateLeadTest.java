@@ -81,6 +81,30 @@ class LeadServiceCreateLeadTest {
     }
 
     @Test
+    void aPublicLeadsAlertIsInTheOwnersLanguageAndCarriesTheDetails() {
+        Tenant tenant = new Tenant("anna-foto", "anna@example.test");
+        User owner = mock(User.class);
+        when(owner.getLanguage()).thenReturn(CustomerLanguage.EN);
+        when(userRepository.findByTenantIdAndEmail(tenant.getId(), "anna@example.test"))
+            .thenReturn(Optional.of(owner));
+
+        service.createLead(withLanguage("de"), tenant, "203.0.113.7");
+
+        LeadCreatedEvent event = published();
+        assertThat(event.getLanguage()).isEqualTo(CustomerLanguage.DE);
+        assertThat(event.getPhotographerLanguage()).isEqualTo(CustomerLanguage.EN);
+        assertThat(event.getEventDate()).isEqualTo(LocalDate.of(2027, 6, 12));
+        assertThat(event.getEventType()).isEqualTo("FAMILY");
+    }
+
+    @Test
+    void anOwnerAddressWithoutAnAccountGetsTheAlertInGerman() {
+        service.createLead(REQUEST, new Tenant("anna-foto", "anna@example.test"), "203.0.113.7");
+
+        assertThat(published().getPhotographerLanguage()).isEqualTo(CustomerLanguage.DE);
+    }
+
+    @Test
     void aPublicLeadWithoutALanguageIsGerman() {
         service.createLead(REQUEST, new Tenant("anna-foto", "anna@example.test"), "203.0.113.7");
 
@@ -121,6 +145,7 @@ class LeadServiceCreateLeadTest {
         User actor = mock(User.class);
         when(actor.getTenantId()).thenReturn(UUID.randomUUID());
         when(actor.getEmail()).thenReturn("anna@example.test");
+        when(actor.getLanguage()).thenReturn(CustomerLanguage.EN);
         when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(actorId.toString(), null));

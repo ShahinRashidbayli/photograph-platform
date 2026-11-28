@@ -20,6 +20,11 @@ public record CustomerMagicLinkRequest(
     @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
         message = "subdomain must be 3-63 chars, start and end with alphanumeric, hyphens allowed in between")
     String subdomain,
-    @Size(max = 200) String fullName
+    @Size(max = 200) String fullName,
+    // Optional: the sign-in page's UI language, which the code email is written
+    // in. Absent is German. Not stored: a Customer's language lives on their
+    // leads, requests and bookings, and an address may be several Customers.
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {
 }

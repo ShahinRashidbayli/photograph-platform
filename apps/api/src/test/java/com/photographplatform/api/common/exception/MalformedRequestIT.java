@@ -50,7 +50,7 @@ class MalformedRequestIT extends IntegrationTestBase {
     void setup() {
         mockRedisNoLock();
         ResponseEntity<AuthResponse> registered = rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Owner", EMAIL, TEST_PASSWORD, SUBDOMAIN, "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Owner", EMAIL, TEST_PASSWORD, SUBDOMAIN, "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         assertThat(registered.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }

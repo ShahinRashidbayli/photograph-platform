@@ -62,7 +62,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         // Step 1 — request a login code
         ResponseEntity<Void> reqResp = rest.postForEntity(
             "/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("maria@example.com", "anna-foto", "Maria K."),
+            new CustomerMagicLinkRequest("maria@example.com", "anna-foto", "Maria K.", null),
             Void.class
         );
         assertThat(reqResp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
@@ -103,7 +103,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
     void usedCodeCannotBeReplayed() {
         registerPhotographer("bob@test.com", "bob-foto");
         rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("alice@example.com", "bob-foto", null), Void.class);
+            new CustomerMagicLinkRequest("alice@example.com", "bob-foto", null, null), Void.class);
         String code = extractLoginCode();
 
         ResponseEntity<AuthResponse> first = rest.postForEntity(
@@ -124,12 +124,12 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         registerPhotographer("carol@test.com", "carol-foto");
 
         rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("dave@example.com", "carol-foto", null), Void.class);
+            new CustomerMagicLinkRequest("dave@example.com", "carol-foto", null, null), Void.class);
         String firstCode = extractLoginCode();
         reset(emailService);
 
         rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("dave@example.com", "carol-foto", null), Void.class);
+            new CustomerMagicLinkRequest("dave@example.com", "carol-foto", null, null), Void.class);
         String secondCode = extractLoginCode();
 
         // Resending must not leave two live codes — that would double an
@@ -151,7 +151,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
     void wrongCodeReturns401() {
         registerPhotographer("frank@test.com", "frank-foto");
         rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("guest@example.com", "frank-foto", null), Void.class);
+            new CustomerMagicLinkRequest("guest@example.com", "frank-foto", null, null), Void.class);
         String code = extractLoginCode();
 
         ResponseEntity<String> resp = rest.postForEntity(
@@ -185,7 +185,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         // happy path, but no email is sent.
         ResponseEntity<Void> resp = rest.postForEntity(
             "/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("ghost@example.com", "no-such-photographer", null),
+            new CustomerMagicLinkRequest("ghost@example.com", "no-such-photographer", null, null),
             Void.class
         );
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
@@ -199,7 +199,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         // Photographer's own email on their own subdomain — must NOT issue a code,
         // or passwordless login becomes a way around password auth.
         rest.postForEntity("/api/auth/customer/login-code/request",
-            new CustomerMagicLinkRequest("eve@test.com", "eve-foto", null), Void.class);
+            new CustomerMagicLinkRequest("eve@test.com", "eve-foto", null, null), Void.class);
         // Only sign-in mails count: Eve's own verification mail from
         // registration is still queued, and goes out with this drain.
         deliverQueuedEmail();
@@ -211,7 +211,7 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
 
     private void registerPhotographer(String email, String subdomain) {
         rest.postForEntity("/api/auth/register",
-            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER"),
+            new RegisterRequest("Owner", email, TEST_PASSWORD, subdomain, "PHOTOGRAPHER", "STARTER", null),
             AuthResponse.class);
         // Photographer registration also triggers a verification email — flush so
         // extractLoginCode() picks up only the login-code mail.
@@ -225,7 +225,8 @@ class CustomerAuthControllerIT extends IntegrationTestBase {
         ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
         verify(emailService, atLeastOnce()).deliver(captor.capture());
         for (EmailMessage msg : captor.getAllValues()) {
-            if (!msg.subject().startsWith("Your sign-in code")) {
+            // German: the request sends no language, and German is the default.
+            if (!msg.subject().startsWith("Ihr Anmeldecode")) {
                 continue;
             }
             Matcher m = CODE_IN_SUBJECT.matcher(msg.subject());

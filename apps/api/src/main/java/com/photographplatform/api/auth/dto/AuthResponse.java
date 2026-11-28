@@ -14,7 +14,9 @@ public record AuthResponse(
     String role,
     boolean emailVerified,
     TenantInfo tenant,
-    String avatarUrl
+    String avatarUrl,
+    /** As {@link MeResponse#language()}. */
+    String language
 ) {
     public record TenantInfo(String subdomain, String plan) {
     }

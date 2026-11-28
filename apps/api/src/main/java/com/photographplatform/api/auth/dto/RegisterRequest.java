@@ -33,6 +33,13 @@ public record RegisterRequest(
      */
     @Pattern(regexp = "STARTER|PRO|STUDIO",
         message = "plan must be STARTER, PRO or STUDIO")
-    String plan
+    String plan,
+
+    /**
+     * The sign-up page's UI language. Optional: absent is German. The
+     * verification email goes out at once, so it is stored before then.
+     */
+    @Pattern(regexp = "de|en", message = "Language must be de or en")
+    String language
 ) {
 }

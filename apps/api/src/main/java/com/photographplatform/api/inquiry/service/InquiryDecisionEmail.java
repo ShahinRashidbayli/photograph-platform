@@ -1,5 +1,6 @@
 package com.photographplatform.api.inquiry.service;
 
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.util.HtmlEscape;
 import com.photographplatform.api.notification.dto.EmailType;
 import com.photographplatform.api.notification.email.EmailRenderer;
@@ -54,7 +55,9 @@ public class InquiryDecisionEmail implements EmailRenderer<InquiryDecisionEmail.
                 : "An update on your booking request.",
             EmailTemplate.heading(subject)
                 + EmailTemplate.paragraph("Hi " + HtmlEscape.escape(params.customerName()) + ",")
-                + EmailTemplate.paragraph(message));
+                + EmailTemplate.paragraph(message),
+            // Its copy is English; Request decision (messaging) replaces it.
+            CustomerLanguage.EN);
         return new RenderedEmail(subject, html);
     }
 }

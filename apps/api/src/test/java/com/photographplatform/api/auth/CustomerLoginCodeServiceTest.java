@@ -2,6 +2,7 @@ package com.photographplatform.api.auth;
 
 import com.photographplatform.api.audit.service.AuditService;
 import com.photographplatform.api.auth.domain.LoginCode;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.auth.domain.User;
 import com.photographplatform.api.auth.repository.LoginCodeRepository;
@@ -112,7 +113,7 @@ class CustomerLoginCodeServiceTest {
     @Test
     @DisplayName("the emailed code is always exactly six digits, zero-padded")
     void codeIsSixDigits() {
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
 
         // A code shorter than six digits would mean a small random value was
         // rendered without padding, shrinking the search space for everyone.
@@ -122,7 +123,7 @@ class CustomerLoginCodeServiceTest {
     @Test
     @DisplayName("only the salted hash is stored — never the code itself")
     void storesSaltedHashNotCode() {
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
 
         String code = sentCode();
         ArgumentCaptor<LoginCode> saved = ArgumentCaptor.forClass(LoginCode.class);
@@ -139,7 +140,7 @@ class CustomerLoginCodeServiceTest {
     @Test
     @DisplayName("issuing a code invalidates any earlier one")
     void issuingInvalidatesEarlierCodes() {
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
 
         // Otherwise "Resend" would leave two live codes and double the odds for
         // an attacker each time an impatient customer pressed it.
@@ -151,7 +152,7 @@ class CustomerLoginCodeServiceTest {
     void photographerGetsNoCode() {
         customer.setRole("PHOTOGRAPHER");
 
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
 
         // Passwordless login must never become a way around password auth.
         verify(emailService, never()).queue(any());
@@ -263,7 +264,7 @@ class CustomerLoginCodeServiceTest {
         // the point here is that the request never gets that far. An unknown
         // subdomain resolves to no tenant, so verification stops before any
         // code is consulted — which is exactly the property under test.
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
         String code = sentCode();
 
         // Codes are scoped per (tenant, email). Without this, one photographer's
@@ -298,7 +299,7 @@ class CustomerLoginCodeServiceTest {
 
     /** Issues a real code and wires the lookup to return the token it created. */
     private String issueCode() {
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
         ArgumentCaptor<LoginCode> saved = ArgumentCaptor.forClass(LoginCode.class);
         verify(tokenRepository).save(saved.capture());
         when(tokenRepository.findFirstByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(USER_ID))
@@ -365,7 +366,7 @@ class CustomerLoginCodeServiceTest {
         when(tokenRepository.countByUserIdAndCreatedAtAfter(eq(USER_ID), any()))
             .thenReturn(5L);
 
-        assertThatThrownBy(() -> service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP))
+        assertThatThrownBy(() -> service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP))
             .isInstanceOf(TooManyRequestsException.class);
 
         verify(tokenRepository, never()).save(any(LoginCode.class));
@@ -379,7 +380,7 @@ class CustomerLoginCodeServiceTest {
         when(tokenRepository.countByUserIdAndCreatedAtAfter(eq(USER_ID), any()))
             .thenReturn(4L);
 
-        service.requestLoginCode(SUBDOMAIN, EMAIL, null, IP);
+        service.requestLoginCode(SUBDOMAIN, EMAIL, null, CustomerLanguage.DE, IP);
 
         verify(tokenRepository).save(any(LoginCode.class));
     }

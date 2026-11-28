@@ -304,7 +304,7 @@ public class LeadService {
         // lead does not need an alert about it (#103).
         eventPublisher.publishEvent(
             LeadCreatedEvent.enteredByStudio(this, saved.getId(), tenantId, req.name(), req.email(), score,
-                saved.getLanguage(), actor.getEmail())
+                details(saved), saved.getLanguage(), actor.getEmail(), actor.getLanguage())
         );
 
         return mapper.toResponse(saved);
@@ -335,10 +335,25 @@ public class LeadService {
 
         eventPublisher.publishEvent(
             LeadCreatedEvent.fromPublicForm(this, saved.getId(), tenant.getId(), req.name(), req.email(), score,
-                saved.getLanguage(), tenant.getOwnerEmail())
+                details(saved), saved.getLanguage(), tenant.getOwnerEmail(), recipientLanguage(tenant))
         );
 
         return mapper.toResponse(saved);
+    }
+
+    private static LeadCreatedEvent.Details details(Lead lead) {
+        return new LeadCreatedEvent.Details(lead.getEventDate(), lead.getEventType(), lead.getMessage());
+    }
+
+    /**
+     * The language of whoever the "New lead" alert goes to: the account behind
+     * the studio's owner address. A studio whose owner address has no account
+     * (none should) gets German.
+     */
+    private CustomerLanguage recipientLanguage(Tenant tenant) {
+        return userRepository.findByTenantIdAndEmail(tenant.getId(), tenant.getOwnerEmail())
+            .map(User::getLanguage)
+            .orElse(CustomerLanguage.DEFAULT);
     }
 
     /**

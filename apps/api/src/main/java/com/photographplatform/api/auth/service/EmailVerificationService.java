@@ -149,11 +149,9 @@ public class EmailVerificationService {
     }
 
     private void sendVerificationEmail(User user, String rawToken) {
-        String name = user.getFullName() != null && !user.getFullName().isBlank()
-            ? user.getFullName() : "there";
         emailService.queue(new OutgoingEmail(
             EmailVerificationEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
-            new EmailVerificationEmail.Params(name, rawToken),
+            new EmailVerificationEmail.Params(user.getFullName(), rawToken, user.getLanguage()),
             null, OffsetDateTime.now(clock).plus(TOKEN_TTL)));
     }
 

@@ -10,6 +10,7 @@ import com.photographplatform.api.auth.repository.LoginCodeRepository;
 import com.photographplatform.api.auth.repository.RefreshTokenRepository;
 import com.photographplatform.api.auth.repository.UserRepository;
 import com.photographplatform.api.booking.service.BookingQueryService;
+import com.photographplatform.api.common.domain.CustomerLanguage;
 import com.photographplatform.api.common.exception.UnauthorizedException;
 import com.photographplatform.api.common.exception.TooManyRequestsException;
 import com.photographplatform.api.common.security.RateLimiter;
@@ -174,7 +175,8 @@ public class CustomerAuthService {
      * avoid an account-existence oracle. Failures are logged.
      */
     @Transactional
-    public void requestLoginCode(String subdomain, String email, String fullName, String ipAddress) {
+    public void requestLoginCode(String subdomain, String email, String fullName, CustomerLanguage language,
+                                 String ipAddress) {
         if (subdomain == null || subdomain.isBlank() || email == null || email.isBlank()) {
             return;
         }
@@ -229,7 +231,7 @@ public class CustomerAuthService {
                 "Too many login attempts. Please try again later.", REQUEST_WINDOW);
         }
 
-        issueAndSendCode(user);
+        issueAndSendCode(user, language);
 
         auditService.logQuietly("CUSTOMER_LOGIN_CODE_REQUESTED", "USER", user.getId(),
             tenant.getId(), user.getId(), ipAddress);
@@ -340,7 +342,8 @@ public class CustomerAuthService {
      * that mailbox is the only one who learns it.
      */
     @Transactional
-    public void requestLoginCodeByEmail(String email, String fullName, String ipAddress) {
+    public void requestLoginCodeByEmail(String email, String fullName, CustomerLanguage language,
+                                        String ipAddress) {
         if (email == null || email.isBlank()) {
             return;
         }
@@ -355,7 +358,7 @@ public class CustomerAuthService {
 
         List<User> customers = customersKnowing(normalizedEmail, fullName);
         if (customers.isEmpty()) {
-            sendNoStudioEmail(normalizedEmail);
+            sendNoStudioEmail(normalizedEmail, language);
             return;
         }
 
@@ -386,7 +389,7 @@ public class CustomerAuthService {
             throw new TooManyRequestsException(
                 "Too many login attempts. Please try again later.", REQUEST_WINDOW);
         }
-        sendStudioCodesEmail(normalizedEmail, codes);
+        sendStudioCodesEmail(normalizedEmail, codes, language);
     }
 
     /**
@@ -535,7 +538,8 @@ public class CustomerAuthService {
             user.getRole(),
             user.isEmailVerified(),
             new AuthResponse.TenantInfo(tenant.getSubdomain(), tenant.getPlan()),
-            avatarUrlResolver.resolve(user.getAvatarUrl())
+            avatarUrlResolver.resolve(user.getAvatarUrl()),
+            user.getLanguage().code()
         );
         return new AuthResult(response, accessToken, rawRefresh);
     }
@@ -545,10 +549,10 @@ public class CustomerAuthService {
      * emails it. Invalidating first means Resend narrows the attack surface
      * rather than widening it: there is never more than one live code per user.
      */
-    private void issueAndSendCode(User user) {
+    private void issueAndSendCode(User user, CustomerLanguage language) {
         String code = generateCode();
         issueCode(user, code);
-        sendCodeEmail(user, code);
+        sendCodeEmail(user, code, language);
     }
 
     /** Replaces whatever code the user had with this one. */
@@ -573,11 +577,11 @@ public class CustomerAuthService {
     }
 
     /** One email for every studio that knows the address; see {@link StudioSignInCodesEmail}. */
-    private void sendStudioCodesEmail(String email, Map<Tenant, String> codes) {
+    private void sendStudioCodesEmail(String email, Map<Tenant, String> codes, CustomerLanguage language) {
         List<StudioSignInCodesEmail.StudioCode> entries = codes.entrySet().stream()
             .map(e -> new StudioSignInCodesEmail.StudioCode(studioName(e.getKey()), e.getValue()))
             .toList();
-        queueStudioCodesEmail(email, entries, codes.keySet().iterator().next().getId());
+        queueStudioCodesEmail(email, entries, codes.keySet().iterator().next().getId(), language);
     }
 
     /**
@@ -586,17 +590,17 @@ public class CustomerAuthService {
      * tells nobody else whether it is anyone's client. No tenant: there is
      * none to name.
      */
-    private void sendNoStudioEmail(String email) {
-        queueStudioCodesEmail(email, List.of(), null);
+    private void sendNoStudioEmail(String email, CustomerLanguage language) {
+        queueStudioCodesEmail(email, List.of(), null, language);
     }
 
     private void queueStudioCodesEmail(
-        String email, List<StudioSignInCodesEmail.StudioCode> codes, UUID tenantId) {
+        String email, List<StudioSignInCodesEmail.StudioCode> codes, UUID tenantId, CustomerLanguage language) {
         // Expires with the codes: one that arrives after it stopped working
         // only teaches the user that codes do not work.
         emailService.queue(new OutgoingEmail(
             StudioSignInCodesEmail.TEMPLATE, email, tenantId,
-            new StudioSignInCodesEmail.Params(codes, CODE_TTL.toMinutes()),
+            new StudioSignInCodesEmail.Params(codes, CODE_TTL.toMinutes(), language),
             null, OffsetDateTime.now(clock).plus(CODE_TTL)));
     }
 
@@ -616,12 +620,10 @@ public class CustomerAuthService {
         return TokenUtils.sha256(userId + ":" + code);
     }
 
-    private void sendCodeEmail(User user, String code) {
-        String greetingName = user.getFullName() != null && !user.getFullName().isBlank()
-            ? user.getFullName() : "there";
+    private void sendCodeEmail(User user, String code, CustomerLanguage language) {
         emailService.queue(new OutgoingEmail(
             SignInCodeEmail.TEMPLATE, user.getEmail(), user.getTenantId(),
-            new SignInCodeEmail.Params(greetingName, code, CODE_TTL.toMinutes()),
+            new SignInCodeEmail.Params(user.getFullName(), code, CODE_TTL.toMinutes(), language),
             null, OffsetDateTime.now(clock).plus(CODE_TTL)));
     }
 

@@ -66,15 +66,22 @@ class EmailRenderingTest {
 
     static Stream<Object[]> everyEmail() {
         return Stream.of(
-            new Object[] {new SignInCodeEmail(), new SignInCodeEmail.Params("Maria", "004182", 10)},
+            new Object[] {new SignInCodeEmail(),
+                new SignInCodeEmail.Params("Maria", "004182", 10, CustomerLanguage.DE)},
+            new Object[] {new SignInCodeEmail(), new SignInCodeEmail.Params(null, "004182", 10, CustomerLanguage.EN)},
             new Object[] {new StudioSignInCodesEmail(), new StudioSignInCodesEmail.Params(List.of(
                 new StudioSignInCodesEmail.StudioCode("Studio A", "111111"),
-                new StudioSignInCodesEmail.StudioCode("Studio B", "222222")), 10)},
-            new Object[] {new StudioSignInCodesEmail(), new StudioSignInCodesEmail.Params(List.of(), 10)},
-            new Object[] {withBaseUrl(new PasswordResetEmail()), new PasswordResetEmail.Params("Anna", "tok")},
-            new Object[] {withBaseUrl(new EmailVerificationEmail()), new EmailVerificationEmail.Params("Anna", "tok")},
+                new StudioSignInCodesEmail.StudioCode("Studio B", "222222")), 10, CustomerLanguage.DE)},
+            new Object[] {new StudioSignInCodesEmail(),
+                new StudioSignInCodesEmail.Params(List.of(), 10, CustomerLanguage.EN)},
+            new Object[] {withBaseUrl(new PasswordResetEmail()),
+                new PasswordResetEmail.Params("Anna", "tok", CustomerLanguage.DE)},
+            new Object[] {withBaseUrl(new PasswordResetEmail()),
+                new PasswordResetEmail.Params(null, "tok", CustomerLanguage.EN)},
+            new Object[] {withBaseUrl(new EmailVerificationEmail()),
+                new EmailVerificationEmail.Params("Anna", "tok", CustomerLanguage.EN)},
             new Object[] {withBaseUrl(new StaffInvitationEmail()),
-                new StaffInvitationEmail.Params("Studio A", "Anna", "tok")},
+                new StaffInvitationEmail.Params("Studio A", "Anna", "tok", CustomerLanguage.DE)},
             new Object[] {new RequestDecisionMessage(null, null, null), new RequestDecisionMessage.Params(
                 new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
                 "Maria", true, "https://app.fotolio.de/customer/auth/login", "Bis bald!")},
@@ -82,7 +89,11 @@ class EmailRenderingTest {
                 new StudioIdentity(null, null, false, null, null), CustomerLanguage.EN, "Maria", false, null,
                 null)},
             new Object[] {withBaseUrl(new LeadNotificationService(null)),
-                new LeadNotificationService.Params(UUID.randomUUID(), "HIGH", "Maria", "maria@example.test")},
+                new LeadNotificationService.Params(UUID.randomUUID(), "HIGH", "Maria", "maria@example.test",
+                    LocalDate.of(2027, 6, 12), "WEDDING", "Hallo!\nWir heiraten.", CustomerLanguage.DE)},
+            new Object[] {withBaseUrl(new LeadNotificationService(null)),
+                new LeadNotificationService.Params(UUID.randomUUID(), "LOW", "Maria", "maria@example.test",
+                    null, null, null, CustomerLanguage.EN)},
             new Object[] {new AutoReplyService(), new AutoReplyService.Params("Maria", "Studio Lichtblick")},
             new Object[] {new AutoReplyService(), new AutoReplyService.Params("Maria", null)},
             new Object[] {new EnquiryReceivedMessage(null, null, null, "https://app.fotolio.de"),
@@ -95,9 +106,10 @@ class EmailRenderingTest {
                     CustomerLanguage.DE, null, null)},
             new Object[] {withBaseUrl(new InquiryNotificationService(null)),
                 new InquiryNotificationService.Params(UUID.randomUUID(), "LOW", "Maria", "maria@example.test",
-                    "HOCHZEIT", "OVER_2000", LocalDate.of(2027, 6, 12), "Berlin")},
+                    "HOCHZEIT", "OVER_2000", LocalDate.of(2027, 6, 12), "Berlin", CustomerLanguage.EN)},
             new Object[] {withBaseUrl(new ContractNotificationService(null)),
-                new ContractNotificationService.Params(UUID.randomUUID(), UUID.randomUUID(), "Vertrag", "Maria")},
+                new ContractNotificationService.Params(UUID.randomUUID(), UUID.randomUUID(), "Vertrag", "Maria",
+                    CustomerLanguage.DE)},
             new Object[] {new ContractToSignMessage(null, null, null), new ContractToSignMessage.Params(
                 new StudioIdentity("Studio A", "hallo@studio-a.test", false, null, null), CustomerLanguage.DE,
                 "Maria", "https://app.fotolio.de/customer/auth/login", "Bis Freitag <b>bitte</b>")},
@@ -157,7 +169,7 @@ class EmailRenderingTest {
         OffsetDateTime expires = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(10);
 
         service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
-            new SignInCodeEmail.Params("Maria", "123456", 10), null, expires));
+            new SignInCodeEmail.Params("Maria", "123456", 10, CustomerLanguage.EN), null, expires));
 
         ArgumentCaptor<OutboxEntry> entry = ArgumentCaptor.forClass(OutboxEntry.class);
         verify(outbox).enqueue(entry.capture());
@@ -183,7 +195,7 @@ class EmailRenderingTest {
         EmailService service = new EmailService(sender, outbox, renderers, JSON);
 
         service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
-            new SignInCodeEmail.Params("Maria", "123456", 10), null, null,
+            new SignInCodeEmail.Params("Maria", "123456", 10, CustomerLanguage.EN), null, null,
             "Atelier Müller", "hallo@atelier-mueller.test"));
 
         EmailMessage sent = deliverQueued(outbox, sender, service, renderers);
@@ -199,7 +211,7 @@ class EmailRenderingTest {
         EmailService service = new EmailService(sender, outbox, renderers, JSON);
 
         service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
-            new SignInCodeEmail.Params("Maria", "123456", 10), null, null));
+            new SignInCodeEmail.Params("Maria", "123456", 10, CustomerLanguage.EN), null, null));
 
         EmailMessage sent = deliverQueued(outbox, sender, service, renderers);
         assertThat(sent.fromName()).isNull();
@@ -214,7 +226,8 @@ class EmailRenderingTest {
         EmailService service = new EmailService(sender, outbox, renderers, JSON);
 
         service.queue(new OutgoingEmail(SignInCodeEmail.TEMPLATE, "maria@example.test", TENANT,
-            new SignInCodeEmail.Params("Maria", "123456", 10), null, null, "Atelier Müller", "  "));
+            new SignInCodeEmail.Params("Maria", "123456", 10, CustomerLanguage.EN), null, null,
+            "Atelier Müller", "  "));
 
         assertThat(deliverQueued(outbox, sender, service, renderers).replyTo()).isNull();
         assertThat(new EmailMessage("a@example.test", "s", "b", EmailType.LOGIN_CODE, TENANT, null, "")
